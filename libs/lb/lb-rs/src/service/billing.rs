@@ -8,7 +8,7 @@ use crate::model::api::{
     UpgradeAccountAppStoreRequest, UpgradeAccountGooglePlayError, UpgradeAccountGooglePlayRequest,
     UpgradeAccountStripeError, UpgradeAccountStripeRequest,
 };
-use crate::model::errors::{LbErrKind, LbResult, core_err_unexpected};
+use crate::model::errors::{LbErrKind, LbResult, Unexpected, core_err_unexpected};
 
 // todo: when core is responsible for syncing, these should probably trigger syncs and status updates
 impl<S: Server, D: LocalDocuments> Lb<S, D> {
@@ -49,6 +49,8 @@ impl<S: Server, D: LocalDocuments> Lb<S, D> {
                 _ => core_err_unexpected(err),
             })?;
 
+        self.refresh_usage().await.log_and_ignore();
+
         Ok(())
     }
 
@@ -85,6 +87,8 @@ impl<S: Server, D: LocalDocuments> Lb<S, D> {
                 ApiError::ClientUpdateRequired => LbErrKind::ClientUpdateRequired,
                 _ => core_err_unexpected(err),
             })?;
+
+        self.refresh_usage().await.log_and_ignore();
 
         Ok(())
     }
@@ -123,6 +127,8 @@ impl<S: Server, D: LocalDocuments> Lb<S, D> {
                 _ => core_err_unexpected(err),
             })?;
 
+        self.refresh_usage().await.log_and_ignore();
+
         Ok(())
     }
 
@@ -154,6 +160,8 @@ impl<S: Server, D: LocalDocuments> Lb<S, D> {
                 ApiError::ClientUpdateRequired => LbErrKind::ClientUpdateRequired,
                 _ => core_err_unexpected(err),
             })?;
+
+        self.refresh_usage().await.log_and_ignore();
 
         Ok(())
     }

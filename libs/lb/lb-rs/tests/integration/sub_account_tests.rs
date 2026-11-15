@@ -174,7 +174,7 @@ async fn a_grant_is_a_share() {
     parent.sync().await.unwrap();
 
     assert_eq!(parent.read_document(document.id, false).await.unwrap(), b"from the sub-account");
-    let own_usage = sub_account.get_usage().await.unwrap().server_usage.exact;
+    let own_usage = sub_account.get_usage().await.unwrap().synced.exact;
     assert_eq!(own_usage, lb_rs::model::api::METADATA_FEE);
 }
 
@@ -187,11 +187,11 @@ async fn usage_counts_against_the_parent() {
     write_random(&sub_account, "mine.md", 1000).await;
     sub_account.sync().await.unwrap();
 
-    let parent_usage = parent.get_usage().await.unwrap();
-    let sub_usage = sub_account.get_usage().await.unwrap();
-    assert_eq!(parent_usage.data_cap.exact, PREMIUM_TIER_USAGE_SIZE);
-    assert_eq!(sub_usage.data_cap.exact, PREMIUM_TIER_USAGE_SIZE);
-    assert_eq!(parent.list_sub_accounts().await.unwrap()[0].usage, sub_usage.server_usage.exact);
+    let parent_usage = parent.refresh_usage().await.unwrap();
+    let sub_usage = sub_account.refresh_usage().await.unwrap();
+    assert_eq!(parent_usage.data_cap.unwrap().exact, PREMIUM_TIER_USAGE_SIZE);
+    assert_eq!(sub_usage.data_cap.unwrap().exact, PREMIUM_TIER_USAGE_SIZE);
+    assert_eq!(parent.list_sub_accounts().await.unwrap()[0].usage, sub_usage.synced.exact);
 }
 
 #[tokio::test]

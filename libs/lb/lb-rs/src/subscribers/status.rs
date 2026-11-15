@@ -19,14 +19,25 @@ use crate::{Lb, tokio_spawn};
 #[derive(Clone, Default)]
 pub struct StatusUpdater {
     current_status: Arc<RwLock<Status>>,
-    space_updated: Arc<Mutex<SpaceUpdater>>,
+    usage: Arc<Mutex<UsageUpdater>>,
 }
 
-/// rate limit get_usage calls to once every 60 seconds or so
-pub struct SpaceUpdater {
-    initialized: bool,
-    spawned: bool,
-    last_computed: Instant,
+#[derive(Default)]
+pub struct UsageUpdater {
+    data_cap: Option<u64>,
+    cap_fetch_spawned: bool,
+    cap_fetched_at: Option<Instant>,
+    recompute_spawned: bool,
+}
+
+impl StatusUpdater {
+    pub(crate) async fn data_cap(&self) -> Option<u64> {
+        self.usage.lock().await.data_cap
+    }
+
+    pub(crate) async fn set_data_cap(&self, data_cap: u64) {
+        self.usage.lock().await.data_cap = Some(data_cap);
+    }
 }
 
 /// lb-rs may be used by multiple disconnected components which may
@@ -68,7 +79,7 @@ pub struct Status {
 
     /// a mix of human readable and precise data for
     /// used, and available space
-    pub space_used: Option<UsageMetrics>,
+    pub usage: UsageMetrics,
 
     /// if there is no pending work this will have a human readable
     /// description of when we last synced successfully
@@ -132,8 +143,12 @@ impl<S: Server, D: LocalDocuments> Lb<S, D> {
 
     pub async fn set_initial_state(&self) -> LbResult<()> {
         if self.get_account().is_ok() {
-            self.spawn_compute_usage().await;
+            self.spawn_refresh_cap().await;
+            let usage = self.get_usage().await.log_and_ignore();
             let mut current = self.status.current_status.write().await;
+            if let Some(usage) = usage {
+                current.usage = usage;
+            }
             current.dirty_locally = self.local_changes().await;
             if current.dirty_locally.is_empty() {
                 current.sync_status = self.get_last_synced_human().await.log_and_ignore();
@@ -209,20 +224,51 @@ impl<S: Server, D: LocalDocuments> Lb<S, D> {
                     None
                 };
                 self.set_status(current).await?;
+                self.spawn_recompute_usage().await;
             }
             Event::MetadataChanged(_) | Event::DocumentWritten(_, _) => {
                 self.compute_dirty_locally(current).await?;
+                self.spawn_recompute_usage().await;
             }
-            Event::Sync(s) => self.update_sync(s, current).await?,
+            Event::Sync(s) => {
+                let finished = matches!(s, SyncIncrement::SyncFinished(_));
+                self.update_sync(s, current).await?;
+                if finished {
+                    self.recompute_usage().await;
+                }
+            }
+            Event::UserSignedIn => {
+                self.recompute_usage().await;
+                self.spawn_refresh_cap().await;
+            }
             _ => {}
         }
         Ok(())
     }
 
-    async fn set_status(&self, status: Status) -> LbResult<()> {
-        *self.status.current_status.write().await = status;
+    async fn set_status(&self, mut status: Status) -> LbResult<()> {
+        let mut current = self.status.current_status.write().await;
+        status.usage = current.usage.clone();
+        *current = status;
+        drop(current);
         self.events.status_updated();
         Ok(())
+    }
+
+    pub(crate) async fn set_status_usage(&self, usage: UsageMetrics) {
+        let mut current = self.status.current_status.write().await;
+        if current.usage == usage {
+            return;
+        }
+        current.usage = usage;
+        drop(current);
+        self.events.status_updated();
+    }
+
+    async fn recompute_usage(&self) {
+        if let Some(usage) = self.get_usage().await.log_and_ignore() {
+            self.set_status_usage(usage).await;
+        }
     }
 
     async fn compute_dirty_locally(&self, mut status: Status) -> LbResult<()> {
@@ -234,30 +280,41 @@ impl<S: Server, D: LocalDocuments> Lb<S, D> {
         Ok(())
     }
 
-    async fn spawn_compute_usage(&self) {
-        let mut lock = self.status.space_updated.lock().await;
-        if lock.spawned {
+    async fn spawn_recompute_usage(&self) {
+        let mut lock = self.status.usage.lock().await;
+        if lock.recompute_spawned {
             return;
         }
-        let initialized = lock.initialized;
-        lock.spawned = true;
-        lock.initialized = true;
-        let computed = lock.last_computed;
+        lock.recompute_spawned = true;
         drop(lock);
 
         let bg = self.clone();
         tokio_spawn!(async move {
-            if initialized && computed.elapsed() < web_time::Duration::from_secs(60) {
-                tokio::time::sleep(web_time::Duration::from_secs(60) - computed.elapsed()).await;
-            }
-            let usage = bg.get_usage().await.log_and_ignore();
-            let mut lock = bg.status.space_updated.lock().await;
-            lock.spawned = false;
-            lock.last_computed = Instant::now();
-            drop(lock);
+            tokio::time::sleep(web_time::Duration::from_millis(250)).await;
+            bg.status.usage.lock().await.recompute_spawned = false;
+            bg.recompute_usage().await;
+        });
+    }
 
-            bg.status.current_status.write().await.space_used = usage;
-            bg.events.status_updated();
+    async fn spawn_refresh_cap(&self) {
+        let mut lock = self.status.usage.lock().await;
+        if lock.cap_fetch_spawned {
+            return;
+        }
+        lock.cap_fetch_spawned = true;
+        let fetched_at = lock.cap_fetched_at;
+        drop(lock);
+
+        let bg = self.clone();
+        tokio_spawn!(async move {
+            if let Some(fetched_at) = fetched_at {
+                let wait = web_time::Duration::from_secs(60).saturating_sub(fetched_at.elapsed());
+                tokio::time::sleep(wait).await;
+            }
+            bg.refresh_usage().await.log_and_ignore();
+            let mut lock = bg.status.usage.lock().await;
+            lock.cap_fetch_spawned = false;
+            lock.cap_fetched_at = Some(Instant::now());
         });
     }
 
@@ -286,7 +343,7 @@ impl<S: Server, D: LocalDocuments> Lb<S, D> {
                 self.reset_sync_outcome(&mut status);
                 self.reset_in_flight_sync(&mut status);
 
-                self.spawn_compute_usage().await;
+                self.spawn_refresh_cap().await;
                 status.dirty_locally = self.local_changes().await;
                 if status.dirty_locally.is_empty() {
                     status.sync_status = self.get_last_synced_human().await.ok();
@@ -331,11 +388,5 @@ impl<S: Server, D: LocalDocuments> Lb<S, D> {
         status.offline = false;
         status.update_required = false;
         status.out_of_space = false;
-    }
-}
-
-impl Default for SpaceUpdater {
-    fn default() -> Self {
-        Self { spawned: false, last_computed: Instant::now(), initialized: false }
     }
 }

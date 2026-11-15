@@ -1,11 +1,54 @@
 use lb_rs::io::docs::DocumentStore;
-use lb_rs::model::api::{FREE_TIER_USAGE_SIZE, METADATA_FEE};
+use lb_rs::io::server::Server;
+use lb_rs::model::api::{FREE_TIER_USAGE_SIZE, GetUsageRequest, GetUsageResponse, METADATA_FEE};
 use lb_rs::model::errors::LbErrKind;
 use lb_rs::model::file::ShareMode;
 use lb_rs::model::file_like::FileLike;
 use lb_rs::model::file_metadata::FileType;
 use lb_rs::model::file_metadata::FileType::Folder;
+use std::time::Duration;
 use test_utils::*;
+use uuid::Uuid;
+
+async fn server_usage(core: &Lb) -> GetUsageResponse {
+    let account = core.get_account().unwrap();
+    Server::get_usage(&core.client, account, GetUsageRequest {})
+        .await
+        .unwrap()
+}
+
+async fn assert_synced_matches_server(core: &Lb) {
+    let server = server_usage(core).await;
+    let mut on_server: Vec<(Uuid, u64)> = server
+        .usages
+        .iter()
+        .map(|usage| (usage.file_id, usage.size_bytes))
+        .collect();
+    let mut synced: Vec<(Uuid, u64)> = core
+        .get_usage_breakdown()
+        .await
+        .unwrap()
+        .into_iter()
+        .filter(|entry| entry.synced > 0)
+        .map(|entry| (entry.id, entry.synced))
+        .collect();
+    on_server.sort();
+    synced.sort();
+
+    assert_eq!(synced, on_server);
+    assert_eq!(core.get_usage().await.unwrap().synced.exact, server.sum_server_usage());
+}
+
+async fn local_doc_size(core: &Lb, id: Uuid) -> u64 {
+    core.ro_tx()
+        .await
+        .db()
+        .local_metadata
+        .get(&id)
+        .unwrap()
+        .doc_size()
+        .unwrap() as u64
+}
 
 #[tokio::test]
 async fn report_usage() {
@@ -20,11 +63,15 @@ async fn report_usage() {
         .await
         .unwrap();
 
-    assert!(
-        core.get_usage().await.unwrap().usages.len() == 1,
+    let before = core.get_usage().await.unwrap();
+    assert_eq!(
+        before.synced.exact, METADATA_FEE,
         "Didn't account for the cost of root file metadata"
     );
-    assert_eq!(core.get_usage().await.unwrap().usages[0].size_bytes, METADATA_FEE);
+    assert_eq!(before.added.exact, METADATA_FEE + local_doc_size(&core, file.id).await);
+    assert_eq!(before.freed.exact, 0);
+    assert_eq!(before.local.exact, before.synced.exact + before.added.exact);
+    assert_eq!(server_usage(&core).await.sum_server_usage(), METADATA_FEE);
 
     core.sync().await.unwrap();
     let hmac = core
@@ -39,17 +86,13 @@ async fn report_usage() {
     let docs = &core.docs;
     let local_encrypted = docs.get(file.id, hmac.unwrap()).await.unwrap().value;
 
-    assert_eq!(core.get_usage().await.unwrap().usages.len(), 2);
-    assert_eq!(
-        core.get_usage()
-            .await
-            .unwrap()
-            .usages
-            .iter()
-            .map(|f| f.size_bytes)
-            .sum::<u64>(),
-        local_encrypted.len() as u64 + METADATA_FEE * 2
-    )
+    let after = core.get_usage().await.unwrap();
+    assert_eq!(after.synced.exact, local_encrypted.len() as u64 + METADATA_FEE * 2);
+    assert_eq!(after.synced.exact, before.local.exact);
+    assert_eq!(after.local.exact, after.synced.exact);
+    assert_eq!(after.added.exact, 0);
+    assert_eq!(core.get_usage_breakdown().await.unwrap().len(), 2);
+    assert_synced_matches_server(&core).await;
 }
 
 #[tokio::test]
@@ -66,19 +109,20 @@ async fn usage_go_back_down_after_delete() {
         .unwrap();
 
     core.sync().await.unwrap();
+    let synced = core.get_usage().await.unwrap();
     core.delete(&file.id).await.unwrap();
+
+    let deleted = core.get_usage().await.unwrap();
+    assert_eq!(deleted.synced, synced.synced);
+    assert_eq!(deleted.freed.exact, synced.synced.exact - METADATA_FEE);
+    assert_eq!(deleted.local.exact, METADATA_FEE);
+
     core.sync().await.unwrap();
 
-    assert_eq!(
-        core.get_usage()
-            .await
-            .unwrap()
-            .usages
-            .iter()
-            .map(|f| f.size_bytes)
-            .sum::<u64>(),
-        METADATA_FEE
-    );
+    let usage = core.get_usage().await.unwrap();
+    assert_eq!(usage.synced.exact, METADATA_FEE);
+    assert_eq!(usage.freed.exact, 0);
+    assert_synced_matches_server(&core).await;
 }
 
 #[tokio::test]
@@ -110,12 +154,25 @@ async fn usage_go_back_down_after_delete_folder() {
         .unwrap();
 
     core.sync().await.unwrap();
-    let usages = core.get_usage().await.unwrap();
-    assert_eq!(usages.usages.len(), 5);
-    core.delete(&folder.id).await.unwrap();
-    for usage in usages.usages {
-        assert_ne!(usage.size_bytes, 0);
+    let entries = core.get_usage_breakdown().await.unwrap();
+    assert_eq!(entries.len(), 5);
+    for entry in &entries {
+        assert_ne!(entry.synced, 0);
+        assert_eq!(entry.synced, entry.local);
     }
+
+    core.delete(&folder.id).await.unwrap();
+    let entries = core.get_usage_breakdown().await.unwrap();
+    let freed: Vec<Uuid> = entries
+        .iter()
+        .filter(|entry| entry.local == 0)
+        .map(|entry| entry.id)
+        .collect();
+    assert_eq!(freed.len(), 3);
+    assert!(freed.contains(&folder.id));
+    assert!(freed.contains(&file2.id));
+    assert!(freed.contains(&file3.id));
+
     core.sync().await.unwrap();
 
     let hmac = core
@@ -131,12 +188,9 @@ async fn usage_go_back_down_after_delete_folder() {
     let docs = &core.docs;
     docs.get(file.id, hmac.unwrap()).await.unwrap();
 
-    let usage = core
-        .get_usage()
-        .await
-        .unwrap_or_else(|err| panic!("{err:?}"));
-
-    assert_eq!(usage.usages.len(), 2);
+    assert_eq!(core.get_usage_breakdown().await.unwrap().len(), 2);
+    assert_eq!(server_usage(&core).await.usages.len(), 2);
+    assert_synced_matches_server(&core).await;
 }
 
 #[tokio::test]
@@ -147,24 +201,25 @@ async fn usage_new_files_have_no_size() {
         .await
         .unwrap();
 
-    assert!(
-        core.get_usage().await.unwrap().usages.len() == 1,
+    assert_eq!(
+        core.get_usage().await.unwrap().synced.exact,
+        METADATA_FEE,
         "Didn't account for the cost of root file metadata"
     );
 
     core.sync().await.unwrap();
 
     let total_usage = core
-        .get_usage()
+        .get_usage_breakdown()
         .await
         .unwrap()
-        .usages
         .iter()
-        .filter(|usage| usage.file_id != root.id)
-        .map(|usage| usage.size_bytes)
+        .filter(|entry| entry.id != root.id)
+        .map(|entry| entry.synced)
         .sum::<u64>();
 
     assert_eq!(total_usage, METADATA_FEE);
+    assert_synced_matches_server(&core).await;
 }
 
 #[tokio::test]
@@ -179,6 +234,7 @@ async fn change_doc_over_data_cap() {
     let result = core.sync().await;
 
     assert_eq!(result.unwrap_err().kind, LbErrKind::UsageIsOverDataCap);
+    assert!(core.refresh_usage().await.unwrap().over_cap());
 }
 
 #[tokio::test]
@@ -303,7 +359,8 @@ async fn shared_docs_excluded() {
 
     cores[1].sync().await.unwrap();
 
-    assert_eq!(cores[1].get_usage().await.unwrap().usages.len(), 2);
+    assert_eq!(cores[1].get_usage_breakdown().await.unwrap().len(), 2);
+    assert_synced_matches_server(&cores[1]).await;
 }
 
 #[tokio::test]
@@ -384,4 +441,116 @@ async fn sharee_cannot_exceed_sharer_data_cap_via_metadata() {
     // B's sync should fail because the metadata would exceed A's data cap
     let result = core_b.sync().await;
     assert_eq!(result.unwrap_err().kind, LbErrKind::UsageIsOverDataCap);
+}
+
+#[tokio::test]
+async fn cap_comes_from_refresh() {
+    let core = test_core_with_account().await;
+
+    let usage = core.refresh_usage().await.unwrap();
+    assert_eq!(usage.data_cap.as_ref().unwrap().exact, FREE_TIER_USAGE_SIZE);
+    assert!(!usage.over_cap());
+    assert_eq!(core.get_usage().await.unwrap().data_cap.unwrap().exact, FREE_TIER_USAGE_SIZE);
+}
+
+#[tokio::test]
+async fn synced_matches_server_across_shares() {
+    let a = test_core_with_account().await;
+    let b = test_core_with_account().await;
+    let c = test_core_with_account().await;
+    let b_name = b.get_account().unwrap().username.clone();
+
+    let shared = a.create_at_path("shared/").await.unwrap();
+    let doc = a.create_at_path("shared/a.md").await.unwrap();
+    a.write_document(doc.id, b"from a").await.unwrap();
+    let gone = a.create_at_path("gone/inner.md").await.unwrap();
+    a.write_document(gone.id, b"deleted later").await.unwrap();
+    a.share_file(shared.id, &b_name, ShareMode::Write)
+        .await
+        .unwrap();
+    a.sync().await.unwrap();
+    let gone_folder = a.get_file_by_id(gone.id).await.unwrap().parent;
+    a.delete(&gone_folder).await.unwrap();
+    a.sync().await.unwrap();
+
+    let pending = c.create_at_path("pending/").await.unwrap();
+    c.share_file(pending.id, &b_name, ShareMode::Read)
+        .await
+        .unwrap();
+    c.sync().await.unwrap();
+
+    b.sync().await.unwrap();
+    b.create_link_at_path("link", shared.id).await.unwrap();
+    let written = b
+        .create_file("from_b.md", &shared.id, FileType::Document)
+        .await
+        .unwrap();
+    b.write_document(written.id, b"written by b into a's folder")
+        .await
+        .unwrap();
+    let mine = b.create_at_path("mine.md").await.unwrap();
+    b.write_document(mine.id, b"b keeps this one")
+        .await
+        .unwrap();
+    b.sync().await.unwrap();
+
+    a.sync().await.unwrap();
+    c.sync().await.unwrap();
+
+    assert_synced_matches_server(&a).await;
+    assert_synced_matches_server(&b).await;
+    assert_synced_matches_server(&c).await;
+}
+
+#[tokio::test]
+async fn moving_into_someone_elses_folder_frees_space() {
+    let a = test_core_with_account().await;
+    let b = test_core_with_account().await;
+    let b_name = b.get_account().unwrap().username.clone();
+
+    let shared = a.create_at_path("shared/").await.unwrap();
+    a.share_file(shared.id, &b_name, ShareMode::Write)
+        .await
+        .unwrap();
+    a.sync().await.unwrap();
+
+    b.sync().await.unwrap();
+    b.create_link_at_path("link", shared.id).await.unwrap();
+    let doc = b.create_at_path("doc.md").await.unwrap();
+    b.write_document(doc.id, b"moving out").await.unwrap();
+    b.sync().await.unwrap();
+    let before = b.get_usage().await.unwrap();
+
+    b.move_file(&doc.id, &shared.id).await.unwrap();
+    let moved = b.get_usage().await.unwrap();
+    assert_eq!(moved.synced, before.synced);
+    assert!(moved.freed.exact > METADATA_FEE);
+    assert_eq!(moved.added.exact, 0);
+    assert_eq!(moved.local.exact, before.synced.exact - moved.freed.exact);
+
+    b.sync().await.unwrap();
+    a.sync().await.unwrap();
+    assert_eq!(b.get_usage().await.unwrap().synced, moved.local);
+    assert_synced_matches_server(&a).await;
+    assert_synced_matches_server(&b).await;
+}
+
+#[tokio::test]
+async fn status_follows_local_changes() {
+    let core = test_core_with_account().await;
+    let doc = core.create_at_path("doc.md").await.unwrap();
+    core.write_document(doc.id, b"unsynced").await.unwrap();
+    let expected = core.get_usage().await.unwrap();
+    assert!(expected.added.exact > 0);
+
+    let mut status = core.status().await;
+    for _ in 0..50 {
+        if status.usage.local == expected.local {
+            break;
+        }
+        tokio::time::sleep(Duration::from_millis(100)).await;
+        status = core.status().await;
+    }
+    assert_eq!(status.usage.local, expected.local);
+    assert_eq!(status.usage.added, expected.added);
 }

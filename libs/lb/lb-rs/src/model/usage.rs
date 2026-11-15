@@ -1,6 +1,3 @@
-use crate::model::api::GetUsageResponse;
-use crate::service::usage::{UsageItemMetric, UsageMetrics};
-
 const BYTE: u64 = 1;
 const KILOBYTE: u64 = BYTE * 1000;
 const MEGABYTE: u64 = KILOBYTE * 1000;
@@ -30,18 +27,4 @@ pub fn bytes_to_human(size: u64) -> String {
         .to_owned();
 
     format!("{num} {abbr}")
-}
-
-pub(crate) fn get_usage(server_usage_and_cap: GetUsageResponse) -> UsageMetrics {
-    let server_usage = server_usage_and_cap.sum_server_usage();
-    let cap = server_usage_and_cap.cap;
-
-    let readable_usage = bytes_to_human(server_usage);
-    let readable_cap = bytes_to_human(cap);
-
-    UsageMetrics {
-        usages: server_usage_and_cap.usages,
-        server_usage: UsageItemMetric { exact: server_usage, readable: readable_usage },
-        data_cap: UsageItemMetric { exact: cap, readable: readable_cap },
-    }
 }
