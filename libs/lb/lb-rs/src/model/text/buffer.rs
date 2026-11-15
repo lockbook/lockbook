@@ -1765,6 +1765,7 @@ mod reload_tests {
     use super::Buffer;
     use crate::model::text::offset_types::Grapheme;
     use crate::model::text::operation_types::{Operation, Replace};
+    use crate::model::text::words::Words;
     use std::time::Duration;
 
     fn edit(buf: &mut Buffer, (start, end): (usize, usize), text: &str) {
@@ -1935,5 +1936,42 @@ mod reload_tests {
         assert!(!buf.can_undo());
         buf.redo();
         assert_eq!(buf.current.text, edited);
+    }
+
+    /// A markdown buffer of `text` with `edit` applied, as a drop moves an image: inserted, then deleted where it was.
+    fn markdown_with(text: &str, edit: Vec<Replace>) -> Buffer {
+        let mut buf = Buffer::from(text).with_words(Words::Markdown);
+        for replace in edit {
+            buf.queue(vec![Operation::Replace(replace)], Duration::ZERO);
+            buf.update();
+        }
+        buf
+    }
+
+    #[test]
+    fn a_reload_keeps_an_image_the_other_device_wrote_whole() {
+        // the other device's image can't pair its brackets with the link's, so the drop can't land between them
+        let image = "![w](w.png)";
+        let mut buf = markdown_with(
+            "x y [hello](h) ![w](w.png)",
+            vec![
+                Replace { range: (Grapheme(4), Grapheme(4)), text: image.into() },
+                Replace { range: (Grapheme(25), Grapheme(37)), text: "".into() },
+            ],
+        );
+        assert_eq!(buf.current.text, "x y ![w](w.png)[hello](h)");
+        reload(&mut buf, "x ![a](a.png) ![w](w.png)");
+        assert_eq!(buf.current.text, "x y ![w](w.png)[hello](h)");
+    }
+
+    #[test]
+    fn a_reload_keeps_a_word_written_after_an_emphasis_delimiter() {
+        // `_` opens the emphasis, so it isn't part of the word after it
+        let mut buf = markdown_with(
+            "_xxxx_ y",
+            vec![Replace { range: (Grapheme(1), Grapheme(1)), text: "![w](w.png)".into() }],
+        );
+        reload(&mut buf, "_xxZxx_ y");
+        assert_eq!(buf.current.text, "_![w](w.png)xxZxx_ y");
     }
 }

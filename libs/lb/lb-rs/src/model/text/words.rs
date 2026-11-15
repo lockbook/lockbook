@@ -55,3 +55,41 @@ pub fn markdown_options() -> Options<'static> {
     options.render.escaped_char_spans = true;
     options
 }
+
+#[cfg(test)]
+mod test {
+    use super::Words;
+
+    fn words(text: &str) -> Vec<&str> {
+        let bounds = Words::Markdown.bounds(text);
+        bounds.windows(2).map(|w| &text[w[0].0..w[1].0]).collect()
+    }
+
+    #[test]
+    fn an_image_is_one_word() {
+        assert_eq!(words("x ![a b](a.png) y"), ["x", " ", "![a b](a.png)", " ", "y"]);
+    }
+
+    #[test]
+    fn a_links_text_is_words_and_its_target_one() {
+        assert_eq!(words("[a b](u.test/x)"), ["[", "a", " ", "b", "](u.test/x)"]);
+    }
+
+    #[test]
+    fn an_emphasis_delimiter_is_its_own_word() {
+        assert_eq!(words("_xxxx_ y"), ["_", "xxxx", "_", " ", "y"]);
+    }
+
+    #[test]
+    fn a_literal_underscore_stays_in_its_word() {
+        assert_eq!(words("a_b"), ["a_b"]);
+    }
+
+    #[test]
+    fn code_spans_wiki_links_and_autolinks_are_one_word() {
+        assert_eq!(
+            words("`a b` [[c d]] https://x.test/a/b"),
+            ["`a b`", " ", "[[c d]]", " ", "https://x.test/a/b"]
+        );
+    }
+}
