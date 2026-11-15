@@ -124,6 +124,9 @@ mod tests {
 
     #[test]
     fn versioned_reads_and_writes_reject_another_instances_edit() {
+        if test_utils::without_server() {
+            return;
+        }
         let config = test_utils::test_config();
         let mut core = Lb::init(config.clone()).unwrap();
         core.create_account(&test_utils::random_name(), &test_utils::url(), false)
@@ -166,6 +169,9 @@ mod tests {
 
     #[test]
     fn writes_from_a_stale_base_merge_text_and_refuse_other_files() {
+        if test_utils::without_server() {
+            return;
+        }
         let config = test_utils::test_config();
         let mut core = Lb::init(config.clone()).unwrap();
         core.create_account(&test_utils::random_name(), &test_utils::url(), false)

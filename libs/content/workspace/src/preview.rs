@@ -344,6 +344,9 @@ mod tests {
     /// after waiting out the bound for a tab that can't settle.
     #[test]
     fn a_failed_preview_fails_fast() {
+        if ::test_utils::without_server() {
+            return;
+        }
         let mut t = TestWs::new();
         let id = t.doc("archive.zip", "");
         t.ws.core
@@ -366,6 +369,9 @@ mod tests {
     /// note embedding itself, or two notes each other, settles.
     #[test]
     fn embed_cycles_settle() {
+        if ::test_utils::without_server() {
+            return;
+        }
         let mut t = TestWs::new();
         let a = t.doc(
             "A.md",

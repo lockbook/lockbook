@@ -2587,6 +2587,9 @@ mod fragment_tests {
     /// it, as a navigation Back undoes; the user scrolling leaves the place.
     #[test]
     fn heading_link_lands_in_its_own_tab() {
+        if ::test_utils::without_server() {
+            return;
+        }
         let mut t = TestWs::new();
         let text = format!("# Top\n\n{}# Far\n\nend\n", "line\n\n".repeat(200));
         let id = t.doc("a.md", &text);
@@ -2632,6 +2635,9 @@ mod fragment_tests {
     /// keeps where the user went rather than landing back on the heading.
     #[test]
     fn moving_the_caret_leaves_the_place() {
+        if ::test_utils::without_server() {
+            return;
+        }
         let mut t = TestWs::new();
         let text = format!("# Top\n\n{}# Far\n\nend\n", "line\n\n".repeat(200));
         let id = t.doc("a.md", &text);
@@ -2684,6 +2690,9 @@ mod rename_tests {
     /// in-app rename does, so the tab never saves one format over another.
     #[test]
     fn synced_rename_switches_the_editor() {
+        if ::test_utils::without_server() {
+            return;
+        }
         let mut t = TestWs::new();
         let text = "# Welcome\n\nmarkdown body\n";
         let id = t.doc("welcome.md", text);
@@ -2724,6 +2733,9 @@ mod media_tests {
     /// save the editor's text over it (#4679).
     #[test]
     fn video_landing_in_an_open_empty_file_stays_intact() {
+        if ::test_utils::without_server() {
+            return;
+        }
         let mut t = TestWs::new();
         let id = t.doc("clip.mp4", "");
         t.ws.open_file(id, true, false);
@@ -2745,6 +2757,9 @@ mod media_tests {
     /// on opening, rather than reloaded into the editor.
     #[test]
     fn note_growing_too_large_while_open_is_refused() {
+        if ::test_utils::without_server() {
+            return;
+        }
         let mut t = TestWs::new();
         let id = t.doc("a.md", "short\n");
         t.ws.open_file(id, true, false);
@@ -2785,6 +2800,9 @@ mod image_embed_tests {
     /// note once it is whole.
     #[test]
     fn embed_shows_an_image_written_after_it_failed() {
+        if ::test_utils::without_server() {
+            return;
+        }
         let mut t = TestWs::new();
         let photo = t.doc("photo.png", "");
         let note = t.doc("note.md", "![](photo.png)\n");
@@ -2821,6 +2839,9 @@ mod seen_share_tests {
 
     #[test]
     fn unseen_until_shown_then_only_new_shares() {
+        if ::test_utils::without_server() {
+            return;
+        }
         let mut t = TestWs::new();
         let me = t.ws.account.username.clone();
         let sharer = test_lb();
@@ -2867,6 +2888,9 @@ mod close_tests {
     /// both.
     #[test]
     fn edits_survive_a_close_as_another_version_lands() {
+        if ::test_utils::without_server() {
+            return;
+        }
         let mut t = TestWs::new();
         let id = t.doc("note.md", "mine\n");
         t.ws.open_file(id, true, false);
@@ -2889,6 +2913,9 @@ mod close_tests {
     /// still let it finish: here the note is deleted under unsaved typing.
     #[test]
     fn saves_settle_when_a_save_cannot_succeed() {
+        if ::test_utils::without_server() {
+            return;
+        }
         let mut t = TestWs::new();
         let id = t.doc("note.md", "mine\n");
         t.ws.open_file(id, true, false);
