@@ -1054,3 +1054,23 @@ async fn four_cycle_three_moves_reverted_with_children() {
     .await;
     assert::all_document_contents(&c2, &[]).await;
 }
+
+#[tokio::test]
+async fn two_cycle_keeps_move_into_reverted_folder() {
+    let c1 = test_core_with_account().await;
+    c1.create_at_path("/a/").await.unwrap();
+    c1.create_at_path("/b/").await.unwrap();
+    c1.create_at_path("/x/").await.unwrap();
+    c1.sync().await.unwrap();
+
+    let c2 = another_client(&c1).await;
+    c2.sync().await.unwrap();
+
+    move_by_path(&c1, "/a/", "/b/").await.unwrap();
+    move_by_path(&c1, "/x/", "/b/a/").await.unwrap();
+    move_by_path(&c2, "/b/", "/a/").await.unwrap();
+
+    c2.sync().await.unwrap();
+    sync_and_assert_stuff(&c1, &c2).await;
+    assert::all_paths(&c1, &["/", "/a/", "/a/b/", "/a/x/"]).await;
+}
