@@ -1,6 +1,8 @@
 use lb_rs::model::ValidationFailure;
 use lb_rs::model::errors::LbErrKind;
+use lb_rs::model::file::ShareMode;
 use lb_rs::model::file_like::FileLike;
+use lb_rs::model::file_metadata::FileType;
 use lb_rs::model::tree_like::TreeLike;
 use test_utils::*;
 
@@ -140,4 +142,197 @@ async fn sync_renames_it_when_its_document_is_renamed_for_a_conflict() {
     assert_eq!(b.get_file_by_id(second.id).await.unwrap().name, "b 2.md");
     assert_eq!(b.get_file_by_id(folder.id).await.unwrap().name, "b 2-attachments");
     assert_dbs_equal(&a, &b).await;
+}
+
+#[tokio::test]
+async fn a_note_shared_alone_brings_its_folder() {
+    let owner = test_core_with_attachments().await;
+    let reader = test_core_with_account().await;
+    let doc = owner.create_at_path("/notes/plan.md").await.unwrap();
+    let folder = owner.create_attachments_folder(&doc.id).await.unwrap();
+    let image = owner
+        .create_at_path("/notes/plan-attachments/image.png")
+        .await
+        .unwrap();
+    owner.write_document(image.id, b"pixels").await.unwrap();
+    let reader_name = reader.get_account().unwrap().username.clone();
+    owner
+        .share_file(doc.id, &reader_name, ShareMode::Read)
+        .await
+        .unwrap();
+    owner.sync().await.unwrap();
+
+    reader.sync().await.unwrap();
+
+    let pending = reader.get_pending_shares().await.unwrap();
+    assert_eq!(pending.iter().map(|f| f.id).collect::<Vec<_>>(), [doc.id]);
+    assert_eq!(reader.read_document(image.id, false).await.unwrap(), b"pixels");
+    assert_eq!(
+        reader
+            .get_attachments_folder(&doc.id)
+            .await
+            .unwrap()
+            .unwrap()
+            .id,
+        folder.id
+    );
+
+    // added later, still the reader's
+    let later = owner
+        .create_at_path("/notes/plan-attachments/later.png")
+        .await
+        .unwrap();
+    owner.sync().await.unwrap();
+    reader.sync().await.unwrap();
+    reader.get_file_by_id(later.id).await.unwrap();
+
+    // a deleted folder stops reaching the reader
+    owner.delete(&folder.id).await.unwrap();
+    owner.sync().await.unwrap();
+    reader.sync().await.unwrap();
+    assert!(reader.get_file_by_id(folder.id).await.is_err());
+    assert!(reader.get_file_by_id(image.id).await.is_err());
+    reader.get_file_by_id(doc.id).await.unwrap();
+}
+
+#[tokio::test]
+async fn a_note_shared_alone_has_its_folder_beside_the_link() {
+    let owner = test_core_with_attachments().await;
+    let reader = test_core_with_account().await;
+    let notes = owner.create_at_path("/notes/").await.unwrap();
+    let doc = owner.create_at_path("/notes/plan.md").await.unwrap();
+    let folder = owner.create_attachments_folder(&doc.id).await.unwrap();
+    let image = owner
+        .create_at_path("/notes/plan-attachments/image.png")
+        .await
+        .unwrap();
+    let reader_name = reader.get_account().unwrap().username.clone();
+    owner
+        .share_file(doc.id, &reader_name, ShareMode::Read)
+        .await
+        .unwrap();
+    // the folder around them is shared too, but the reader leaves that share pending
+    owner
+        .share_file(notes.id, &reader_name, ShareMode::Read)
+        .await
+        .unwrap();
+    owner.sync().await.unwrap();
+    reader.sync().await.unwrap();
+
+    let link = reader
+        .create_link_at_path("/shared/renamed.md", doc.id)
+        .await
+        .unwrap();
+
+    let folder_path = reader.get_path_by_id(folder.id).await.unwrap();
+    assert_eq!(folder_path, "/shared/plan-attachments/");
+    assert_eq!(
+        reader.get_path_by_id(image.id).await.unwrap(),
+        "/shared/plan-attachments/image.png"
+    );
+    assert_eq!(reader.get_by_path(&folder_path).await.unwrap().id, folder.id);
+    assert_eq!(
+        reader
+            .get_by_path("/shared/plan-attachments/image.png")
+            .await
+            .unwrap()
+            .id,
+        image.id
+    );
+    assert_eq!(reader.get_file_by_id(folder.id).await.unwrap().parent, link.parent);
+    let listed: Vec<_> = reader
+        .list_metadatas()
+        .await
+        .unwrap()
+        .into_iter()
+        .map(|f| f.id)
+        .collect();
+    assert!(listed.contains(&folder.id) && listed.contains(&image.id));
+    assert!(!listed.contains(&notes.id));
+}
+
+#[tokio::test]
+async fn a_deleted_folder_stops_reaching_a_reader_before_a_new_one_does() {
+    let owner = test_core_with_attachments().await;
+    let reader = test_core_with_account().await;
+    let doc = owner.create_at_path("/notes/plan.md").await.unwrap();
+    let old = owner.create_attachments_folder(&doc.id).await.unwrap();
+    let old_image = owner
+        .create_at_path("/notes/plan-attachments/image.png")
+        .await
+        .unwrap();
+    let reader_name = reader.get_account().unwrap().username.clone();
+    owner
+        .share_file(doc.id, &reader_name, ShareMode::Read)
+        .await
+        .unwrap();
+    owner.sync().await.unwrap();
+    reader.sync().await.unwrap();
+    assert_eq!(
+        reader
+            .get_attachments_folder(&doc.id)
+            .await
+            .unwrap()
+            .unwrap()
+            .id,
+        old.id
+    );
+
+    // replaced in one sync, so the reader learns of both in one
+    owner.delete(&old.id).await.unwrap();
+    let new = owner.create_attachments_folder(&doc.id).await.unwrap();
+    let new_image = owner
+        .create_at_path("/notes/plan-attachments/image.png")
+        .await
+        .unwrap();
+    owner.write_document(new_image.id, b"pixels").await.unwrap();
+    owner.sync().await.unwrap();
+    reader.sync().await.unwrap();
+
+    assert_eq!(
+        reader
+            .get_attachments_folder(&doc.id)
+            .await
+            .unwrap()
+            .unwrap()
+            .id,
+        new.id
+    );
+    assert!(reader.get_file_by_id(old.id).await.is_err());
+    assert!(reader.get_file_by_id(old_image.id).await.is_err());
+    assert_eq!(reader.read_document(new_image.id, false).await.unwrap(), b"pixels");
+}
+
+#[tokio::test]
+async fn a_writer_of_a_note_shared_alone_adds_images() {
+    let owner = test_core_with_attachments().await;
+    let writer = test_core_with_attachments().await;
+    let doc = owner.create_at_path("/notes/plan.md").await.unwrap();
+    let other = owner.create_at_path("/notes/other.md").await.unwrap();
+    let folder = owner.create_attachments_folder(&doc.id).await.unwrap();
+    let writer_name = writer.get_account().unwrap().username.clone();
+    for id in [doc.id, other.id] {
+        owner
+            .share_file(id, &writer_name, ShareMode::Write)
+            .await
+            .unwrap();
+    }
+    owner.sync().await.unwrap();
+    writer.sync().await.unwrap();
+
+    let image = writer
+        .create_file("image.png", &folder.id, FileType::Document)
+        .await
+        .unwrap();
+    writer.write_document(image.id, b"pixels").await.unwrap();
+    writer.sync().await.unwrap();
+    owner.sync().await.unwrap();
+    assert_eq!(owner.read_document(image.id, false).await.unwrap(), b"pixels");
+
+    // the note's parent isn't the writer's, so neither is the folder's place
+    let err = writer
+        .create_attachments_folder(&other.id)
+        .await
+        .unwrap_err();
+    assert_eq!(err.kind, LbErrKind::InsufficientPermission);
 }

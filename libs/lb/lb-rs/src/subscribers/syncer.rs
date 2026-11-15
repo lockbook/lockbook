@@ -172,14 +172,22 @@ impl<S: Server, D: LocalDocuments> Lb<S, D> {
         let mut local = db.base_metadata.stage(&db.local_metadata).to_lazy();
         let base_ids = local.tree.base.ids();
 
-        // files the server stopped listing, and this device's files under them it never had
+        // files the server stopped listing, and this device's files under them, or in their
+        // attachments folders, it never had
         let mut prunable_ids: HashSet<Uuid> = base_ids
             .into_iter()
             .filter(|id| !server_ids.contains(id))
             .collect();
+        let mut attached: HashMap<Uuid, Vec<Uuid>> = HashMap::new();
+        for id in local.ids() {
+            if let Some(of) = local.find(&id)?.attachments_of() {
+                attached.entry(of.id).or_default().push(id);
+            }
+        }
         let mut to_visit: Vec<Uuid> = prunable_ids.iter().copied().collect();
         while let Some(id) = to_visit.pop() {
-            for child in local.children(&id)? {
+            let folders = attached.get(&id).into_iter().flatten().copied();
+            for child in local.children(&id)?.into_iter().chain(folders) {
                 if !server_ids.contains(&child) && prunable_ids.insert(child) {
                     to_visit.push(child);
                 }
@@ -256,6 +264,7 @@ impl<S: Server, D: LocalDocuments> Lb<S, D> {
         for id in remote.tree.staged.ids() {
             let meta = remote.find(&id)?;
             if remote.maybe_find_parent(meta).is_some()
+                || remote.maybe_find_attached(meta).is_some()
                 || meta.explicitly_deleted()
                 || meta
                     .user_access_keys()
@@ -1578,9 +1587,7 @@ fn local_access<L: TreeLike, R: TreeLike<F = L::F>>(
     local: &LazyTree<L>, remote: &LazyTree<R>, me: Owner, id: &Uuid,
 ) -> LbResult<Option<UserAccessMode>> {
     let mut mode = local.access_mode(me, id)?;
-    let mut ids = local.ancestors(id)?;
-    ids.insert(*id);
-    for id in ids {
+    for id in local.access_sources(id)? {
         let file = local.find(&id)?;
         if file.is_root() || local.maybe_find(file.parent()).is_some() {
             continue;
@@ -1598,10 +1605,8 @@ fn local_access<L: TreeLike, R: TreeLike<F = L::F>>(
 fn server_access<L: TreeLike, R: TreeLike<F = L::F>>(
     local: &LazyTree<L>, remote: &LazyTree<R>, me: Owner, id: &Uuid,
 ) -> LbResult<Option<UserAccessMode>> {
-    let mut ids = remote.ancestors(id)?;
-    ids.insert(*id);
     let mut mode = None;
-    for id in ids {
+    for id in remote.access_sources(id)? {
         let declined = local.maybe_find(&id).is_some_and(|file| {
             file.user_access_keys()
                 .iter()

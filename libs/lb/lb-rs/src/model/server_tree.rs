@@ -3,7 +3,6 @@ use crate::model::file_metadata::Owner;
 use crate::model::tree_like::{TreeLike, TreeLikeMut};
 use db_rs::views::{hashmap::DbHashMap, hashmap_set::DbHashMapSet};
 use std::collections::HashSet;
-use std::iter::FromIterator;
 use tracing::*;
 use uuid::Uuid;
 
@@ -37,15 +36,38 @@ impl<'a> ServerTree<'a> {
         ids.extend(owned_ids);
         ids.extend(shared_ids.clone());
 
-        let mut to_get_descendants = Vec::from_iter(shared_ids);
-        while let Some(id) = to_get_descendants.pop() {
-            let children = file_children.get(&id).cloned().unwrap_or_default();
-            ids.extend(children.clone());
-            to_get_descendants.extend(children);
+        for id in shared_ids {
+            ids.extend(reachable(file_children, id));
         }
 
         Ok(Self { ids, owned_files, shared_files, file_children, files })
     }
+
+    /// The files someone given `id` is sent: its descendants and attachments, and theirs.
+    pub fn reachable(&self, id: Uuid) -> HashSet<Uuid> {
+        reachable(self.file_children, id)
+    }
+}
+
+/// Where `file_children` lists a file: under its parent, and under the document whose
+/// attachments it holds.
+pub fn indexed_under<F: FileLike>(file: &F) -> impl Iterator<Item = Uuid> {
+    [*file.parent()]
+        .into_iter()
+        .chain(file.attachments_of().map(|of| of.id))
+}
+
+fn reachable(file_children: &DbHashMapSet<Uuid, Uuid>, id: Uuid) -> HashSet<Uuid> {
+    let mut result = HashSet::new();
+    let mut to_visit = vec![id];
+    while let Some(id) = to_visit.pop() {
+        for &child in file_children.get(&id).into_iter().flatten() {
+            if result.insert(child) {
+                to_visit.push(child);
+            }
+        }
+    }
+    result
 }
 
 impl TreeLike for ServerTree<'_> {
@@ -111,6 +133,25 @@ impl TreeLikeMut for ServerTree<'_> {
             }
 
             self.file_children.insert(*f.parent(), id)?;
+        }
+
+        // an attachments folder is reached from its document too, so whoever is sent the document
+        // is sent the folder
+        let prior_document = maybe_prior
+            .as_ref()
+            .and_then(|f| f.attachments_of())
+            .map(|of| of.id);
+        let document = f.attachments_of().map(|of| of.id);
+        if prior_document != document {
+            if let Some(prior_document) = prior_document {
+                self.file_children.remove(&prior_document, &id)?;
+            }
+            if let Some(document) = document {
+                if self.file_children.get(&document).is_none() {
+                    self.file_children.create_key(document)?;
+                }
+                self.file_children.insert(document, id)?;
+            }
         }
 
         Ok(maybe_prior)
