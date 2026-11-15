@@ -17,6 +17,7 @@ use std::sync::mpsc::Receiver;
 use egui::{Rect, UiBuilder};
 
 use crate::show::DocType;
+use crate::tab::markdown_editor::Syntax;
 use crate::tab::markdown_editor::input::Event;
 use lb_rs::model::text::offset_types::{Byte, Grapheme};
 use lb_rs::model::text::operation_types::{Operation, Replace};
@@ -316,6 +317,20 @@ impl EmbedHost {
         }
         self.asked.insert(host, requests);
         targets
+    }
+
+    /// The file of the embedded editor that has the caret, and whether a
+    /// pasted image goes in as a link there: a markdown note that takes
+    /// typing.
+    pub fn focused_file(
+        &self, ctx: &egui::Context, tabs: &TabCache,
+    ) -> Option<(lb_rs::Uuid, bool)> {
+        self.embeds.values().find_map(|embed| {
+            let md = tabs.get_any(&embed.session).and_then(Tab::markdown)?;
+            let r = &md.edit.renderer;
+            let images = r.kind == Syntax::Markdown && r.edits_text();
+            md.focused(ctx).then_some((md.edit.file_id, images))
+        })
     }
 
     /// The sessions of the tabs embeds edit and save: those shown, and

@@ -1311,8 +1311,21 @@ impl Workspace {
     /// other tab types (SVG, image viewer, PDF) handle clipboard events
     /// themselves. Non-clip events are left in the queue.
     pub fn process_clip_events(&mut self) {
+        let is_clip = |e: &crate::tab::Event| {
+            matches!(e, crate::tab::Event::Drop { .. } | crate::tab::Event::Paste { .. })
+        };
+        let embed = self.embeds.focused_file(&self.ctx, &self.tabs);
+        // an embed with the caret that takes no images drops them, as its own tab would
+        if let Some((_, false)) = embed {
+            self.ctx.pop_events_where(&mut |e| is_clip(e));
+            return;
+        }
         let Some(file_id) = self.current_tab().and_then(|tab| {
             let md = tab.markdown()?;
+            // an embed with the caret takes the image beside its own note
+            if let Some((id, _)) = embed {
+                return Some(id);
+            }
             // image paste inserts `![](…)` markdown
             if md.edit.renderer.readonly || md.edit.renderer.kind != Syntax::Markdown {
                 None
@@ -1323,9 +1336,7 @@ impl Workspace {
             return;
         };
 
-        let events = self.ctx.pop_events_where(&mut |e| {
-            matches!(e, crate::tab::Event::Drop { .. } | crate::tab::Event::Paste { .. })
-        });
+        let events = self.ctx.pop_events_where(&mut |e| is_clip(e));
         if events.is_empty() {
             return;
         }
