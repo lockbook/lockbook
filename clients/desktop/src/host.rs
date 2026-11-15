@@ -331,9 +331,13 @@ impl AppState {
 
         let Output { mut platform, viewport } = self.lb.frame();
 
-        // Shell already saved tabs if close_requested was set this frame.
+        // The shell queues saves on every frame a close is requested; the
+        // window closes once they're written.
         if self.close_requested {
-            std::process::exit(0);
+            if self.lb.app.saves_settled() {
+                std::process::exit(0);
+            }
+            self.window.request_redraw();
         }
 
         for command in &platform.commands {
