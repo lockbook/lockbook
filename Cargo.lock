@@ -5184,7 +5184,7 @@ dependencies = [
 [[package]]
 name = "mitex"
 version = "0.2.7"
-source = "git+https://github.com/lockbook/mitex?rev=299f8e180e2d25e449536cae2ddd403aee16553f#299f8e180e2d25e449536cae2ddd403aee16553f"
+source = "git+https://github.com/lockbook/mitex?rev=75ffdae1d2b545082b794e0891da6c9375e02844#75ffdae1d2b545082b794e0891da6c9375e02844"
 dependencies = [
  "mitex-parser",
  "mitex-spec-gen",
@@ -5194,12 +5194,12 @@ dependencies = [
 [[package]]
 name = "mitex-glob"
 version = "0.2.7"
-source = "git+https://github.com/lockbook/mitex?rev=299f8e180e2d25e449536cae2ddd403aee16553f#299f8e180e2d25e449536cae2ddd403aee16553f"
+source = "git+https://github.com/lockbook/mitex?rev=75ffdae1d2b545082b794e0891da6c9375e02844#75ffdae1d2b545082b794e0891da6c9375e02844"
 
 [[package]]
 name = "mitex-lexer"
 version = "0.2.7"
-source = "git+https://github.com/lockbook/mitex?rev=299f8e180e2d25e449536cae2ddd403aee16553f#299f8e180e2d25e449536cae2ddd403aee16553f"
+source = "git+https://github.com/lockbook/mitex?rev=75ffdae1d2b545082b794e0891da6c9375e02844#75ffdae1d2b545082b794e0891da6c9375e02844"
 dependencies = [
  "ecow",
  "ena",
@@ -5212,7 +5212,7 @@ dependencies = [
 [[package]]
 name = "mitex-parser"
 version = "0.2.7"
-source = "git+https://github.com/lockbook/mitex?rev=299f8e180e2d25e449536cae2ddd403aee16553f#299f8e180e2d25e449536cae2ddd403aee16553f"
+source = "git+https://github.com/lockbook/mitex?rev=75ffdae1d2b545082b794e0891da6c9375e02844#75ffdae1d2b545082b794e0891da6c9375e02844"
 dependencies = [
  "mitex-glob",
  "mitex-lexer",
@@ -5223,7 +5223,7 @@ dependencies = [
 [[package]]
 name = "mitex-spec"
 version = "0.2.7"
-source = "git+https://github.com/lockbook/mitex?rev=299f8e180e2d25e449536cae2ddd403aee16553f#299f8e180e2d25e449536cae2ddd403aee16553f"
+source = "git+https://github.com/lockbook/mitex?rev=75ffdae1d2b545082b794e0891da6c9375e02844#75ffdae1d2b545082b794e0891da6c9375e02844"
 dependencies = [
  "rustc-hash 2.1.3",
  "serde",
@@ -5233,7 +5233,7 @@ dependencies = [
 [[package]]
 name = "mitex-spec-gen"
 version = "0.2.7"
-source = "git+https://github.com/lockbook/mitex?rev=299f8e180e2d25e449536cae2ddd403aee16553f#299f8e180e2d25e449536cae2ddd403aee16553f"
+source = "git+https://github.com/lockbook/mitex?rev=75ffdae1d2b545082b794e0891da6c9375e02844#75ffdae1d2b545082b794e0891da6c9375e02844"
 dependencies = [
  "anyhow",
  "mitex-spec",
