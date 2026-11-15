@@ -134,7 +134,7 @@ pub struct MdRender {
     /// Set only while painting the floating drag-reorder card, so chrome
     /// that shouldn't travel with it (the fold button) can opt out.
     pub painting_drag_float: bool,
-    /// Where the note embed being dragged starts: only its floating copy shows its tab.
+    /// Where the note embed being dragged starts: its slot stands empty.
     pub lifted_embed: Option<Grapheme>,
     /// The slug of a heading whose link was asked for this frame; the
     /// editor, which knows the note, puts the link on the clipboard.
@@ -270,6 +270,8 @@ pub struct MdRender {
     /// [`Self::unbreakable`] collects what a page break mustn't cut.
     pub print: bool,
     pub readonly: bool, // disables task checkboxes and saving
+    /// A click focuses the editor; off for one drawn inside another surface.
+    pub takes_focus: bool,
     pub view: View,
     /// Password mode: render every source byte as `*` while the buffer keeps
     /// the real text. Only meaningful for plain text shown as source —
@@ -488,11 +490,12 @@ pub struct MdEdit {
     pub scroll_area_velocity: Vec2,
     /// The view moved after this frame's rows were painted.
     pub moved_after_paint: bool,
-    /// A click focuses the editor; off for one drawn inside another surface.
-    pub takes_focus: bool,
     /// Paints within its host's clip, not its own rect: an embed's pad takes
     /// what hangs past it, like a list's numbers.
     pub clip_to_host: bool,
+    /// Undo and redo are the host's to make: this shows a heading of the
+    /// note it sits in, whose buffer holds the history.
+    pub hosted_history: bool,
 
     /// Document identity — link completions resolve relative paths against
     /// the current file's parent.
@@ -579,8 +582,8 @@ impl MdEdit {
             overflow_follow: (0, Default::default(), Rect::ZERO),
             scroll_area_velocity: Default::default(),
             moved_after_paint: false,
-            takes_focus: true,
             clip_to_host: false,
+            hosted_history: false,
             file_id,
             emoji_completions: Default::default(),
             language_completions: Default::default(),
@@ -901,6 +904,7 @@ impl MdRender {
             interactive: false,
             print: false,
             readonly: true,
+            takes_focus: true,
             view: View::Rendered,
             mask: false,
             single_line: false,
@@ -1035,6 +1039,7 @@ impl MdRender {
             interactive: false,
             print: false,
             readonly: true,
+            takes_focus: true,
             view: View::Rendered,
             mask: false,
             single_line: false,
@@ -1069,6 +1074,12 @@ impl MdRender {
             Syntax::Code(lang) => lang.has_definitions(),
             Syntax::Plain => false,
         }
+    }
+
+    /// Whether typing edits this view: a plain click places a caret, where
+    /// one in a view without it follows a link.
+    pub fn edits_text(&self) -> bool {
+        !self.readonly && self.takes_focus
     }
 
     /// Bump `text_seq`. Call after any buffer mutation that may change
@@ -1296,6 +1307,7 @@ impl Editor {
             interactive: true,
             print: false,
             readonly,
+            takes_focus: true,
             view,
             mask: false,
             single_line: false,
@@ -1362,8 +1374,8 @@ impl Editor {
                 overflow_follow: (0, Default::default(), Rect::ZERO),
                 scroll_area_velocity: Default::default(),
                 moved_after_paint: false,
-                takes_focus: true,
                 clip_to_host: false,
+                hosted_history: false,
                 file_id,
                 emoji_completions: Default::default(),
                 language_completions: Default::default(),
@@ -1689,17 +1701,10 @@ impl Editor {
     pub fn show(&mut self, ui: &mut Ui) -> Response {
         let mut resp: Response = mem::take(&mut self.next_resp);
         self.moved_unpainted = false;
-        self.edit.renderer.tab_embeds.begin_frame(ui.ctx());
+        self.edit.renderer.tab_embeds.begin_frame();
         // a formula landing mid-frame drew as its source
         let math_seq = self.edit.renderer.math.seq();
         let diagram_seq = self.edit.renderer.diagrams.seq();
-        // Copy takes the selection in the embed last pressed, if there is one
-        if ui.input(|i| i.events.contains(&egui::Event::Copy)) {
-            if let Some(text) = self.edit.renderer.tab_embeds.copy() {
-                ui.ctx().copy_text(text);
-                ui.input_mut(|i| i.events.retain(|e| *e != egui::Event::Copy));
-            }
-        }
 
         let view = view_for(self.edit.renderer.kind, &self.persistence);
         if view != self.edit.renderer.view {
@@ -1776,7 +1781,12 @@ impl Editor {
         // the context's queued events are the host's, gestures included
         if !self.embedded {
             let workspace_events = self.edit.drain_workspace_events(ui.ctx());
-            self.edit.event.internal_events.extend(workspace_events);
+            // the toolbar's, while an embed has the caret, are the embed's
+            let embeds = &self.edit.renderer.tab_embeds;
+            match embeds.has_caret() {
+                true => embeds.to_focused.borrow_mut().extend(workspace_events),
+                false => self.edit.event.internal_events.extend(workspace_events),
+            }
         }
 
         let prior_selection = self.edit.renderer.buffer.current.selection;
@@ -2214,11 +2224,8 @@ impl Editor {
         self.initialized = true;
         resp.user_scrolled = std::mem::take(&mut self.user_scrolled);
         self.moved_unpainted |= std::mem::take(&mut self.edit.moved_after_paint);
-        // a touch on an embedded tab's own target (a link) is the tab's
-        let inner = self.edit.renderer.tab_embeds.inner_targets();
-        let inner = inner.into_iter().map(|rect| (rect, TouchTarget::Popup));
-        self.edit.renderer.touch_targets.splice(0..0, inner);
-        // a touch elsewhere on an embed is the embed's
+        // a touch on an embed is the embed's; on its tab's own targets, the
+        // workspace's (`embed_targets`)
         for rect in self.edit.renderer.tab_embeds.rects() {
             self.edit
                 .renderer
@@ -2242,6 +2249,16 @@ impl Editor {
             | (self.edit.renderer.diagrams.seq() != diagram_seq);
 
         resp
+    }
+
+    /// Where the embedded tabs drawn into this note's slots have targets of
+    /// their own, such as links: a touch there is the tab's, ahead of the
+    /// slot's, behind a hover card's.
+    pub fn embed_targets(&mut self, rects: Vec<Rect>) {
+        let card = crate::style::card_shown(&self.edit.renderer.ctx).is_some();
+        let inner = rects.into_iter().map(|rect| (rect, TouchTarget::Popup));
+        let at = usize::from(card).min(self.edit.renderer.touch_targets.len());
+        self.edit.renderer.touch_targets.splice(at..at, inner);
     }
 
     pub fn will_consume_touch(&self, pos: Pos2) -> bool {
@@ -2672,12 +2689,11 @@ impl Editor {
 
                 self.edit.post_render(ui, canvas_rect, scroll_id, pre);
                 // what a drag draws stays inside the note, under the toolbar
-                let mut overlay = ui.new_child(UiBuilder::new().max_rect(canvas_rect));
-                if !self.edit.clip_to_host {
-                    overlay.set_clip_rect(canvas_rect.intersect(ui.clip_rect()));
-                }
-                self.edit.draw_dragged_overlay(&mut overlay, root);
-                self.edit.draw_image_drag(&mut overlay);
+                let clip = match self.edit.clip_to_host {
+                    true => ui.clip_rect(),
+                    false => canvas_rect.intersect(ui.clip_rect()),
+                };
+                self.edit.draw_drags(ui, root, scroll_id, clip);
                 self.show_outline(ui, root, canvas_rect);
                 ui.advance_cursor_after_rect(canvas_rect);
             });

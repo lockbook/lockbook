@@ -30,6 +30,7 @@ mod code;
 mod cursor;
 mod diagrams;
 mod edit_props;
+mod embeds;
 mod folding;
 mod front_matter;
 mod heading_links;

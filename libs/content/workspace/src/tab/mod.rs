@@ -10,7 +10,7 @@ use crate::tab::markdown_editor::Editor as Markdown;
 use crate::tab::pdf_viewer::PdfViewer;
 
 use crate::tab::svg_editor::SVGEditor;
-use crate::task_manager::TaskManager;
+use crate::task_manager::{SaveRequest, TaskManager};
 use crate::workspace::Workspace;
 
 use chrono::DateTime;
@@ -28,6 +28,7 @@ use web_time::{Instant, SystemTime, UNIX_EPOCH};
 
 #[cfg(not(target_family = "wasm"))]
 pub mod chat;
+pub mod embed_host;
 pub mod image_viewer;
 pub mod input_controller;
 pub mod markdown_editor;
@@ -449,7 +450,9 @@ pub fn index_of_dest_to_activate(
     strip.iter().position(|s| s.place.dest == *dest)
 }
 
+use markdown_editor::widget::inline::tab_embed::{EmbedKey, EmbedRequest, EmbedState};
 pub use open::{Doc, TabResources};
+use std::collections::HashMap;
 
 pub struct Tab {
     pub destination: Destination,
@@ -485,9 +488,10 @@ pub enum Presentation {
     /// As the tab strip shows it, chrome and all.
     #[default]
     Full,
-    /// The content alone, read-only and still interactive: no toolbars,
-    /// sidebars, composer, or caret. It never takes focus, reports no text
-    /// interaction rect, and doesn't scroll: a slot shows its region whole.
+    /// The content alone: no toolbars, sidebars, or composer, and it doesn't
+    /// scroll: a slot shows its region whole. Where it is writable, on a
+    /// desktop, a click gives it a caret; elsewhere it never takes focus,
+    /// and its checkboxes are what it edits.
     Embedded,
     /// Embedded in a hover card: it takes the wheel, so what doesn't fit
     /// scrolls.
@@ -675,23 +679,61 @@ impl Tab {
         if let ContentState::Open(content) = &mut self.content {
             content.set_presentation(self.presentation);
         }
-        // the outermost printed tab marks its drawing as printing
-        let printing = self.presentation == Presentation::Print && !crate::printing(ui.ctx());
-        if printing {
-            ui.ctx()
-                .data_mut(|d| d.insert_temp(egui::Id::NULL, crate::Printing));
-        }
-        let resp = ui.push_id(self.salt, |ui| self.show_inner(ui)).inner;
-        if printing {
-            ui.ctx()
-                .data_mut(|d| d.remove::<crate::Printing>(egui::Id::NULL));
-        }
+        // a printed tab marks its drawing as printing
+        let ctx = ui.ctx().clone();
+        let print = self.presentation == Presentation::Print;
+        let resp = crate::print_while(&ctx, print, || {
+            ui.push_id(self.salt, |ui| self.show_inner(ui)).inner
+        });
         self.first_draw = false;
         match embedded {
             // a host takes nothing from an embed but a file to open
             true => Response { open_file: resp.open_file, ..Default::default() },
             false => resp,
         }
+    }
+
+    /// What the tab's embeds are filed under, if it has any: a note's.
+    pub(crate) fn embed_host(&self) -> Option<embed_host::Host> {
+        self.markdown()?;
+        Some((self.salt, self.destination.id()))
+    }
+
+    /// The embed slots the tab laid out this frame, for the workspace to draw.
+    pub(crate) fn embed_requests(&mut self) -> Vec<EmbedRequest> {
+        self.markdown()
+            .map(|md| md.edit.renderer.tab_embeds.take_requests())
+            .unwrap_or_default()
+    }
+
+    /// What the workspace measured of the tab's embeds, to lay out at.
+    pub(crate) fn set_embed_states(&mut self, states: HashMap<EmbedKey, EmbedState>) {
+        if let Some(md) = self.markdown_mut() {
+            md.edit.renderer.tab_embeds.set_states(states);
+        }
+    }
+
+    /// What goes over the tab's embed slots once their tabs are drawn.
+    pub(crate) fn paint_embed_overs(&self, ui: &mut egui::Ui) {
+        if let Some(md) = self.markdown() {
+            md.edit.renderer.tab_embeds.paint_overs(ui);
+        }
+    }
+
+    /// Where the tabs drawn into this tab's slots have targets of their own.
+    pub(crate) fn embed_targets(&mut self, rects: Vec<egui::Rect>) {
+        if let Some(md) = self.markdown_mut() {
+            md.embed_targets(rects);
+        }
+    }
+
+    /// Where a tap is the tab's own, such as on a link: in a host's slot, a
+    /// touch there is this tab's.
+    pub(crate) fn tap_targets(&self) -> Vec<egui::Rect> {
+        let Some(md) = self.markdown() else { return vec![] };
+        let targets = md.edit.renderer.touch_targets.iter();
+        let taps = targets.filter(|(_, t)| matches!(t, markdown_editor::TouchTarget::Tap(_)));
+        taps.map(|(rect, _)| *rect).collect()
     }
 
     /// Whether there's more of the content above and below its view.
@@ -856,8 +898,10 @@ impl Tab {
         }
     }
 
-    pub fn is_dirty(&self, tasks: &TaskManager) -> bool {
-        if let Some(queued_at) = self.id().and_then(|id| tasks.save_queued_at(id)) {
+    /// Whether the tab, open in session `origin`, has edits no save covers.
+    pub fn is_dirty(&self, origin: SessionId, tasks: &TaskManager) -> bool {
+        let request = self.id().map(|id| SaveRequest { id, origin });
+        if let Some(queued_at) = request.and_then(|r| tasks.save_queued_at(&r)) {
             self.last_changed > queued_at
         } else {
             self.last_changed > self.last_saved
@@ -935,7 +979,10 @@ impl TabContent {
             TabContent::Markdown(md) => {
                 md.embedded = embedded;
                 md.in_card = presentation == Presentation::Card;
-                md.edit.takes_focus = !embedded;
+                let r = &md.edit.renderer;
+                let typed_in =
+                    presentation == Presentation::Embedded && !r.readonly && !r.touch_mode;
+                md.edit.renderer.takes_focus = !embedded || typed_in;
                 md.edit.clip_to_host = embedded;
                 md.edit.renderer.interactive = !embedded;
                 md.edit.renderer.print = presentation == Presentation::Print;

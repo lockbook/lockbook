@@ -57,6 +57,17 @@ impl Workspace {
         self.process_clip_events();
 
         self.set_user_present();
+        let res = self.resources();
+        let strip = self
+            .tab_strip
+            .iter()
+            .filter_map(|s| self.tabs.get_any(&s.id));
+        let open: Vec<_> = strip
+            .chain(self.preview.as_ref())
+            .filter_map(crate::tab::Tab::embed_host)
+            .collect();
+        self.embeds
+            .begin_frame(ui.ctx(), &mut self.tabs, &res, &open);
 
         let rect = ui.max_rect();
         let wheel_x = self.history_swipe_wheel(rect);
@@ -240,6 +251,14 @@ impl Workspace {
         // has no room for a page sidebar
         let compact = !self.desktop_tab_policy;
         let session = self.current_tab;
+        let res = self.resources();
+        let host = session.and_then(|sid| self.tabs.get(&sid)?.embed_host());
+        if let (Some(sid), Some(host)) = (session, host) {
+            let states = self.embeds.states(host, &mut self.tabs, &res);
+            if let Some(tab) = self.tabs.get_mut(&sid) {
+                tab.set_embed_states(states);
+            }
+        }
         if let Some(tab) = session.and_then(|sid| self.tabs.get_mut(&sid)) {
             if let Some(pdf) = tab.pdf_mut() {
                 pdf.compact = compact;
@@ -254,6 +273,16 @@ impl Workspace {
             }
 
             let resp = self.open_guard.show(tab, |tab| tab.show(ui));
+            let requests = tab.embed_requests();
+            if let (Some(sid), Some(host)) = (session, host) {
+                let targets = self
+                    .embeds
+                    .draw(ui, host, Some(sid), requests, &mut self.tabs, &res);
+                if let Some(tab) = self.tabs.get_mut(&sid) {
+                    tab.paint_embed_overs(ui);
+                    tab.embed_targets(targets);
+                }
+            }
             if let Some(id) = resp.open_anyway {
                 self.open_anyway(id, session);
             }

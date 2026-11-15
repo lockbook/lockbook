@@ -12,6 +12,7 @@
 //!   `show` returns so popup callbacks land on a later glyphon layer and
 //!   outside any scroll-area clip.
 
+use crate::tab::markdown_editor::widget::utils::wrap_layout::EmbedKind;
 use comrak::nodes::AstNode;
 use egui::os::OperatingSystem;
 use egui::{
@@ -551,6 +552,9 @@ impl MdEdit {
     pub fn show(&mut self, ui: &mut Ui, rect: Rect, id: Id) {
         self.renderer.follow_fonts();
         self.renderer.latch_wheel_axis(ui, rect);
+        let lifted = self.in_progress_image_drag.as_ref();
+        let lifted = lifted.filter(|drag| drag.kind == EmbedKind::Tab);
+        self.renderer.lifted_embed = lifted.map(|drag| drag.image.start());
         // The renderer lays out at `self.width`, not the passed rect — set it
         // here so a bare `MdEdit` renders the rect it's given. (At width 0
         // every block is skipped as too-narrow: no glyphs, and no fragments
@@ -609,8 +613,7 @@ impl MdEdit {
         self.handle_block_drag(ui);
         self.handle_image_drag(ui, root);
         self.post_render(ui, rect, id, pre);
-        self.draw_dragged_overlay(ui, root);
-        self.draw_image_drag(ui);
+        self.draw_drags(ui, root, id, ui.clip_rect());
         if overflow > 0.0 {
             self.show_overflow_scrollbar(ui, rect, id, height);
         }
@@ -880,6 +883,18 @@ impl MdEdit {
         });
     }
 
+    /// What's being dragged, on a layer above the note and above the tabs
+    /// the workspace draws into its embed slots once the note is done.
+    pub(crate) fn draw_drags<'a>(
+        &mut self, ui: &mut Ui, root: &'a comrak::nodes::AstNode<'a>, id: Id, clip: Rect,
+    ) {
+        let layer = egui::LayerId::new(egui::Order::Foreground, id.with("md_drag"));
+        let ui = &mut ui.new_child(UiBuilder::new().layer_id(layer));
+        ui.set_clip_rect(clip);
+        self.draw_dragged_overlay(ui, root);
+        self.draw_image_drag(ui);
+    }
+
     /// Paints what `float` draws — part of the document, again, where it
     /// is dragged to — as a second callback above the main text. Discards
     /// the fragments and boxes it leaves: keeping them would corrupt
@@ -935,7 +950,7 @@ impl MdEdit {
         ui.ctx().check_for_id_clash(id, rect, "");
         let prev_focused = ui.memory(|m| m.has_focus(id));
         // an embedded editor leaves touches to its host, which hands them on
-        let sense = match (self.takes_focus, self.renderer.touch_mode) {
+        let sense = match (self.renderer.takes_focus, self.renderer.touch_mode) {
             (false, true) => Sense::hover(),
             (true, true) => Sense::click(),
             (_, false) => Sense::click_and_drag(),
@@ -953,7 +968,7 @@ impl MdEdit {
 
         let response_properly_clicked = response.clicked_by(egui::PointerButton::Primary);
         // a click nothing in it took is its host's, which selects the embed
-        if !self.takes_focus && response_properly_clicked {
+        if !self.renderer.takes_focus && response_properly_clicked {
             if let Some(pos) = response.interact_pointer_pos() {
                 EmbedClick::hand_on(ui.ctx(), pos);
             }
@@ -1021,7 +1036,7 @@ impl MdEdit {
             let spelling = self.context_menu_spelling.clone();
             let learned = self.context_menu_learned.clone();
             let (readonly, markdown) =
-                (self.renderer.readonly, self.renderer.kind == Syntax::Markdown);
+                (!self.renderer.edits_text(), self.renderer.kind == Syntax::Markdown);
             // the row under the menu: whether it has a value, and what kind
             let property = self
                 .context_menu_front_matter_row
@@ -1331,7 +1346,7 @@ impl MdEdit {
                         // requesting focus interrupts the input method, which on X11
                         // resets it (fcitx5 back to English); a composition the click
                         // leaves interrupts it anyway (see `ime_marked_range`)
-                        if self.takes_focus && !ui.memory(|m| m.has_focus(id)) {
+                        if self.renderer.takes_focus && !ui.memory(|m| m.has_focus(id)) {
                             ui.memory_mut(|m| m.request_focus(id));
                         }
                         // a click that edits — on a cell its row lacks, or below
@@ -1406,8 +1421,12 @@ impl MdEdit {
             // Fill the reserved slot so the highlight paints behind the
             // markers (drawn during block render); the cursor stays on top.
             let sel_color = color.lerp_to_gamma(theme.neutral_bg(), 0.7);
-            let mut rects = self.range_rects(selection);
-            rects.extend(self.renderer.table_cell_rects_taken_whole(selection));
+            // the caret is in an embed: the selection there is the one to see
+            let mut rects = vec![];
+            if !self.renderer.tab_embeds.has_caret() {
+                rects = self.range_rects(selection);
+                rects.extend(self.renderer.table_cell_rects_taken_whole(selection));
+            }
             let highlight = |rects: &mut dyn Iterator<Item = Rect>| {
                 egui::Shape::Vec(
                     rects

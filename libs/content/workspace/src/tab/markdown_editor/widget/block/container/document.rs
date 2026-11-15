@@ -94,7 +94,7 @@ impl<'ast> MdRender {
             }
             return layout;
         }
-        let clickable = self.readonly || self.ctx.input(|i| i.modifiers.command);
+        let clickable = !self.edits_text() || self.ctx.input(|i| i.modifiers.command);
         let sense = self
             .link_sense(clickable)
             .filter(|_| !self.bounds.source_links.is_empty());

@@ -2231,14 +2231,20 @@ impl MdRender {
 
                     // The embed's opaque fill hides the selection slot behind it,
                     // so tint it when the selection covers it (a partial overlap
-                    // reveals it to raw text instead). iOS draws this natively.
-                    if ui.ctx().os() != egui::os::OperatingSystem::IOS {
+                    // reveals it to raw text instead). iOS draws this natively;
+                    // an embed with the caret shows its own selection instead.
+                    let caret_inside = self.tab_embeds.has_caret();
+                    if ui.ctx().os() != egui::os::OperatingSystem::IOS && !caret_inside {
                         use crate::theme::palette_v2::ThemeExt as _;
                         let sel = self
                             .in_progress_selection
                             .unwrap_or(self.buffer.current.selection);
                         let sr = frag.source_range;
-                        if !sel.is_empty() && sel.contains_range(&sr, true, true) {
+                        let covered = !sel.is_empty() && sel.contains_range(&sr, true, true);
+                        // a note embed's tab draws after the note: it tints over it then
+                        if covered && *kind == EmbedKind::Tab {
+                            self.tab_embeds.tint(screen_rect);
+                        } else if covered {
                             let theme = self.ctx.get_lb_theme();
                             let accent = theme.accent_bg();
                             let tint = egui::Color32::from_rgba_unmultiplied(

@@ -47,5 +47,5 @@ pub fn register_fonts(fonts: &mut epaint::text::FontDefinitions) {
 
 pub use widgets::glyphon_render::{
     GlyphonRenderCallbackResources, GlyphonRendererCallback, Printing, TextBufferArea, paint_text,
-    printing, register_font_system, register_render_callback_resources,
+    print_while, printing, register_font_system, register_render_callback_resources,
 };

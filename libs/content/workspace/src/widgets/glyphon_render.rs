@@ -211,6 +211,20 @@ pub fn printing(ctx: &egui::Context) -> bool {
         .is_some()
 }
 
+/// Runs `f` with `ctx` marked as printing when `on`; a mark already there
+/// is the outer drawing's, and stays.
+pub fn print_while<R>(ctx: &egui::Context, on: bool, f: impl FnOnce() -> R) -> R {
+    let mark = on && !printing(ctx);
+    if mark {
+        ctx.data_mut(|d| d.insert_temp(egui::Id::NULL, Printing));
+    }
+    let out = f();
+    if mark {
+        ctx.data_mut(|d| d.remove::<Printing>(egui::Id::NULL));
+    }
+    out
+}
+
 /// Paints `areas` clipped to `rect` at `painter`'s opacity: through
 /// glyphon, or as [`PrintText`] while printing.
 pub fn paint_text(painter: &egui::Painter, rect: Rect, mut areas: Vec<TextBufferArea>) {
