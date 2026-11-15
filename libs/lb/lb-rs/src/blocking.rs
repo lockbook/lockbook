@@ -175,6 +175,10 @@ impl Lb {
         self.block_on(self.lb.get_file_by_id(id))
     }
 
+    pub fn list_attachments(&self) -> LbResult<Vec<File>> {
+        self.block_on(self.lb.list_attachments())
+    }
+
     pub fn get_attachments_folder(&self, document: &Uuid) -> LbResult<Option<File>> {
         self.block_on(self.lb.get_attachments_folder(document))
     }

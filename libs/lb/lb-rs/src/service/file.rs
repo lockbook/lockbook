@@ -80,6 +80,28 @@ impl<S: Server, D: LocalDocuments> Lb<S, D> {
 
     /// `document`'s attachments folder, if it has one that isn't deleted.
     #[instrument(level = "debug", skip(self), err(Debug))]
+    /// Every attachments folder and everything in it that isn't deleted, including those
+    /// [Self::list_metadatas] leaves out, for an app that hides them itself but still finds images
+    /// and plans links through them.
+    #[instrument(level = "debug", skip(self), err(Debug))]
+    pub async fn list_attachments(&self) -> LbResult<Vec<File>> {
+        let tx = self.ro_tx().await;
+        let db = tx.db();
+
+        let mut tree = (&db.base_metadata).to_staged(&db.local_metadata).to_lazy();
+        let mut ids = Vec::new();
+        for id in tree.ids() {
+            if tree.in_attachments(&id)?
+                && !tree.find(&id)?.is_link()
+                && !tree.calculate_deleted(&id)?
+            {
+                ids.push(id);
+            }
+        }
+
+        tree.decrypt_all(&self.keychain, ids.into_iter(), &db.pub_key_lookup, false)
+    }
+
     pub async fn get_attachments_folder(&self, document: &Uuid) -> LbResult<Option<File>> {
         let tx = self.ro_tx().await;
         let db = tx.db();

@@ -1,5 +1,5 @@
 use std::cmp::Ordering;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::fmt::{self, Debug, Formatter};
 use std::iter;
 use std::sync::{Arc, OnceLock, RwLock};
@@ -33,6 +33,7 @@ pub enum Reach {
 }
 
 type UuidMap<V> = HashMap<Uuid, V, UuidIdentityHasherBuilder>;
+type UuidSet = HashSet<Uuid, UuidIdentityHasherBuilder>;
 
 fn uuid_map<V>() -> UuidMap<V> {
     HashMap::with_hasher(UuidIdentityHasherBuilder)
@@ -48,6 +49,9 @@ pub struct FileCache {
     /// `(parent, is_document, name)`. `(parent, name)` is unique.
     rows: Vec<File>,
     by_id: UuidMap<u32>,
+    /// Attachments folders and their contents: rows that links and plans reach, but that nothing
+    /// lists, as lb leaves them out of its own listings.
+    hidden: UuidSet,
     pub shared_roots: Vec<File>,
     pub size_bytes_recursive: UuidMap<u64>,
     pub last_modified_recursive: UuidMap<u64>,
@@ -100,6 +104,7 @@ impl FileCache {
             shared_roots: vec![],
             rows: vec![root],
             by_id: [(root_id, 0)].into_iter().collect(),
+            hidden: Default::default(),
             notes: Default::default(),
             titles: Default::default(),
             generation: 0,
@@ -110,11 +115,23 @@ impl FileCache {
     pub fn from_owned_and_shared(
         root: File, owned: impl IntoIterator<Item = File>, shared: impl IntoIterator<Item = File>,
     ) -> Self {
-        Self::from_rows(root, owned.into_iter().chain(shared), Vec::new())
+        Self::from_rows(root, owned.into_iter().chain(shared), Vec::new(), Default::default())
+    }
+
+    /// This cache with `hidden`, attachments folders and what's in them, left out of listings.
+    pub fn with_hidden(mut self, hidden: impl IntoIterator<Item = Uuid>) -> Self {
+        self.hidden = hidden.into_iter().collect();
+        self.titles = Default::default();
+        self
+    }
+
+    /// Whether `id` is an attachments folder or in one: reached by links, listed nowhere.
+    pub fn is_hidden(&self, id: Uuid) -> bool {
+        self.hidden.contains(&id)
     }
 
     fn from_rows(
-        root: File, files: impl IntoIterator<Item = File>, shared_roots: Vec<File>,
+        root: File, files: impl IntoIterator<Item = File>, shared_roots: Vec<File>, hidden: UuidSet,
     ) -> Self {
         let mut rows: Vec<File> = files.into_iter().collect();
         if !rows.iter().any(|f| f.id == root.id) {
@@ -127,6 +144,7 @@ impl FileCache {
             root,
             rows,
             by_id,
+            hidden,
             shared_roots,
             size_bytes_recursive: uuid_map(),
             last_modified_recursive: uuid_map(),
@@ -143,8 +161,17 @@ impl FileCache {
         let files = lb.list_metadatas()?;
         let shared = lb.get_pending_share_files()?;
         let shared_roots = lb.get_pending_shares()?;
-        tracing::Span::current().record("n_files", files.len() + shared.len());
-        let mut cache = Self::from_rows(root, files.into_iter().chain(shared), shared_roots);
+        let attachments = lb.list_attachments()?;
+        let hidden: UuidSet = attachments.iter().map(|f| f.id).collect();
+        tracing::Span::current().record("n_files", files.len() + shared.len() + attachments.len());
+        // lb lists attachments only when configured to; here they're always rows, and hidden
+        let listed: Vec<File> = files
+            .into_iter()
+            .chain(shared)
+            .filter(|f| !hidden.contains(&f.id))
+            .collect();
+        let mut cache =
+            Self::from_rows(root, listed.into_iter().chain(attachments), shared_roots, hidden);
         cache.fill_recursive();
         Ok(cache)
     }
@@ -182,9 +209,10 @@ impl FileCache {
             .unwrap_or_else(|| self.get_by_id(id).map(|f| f.last_modified).unwrap_or(0))
     }
 
-    /// Iterates all known files: the user's own tree plus pending shares.
+    /// Iterates all listed files: the user's own tree plus pending shares, without attachments
+    /// folders and their contents.
     pub fn all_files(&self) -> impl Iterator<Item = &File> {
-        self.rows.iter()
+        self.rows.iter().filter(|f| !self.hidden.contains(&f.id))
     }
 
     /// `(file, path)` pairs for the path searcher used by link completions.
@@ -196,6 +224,9 @@ impl FileCache {
     }
 
     pub fn insert_created_file(&mut self, file: File) {
+        if self.hidden.contains(&file.parent) {
+            self.hidden.insert(file.id);
+        }
         let file_id = file.id;
         let file_size = file.size_bytes;
         let file_modified = file.last_modified;
@@ -314,6 +345,7 @@ impl FileCache {
             self.root.clone(),
             rows.chain(created).collect::<Vec<_>>(),
             self.shared_roots.clone(),
+            self.hidden.clone(),
         );
         after.size_bytes_recursive = self.size_bytes_recursive.clone();
         after.last_modified_recursive = self.last_modified_recursive.clone();
@@ -363,8 +395,15 @@ impl Debug for FileCache {
 pub trait FilesExt {
     fn root(&self) -> &File;
     fn get_by_id(&self, id: Uuid) -> Option<&File>;
+    /// The listed files whose parent is `id`.
     fn children(&self, id: Uuid) -> Vec<&File>;
     fn iter_files(&self) -> impl Iterator<Item = &File>;
+
+    /// Every file whose parent is `id`, attachments folders and their contents included: what
+    /// paths walk and plans move, delete and rename along.
+    fn contents(&self, id: Uuid) -> Vec<&File> {
+        self.children(id)
+    }
 
     /// The documents a wikilink title's last segment names ([`title_matches`]).
     fn named(&self, title: &str) -> Vec<&File> {
@@ -375,7 +414,7 @@ pub trait FilesExt {
 
     fn siblings(&self, id: Uuid) -> Vec<&File> {
         let parent = self.get_by_id(id).unwrap().parent;
-        self.children(parent)
+        self.contents(parent)
             .into_iter()
             .filter(|f| f.id != id)
             .collect()
@@ -383,7 +422,7 @@ pub trait FilesExt {
 
     fn descendents(&self, id: Uuid) -> Vec<&File> {
         let mut descendents = vec![];
-        for child in self.children(id) {
+        for child in self.contents(id) {
             descendents.extend(self.descendents(child.id));
             descendents.push(child);
         }
@@ -446,7 +485,7 @@ pub trait FilesExt {
         let mut current = self.root().id;
         for component in components {
             current = self
-                .children(current)
+                .contents(current)
                 .into_iter()
                 .find(|f| f.name == component)?
                 .id;
@@ -492,7 +531,7 @@ pub trait FilesExt {
                 }
                 name => {
                     current = self
-                        .children(current)
+                        .contents(current)
                         .into_iter()
                         .find(|f| f.name == name)?
                         .id;
@@ -964,6 +1003,12 @@ impl FilesExt for FileCache {
     }
 
     fn children(&self, id: Uuid) -> Vec<&File> {
+        let mut children = self.contents(id);
+        children.retain(|f| !self.hidden.contains(&f.id));
+        children
+    }
+
+    fn contents(&self, id: Uuid) -> Vec<&File> {
         let start = self.rows.partition_point(|f| f.parent < id);
         let end = self.rows.partition_point(|f| f.parent <= id);
         self.rows[start..end]
@@ -983,7 +1028,7 @@ impl FilesExt for FileCache {
                 .rows
                 .iter()
                 .enumerate()
-                .filter(|(_, f)| f.is_document())
+                .filter(|(_, f)| f.is_document() && !self.hidden.contains(&f.id))
             {
                 let name = f.name.to_ascii_lowercase();
                 if wiki_title(&name) != name {
@@ -1277,6 +1322,55 @@ pub(crate) mod tests {
             file(folder, root, "notes", FileType::Folder),
             file(doc, folder, "meeting.md", FileType::Document),
         ]
+    }
+
+    #[test]
+    fn attachments_resolve_but_arent_listed() {
+        let [root, notes, plan, folder, image] = [(); 5].map(|_| Uuid::new_v4());
+        let cache = FileCache::from_owned_and_shared(
+            file(root, root, "root", FileType::Folder),
+            [
+                file(root, root, "root", FileType::Folder),
+                file(notes, root, "notes", FileType::Folder),
+                file(plan, notes, "plan.md", FileType::Document),
+                file(folder, notes, "plan-attachments", FileType::Folder),
+                file(image, folder, "image.png", FileType::Document),
+            ],
+            [],
+        )
+        .with_hidden([folder, image]);
+
+        // listed nowhere
+        assert_eq!(
+            cache
+                .children(notes)
+                .iter()
+                .map(|f| f.id)
+                .collect::<Vec<_>>(),
+            [plan]
+        );
+        assert!(cache.all_files().all(|f| f.id != folder && f.id != image));
+        assert!(cache.named("image.png").is_empty());
+
+        // reached by links and paths, and carried by plans
+        assert_eq!(
+            cache.resolve_link("plan-attachments/image.png", plan),
+            Some(ResolvedLink::File(image))
+        );
+        assert_eq!(
+            cache
+                .by_path("/notes/plan-attachments/image.png")
+                .unwrap()
+                .id,
+            image
+        );
+        assert_eq!(cache.descendents(notes).len(), 3);
+        let renamed = cache.after(&Change::Rename { id: folder, name: "next-attachments".into() });
+        assert!(renamed.is_hidden(folder) && renamed.children(notes).len() == 1);
+        assert_eq!(
+            renamed.link_destination(image, plan).as_deref(),
+            Some("next-attachments/image.png")
+        );
     }
 
     #[test]
