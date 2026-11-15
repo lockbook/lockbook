@@ -1,233 +1,158 @@
-# Markdown Syntax
-Markdown is a language for easily formatting your documents. This document can help you get started.
+# Formatting Reference
+This is where we list the formatting Lockbook supports and how to type it. New to Markdown? Start with [Writing in Markdown](the-editor.md).
 
-## Styled Text
-To style text, wrap your text in the corresponding characters.
-| Style         | Syntax              | Example           |
-|---------------|---------------------|-------------------|
-| emphasis      | `*emphasis*`        | *emphasis*        |
-| strong        | `**strong**`        | **strong**        |
-| strikethrough | `~~strikethrough~~` | ~~strikethrough~~ |
-| underline     | `__underline__`     | __underline__     |
-| code          | ``code``            | `code`            |
-| spoiler       | `||spoiler||`       | ||spoiler||       |
-| superscript   | `^superscript^`     | ^superscript^     |
-| subscript     | `~subscript~`       | ~subscript~       |
+## Cheat sheet
+| To get | Type |
+|---|---|
+| **Bold** | `**bold**` |
+| *Italic* | `*italic*` |
+| Underline | `__underline__` |
+| ~~Strikethrough~~ | `~~strikethrough~~` |
+| Highlight | `==highlight==` |
+| `Code` | `` `code` `` |
+| Heading | `# Heading` |
+| Bulleted list | `- item` |
+| Numbered list | `1. item` |
+| Task | `- [ ] task` |
+| Link | `[text](https://lockbook.net)` |
+| Link to a note | `[[Note name]]` |
+| Image | `![description](image.png)` |
+| A note shown inside this one | `![[Note name]]` |
+| Quote | `> quote` |
+| Code block | ```` ``` ```` on the lines above and below |
+| Table | `\| a \| b \|` |
+| Divider | `---` |
 
-## Links
-To make text into a link, wrap it with `[` `]`, add a link destination to the end , and wrap the destination with `(` `)`. The link destination can be a web URL or a relative path to another Lockbook file.
+The rest of this page covers each of these in more detail.
+
+## Text styles
+Wrap text in the style's characters. Styles can sit inside one another:
 ```md
-[Lockbook's website](https://lockbook.net)
+**Due ==Friday==, ~~not Thursday~~.** Bring *__both__ forms*.
 ```
-> [Lockbook's website](https://lockbook.net)
+A bold sentence with a highlighted word and a crossed-out phrase, then italics with one word underlined.
 
-## Images
-To embed an image, add a `!` to the beginning of the link syntax.
-```md
-![Lockbook's favicon](https://lockbook.net/favicon/favicon-96x96.png)
-```
-> ![Lockbook's favicon](https://lockbook.net/favicon/favicon-96x96.png)
+| Style | Type |
+|---|---|
+| Bold | `**bold**` |
+| Italic | `*italic*` |
+| Underline | `__underline__` |
+| Strikethrough | `~~strikethrough~~` |
+| Highlight | `==highlight==` |
+| Code | `` `code` `` |
+| Spoiler | `\|\|spoiler\|\|` |
+| Superscript | `x^2^` |
+| Subscript | `H~2~O` |
 
 ## Headings
-To create a heading, add up to six `#`'s plus a space before your text. More `#`'s create a smaller heading.
+Start a line with one to six `#`s and a space. More `#`s make a smaller heading.
 ```md
 # Heading 1
 ## Heading 2
 ### Heading 3
-#### Heading 4
-##### Heading 5
-###### Heading 6
 ```
-> # Heading 1
-> ## Heading 2
-> ### Heading 3
-> #### Heading 4
-> ##### Heading 5
-> ###### Heading 6
-
-You can also create a heading using an underline composed of `=`'s (Heading 1) or `-`'s (Heading 2) on the following line.
-```md
-Heading 1
-===
-Heading 2
----
-```
-> Heading 1
-> ===
-> Heading 2
-> ---
 
 ## Lists
-Create a list item by adding `- `, `+ `, or `* ` for a bulleted list, `1. ` for a numbered list, or `- [ ] `, `+ [ ] `, or `* [ ] ` for a task list at the start of the line. The added characters are called the *list marker*.
+Start a line with `-` for a bullet, `1.` for a number, or `- [ ]` for a task. Put an `x` in the brackets to check it off.
 ```md
-* bulleted list item
-- bulleted list item
-+ bulleted list item
+- milk
+- eggs
 
-1. numbered list item
-1. numbered list item
-1. numbered list item
+1. preheat the oven
+2. mix
 
-- [ ] task list item
-- [x] task list item
+- [ ] call the bank
+- [x] book flights
 ```
->* bulleted list item
->- bulleted list item
->+ bulleted list item
->
->1. numbered list item
->1. numbered list item
->1. numbered list item
->
->- [ ] task list item
->- [x] task list item
-
-List items can be nested. To nest an inner item in an outer one, the inner item's line must start with at least one space for each character in the outer item's list marker: usually 2 for bulleted lists, 3 for numbered lists, or 2 for tasks lists (the trailing `[ ] ` is excluded).
+To put one item inside another, indent it until it lines up with the text of the item above.
 ```md
-* This is a bulleted list
-  * An inner item needs at least 2 spaces
-1. This is a numbered list
-   1. An inner item needs at least 3 spaces
-* [ ] This is a task list
-  * [ ] An inner item needs at least 2 spaces
+- fruit
+  - apples
+1. first
+   - a detail
 ```
-> * This is a bulleted list
->   * An inner item needs at least 2 spaces
-> 1. This is a numbered list
->    1. An inner item needs at least 3 spaces
-> * [ ] This is a task list
->   * [ ] An inner item needs at least 2 spaces
 
-List items can contain formatted content. For non-text content, each line must start with the same number of spaces as an inner list item would.
+## Links
+Put the text in square brackets and the destination in parentheses. The destination can be a web address or another Lockbook file.
 ```md
-* This item contains text,
-  > a quote
-  ### and a heading.
-* This item contains two lines of text.
-The second line doesn't need spaces.
+[Lockbook's website](https://lockbook.net)
+[my packing list](../travel/packing.md)
 ```
-> * This item contains text,
->   > a quote
->   ### and a heading.
-> * This item contains two lines of text.
-> The second line doesn't need spaces.
-
-## Quotes
-To create a block quote, add `> ` to each line.
+To link to a note by its name, use double square brackets. Add `#` and a heading to link to a section, or `|` and some text to show different words.
 ```md
-> This is a quote
+[[Packing list]]
+[[Packing list#Toiletries]]
+[[Packing list|what to bring]]
 ```
-> This is a quote
 
-Like list items, block quotes can contain formatted content.
+## Images and embeds
+An image is a link with `!` in front. Pasting or dropping an image into a note writes this for you.
 ```md
-> This quote contains some text,
-> ```rust
-> // some code
-> fn main() { println!("Hello, world!"); }
-> ```
-> ### and a heading.
-
-> This quote contains two lines of text.
-The second line doesn't need added characters.
+![Lockbook's logo](https://lockbook.net/favicon/favicon-96x96.png)
 ```
-> This quote contains some text,
-> ```rust
-> // some code
-> fn main() { println!("Hello, world!"); }
-> ```
-> ### and a heading.
-
-> This quote contains two lines of text.
-The second line doesn't need added characters.
-
-## Alerts
-To create an alert, add one of 5 tags to the first line of a quote: `[!NOTE]`, `[!TIP]`, `[!IMPORTANT]`, `[!WARNING]`, or `[!CAUTION]`. An alternate title can be added after the tag.
+Put `!` in front of a double-bracket link to show the file itself: a note, one section of a note, or an image.
 ```md
-> [!NOTE]
-> This is a note.
-
-> [!TIP]
-> This is a tip.
-
-> [!IMPORTANT]
-> This is important.
-
-> [!WARNING]
-> This is a warning.
-
-> [!CAUTION] Caution!!!!!
-> This is a caution.
+![[Packing list]]
+![[Packing list#Toiletries]]
+![[boarding-pass.png]]
 ```
-> [!NOTE]
-> This is a note.
 
-> [!TIP]
-> This is a tip.
-
-> [!IMPORTANT]
-> This is important.
-
-> [!WARNING]
-> This is a warning.
-
-> [!CAUTION] Caution!!!!!
-> This is a caution.
-
-## Tables
-A table is written with `|`'s between columns and a row after the header row whose cell's contents are `-`'s.
+## Quotes and alerts
+Start each line with `>`.
 ```md
-| Style         | Syntax              | Example           |
-|---------------|---------------------|-------------------|
-| emphasis      | `*emphasis*`        | *emphasis*        |
-| strong        | `**strong**`        | **strong**        |
+> The best time to plant a tree was twenty years ago.
 ```
-> | Style         | Syntax              | Example           |
-> |---------------|---------------------|-------------------|
-> | emphasis      | `*emphasis*`        | *emphasis*        |
-> | strong        | `**strong**`        | **strong**        |
+To turn a quote into a colored alert, make its first line `[!NOTE]`, `[!TIP]`, `[!IMPORTANT]`, `[!WARNING]` or `[!CAUTION]`. Text after the tag replaces the title.
+```md
+> [!WARNING] Before you travel
+> Check that your passport is valid for six months.
+```
 
 ## Code
-A code block is wrapped by two lines containing three backticks. A language can be added after the opening backticks.
-```md
-    ```rust
-    // some code
-    fn main() { println!("Hello, world!"); }
-    ```
+For a block of code, put three backticks on the line above and the line below. Name the language after the opening backticks to color it.
+````md
+```rust
+fn main() { println!("Hello, world!"); }
 ```
-> ```rust
-> // some code
-> fn main() { println!("Hello, world!"); }
-> ```
+````
 
-You can also create a code block by indenting each line with four spaces. Indented code blocks cannot have a language.
-```md
-    // some code
-    fn main() { println!("Hello, world!"); }
+## Diagrams and math
+A code block whose language is `mermaid` draws as a diagram. See [Mermaid's documentation](https://mermaid.js.org/intro/) for what it can draw.
+````md
+```mermaid
+flowchart LR
+    Idea --> Note --> Diagram
 ```
->     // some code
->     fn main() { println!("Hello, world!"); }
-
-## Diagrams
-A code block whose language is `mermaid` draws as a diagram. Tap it to select it; edit it to change its source. See [Mermaid's documentation](https://mermaid.js.org/intro/) for the kinds of diagrams and their syntax.
+````
+Wrap a formula in `$` to set it within a line, or in `$$` to give it lines of its own. Formulas are written in LaTeX.
 ```md
-    ```mermaid
-    flowchart LR
-        A[Idea] --> B[Note] --> C[Diagram]
-    ```
+The area is $\pi r^2$.
+
+$$
+x = \frac{-b \pm \sqrt{b^2 - 4ac}}{2a}
+$$
 ```
-> ```mermaid
-> flowchart LR
->     A[Idea] --> B[Note] --> C[Diagram]
-> ```
 
-## Thematic Breaks
-A thematic break is written with `***`, `---`, or `___` and shows a horizontal line across the page.
+## Tables
+Separate columns with `|`, and put a row of dashes under the header.
 ```md
-***
+| Item  | Price |
+|-------|-------|
+| Bread | $4    |
+| Milk  | $3    |
+```
+
+## Dividers
+Three dashes on their own line draw a line across the page.
+```md
 ---
-___
 ```
-> ***
-> ---
-> ___
+
+## Properties
+A block between two `---` lines at the very top of a note holds the note's properties, shown as a grid.
+```md
+---
+status: draft
+due: 2026-12-01
+---
+```
