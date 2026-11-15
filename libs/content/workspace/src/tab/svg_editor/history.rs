@@ -2,7 +2,7 @@ use std::collections::VecDeque;
 use std::fmt::Debug;
 
 use lb_rs::Uuid;
-use lb_rs::model::svg::buffer::Buffer;
+use lb_rs::model::svg::buffer::{Buffer, follow_order};
 use lb_rs::model::svg::element::{Element, Stroke};
 use resvg::usvg::Transform;
 
@@ -19,6 +19,11 @@ pub enum Event {
     Transform(Vec<TransformElement>),
     OpacityChange(Vec<OpacityChangeElement>),
     StrokeChange(Vec<StrokeChangeElement>),
+    /// the elements' stacking order, front first, before and after a restack
+    Restack {
+        from: Vec<Uuid>,
+        to: Vec<Uuid>,
+    },
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -119,6 +124,9 @@ impl History {
                     }
                 });
             }
+            Event::Restack { to, .. } => {
+                follow_order(&mut buffer.elements, to);
+            }
         };
     }
 
@@ -206,6 +214,7 @@ impl History {
                         .collect(),
                 );
             }
+            Event::Restack { from, to } => source = Event::Restack { from: to, to: from },
         }
         source
     }

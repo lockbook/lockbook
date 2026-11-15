@@ -1212,6 +1212,7 @@ impl Selection {
         if reached {
             return;
         }
+        let from: Vec<Uuid> = elements.keys().copied().collect();
         for s_el in &self.selected_elements {
             let Some(i) = elements.get_index_of(&s_el.id) else { continue };
             match layer {
@@ -1221,6 +1222,12 @@ impl Selection {
                 LayerMove::ToFront => elements.move_index(i, 0),
                 _ => {}
             }
+        }
+        let to: Vec<Uuid> = elements.keys().copied().collect();
+        if from != to {
+            selection_ctx
+                .history
+                .save(history::Event::Restack { from, to });
         }
     }
 

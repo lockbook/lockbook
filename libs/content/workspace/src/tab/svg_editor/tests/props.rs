@@ -788,3 +788,13 @@ fn saved_stroke_has_the_canvas_caps() {
     let file = vec![file_stroke(1, &[(150, 120), (151, 120)], 10)];
     renders_check(&Case { file, gestures: vec![], later: vec![] }).unwrap();
 }
+
+#[test]
+fn undo_unstacks() {
+    let file = vec![
+        file_stroke(1, &[(150, 120), (150, 120), (150, 120)], 1),
+        file_stroke(2, &[(150, 120), (150, 120)], 1),
+    ];
+    let gestures = vec![Gesture::Layer(0, LayerMove::ToBack)];
+    undo_redo_check(&Case { file, gestures, later: vec![] }).unwrap();
+}
