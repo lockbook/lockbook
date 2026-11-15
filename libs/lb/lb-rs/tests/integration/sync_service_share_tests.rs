@@ -1275,3 +1275,135 @@ async fn decline_share_holding_a_link_inside_it() {
     recipient.sync().await.unwrap();
     assert::all_paths(&recipient, &["/", "/note.md"]).await;
 }
+
+/// Declining a share right after moving a folder into it puts the folder back where it was synced,
+/// as the next sync would.
+#[tokio::test]
+async fn decline_share_after_moving_folder_into_it() {
+    let owner = test_core_with_account().await;
+    let recipient = test_core_with_account().await;
+    let recipient_name = recipient.get_account().unwrap().username.clone();
+
+    let team = owner.create_at_path("/team/").await.unwrap();
+    owner
+        .share_file(team.id, &recipient_name, ShareMode::Write)
+        .await
+        .unwrap();
+    owner.sync().await.unwrap();
+    recipient.sync().await.unwrap();
+    recipient
+        .create_link_at_path("/team", team.id)
+        .await
+        .unwrap();
+    recipient.create_at_path("/notes/note.md").await.unwrap();
+    recipient.sync().await.unwrap();
+
+    move_by_path(&recipient, "/notes/", "/team/").await.unwrap();
+    recipient.reject_share(&team.id).await.unwrap();
+    assert::all_paths(&recipient, &["/", "/notes/", "/notes/note.md"]).await;
+
+    recipient.sync().await.unwrap();
+    assert::all_paths(&recipient, &["/", "/notes/", "/notes/note.md"]).await;
+}
+
+/// A folder put back by declining a share takes the next free name when its old one was taken.
+#[tokio::test]
+async fn decline_share_after_moving_folder_into_it_and_reusing_its_name() {
+    let owner = test_core_with_account().await;
+    let recipient = test_core_with_account().await;
+    let recipient_name = recipient.get_account().unwrap().username.clone();
+
+    let team = owner.create_at_path("/team/").await.unwrap();
+    owner
+        .share_file(team.id, &recipient_name, ShareMode::Write)
+        .await
+        .unwrap();
+    owner.sync().await.unwrap();
+    recipient.sync().await.unwrap();
+    recipient
+        .create_link_at_path("/team", team.id)
+        .await
+        .unwrap();
+    recipient.create_at_path("/notes/note.md").await.unwrap();
+    recipient.sync().await.unwrap();
+
+    move_by_path(&recipient, "/notes/", "/team/").await.unwrap();
+    recipient.create_at_path("/notes").await.unwrap();
+    recipient.reject_share(&team.id).await.unwrap();
+    let paths = ["/", "/notes", "/notes 2/", "/notes 2/note.md"];
+    assert::all_paths(&recipient, &paths).await;
+
+    recipient.sync().await.unwrap();
+    assert::all_paths(&recipient, &paths).await;
+}
+
+/// Declining a share puts back each folder moved into it, and keeps a move into a folder that goes
+/// back. Files are visited in no fixed order, so each case runs a few times.
+#[tokio::test]
+async fn decline_share_after_moving_nested_folders_into_it() {
+    // each case: what's synced, the moves before declining, and what the device then shows
+    type Case = (&'static str, &'static [(&'static str, &'static str)], &'static [&'static str]);
+    let cases: [Case; 3] = [
+        ("/a/b/", &[("/a/b/", "/team/"), ("/a/", "/team/")], &["/", "/a/", "/a/b/"]),
+        ("/a/b/", &[("/a/b/", "/team/"), ("/a/", "/team/b/")], &["/", "/a/", "/a/b/"]),
+        ("/b/", &[("/a/", "/team/"), ("/b/", "/team/a/")], &["/", "/a/", "/a/b/"]),
+    ];
+    for (synced, moves, paths) in cases {
+        for _ in 0..8 {
+            let owner = test_core_with_account().await;
+            let recipient = test_core_with_account().await;
+            let recipient_name = recipient.get_account().unwrap().username.clone();
+
+            let team = owner.create_at_path("/team/").await.unwrap();
+            owner
+                .share_file(team.id, &recipient_name, ShareMode::Write)
+                .await
+                .unwrap();
+            owner.sync().await.unwrap();
+            recipient.sync().await.unwrap();
+            recipient
+                .create_link_at_path("/team", team.id)
+                .await
+                .unwrap();
+            recipient.create_at_path(synced).await.unwrap();
+            recipient.create_at_path("/a/").await.ok();
+            recipient.sync().await.unwrap();
+
+            for (from, to) in moves {
+                move_by_path(&recipient, from, to).await.unwrap();
+            }
+            recipient.reject_share(&team.id).await.unwrap();
+            assert::all_paths(&recipient, paths).await;
+
+            recipient.sync().await.unwrap();
+            assert::all_paths(&recipient, paths).await;
+        }
+    }
+}
+
+/// Declining a share still works after moving a folder into it out of a folder since deleted.
+#[tokio::test]
+async fn decline_share_after_moving_folder_into_it_and_deleting_its_old_parent() {
+    let owner = test_core_with_account().await;
+    let recipient = test_core_with_account().await;
+    let recipient_name = recipient.get_account().unwrap().username.clone();
+
+    let team = owner.create_at_path("/team/").await.unwrap();
+    owner
+        .share_file(team.id, &recipient_name, ShareMode::Write)
+        .await
+        .unwrap();
+    owner.sync().await.unwrap();
+    recipient.sync().await.unwrap();
+    recipient
+        .create_link_at_path("/team", team.id)
+        .await
+        .unwrap();
+    let a = recipient.create_at_path("/a/b/").await.unwrap();
+    recipient.sync().await.unwrap();
+
+    move_by_path(&recipient, "/a/b/", "/team/").await.unwrap();
+    recipient.delete(&a.parent).await.unwrap();
+    recipient.reject_share(&team.id).await.unwrap();
+    recipient.sync().await.unwrap();
+}

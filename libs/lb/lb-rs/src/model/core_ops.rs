@@ -4,6 +4,7 @@ use crate::model::crypto::{AESKey, DecryptedDocument, EncryptedDocument};
 use crate::model::errors::{LbErrKind, LbResult};
 use crate::model::file::{File, Share, ShareMode};
 use crate::model::file_metadata::{DocumentHmac, FileType, Owner};
+use crate::model::filename::NameComponents;
 use crate::model::lazy::LazyTree;
 use crate::model::meta::Meta;
 use crate::model::secret_filename::{HmacSha256, SecretFileName};
@@ -14,6 +15,7 @@ use crate::service::keychain::Keychain;
 use db_rs::views::hashmap::DbHashMap;
 use hmac::{Mac, NewMac};
 use libsecp256k1::PublicKey;
+use std::collections::HashSet;
 use tracing::debug;
 use uuid::Uuid;
 
@@ -451,8 +453,91 @@ where
     pub fn delete_share(
         &mut self, id: &Uuid, maybe_encrypted_for: Option<PublicKey>, keychain: &Keychain,
     ) -> LbResult<()> {
-        let op = self.delete_share_op(id, maybe_encrypted_for, keychain)?;
-        self.stage_validate_and_promote(op, Owner(keychain.get_pk()?))?;
+        let me = Owner(keychain.get_pk()?);
+        let mut tree = StagedTree::new(&self.tree, Vec::new()).to_lazy();
+        if maybe_encrypted_for == Some(me.0) {
+            // this device is leaving the share: its moves into the share that never reached the
+            // server go back, as a sync would put them, rather than leaving with the share. e.g.
+            // the server has /notes/ and /team/, the share; here notes was moved to /team/notes/;
+            // after leaving, notes is back at /notes/
+            let synced = self.tree.base().to_lazy();
+
+            // 1. the unsynced moves, as (file, to, from): files whose parent here differs from
+            //    the server's, skipping files deleted here and files whose old parent was
+            //    deleted here, whose move stays
+            let mut moves = Vec::new();
+            for moved in self.tree.staged().ids() {
+                let Some(base) = synced.maybe_find(&moved) else { continue };
+                let file = self.find(&moved)?;
+                if !file.explicitly_deleted()
+                    && file.parent() != base.parent()
+                    && !tree.calculate_deleted(base.parent())?
+                {
+                    moves.push((moved, *file.parent(), *base.parent()));
+                }
+            }
+
+            // 2. a move goes back when its new parent is in the share and its old parent isn't.
+            //    whether a file is in the share is asked of the server's tree, or of this
+            //    device's for a file the server doesn't have
+            let in_share = |file: &Uuid| -> LbResult<bool> {
+                Ok(file == id
+                    || match synced.maybe_find(file) {
+                        Some(_) => synced.ancestors(file)?.contains(id),
+                        None => self.ancestors(file)?.contains(id),
+                    })
+            };
+            let mut undone = Vec::new();
+            for &(moved, to, from) in &moves {
+                if in_share(&to)? && !in_share(&from)? {
+                    tree.move_unvalidated(&moved, &from, keychain)?;
+                    undone.push(moved);
+                }
+            }
+
+            // 3. undoing can leave a folder inside itself. e.g. the server has /p/a/; here a was
+            //    moved into the share, then p into a; putting a back under p makes p its own
+            //    ancestor. so any recorded move whose file is now its own ancestor goes back too
+            while let Some(&(moved, _, from)) = moves.iter().find(|(moved, _, _)| {
+                !undone.contains(moved) && tree.ancestors(moved).is_ok_and(|a| a.contains(moved))
+            }) {
+                tree.move_unvalidated(&moved, &from, keychain)?;
+                undone.push(moved);
+            }
+
+            // 4. each file put back takes the first free numbered name in its parent ("notes",
+            //    then "notes 2"), in id order, so which of two same-named files keeps the name
+            //    doesn't depend on the order the moves were found in
+            undone.sort();
+            for moved in undone {
+                let parent = *tree.find(&moved)?.parent();
+                let name = tree.name(&moved, keychain)?;
+                let mut taken = HashSet::new();
+                for sibling in tree.children(&parent)? {
+                    if sibling != moved && !tree.calculate_deleted(&sibling)? {
+                        taken.insert(tree.name(&sibling, keychain)?);
+                    }
+                }
+                let components = if tree.find(&moved)?.is_folder() {
+                    NameComponents::folder(&name)
+                } else {
+                    NameComponents::from(&name)
+                };
+                let free = (1..)
+                    .map(|n| components.numbered(n))
+                    .find(|name| !taken.contains(name))
+                    .unwrap();
+                if free != name {
+                    tree.rename_unvalidated(&moved, &free, keychain)?;
+                }
+            }
+        }
+        // the moves put back, their renames and the unshare are staged together, then validated
+        // and promoted as one change
+        let unshared = tree.delete_share_op(id, maybe_encrypted_for, keychain)?;
+        tree.stage_and_promote(unshared)?;
+        let (_, op) = tree.unstage();
+        self.stage_validate_and_promote(op, me)?;
         Ok(())
     }
 
