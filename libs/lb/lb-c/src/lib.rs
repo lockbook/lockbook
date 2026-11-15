@@ -17,10 +17,7 @@ use lb_rs::model::filename::NameComponents;
 use lb_rs::service::debug::DebugInfoDisplay;
 use lb_rs::service::events::Event;
 pub use lb_rs::*;
-use model::api::{
-    AppStoreAccountState, GooglePlayAccountState, PaymentMethod, PaymentPlatform,
-    StripeAccountTier, UnixTimeMillis,
-};
+use model::api::{AppStoreAccountState, GooglePlayAccountState, PaymentPlatform, UnixTimeMillis};
 use search::{ContentSearcher, PathSearcher};
 use service::import_export::ImportStatus;
 
@@ -1011,25 +1008,6 @@ pub extern "C" fn lb_content_searcher_snippet(
         None => {
             LbContentSearcherSnippet { prefix: null_mut(), matched: null_mut(), suffix: null_mut() }
         }
-    }
-}
-
-#[unsafe(no_mangle)]
-pub extern "C" fn lb_upgrade_account_stripe(
-    lb: *mut Lb, is_old_card: bool, number: *const c_char, exp_year: i32, exp_month: i32,
-    cvc: *const c_char,
-) -> *mut LbFfiErr {
-    let lb = rlb(lb);
-
-    let payment_method = if is_old_card {
-        PaymentMethod::OldCard
-    } else {
-        PaymentMethod::NewCard { number: rstring(number), exp_year, exp_month, cvc: rstring(cvc) }
-    };
-
-    match lb.upgrade_account_stripe(StripeAccountTier::Premium(payment_method)) {
-        Ok(()) => null_mut(),
-        Err(err) => lb_err(err),
     }
 }
 

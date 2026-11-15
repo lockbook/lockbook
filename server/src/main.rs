@@ -7,7 +7,7 @@ use lockbook_server_lib::config::Config;
 use lockbook_server_lib::document_service::OnDiskDocuments;
 use lockbook_server_lib::router_service::{
     app_store_notification_webhooks, build_info, core_routes, get_metrics,
-    google_play_notification_webhooks, stripe_webhooks,
+    google_play_notification_webhooks, retired_card_upgrade, stripe_webhooks,
 };
 use lockbook_server_lib::schema::{self, ServerDb};
 use lockbook_server_lib::*;
@@ -49,6 +49,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     });
 
     let routes = core_routes(&server_state)
+        .or(retired_card_upgrade())
         .or(build_info())
         .or(stripe_webhooks(&server_state))
         .or(google_play_notification_webhooks(&server_state))

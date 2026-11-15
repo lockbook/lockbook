@@ -329,11 +329,8 @@ where
             ServerState::upgrade_account_google_play,
             server_state
         ))
-        .or(core_req!(
-            UpgradeAccountStripeRequest,
-            ServerState::upgrade_account_stripe,
-            server_state
-        ))
+        .or(core_req!(StripeCheckoutRequest, ServerState::stripe_checkout, server_state))
+        .or(core_req!(StripeBillingPortalRequest, ServerState::stripe_billing_portal, server_state))
         .or(core_req!(
             UpgradeAccountAppStoreRequest,
             ServerState::upgrade_account_app_store,
@@ -369,6 +366,22 @@ where
         .or(core_req!(AdminFileInfoRequest, ServerState::admin_file_info, server_state))
         .or(core_req!(AdminRebuildIndexRequest, ServerState::admin_rebuild_index, server_state))
         .or(core_req!(AdminSetUserTierRequest, ServerState::admin_set_user_tier, server_state))
+}
+
+/// Card payments moved to Stripe's checkout page; apps that still send card numbers are told
+/// to update.
+pub fn retired_card_upgrade()
+-> impl Filter<Extract = (impl warp::Reply,), Error = Rejection> + Clone {
+    method(Method::POST)
+        .and(warp::path("upgrade-account-stripe"))
+        .and(warp::path::end())
+        .and(warp::header::optional::<String>(lb_rs::model::wire::WIRE_FORMAT_HEADER))
+        .map(|wire_format: Option<String>| {
+            let body = WireFormat::from_header(wire_format.as_deref())
+                .serialize::<Result<(), ErrorWrapper<()>>>(&Err(ErrorWrapper::ClientUpdateRequired))
+                .unwrap_or_default();
+            build_response(body, StatusCode::BAD_REQUEST)
+        })
 }
 
 pub fn build_info() -> impl Filter<Extract = (impl warp::Reply,), Error = warp::Rejection> + Clone {

@@ -76,9 +76,13 @@ pub trait Server: Clone + MaybeSend + MaybeSync + 'static {
         &self, account: &Account, request: DeleteAccountRequest,
     ) -> impl Future<Output = ApiResult<DeleteAccountRequest>> + MaybeSend;
 
-    fn upgrade_account_stripe(
-        &self, account: &Account, request: UpgradeAccountStripeRequest,
-    ) -> impl Future<Output = ApiResult<UpgradeAccountStripeRequest>> + MaybeSend;
+    fn stripe_checkout(
+        &self, account: &Account, request: StripeCheckoutRequest,
+    ) -> impl Future<Output = ApiResult<StripeCheckoutRequest>> + MaybeSend;
+
+    fn stripe_billing_portal(
+        &self, account: &Account, request: StripeBillingPortalRequest,
+    ) -> impl Future<Output = ApiResult<StripeBillingPortalRequest>> + MaybeSend;
 
     fn upgrade_account_google_play(
         &self, account: &Account, request: UpgradeAccountGooglePlayRequest,

@@ -15,18 +15,15 @@ use base64::DecodeError;
 use lb_rs::model::api::{
     AdminSetUserTierError, AdminSetUserTierInfo, AdminSetUserTierRequest, AdminSetUserTierResponse,
     AppStoreAccountState, CancelSubscriptionError, CancelSubscriptionRequest,
-    CancelSubscriptionResponse, FREE_TIER_USAGE_SIZE, GetSubscriptionInfoError,
-    GetSubscriptionInfoRequest, GetSubscriptionInfoRequestV2, GetSubscriptionInfoResponse,
-    GetSubscriptionInfoResponseV2, GooglePlayAccountState, PaymentPlatform, PaymentPlatformV2,
-    StripeAccountState, SubscriptionInfo, SubscriptionInfoV2, UpgradeAccountAppStoreError,
-    UpgradeAccountAppStoreRequest, UpgradeAccountAppStoreResponse, UpgradeAccountGooglePlayError,
-    UpgradeAccountGooglePlayRequest, UpgradeAccountGooglePlayResponse, UpgradeAccountStripeError,
-    UpgradeAccountStripeRequest, UpgradeAccountStripeResponse,
+    CancelSubscriptionResponse, GetSubscriptionInfoError, GetSubscriptionInfoRequest,
+    GetSubscriptionInfoRequestV2, GetSubscriptionInfoResponse, GetSubscriptionInfoResponseV2,
+    GooglePlayAccountState, PaymentPlatform, PaymentPlatformV2, SubscriptionInfo,
+    SubscriptionInfoV2, UpgradeAccountAppStoreError, UpgradeAccountAppStoreRequest,
+    UpgradeAccountAppStoreResponse, UpgradeAccountGooglePlayError, UpgradeAccountGooglePlayRequest,
+    UpgradeAccountGooglePlayResponse,
 };
 use lb_rs::model::clock::get_time;
 use lb_rs::model::file_metadata::Owner;
-use lb_rs::model::server_tree::ServerTree;
-use lb_rs::model::tree_like::TreeLike;
 use libsecp256k1::PublicKey;
 use std::collections::HashMap;
 use std::fmt::Debug;
@@ -45,7 +42,7 @@ where
     G: GooglePlayClient,
     D: DocumentService,
 {
-    async fn lock_subscription_profile(
+    pub(crate) async fn lock_subscription_profile(
         &self, public_key: &PublicKey,
     ) -> Result<Account, ServerError<LockBillingWorkflowError>> {
         let owner = Owner(*public_key);
@@ -80,7 +77,7 @@ where
         Ok(account)
     }
 
-    async fn release_subscription_profile<T: Debug>(
+    pub(crate) async fn release_subscription_profile<T: Debug>(
         &self, public_key: PublicKey, mut account: Account,
     ) -> Result<(), ServerError<T>> {
         account.billing_info.last_in_payment_flow = 0;
@@ -200,40 +197,6 @@ where
         Ok(UpgradeAccountGooglePlayResponse {})
     }
 
-    pub async fn upgrade_account_stripe(
-        &self, context: RequestContext<UpgradeAccountStripeRequest>,
-    ) -> Result<UpgradeAccountStripeResponse, ServerError<UpgradeAccountStripeError>> {
-        let request = &context.request;
-
-        debug!("Attempting to upgrade the account tier of to premium");
-
-        let mut account = self.lock_subscription_profile(&context.public_key).await?;
-
-        if account.billing_info.is_premium() {
-            return Err(ClientError(UpgradeAccountStripeError::AlreadyPremium));
-        }
-
-        let maybe_user_info = account
-            .billing_info
-            .billing_platform
-            .and_then(|info| match info {
-                BillingPlatform::Stripe(stripe_info) => Some(stripe_info),
-                _ => None,
-            });
-
-        let user_info = self
-            .create_subscription(&context.public_key, &request.account_tier, maybe_user_info)
-            .await?;
-
-        account.billing_info.billing_platform = Some(BillingPlatform::Stripe(user_info));
-        self.release_subscription_profile::<UpgradeAccountStripeError>(context.public_key, account)
-            .await?;
-
-        debug!("Successfully upgraded the account tier of from free to premium");
-
-        Ok(UpgradeAccountStripeResponse {})
-    }
-
     pub async fn get_subscription_info(
         &self, context: RequestContext<GetSubscriptionInfoRequest>,
     ) -> Result<GetSubscriptionInfoResponse, ServerError<GetSubscriptionInfoError>> {
@@ -294,81 +257,56 @@ where
             .clone())
     }
 
+    /// Stops renewal. Premium lasts until the end of the period already paid for.
     pub async fn cancel_subscription(
         &self, context: RequestContext<CancelSubscriptionRequest>,
     ) -> Result<CancelSubscriptionResponse, ServerError<CancelSubscriptionError>> {
         let mut account = self.lock_subscription_profile(&context.public_key).await?;
+        let result = self.stop_renewal(&mut account).await;
+        self.release_subscription_profile::<CancelSubscriptionError>(context.public_key, account)
+            .await?;
+        result.map(|()| CancelSubscriptionResponse {})
+    }
 
-        if account.billing_info.data_cap() == FREE_TIER_USAGE_SIZE {
+    async fn stop_renewal(
+        &self, account: &mut Account,
+    ) -> Result<(), ServerError<CancelSubscriptionError>> {
+        if !account.billing_info.is_premium() {
             return Err(ClientError(CancelSubscriptionError::NotPremium));
         }
 
-        {
-            let mut lock = self.index_db.lock().await;
-            let mut tx = ServerTx::begin(&mut lock)?;
-            let db = &mut *tx;
-
-            let mut tree = ServerTree::new(
-                Owner(context.public_key),
-                &mut db.owned_files,
-                &mut db.shared_files,
-                &mut db.file_children,
-                &mut db.metas,
-            )?
-            .to_lazy();
-
-            let usage = tree.calculate_usage(Owner(context.public_key))?;
-
-            if usage > FREE_TIER_USAGE_SIZE {
-                debug!("Cannot downgrade user to free since they are over the data cap");
-                return Err(ClientError(CancelSubscriptionError::UsageIsOverFreeTierDataCap));
-            }
-        }
-
-        match account.billing_info.billing_platform {
-            None => {
-                return Err(internal!(
-                    "A user somehow has premium tier usage, but no billing information on redis. public_key: {:?}",
-                    context.public_key
-                ));
-            }
-            Some(BillingPlatform::GooglePlay(ref mut info)) => {
-                debug!("Canceling google play subscription of user");
-
+        match &mut account.billing_info.billing_platform {
+            None => Err(internal!("A premium account has no billing platform")),
+            Some(BillingPlatform::GooglePlay(info)) => {
                 if let GooglePlayAccountState::Canceled = &info.account_state {
                     return Err(ClientError(CancelSubscriptionError::AlreadyCanceled));
                 }
-
                 self.google_play_client
                     .cancel_subscription(&self.config, &info.purchase_token)
                     .await?;
-
                 info.account_state = GooglePlayAccountState::Canceled;
-                debug!("Successfully canceled google play subscription of user");
+                Ok(())
             }
-            Some(BillingPlatform::Stripe(ref mut info)) => {
-                debug!("Canceling stripe subscription of user");
-
+            Some(BillingPlatform::Stripe(info)) => {
+                let id = info.subscription_id.parse()?;
+                if self
+                    .stripe_client
+                    .get_subscription(&id)
+                    .await?
+                    .cancel_at_period_end
+                {
+                    return Err(ClientError(CancelSubscriptionError::AlreadyCanceled));
+                }
+                // Stripe reports the end with customer.subscription.deleted.
                 self.stripe_client
-                    .cancel_subscription(&info.subscription_id.parse()?)
-                    .await
-                    .map_err::<ServerError<CancelSubscriptionError>, _>(|err| {
-                        internal!("{:?}", err)
-                    })?;
-
-                info.account_state = StripeAccountState::Canceled;
-
-                debug!("Successfully canceled stripe subscription");
+                    .cancel_subscription_at_period_end(&id)
+                    .await?;
+                Ok(())
             }
             Some(BillingPlatform::AppStore(_)) => {
-                return Err(ClientError(CancelSubscriptionError::CannotCancelForAppStore));
+                Err(ClientError(CancelSubscriptionError::CannotCancelForAppStore))
             }
         }
-
-        self.release_subscription_profile::<CancelSubscriptionError>(context.public_key, account)
-            .await?;
-
-        Ok(CancelSubscriptionResponse {})
     }
 
     pub async fn admin_set_user_tier(
@@ -458,7 +396,7 @@ where
         Ok(AdminSetUserTierResponse {})
     }
 
-    async fn save_subscription_profile<
+    pub(crate) async fn save_subscription_profile<
         T: Debug,
         F: Fn(&mut Account) -> Result<(), ServerError<T>>,
     >(
@@ -494,93 +432,25 @@ where
         let event_type = event.type_;
         debug!(?event_type, "Verified stripe request");
 
-        match (&event.type_, &event.data.object) {
-            (stripe::EventType::InvoicePaymentFailed, stripe::EventObject::Invoice(invoice)) => {
-                if let Some(stripe::InvoiceBillingReason::SubscriptionCycle) =
-                    invoice.billing_reason
-                {
-                    let public_key = self.get_public_key_from_invoice(invoice).await?;
-                    let owner = Owner(public_key);
+        use stripe::{EventObject, Expandable};
+        let customer = match &event.data.object {
+            EventObject::CheckoutSession(session) => session.customer.as_ref(),
+            EventObject::Subscription(subscription) => Some(&subscription.customer),
+            EventObject::Invoice(invoice) => invoice.customer.as_ref(),
+            _ => None,
+        };
+        let customer_id = customer.map(|customer| match customer {
+            Expandable::Id(id) => id.to_string(),
+            Expandable::Object(customer) => customer.id.to_string(),
+        });
 
-                    debug!(
-                        ?owner,
-                        "User's tier is being reduced due to failed renewal payment in stripe"
-                    );
-
-                    self.save_subscription_profile(&public_key, |account| {
-                        if let Some(BillingPlatform::Stripe(ref mut info)) =
-                            account.billing_info.billing_platform
-                        {
-                            info.account_state = StripeAccountState::InvoiceFailed;
-
-                            Ok(())
-                        } else {
-                            Err(internal!(
-                                "Cannot get any billing info for user. public_key: {:?}",
-                                public_key
-                            ))
-                        }
-                    })
-                    .await?;
-                }
-            }
-            (stripe::EventType::InvoicePaid, stripe::EventObject::Invoice(invoice)) => {
-                if let Some(stripe::InvoiceBillingReason::SubscriptionCycle) =
-                    invoice.billing_reason
-                {
-                    let public_key = self.get_public_key_from_invoice(invoice).await?;
-                    let owner = Owner(public_key);
-
-                    debug!(
-                        ?owner,
-                        "User's subscription period_end is being changed after successful renewal",
-                    );
-
-                    let subscription_period_end = match &invoice.subscription {
-                        Some(stripe::Expandable::Object(subscription)) => {
-                            subscription.current_period_end
-                        }
-                        Some(stripe::Expandable::Id(subscription_id)) => {
-                            self.stripe_client
-                                .get_subscription(subscription_id)
-                                .await
-                                .map_err::<ServerError<StripeWebhookError>, _>(|err| {
-                                    internal!("{:?}", err)
-                                })?
-                                .current_period_end
-                        }
-                        None => {
-                            return Err(internal!(
-                                "The subscription should be included in this invoice: {:?}",
-                                invoice
-                            ));
-                        }
-                    };
-
-                    self.save_subscription_profile(&public_key, |account| {
-                        if let Some(BillingPlatform::Stripe(ref mut info)) =
-                            account.billing_info.billing_platform
-                        {
-                            info.account_state = StripeAccountState::Ok;
-                            info.expiration_time = subscription_period_end as u64;
-
-                            Ok(())
-                        } else {
-                            Err(internal!(
-                                "Cannot get any billing info for user. public_key: {:?}",
-                                public_key
-                            ))
-                        }
-                    })
-                    .await?;
-                }
-            }
-            (_, _) => {
-                return Err(internal!("Unexpected stripe event: {:?}", event.type_));
+        match customer_id {
+            Some(customer_id) => self.sync_stripe_customer(&customer_id).await,
+            None => {
+                debug!(?event_type, "Ignoring stripe event");
+                Ok(())
             }
         }
-
-        Ok(())
     }
 
     pub async fn google_play_notification_webhooks(

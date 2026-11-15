@@ -7,248 +7,142 @@ use super::stripe_error::SimplifiedStripeError;
 #[async_trait]
 pub trait StripeClient: Send + Sync + Clone + 'static {
     async fn create_customer(
-        &self, customer_name: String, payment_method_id: stripe::PaymentMethodId,
+        &self, customer_name: String,
     ) -> Result<stripe::Customer, SimplifiedStripeError>;
 
-    async fn create_payment_method(
-        &self, card_number: &str, exp_month: i32, exp_year: i32, cvc: &str,
-    ) -> Result<stripe::PaymentMethod, SimplifiedStripeError>;
+    /// A hosted page where `customer` subscribes to `price_id`.
+    async fn create_checkout_session(
+        &self, customer_id: stripe::CustomerId, price_id: &str, success_url: &str, cancel_url: &str,
+    ) -> Result<stripe::CheckoutSession, SimplifiedStripeError>;
 
-    async fn create_setup_intent(
-        &self, customer_id: stripe::CustomerId, payment_method_id: stripe::PaymentMethodId,
-    ) -> Result<stripe::SetupIntent, SimplifiedStripeError>;
+    /// A hosted page where `customer` manages their subscription.
+    async fn create_billing_portal_session(
+        &self, customer_id: stripe::CustomerId, return_url: &str,
+    ) -> Result<stripe::BillingPortalSession, SimplifiedStripeError>;
 
-    async fn create_subscription(
-        &self, customer_id: stripe::CustomerId, payment_method_id: &str, price_id: &str,
-    ) -> Result<stripe::Subscription, SimplifiedStripeError>;
-
-    async fn detach_payment_method_from_customer(
-        &self, payment_method_id: &stripe::PaymentMethodId,
-    ) -> Result<(), SimplifiedStripeError>;
-
-    async fn cancel_subscription(
+    async fn cancel_subscription_at_period_end(
         &self, subscription_id: &stripe::SubscriptionId,
-    ) -> Result<(), SimplifiedStripeError>;
+    ) -> Result<stripe::Subscription, SimplifiedStripeError>;
 
     async fn get_subscription(
         &self, subscription_id: &stripe::SubscriptionId,
     ) -> Result<stripe::Subscription, SimplifiedStripeError>;
 
-    async fn retrieve_invoice(
-        &self, invoice_id: &stripe::InvoiceId,
-    ) -> Result<stripe::Invoice, SimplifiedStripeError>;
-}
+    /// Every subscription of `customer`, with its customer and default payment method expanded.
+    async fn list_subscriptions(
+        &self, customer_id: stripe::CustomerId,
+    ) -> Result<Vec<stripe::Subscription>, SimplifiedStripeError>;
 
-const EXPAND_INVOICE_DETAILS: &[&str] = &["subscription"];
+    /// Expires `customer`'s checkout pages that are still open, so only the newest can be paid.
+    async fn expire_open_checkout_sessions(
+        &self, customer_id: stripe::CustomerId,
+    ) -> Result<(), SimplifiedStripeError>;
+}
 
 #[async_trait]
 impl StripeClient for stripe::Client {
     async fn create_customer(
-        &self, customer_name: String, payment_method_id: stripe::PaymentMethodId,
+        &self, customer_name: String,
     ) -> Result<stripe::Customer, SimplifiedStripeError> {
-        {
-            let payment_method_id = payment_method_id.as_str();
-            info!(?payment_method_id, "Creating stripe customer");
-        }
-
         let mut customer_params = stripe::CreateCustomer::new();
-        customer_params.payment_method = Some(payment_method_id);
         customer_params.name = Some(&customer_name);
 
-        let customer = stripe::Customer::create(self, customer_params)
-            .await
-            .map_err(SimplifiedStripeError::from)?;
-
+        let customer = stripe::Customer::create(self, customer_params).await?;
         debug!(?customer, "Created stripe customer");
-
         Ok(customer)
     }
 
-    async fn create_payment_method(
-        &self, card_number: &str, exp_month: i32, exp_year: i32, cvc: &str,
-    ) -> Result<stripe::PaymentMethod, SimplifiedStripeError> {
-        let mut payment_method_params = stripe::CreatePaymentMethod::new();
-        payment_method_params.type_ = Some(stripe::PaymentMethodTypeFilter::Card);
-        payment_method_params.card = Some(stripe::CreatePaymentMethodCardUnion::CardDetailsParams(
-            stripe::CardDetailsParams {
-                cvc: Some(cvc.to_string()),
-                exp_month,
-                exp_year,
-                number: card_number.to_string(),
-            },
-        ));
+    async fn create_checkout_session(
+        &self, customer_id: stripe::CustomerId, price_id: &str, success_url: &str, cancel_url: &str,
+    ) -> Result<stripe::CheckoutSession, SimplifiedStripeError> {
+        info!(customer_id = customer_id.as_str(), ?price_id, "Creating stripe checkout session");
 
-        let payment_method = stripe::PaymentMethod::create(self, payment_method_params)
-            .await
-            .map_err(SimplifiedStripeError::from)?;
+        let mut params = stripe::CreateCheckoutSession::new();
+        params.mode = Some(stripe::CheckoutSessionMode::Subscription);
+        params.customer = Some(customer_id);
+        params.line_items = Some(vec![stripe::CreateCheckoutSessionLineItems {
+            price: Some(price_id.to_string()),
+            quantity: Some(1),
+            ..Default::default()
+        }]);
+        params.success_url = Some(success_url);
+        params.cancel_url = Some(cancel_url);
+        params.custom_text = Some(stripe::CreateCheckoutSessionCustomText {
+            submit: Some(stripe::CreateCheckoutSessionCustomTextSubmit {
+                message: "Cancel anytime from Settings in Lockbook.".into(),
+            }),
+            ..Default::default()
+        });
 
-        debug!(?payment_method, "Created stripe payment method");
-
-        Ok(payment_method)
+        let session = stripe::CheckoutSession::create(self, params).await?;
+        debug!(?session, "Created stripe checkout session");
+        Ok(session)
     }
 
-    async fn create_setup_intent(
-        &self, customer_id: stripe::CustomerId, payment_method_id: stripe::PaymentMethodId,
-    ) -> Result<stripe::SetupIntent, SimplifiedStripeError> {
-        {
-            let customer_id = customer_id.as_str();
-            let payment_method_id = payment_method_id.as_str();
-            info!(?customer_id, ?payment_method_id, "Creating stripe setup intent");
-        }
+    async fn create_billing_portal_session(
+        &self, customer_id: stripe::CustomerId, return_url: &str,
+    ) -> Result<stripe::BillingPortalSession, SimplifiedStripeError> {
+        info!(customer_id = customer_id.as_str(), "Creating stripe billing portal session");
 
-        let mut setup_intent_params = stripe::CreateSetupIntent::new();
-        setup_intent_params.customer = Some(customer_id);
-        setup_intent_params.payment_method = Some(payment_method_id);
-        setup_intent_params.confirm = Some(true);
-        setup_intent_params.automatic_payment_methods =
-            Some(stripe::CreateSetupIntentAutomaticPaymentMethods {
-                allow_redirects: Some(
-                    stripe::CreateSetupIntentAutomaticPaymentMethodsAllowRedirects::Never,
-                ),
-                enabled: true,
-            });
+        let mut params = stripe::CreateBillingPortalSession::new(customer_id);
+        params.return_url = Some(return_url);
 
-        let setup_intent = stripe::SetupIntent::create(self, setup_intent_params).await?;
-
-        debug!(?setup_intent, "Created stripe setup intent");
-
-        match setup_intent.status {
-            stripe::SetupIntentStatus::Succeeded => Ok(setup_intent),
-            _ => Err(SimplifiedStripeError::Other(format!(
-                "Unexpected intent response status: {:?}",
-                setup_intent.status
-            ))),
-        }
+        let session = stripe::BillingPortalSession::create(self, params).await?;
+        debug!(?session, "Created stripe billing portal session");
+        Ok(session)
     }
 
-    async fn create_subscription(
-        &self, customer_id: stripe::CustomerId, payment_method_id: &str, price_id: &str,
-    ) -> Result<stripe::Subscription, SimplifiedStripeError> {
-        {
-            let customer_id = customer_id.as_str();
-            info!(?customer_id, ?payment_method_id, "Creating stripe subscription");
-        }
-
-        let mut subscription_params = stripe::CreateSubscription::new(customer_id);
-        let mut subscription_item_params = stripe::CreateSubscriptionItems::new();
-        subscription_item_params.price = Some(price_id.to_string());
-
-        subscription_params.default_payment_method = Some(payment_method_id);
-        subscription_params.items = Some(vec![subscription_item_params]);
-        subscription_params.expand = &["latest_invoice", "latest_invoice.payment_intent"];
-
-        let subscription = stripe::Subscription::create(self, subscription_params).await?;
-
-        debug!(?subscription, "Created stripe subscription");
-
-        match subscription.status {
-            stripe::SubscriptionStatus::Active => Ok(subscription),
-            stripe::SubscriptionStatus::Incomplete => {
-                match subscription.latest_invoice.as_ref().ok_or_else(|| {
-                    SimplifiedStripeError::Other(format!(
-                        "There is no latest invoice for a subscription: {subscription:?}"
-                    ))
-                })? {
-                    stripe::Expandable::Id(id) => Err(SimplifiedStripeError::Other(format!(
-                        "Latest invoice was expanded yet returned an id: {id:?}"
-                    ))),
-                    stripe::Expandable::Object(invoice) => match invoice
-                        .payment_intent
-                        .as_ref()
-                        .ok_or_else(|| {
-                            SimplifiedStripeError::Other(format!(
-                                "No payment intent for latest subscription: {subscription:?}"
-                            ))
-                        })? {
-                        stripe::Expandable::Id(id) => Err(SimplifiedStripeError::Other(format!(
-                            "Payment intent expanded yet returned an id: {id:?}"
-                        ))),
-                        stripe::Expandable::Object(payment_intent) => match payment_intent.status {
-                            stripe::PaymentIntentStatus::RequiresPaymentMethod => {
-                                Err(SimplifiedStripeError::CardDecline)
-                            }
-                            stripe::PaymentIntentStatus::RequiresAction => {
-                                Err(SimplifiedStripeError::Other(format!(
-                                    "Payment intent requires additional action to be completed. This is unimplemented. subscription_resp: {subscription:?}"
-                                )))
-                            }
-                            _ => Err(SimplifiedStripeError::Other(format!(
-                                "Unexpected payment intent failure status: {subscription:?}"
-                            ))),
-                        },
-                    },
-                }
-            }
-            _ => Err(SimplifiedStripeError::Other(format!(
-                "Unexpected subscription response: {subscription:?}"
-            ))),
-        }
-    }
-
-    async fn detach_payment_method_from_customer(
-        &self, payment_method_id: &stripe::PaymentMethodId,
-    ) -> Result<(), SimplifiedStripeError> {
-        {
-            let payment_method_id = payment_method_id.as_str();
-            info!(?payment_method_id, "Detaching stripe payment method");
-        }
-
-        let payment_method = stripe::PaymentMethod::detach(self, payment_method_id).await?;
-
-        debug!(?payment_method, "Detached stripe payment method");
-
-        Ok(())
-    }
-
-    async fn cancel_subscription(
+    async fn cancel_subscription_at_period_end(
         &self, subscription_id: &stripe::SubscriptionId,
-    ) -> Result<(), SimplifiedStripeError> {
-        {
-            let subscription_id = subscription_id.as_str();
-            info!(?subscription_id, "Cancelling stripe subscription");
-        }
+    ) -> Result<stripe::Subscription, SimplifiedStripeError> {
+        info!(
+            subscription_id = subscription_id.as_str(),
+            "Canceling stripe subscription at period end"
+        );
 
-        let subscription = stripe::Subscription::cancel(
-            self,
-            subscription_id,
-            stripe::CancelSubscription::default(),
-        )
-        .await?;
-
-        debug!(?subscription, "Canceled stripe subscription");
-
-        Ok(())
+        let params =
+            stripe::UpdateSubscription { cancel_at_period_end: Some(true), ..Default::default() };
+        let subscription = stripe::Subscription::update(self, subscription_id, params).await?;
+        debug!(?subscription, "Scheduled stripe subscription to cancel");
+        Ok(subscription)
     }
 
     async fn get_subscription(
         &self, subscription_id: &stripe::SubscriptionId,
     ) -> Result<stripe::Subscription, SimplifiedStripeError> {
-        {
-            let subscription_id = subscription_id.as_str();
-            info!(?subscription_id, "Retrieving stripe subscription");
-        }
-
         let subscription = stripe::Subscription::retrieve(self, subscription_id, &[]).await?;
-
         debug!(?subscription, "Retrieved stripe subscription");
-
         Ok(subscription)
     }
 
-    async fn retrieve_invoice(
-        &self, invoice_id: &stripe::InvoiceId,
-    ) -> Result<stripe::Invoice, SimplifiedStripeError> {
-        {
-            let invoice_id = invoice_id.as_str();
-            info!(?invoice_id, "Getting stripe invoice");
+    async fn list_subscriptions(
+        &self, customer_id: stripe::CustomerId,
+    ) -> Result<Vec<stripe::Subscription>, SimplifiedStripeError> {
+        let params = stripe::ListSubscriptions {
+            customer: Some(customer_id),
+            status: Some(stripe::SubscriptionStatusFilter::All),
+            limit: Some(100),
+            expand: &["data.customer", "data.default_payment_method"],
+            ..Default::default()
+        };
+        let subscriptions = stripe::Subscription::list(self, &params).await?;
+        debug!(?subscriptions, "Listed stripe subscriptions");
+        Ok(subscriptions.data)
+    }
+
+    async fn expire_open_checkout_sessions(
+        &self, customer_id: stripe::CustomerId,
+    ) -> Result<(), SimplifiedStripeError> {
+        let params = stripe::ListCheckoutSessions {
+            customer: Some(customer_id),
+            status: Some(stripe::CheckoutSessionStatus::Open),
+            limit: Some(100),
+            ..Default::default()
+        };
+        for session in stripe::CheckoutSession::list(self, &params).await?.data {
+            info!(session = session.id.as_str(), "Expiring an older stripe checkout session");
+            stripe::CheckoutSession::expire(self, &session.id).await?;
         }
-
-        let invoice = stripe::Invoice::retrieve(self, invoice_id, EXPAND_INVOICE_DETAILS)
-            .await
-            .map_err(SimplifiedStripeError::from)?;
-
-        debug!(?invoice, "Retrieved stripe invoice");
-
-        Ok(invoice)
+        Ok(())
     }
 }

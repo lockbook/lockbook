@@ -70,11 +70,12 @@ fn run() -> CliResult<()> {
                         .handler(|skip_check, phrase| account::export(skip_check.get(), phrase.get()))
                 )
                 .subcommand(
-                    Command::name("subscribe").description("start a monthly subscription for massively increased storage")
-                        .handler(account::subscribe)
+                    Command::name("subscribe").description("get a link to subscribe to premium for 30 GB of storage")
+                        .input(Flag::bool("yearly").description("bill yearly instead of monthly"))
+                        .handler(|yearly| account::subscribe(yearly.get()))
                 )
                 .subcommand(
-                    Command::name("unsubscribe").description("cancel an existing subscription")
+                    Command::name("unsubscribe").description("stop renewing your subscription; premium lasts until the period ends")
                         .handler(account::unsubscribe)
                 )
                 .subcommand(

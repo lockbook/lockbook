@@ -94,36 +94,9 @@ impl From<SimpleGCPError> for ServerError<CancelSubscriptionError> {
     }
 }
 
-impl From<SimplifiedStripeError> for ServerError<UpgradeAccountStripeError> {
+impl<T: Debug> From<SimplifiedStripeError> for ServerError<T> {
     fn from(e: SimplifiedStripeError) -> Self {
-        match e {
-            SimplifiedStripeError::CardDecline => {
-                ClientError(UpgradeAccountStripeError::CardDecline)
-            }
-            SimplifiedStripeError::InsufficientFunds => {
-                ClientError(UpgradeAccountStripeError::InsufficientFunds)
-            }
-            SimplifiedStripeError::TryAgain => ClientError(UpgradeAccountStripeError::TryAgain),
-            SimplifiedStripeError::CardNotSupported => {
-                ClientError(UpgradeAccountStripeError::CardNotSupported)
-            }
-            SimplifiedStripeError::ExpiredCard => {
-                ClientError(UpgradeAccountStripeError::ExpiredCard)
-            }
-            SimplifiedStripeError::InvalidCardNumber => {
-                ClientError(UpgradeAccountStripeError::InvalidCardNumber)
-            }
-            SimplifiedStripeError::InvalidCardExpYear => {
-                ClientError(UpgradeAccountStripeError::InvalidCardExpYear)
-            }
-            SimplifiedStripeError::InvalidCardExpMonth => {
-                ClientError(UpgradeAccountStripeError::InvalidCardExpMonth)
-            }
-            SimplifiedStripeError::InvalidCardCvc => {
-                ClientError(UpgradeAccountStripeError::InvalidCardCvc)
-            }
-            SimplifiedStripeError::Other(msg) => internal!("{}", msg),
-        }
+        internal!("Stripe error: {}", e.0)
     }
 }
 
@@ -232,14 +205,14 @@ impl From<ServerError<LockBillingWorkflowError>> for ServerError<UpgradeAccountA
     }
 }
 
-impl From<ServerError<LockBillingWorkflowError>> for ServerError<UpgradeAccountStripeError> {
+impl From<ServerError<LockBillingWorkflowError>> for ServerError<StripeCheckoutError> {
     fn from(err: ServerError<LockBillingWorkflowError>) -> Self {
         match err {
             ClientError(LockBillingWorkflowError::ExistingRequestPending) => {
-                ClientError(UpgradeAccountStripeError::ExistingRequestPending)
+                ClientError(StripeCheckoutError::ExistingRequestPending)
             }
             ClientError(LockBillingWorkflowError::UserNotFound) => {
-                ClientError(UpgradeAccountStripeError::UserNotFound)
+                ClientError(StripeCheckoutError::UserNotFound)
             }
             InternalError(msg) => InternalError(msg),
         }

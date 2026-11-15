@@ -4,13 +4,14 @@ use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
 use lb_rs::Lb;
+use lb_rs::model::api::{AdminSetUserTierInfo, GooglePlayAccountState};
 use lb_rs::model::core_config::{ClientType, Config};
 use lb_rs::service::events::{Event, SyncIncrement};
 use lb_rs::service::import_export::{ExportFileInfo, ImportStatus};
 use rand::RngCore;
 use sha2::{Digest, Sha256};
-use test_utils::http::test_core_from;
-use test_utils::{generate_premium_account_tier, random_name, test_credit_cards, url};
+use test_utils::http::{test_core, test_core_from};
+use test_utils::{random_name, url};
 use uuid::Uuid;
 
 const ONE_MIB: usize = 1024 * 1024;
@@ -122,16 +123,22 @@ async fn ingress_one_gib_single_file() {
         .await
         .unwrap();
 
-    // Upgrade to premium so the upload doesn't trip the free-tier usage cap.
-    // Requires the server to have Stripe test mode configured.
-    core.upgrade_account_stripe(generate_premium_account_tier(
-        test_credit_cards::GOOD,
-        None,
-        None,
-        None,
-    ))
-    .await
-    .unwrap();
+    // Premium so the upload doesn't trip the free-tier usage cap; needs a fresh server, where
+    // "admin1" is free to create.
+    let admin = test_core().await;
+    admin.create_account("admin1", &url(), false).await.unwrap();
+    let username = core.get_account().unwrap().username.clone();
+    admin
+        .set_user_tier(
+            &username,
+            AdminSetUserTierInfo::GooglePlay {
+                purchase_token: "ingress-perf".into(),
+                expiration_time: u64::MAX,
+                account_state: GooglePlayAccountState::Ok,
+            },
+        )
+        .await
+        .unwrap();
 
     let root = core.root().await.unwrap();
 

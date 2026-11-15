@@ -8,5 +8,4 @@ lb-rs = { path = "../lb-rs" }
 lockbook-server = { path = "../../../server", features = ["in-process"] }
 bincode = "1.3.3"
 rand = "0.8.5"
-time = "0.3.20"
 uuid = { version = "1.2.2", features = ["v4", "serde"] }

@@ -8,7 +8,7 @@ use cli_rs::cli_error::{CliError, CliResult};
 use is_terminal::IsTerminal;
 use lb_rs::DEFAULT_API_LOCATION;
 use lb_rs::Lb;
-use lb_rs::model::api::{PaymentMethod, PaymentPlatform, StripeAccountTier};
+use lb_rs::model::api::{PaymentPlatform, StripePlan};
 
 use crate::{core, ensure_account, input};
 
@@ -96,44 +96,13 @@ pub async fn export(skip_check: bool, phrase: bool) -> CliResult<()> {
 }
 
 #[tokio::main]
-pub async fn subscribe() -> Result<(), CliError> {
+pub async fn subscribe(yearly: bool) -> Result<(), CliError> {
     let lb = &core().await?;
     ensure_account(lb)?;
 
-    println!("checking for existing payment methods...");
-    let existing_card =
-        lb.get_subscription_info()
-            .await?
-            .and_then(|info| match info.payment_platform {
-                PaymentPlatform::Stripe { card_last_4_digits } => Some(card_last_4_digits),
-                PaymentPlatform::GooglePlay { .. } => None,
-                PaymentPlatform::AppStore { .. } => None,
-            });
-
-    let mut use_old_card = false;
-    if let Some(card) = existing_card {
-        let answer: String = input::std_in(format!("do you want use *{card}? [y/n]: "))?;
-        if answer == "y" || answer == "Y" {
-            use_old_card = true;
-        }
-    } else {
-        println!("no existing cards found...");
-    }
-
-    let payment_method = if use_old_card {
-        PaymentMethod::OldCard
-    } else {
-        PaymentMethod::NewCard {
-            number: input::std_in("enter your card number: ")?,
-            exp_year: input::std_in("expiration year: ")?,
-            exp_month: input::std_in("expiration month: ")?,
-            cvc: input::std_in("cvc: ")?,
-        }
-    };
-
-    lb.upgrade_account_stripe(StripeAccountTier::Premium(payment_method))
-        .await?;
-    println!("subscribed!");
+    let plan = if yearly { StripePlan::Yearly } else { StripePlan::Monthly };
+    let url = lb.stripe_checkout_url(plan).await?;
+    println!("finish subscribing in your browser:\n{url}");
     Ok(())
 }
 
@@ -147,6 +116,7 @@ pub async fn unsubscribe() -> Result<(), CliError> {
     if answer == "y" || answer == "Y" {
         println!("cancelling subscription... ");
         lb.cancel_subscription().await?;
+        println!("canceled; premium lasts until the end of the period you paid for");
     }
     Ok(())
 }

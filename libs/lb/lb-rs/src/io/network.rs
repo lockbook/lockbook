@@ -228,9 +228,15 @@ impl Server for Network {
         self.request(account, request).await
     }
 
-    async fn upgrade_account_stripe(
-        &self, account: &Account, request: UpgradeAccountStripeRequest,
-    ) -> ApiResult<UpgradeAccountStripeRequest> {
+    async fn stripe_checkout(
+        &self, account: &Account, request: StripeCheckoutRequest,
+    ) -> ApiResult<StripeCheckoutRequest> {
+        self.request(account, request).await
+    }
+
+    async fn stripe_billing_portal(
+        &self, account: &Account, request: StripeBillingPortalRequest,
+    ) -> ApiResult<StripeBillingPortalRequest> {
         self.request(account, request).await
     }
 
