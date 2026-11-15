@@ -75,7 +75,7 @@ pub struct Config {
     pub attachments_folders: bool,
 
     /// Should listings, recents, suggestions, pending shares and search include attachments
-    /// folders and their contents? The apps leave them out; the CLI shows them.
+    /// folders and their contents? The apps leave them out; the CLI and the Files app show them.
     #[serde(default)]
     pub list_attachments: bool,
 

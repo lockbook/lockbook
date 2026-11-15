@@ -122,6 +122,11 @@ async fn cannot_be_moved_or_renamed_itself() {
     assert_eq!(err.kind, LbErrKind::AttachmentsFolderFixed);
     let err = core.move_file(&folder.id, &dest.id).await.unwrap_err();
     assert_eq!(err.kind, LbErrKind::AttachmentsFolderFixed);
+
+    // what a host asks to leave rename and move off the folder, and only off it
+    assert_eq!(core.attachments_of(&folder.id).await.unwrap(), Some(doc.id));
+    assert_eq!(core.attachments_of(&doc.id).await.unwrap(), None);
+    assert_eq!(core.attachments_of(&dest.id).await.unwrap(), None);
 }
 
 #[tokio::test]
