@@ -841,6 +841,31 @@ impl<S: Server, D: LocalDocuments> Lb<S, D> {
                         }
                     }
 
+                    // repair: each attachments folder goes beside its document, named for it;
+                    // documents in id order so every device repairs a tree the same way
+                    let mut attached = Vec::new();
+                    for id in merge.ids() {
+                        if let Some(of) = merge.find(&id)?.attachments_of() {
+                            attached.push((of.id, id));
+                        }
+                    }
+                    attached.sort();
+                    for (document, folder) in attached {
+                        if merge.maybe_find(&document).is_none()
+                            || merge.calculate_deleted(&document)?
+                            || merge.calculate_deleted(&folder)?
+                        {
+                            continue;
+                        }
+                        let parent = *merge.find(&document)?.parent();
+                        let folder_parent = *merge.find(&folder)?.parent();
+                        if may_write_in(&local, &remote_with_moves, me, &parent)?
+                            && may_write_in(&local, &remote_with_moves, me, &folder_parent)?
+                        {
+                            merge.place_attachments_folder(&document, &folder, &self.keychain)?;
+                        }
+                    }
+
                     merge
                 };
 
