@@ -620,7 +620,14 @@ impl<'ast> MdEdit {
                     }
                     _ => false,
                 });
-            runs_on || taken
+            // a blank line in a list item needn't be indented, but the
+            // image's line must be, or it ends the list
+            let line = lines[i];
+            let blank = r.buffer[line].chars().all(char::is_whitespace);
+            let short = blank
+                && r.extension_prefix(container)
+                    .is_some_and(|prefix| (to - line.start()).0 < prefix.len());
+            runs_on || taken || short
         };
         // a backslash before it would escape its `!`
         let lands = |to: Grapheme| {
