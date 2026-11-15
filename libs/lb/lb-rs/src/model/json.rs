@@ -99,7 +99,9 @@ impl Change {
 
 fn changes(base: &[Value], side: &[Value]) -> Vec<Change> {
     let mut hook = Replace::new(Capture::new());
-    let Ok(()) = myers::diff(&mut hook, base, 0..base.len(), side, 0..side.len());
+    // values aren't hashable, which myers::diff needs
+    let Ok(()) =
+        myers::diff_deadline_raw(&mut hook, base, 0..base.len(), side, 0..side.len(), None);
     let Ok(()) = hook.finish();
     hook.into_inner()
         .into_ops()

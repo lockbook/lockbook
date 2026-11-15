@@ -32,8 +32,8 @@ pub fn diff(from: &str, to: &str) -> Vec<Replace> {
         .algorithm(similar::Algorithm::Myers)
         .diff_unicode_words(from.as_diffable_str(), to.as_diffable_str());
 
-    // positions come from walking the ops' lengths; similar's own indices can disagree with
-    // the run before them (an insert after an equal may name the equal's first token)
+    // positions come from walking the ops' lengths, so they hold however similar reports its
+    // own indices (before 3.1 an insert after an equal could name the equal's first token)
     let (mut old_token, mut new_token) = (0, 0);
     for diff_op in diff.ops() {
         let (tag, old_range, new_range) = diff_op.as_tag_tuple();
