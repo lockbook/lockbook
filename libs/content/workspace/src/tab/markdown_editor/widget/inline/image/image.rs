@@ -17,6 +17,7 @@ use crate::tab::markdown_editor::widget::inline::link::hover::CARD_RADIUS;
 use crate::tab::markdown_editor::widget::inline::link::{LinkMenuAction, fill_link_menu};
 use crate::tab::markdown_editor::widget::inline::tab_embed::tab_embed_title;
 use crate::tab::markdown_editor::widget::utils::NodeValueExt as _;
+use crate::tab::markdown_editor::widget::utils::leading_indent_cols;
 use crate::tab::markdown_editor::widget::utils::wrap_layout::FragmentContent;
 use crate::tab::markdown_editor::widget::utils::wrap_layout::{EmbedKind, EmbedSpec, Layout};
 use crate::tab::markdown_editor::{MdEdit, MdRender};
@@ -620,14 +621,16 @@ impl<'ast> MdEdit {
                     }
                     _ => false,
                 });
-            // a blank line in a list item needn't be indented, but the
-            // image's line must be, or it ends the list
+            // on a blank line the spaces before it become its line's indent,
+            // which must be its list item's (a blank line needn't be) and not
+            // four past it, or the line ends the list or is indented code
             let line = lines[i];
             let blank = r.buffer[line].chars().all(char::is_whitespace);
-            let short = blank
+            let indent = leading_indent_cols(&r.buffer[(line.start(), to)]);
+            let misplaced = blank
                 && r.extension_prefix(container)
-                    .is_some_and(|prefix| (to - line.start()).0 < prefix.len());
-            runs_on || taken || short
+                    .is_some_and(|prefix| indent < prefix.len() || indent >= prefix.len() + 4);
+            runs_on || taken || misplaced
         };
         // a backslash before it would escape its `!`
         let lands = |to: Grapheme| {

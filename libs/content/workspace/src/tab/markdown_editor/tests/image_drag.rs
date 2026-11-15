@@ -842,6 +842,26 @@ fn an_image_dropped_on_a_blank_line_in_a_list_item_keeps_the_item() {
     assert_eq!(item_text(moved), item_text(&md), "from {md:?} to {moved:?}");
 }
 
+/// A blank line's spaces stay before the image: past four, in the note or a
+/// list item, they would make its line indented code.
+#[test]
+fn an_image_dropped_after_a_blank_lines_indent_stays_an_image() {
+    let image = format!("![a]({IMAGE})");
+    let cases = [
+        (format!("{image}\n\nx\n\n\t"), "x\n\n\t"),
+        (format!("{image}\n\nx\n\n    "), "x\n\n    "),
+        (format!("{image}\n\n- x\n\n      \n  y\n"), "x\n\n      "),
+    ];
+    for (md, needle) in cases {
+        let mut ws = editor(&md);
+        let (from, to) = (image_center(&ws), after(&ws, needle));
+        drag(&mut ws, from, to);
+        let moved = ws.get_text();
+        assert_ne!(moved, md, "the drop moved it");
+        assert_eq!(images_and_html(moved), images_and_html(&md), "from {md:?} to {moved:?}");
+    }
+}
+
 /// An HTML block that ends at its own closing marker takes nothing after it:
 /// a drop below one lands there.
 #[test]
