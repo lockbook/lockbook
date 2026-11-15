@@ -164,8 +164,13 @@ impl Session<'_> {
             return Ok(());
         }
         let ctx = self.note.editor().edit.renderer.ctx.clone();
+        // a drop let go of before the version landed moves the image now
+        let dropped = self.note.editor().edit.in_progress_image_drag.as_ref();
+        let moved = dropped
+            .filter(|d| d.dropped)
+            .and_then(|d| Some(Event::Move { range: d.image, to: d.target? }));
         self.note.editor_mut().edit.apply_queued(&ctx);
-        self.observe(Input::Some, log)?;
+        self.observe(moved.as_ref().map_or(Input::Some, Input::Event), log)?;
         let view = self.view();
         self.note.frame_after(0.0, vec![]);
         settle(&mut self.note);
@@ -427,6 +432,8 @@ impl Session<'_> {
     /// written as the drop lets go, so it lands before the next frame moves
     /// the image. `None` unless nothing is in flight or unsaved, since a
     /// merge may drop an insert into an edit, or if no spot keeps it whole.
+    /// The marker stays out of the word the image lands in: the merge diffs
+    /// whole words and keeps the local edit to a word both sides edited.
     fn remote_marker(
         &mut self, src: &mut ByteSource, log: &mut dyn FnMut(String),
     ) -> Option<String> {
@@ -439,11 +446,13 @@ impl Session<'_> {
         // the marker's ends can't match the text beside it, or the diff finds
         // the insert shifted
         let (first, last) = (marker.chars().next(), marker.chars().last());
+        let landing = self.landing_word(&disk);
         let bounds: Vec<usize> = disk
             .grapheme_indices(true)
             .map(|(i, _)| i)
             .chain([disk.len()])
             .filter(|&i| !images.iter().any(|r| r.start < i && i < r.end))
+            .filter(|&i| !landing.as_ref().is_some_and(|w| w.start < i && i < w.end))
             .filter(|&i| disk[i..].chars().next() != first && disk[..i].chars().last() != last)
             .collect();
         if bounds.is_empty() {
@@ -455,6 +464,25 @@ impl Session<'_> {
         next.insert_str(at, &marker);
         self.note.remote(&next);
         Some(marker)
+    }
+
+    /// The byte range in `disk`, the note's text, of the word the held image
+    /// would land inside, if it would land inside one.
+    fn landing_word(&self, disk: &str) -> Option<std::ops::Range<usize>> {
+        let to = self
+            .note
+            .editor()
+            .edit
+            .in_progress_image_drag
+            .as_ref()?
+            .target?;
+        let at = disk
+            .grapheme_indices(true)
+            .nth(to.0)
+            .map_or(disk.len(), |(i, _)| i);
+        disk.split_word_bound_indices()
+            .map(|(start, word)| start..start + word.len())
+            .find(|w| w.start < at && at < w.end)
     }
 
     /// Lifts an image with the mouse, holds it through local edits, saves and
@@ -535,7 +563,83 @@ impl Session<'_> {
 
 /// A drop moves only the image: its text lands where the drop line put it,
 /// and the characters, the images and the text around them are as before.
+/// An image that opened a table row written without a leading pipe may
+/// leave the row that pipe, so that the rest of the row keeps its cells,
+/// and an image alone in a style may take the style's markers with it.
 fn drop_moves_image(
+    before: &str, after: &str, dropped: Option<((Grapheme, Grapheme), Grapheme)>,
+) -> Result<(), String> {
+    let moved = drop_moves_image_from(before, after, dropped);
+    let Some((image, to)) = dropped.filter(|_| moved.is_err()) else { return moved };
+    let mut starts = vec![Start { text: before.into(), image, to }];
+    starts.extend(unstyled(&starts[0]));
+    let piped: Vec<Start> = starts.iter().filter_map(row_piped).collect();
+    starts.extend(piped);
+    starts[1..]
+        .iter()
+        .map(|s| drop_moves_image_from(&s.text, after, Some((s.image, s.to))))
+        .find(Result::is_ok)
+        .unwrap_or(moved)
+}
+
+/// What a drop moves from: the text, the image's range in it, and where the
+/// drop line is.
+struct Start {
+    text: String,
+    image: (Grapheme, Grapheme),
+    to: Grapheme,
+}
+
+/// `start` with the markers of each style its image is alone in gone with
+/// it, since left with nothing between them they'd read as something else.
+/// A drop inside those markers is a drop onto the image.
+fn unstyled(start: &Start) -> Option<Start> {
+    let Start { text, image: (from, end), to } = start;
+    let byte = |g: Grapheme| {
+        text.grapheme_indices(true)
+            .nth(g.0)
+            .map_or(text.len(), |(i, _)| i)
+    };
+    let image = byte(*from)..byte(*end);
+    let style = images(text)
+        .into_iter()
+        .find(|i| i.range == image)?
+        .emptied?;
+    let graphemes = |r: std::ops::Range<usize>| text[r].graphemes(true).count();
+    let (opening, closing) = (graphemes(style.start..image.start), graphemes(image.end..style.end));
+    let (start, stop) = (Grapheme(from.0 - opening), Grapheme(end.0 + closing));
+    if start < *to && *to < stop {
+        return Some(Start { text: text.clone(), image: (start, stop), to: *to });
+    }
+    Some(Start {
+        text: format!("{}{}{}", &text[..style.start], &text[image], &text[style.end..]),
+        image: (start, Grapheme(end.0 - opening)),
+        to: if *to >= stop { Grapheme(to.0 - opening - closing) } else { *to },
+    })
+}
+
+/// `start` with a pipe opening the table row that its image opens, if the
+/// row is written without one.
+fn row_piped(start: &Start) -> Option<Start> {
+    let Start { text, image: (from, end), to } = start;
+    let at = text.grapheme_indices(true).nth(from.0)?.0;
+    let opens_row = images(text)
+        .into_iter()
+        .any(|i| i.opens_row && i.range.start == at);
+    if !opens_row {
+        return None;
+    }
+    // the pipe goes before the image, so it shifts the image and anything after it
+    let shift = |g: Grapheme| Grapheme(g.0 + 1);
+    Some(Start {
+        text: format!("{}|{}", &text[..at], &text[at..]),
+        image: (shift(*from), shift(*end)),
+        to: if to > from { shift(*to) } else { *to },
+    })
+}
+
+/// [`drop_moves_image`] from `before` as it is.
+fn drop_moves_image_from(
     before: &str, after: &str, dropped: Option<((Grapheme, Grapheme), Grapheme)>,
 ) -> Result<(), String> {
     if let Some((image, to)) = dropped.filter(|&(image, to)| !image.contains_inclusive(to)) {
@@ -584,16 +688,64 @@ fn drop_moves_image(
 
 /// The byte ranges of the images in `md` as the editor parses it.
 fn image_ranges(md: &str) -> Vec<std::ops::Range<usize>> {
+    images(md).into_iter().map(|i| i.range).collect()
+}
+
+/// An image in a note as the editor parses it.
+pub(super) struct Image {
+    /// Its bytes.
+    pub(super) range: std::ops::Range<usize>,
+    /// Whether it opens a table row written without a leading pipe: only
+    /// indentation is between the row's start and the image.
+    opens_row: bool,
+    /// The bytes of the outermost of the styles around it that hold nothing
+    /// else, if any.
+    pub(super) emptied: Option<std::ops::Range<usize>>,
+}
+
+/// The images in `md` as the editor parses it.
+pub(super) fn images(md: &str) -> Vec<Image> {
     let mut ws = TestEditor::with_lb(lb(), md);
     let arena = super::super::super::Arena::new();
     let r = &mut ws.editor.edit.renderer;
     let root = r.reparse(&arena);
     let segs = &r.buffer.current.segs;
+    let bytes = |n| {
+        let (a, b) = segs.range_to_byte(r.node_range(n));
+        a.0..b.0
+    };
     root.descendants()
         .filter(|n| matches!(n.data.borrow().value, NodeValue::Image(_)))
         .map(|n| {
-            let (a, b) = segs.range_to_byte(r.node_range(n));
-            a.0..b.0
+            let range = bytes(n);
+            let row = n
+                .ancestors()
+                .find(|a| matches!(a.data.borrow().value, NodeValue::TableRow(_)));
+            let opens_row = row.is_some_and(|row| {
+                let start = bytes(row).start;
+                start <= range.start && md[start..range.start].trim().is_empty()
+            });
+            let mut filled = n;
+            while let Some(style) = filled.parent() {
+                let alone = style.children().count() == 1;
+                let style_kind = matches!(
+                    style.data.borrow().value,
+                    NodeValue::Emph
+                        | NodeValue::Strong
+                        | NodeValue::Strikethrough
+                        | NodeValue::Highlight
+                        | NodeValue::Underline
+                        | NodeValue::SpoileredText
+                        | NodeValue::Subscript
+                        | NodeValue::Superscript
+                );
+                if !(alone && style_kind) {
+                    break;
+                }
+                filled = style;
+            }
+            let emptied = (!std::ptr::eq(filled, n)).then(|| bytes(filled));
+            Image { range, opens_row, emptied }
         })
         .collect()
 }
@@ -650,4 +802,65 @@ fn outline_fresh(ws: &mut impl Host, log: &mut dyn FnMut(String)) -> Result<(), 
         return Err(format!("outline kept {kept:?}, a fresh open lists {opened:?} for {text:?}"));
     }
     Ok(())
+}
+
+/// The pipe a drop may leave a table row, and only that pipe.
+#[test]
+fn drop_cases() {
+    let table = "x | y\n--- | ---\n![a](a.png) *** | b\n\nc\n";
+    // the image opens the row's first cell at 16 and is dropped after `c`
+    let dropped = Some(((Grapheme(16), Grapheme(27)), Grapheme(38)));
+    let drop = |before: &str, after: &str| drop_moves_image(before, after, dropped);
+
+    // the row keeps its two cells with a pipe of its own
+    drop(table, "x | y\n--- | ---\n| *** | b\n\nc![a](a.png)\n").unwrap();
+    // a character moved with the image
+    drop(table, "x | y\n--- | ---\n| ** | b\n\nc![a](a.png)*\n").unwrap_err();
+    // the pipe elsewhere in the row
+    drop(table, "x | y\n--- | ---\n *** || b\n\nc![a](a.png)\n").unwrap_err();
+    // the image a character short of the drop line
+    drop(table, "x | y\n--- | ---\n| *** | b\n\n![a](a.png)c\n").unwrap_err();
+    // and so may an indented row
+    let indented = "x | y\n--- | ---\n ![a](a.png) *** | b\n\nc\n";
+    let dropped = Some(((Grapheme(17), Grapheme(28)), Grapheme(39)));
+    let after = "x | y\n--- | ---\n | *** | b\n\nc![a](a.png)\n";
+    drop_moves_image(indented, after, dropped).unwrap();
+    // a line that isn't a table row gets no pipe
+    let paragraph = "![a](a.png) ***\n\nc\n";
+    let dropped = Some(((Grapheme(0), Grapheme(11)), Grapheme(18)));
+    drop_moves_image(paragraph, " ***\n\nc![a](a.png)\n", dropped).unwrap();
+    drop_moves_image(paragraph, "| ***\n\nc![a](a.png)\n", dropped).unwrap_err();
+}
+
+/// The markers a drop may take with an image: those of a style it was alone in.
+#[test]
+fn drop_style_cases() {
+    let drop = |before: &str, image: (usize, usize), to: usize, after: &str| {
+        let dropped = Some(((Grapheme(image.0), Grapheme(image.1)), Grapheme(to)));
+        drop_moves_image(before, after, dropped)
+    };
+    // `~~![a](a.png)~~` alone on a line, dropped after `c`, takes its markers
+    let struck = "~~![a](a.png)~~\n\nc\n";
+    drop(struck, (2, 13), 18, "\n\nc![a](a.png)\n").unwrap();
+    // left behind, `~~~~` opens a code fence that swallows the image
+    drop(struck, (2, 13), 18, "~~~~\n\nc![a](a.png)\n").unwrap_err();
+    // nested styles go together, and not one without the other
+    let nested = "**~~![a](a.png)~~**\n\nc\n";
+    drop(nested, (4, 15), 22, "\n\nc![a](a.png)\n").unwrap();
+    drop(nested, (4, 15), 22, "****\n\nc![a](a.png)\n").unwrap_err();
+    // a style with anything else in it keeps its markers
+    let filled = "**b![a](a.png)**\n\nc\n";
+    drop(filled, (3, 14), 19, "**b**\n\nc![a](a.png)\n").unwrap();
+    drop(filled, (3, 14), 19, "b\n\nc![a](a.png)\n").unwrap_err();
+    // and a link its brackets
+    let linked = "[![a](a.png)](https://x.test)\n\nc\n";
+    drop(linked, (1, 12), 32, "[](https://x.test)\n\nc![a](a.png)\n").unwrap();
+    drop(linked, (1, 12), 32, "(https://x.test)\n\nc![a](a.png)\n").unwrap_err();
+    // the image a character short of the drop line
+    drop(struck, (2, 13), 18, "\n\n![a](a.png)c\n").unwrap_err();
+    // a drop between the markers and the image leaves the note as it was
+    let line = "~~![a](a.png)~~ d\n";
+    drop(line, (2, 13), 1, line).unwrap();
+    // and one at their outer edge moves the image there, unstyled
+    drop(line, (2, 13), 15, "![a](a.png) d\n").unwrap();
 }
