@@ -871,8 +871,14 @@ fn paint_skeleton(ui: &egui::Ui, rect: Rect) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::open_guard::OpenGuard;
+    use crate::tab::markdown_editor::tests::harness::TestEditor;
+    use crate::test_utils::files::{at, cache, tree};
     use crate::test_utils::ws::TestWs;
+    use crate::widgets::image_cache::ImageCache;
+    use lb_rs::model::account::Account;
     use lb_rs::model::file_metadata::FileType;
+    use std::sync::{Arc, RwLock};
     use web_time::{Duration, Instant};
 
     /// A pdf of `pages` blank letter pages.
@@ -976,19 +982,41 @@ mod tests {
         assert_eq!(t.cursor, egui::CursorIcon::Grab);
     }
 
+    /// The note at `path` among `paths`, its embeds resolving against them.
+    fn note_in(paths: &[&str], path: &str, md: &str) -> (TestEditor, Uuid) {
+        let id = at(&cache(tree("alice", paths)), path);
+        let mut t = TestEditor::in_files(cache(tree("alice", paths)), id, md);
+        let files = Arc::new(RwLock::new(cache(tree("alice", paths))));
+        let (core, persistence) = (t.editor.core.clone(), t.editor.persistence.clone());
+        let r = &mut t.editor.edit.renderer;
+        let images = ImageCache::new(
+            r.ctx.clone(),
+            Default::default(),
+            core.clone(),
+            files.clone(),
+            persistence.clone(),
+        );
+        r.tab_embeds.res = Some(TabResources {
+            ctx: r.ctx.clone(),
+            core,
+            files,
+            images,
+            previews: r.previews.clone(),
+            persistence,
+            account: Account::new("alice".into(), String::new()),
+            guard: Arc::new(OpenGuard::new(std::path::Path::new(""), false, None)),
+            watched: false,
+        });
+        r.tab_embeds.path = vec![id];
+        (t, id)
+    }
+
     /// `![[#Chairs]]` embeds the note's own heading, as `![[Board#Chairs]]` does.
     #[test]
     fn a_heading_alone_embeds_the_notes_own_heading() {
-        let mut t = TestWs::new();
-        let board = t.doc("Board.md", "# Chairs\n\nfour\n\n# Tables\n\n![[#Chairs]]\n");
-        t.ws.open_file(board, true, true);
-        frames_until(&mut t, |t| {
-            t.ws.current_tab_mut()
-                .and_then(|tab| tab.markdown_mut())
-                .is_some()
-        });
-        let md = t.ws.current_tab_mut().unwrap().markdown_mut().unwrap();
-        let r = &md.edit.renderer;
+        let md = "# Chairs\n\nfour\n\n# Tables\n\n![[#Chairs]]\n";
+        let (t, _) = note_in(&["/Board.md"], "/Board.md", md);
+        let r = &t.editor.edit.renderer;
         let named = r.tab_embeds.place(r, "Board#Chairs");
         assert!(named.is_some());
         assert_eq!(r.tab_embeds.place(r, "#Chairs"), named);
@@ -1019,18 +1047,10 @@ mod tests {
     /// A `#` that is part of a file's name names no heading.
     #[test]
     fn a_hash_in_a_files_name_is_no_heading() {
-        let mut t = TestWs::new();
-        t.doc("Plan.md", "# Q1\n");
-        let named = t.doc("Plan#Q1.md", "body\n");
-        let note = t.doc("note.md", "![[Plan#Q1]]\n");
-        t.ws.open_file(note, true, true);
-        frames_until(&mut t, |t| {
-            t.ws.current_tab_mut()
-                .and_then(|tab| tab.markdown_mut())
-                .is_some()
-        });
-        let md = t.ws.current_tab_mut().unwrap().markdown_mut().unwrap();
-        let r = &md.edit.renderer;
+        let paths = ["/Plan.md", "/Plan#Q1.md", "/note.md"];
+        let (t, _) = note_in(&paths, "/note.md", "![[Plan#Q1]]\n");
+        let named = at(&cache(tree("alice", &paths)), "/Plan#Q1.md");
+        let r = &t.editor.edit.renderer;
         assert_eq!(
             r.tab_embeds.place(r, "Plan#Q1"),
             Some(Place::at(Destination::File(named), None))

@@ -31,6 +31,8 @@ pub struct TestEditor {
     pub copied: Option<String>,
     /// Every URL a frame asked the platform to open.
     pub opened: Vec<String>,
+    /// The cursor the last frame asked for.
+    pub cursor: egui::CursorIcon,
 }
 
 impl TestEditor {
@@ -52,6 +54,7 @@ impl TestEditor {
             pending: vec![],
             copied: None,
             opened: vec![],
+            cursor: Default::default(),
         };
         harness.enter_frame();
         harness
@@ -94,6 +97,7 @@ impl TestEditor {
             pending: vec![],
             copied: None,
             opened: vec![],
+            cursor: Default::default(),
         };
         harness.enter_frame();
         (harness, embeds)
@@ -136,7 +140,13 @@ impl TestEditor {
     /// or other non-default construction can still drive it through the
     /// harness's `enter_frame` API.
     pub fn from_editor(editor: super::super::Editor) -> Self {
-        let mut harness = Self { editor, pending: vec![], copied: None, opened: vec![] };
+        let mut harness = Self {
+            editor,
+            pending: vec![],
+            copied: None,
+            opened: vec![],
+            cursor: Default::default(),
+        };
         harness.enter_frame();
         harness
     }
@@ -197,6 +207,7 @@ impl TestEditor {
 
     fn record(&mut self, output: egui::PlatformOutput) {
         self.copied = None;
+        self.cursor = output.cursor_icon;
         for command in output.commands {
             match command {
                 egui::OutputCommand::CopyText(text) => self.copied = Some(text),

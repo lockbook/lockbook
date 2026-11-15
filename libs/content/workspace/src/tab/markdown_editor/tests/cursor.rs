@@ -5,31 +5,22 @@
 use egui::{CursorIcon, Pos2, Rect, pos2};
 
 use super::super::MdRender;
-use crate::test_utils::ws::TestWs;
+use super::harness::TestEditor;
 
-fn open(md: &str) -> TestWs {
-    let mut t = TestWs::new();
-    let note = t.doc("note.md", md);
-    t.ws.open_file(note, true, true);
-    t.idle(note);
+fn open(md: &str) -> TestEditor {
+    let mut t = TestEditor::new(md);
     for _ in 0..3 {
-        t.frame();
+        t.enter_frame();
     }
     t
 }
 
-fn renderer(t: &mut TestWs) -> &MdRender {
-    &t.ws
-        .current_tab_mut()
-        .unwrap()
-        .markdown_mut()
-        .unwrap()
-        .edit
-        .renderer
+fn renderer(t: &mut TestEditor) -> &MdRender {
+    &t.editor.edit.renderer
 }
 
 /// Where the fragment showing `text` is drawn.
-fn word(t: &mut TestWs, text: &str) -> Rect {
+fn word(t: &mut TestEditor, text: &str) -> Rect {
     let r = renderer(t);
     r.fragments
         .iter()
@@ -39,10 +30,10 @@ fn word(t: &mut TestWs, text: &str) -> Rect {
 }
 
 /// The cursor on the frame the pointer arrives at `pos` from off the page.
-fn landing(t: &mut TestWs, pos: Pos2) -> CursorIcon {
-    t.frame_with(vec![egui::Event::PointerMoved(pos2(2.0, 2.0))]);
-    t.frame();
-    t.frame_with(vec![egui::Event::PointerMoved(pos)]);
+fn landing(t: &mut TestEditor, pos: Pos2) -> CursorIcon {
+    t.enter_frame_with_input(vec![egui::Event::PointerMoved(pos2(2.0, 2.0))]);
+    t.enter_frame_with_input(vec![]);
+    t.enter_frame_with_input(vec![egui::Event::PointerMoved(pos)]);
     t.cursor
 }
 
