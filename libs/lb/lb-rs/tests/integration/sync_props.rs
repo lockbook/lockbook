@@ -1730,12 +1730,23 @@ fn above(stored: &HashMap<Uuid, Stored>, id: Uuid) -> Vec<Uuid> {
     chain
 }
 
-/// Whether the server stores `id` and neither it nor a folder above it is deleted.
+/// Whether the server stores `id` and neither it nor a folder above it is deleted. An attachments
+/// folder is deleted with its document, as a folder's contents are with it: neither is marked.
 fn live(stored: &HashMap<Uuid, Stored>, id: Uuid) -> bool {
+    live_within(stored, id, stored.len())
+}
+
+/// [`live`], following at most `hops` attachments folders to their documents.
+fn live_within(stored: &HashMap<Uuid, Stored>, id: Uuid, hops: usize) -> bool {
     stored.contains_key(&id)
-        && above(stored, id)
-            .iter()
-            .all(|id| stored.get(id).is_some_and(|file| !file.deleted))
+        && above(stored, id).iter().all(|id| {
+            stored.get(id).is_some_and(|file| {
+                !file.deleted
+                    && file
+                        .of
+                        .is_none_or(|doc| hops > 0 && live_within(stored, doc, hops - 1))
+            })
+        })
 }
 
 /// The live attachments folders the server stores for `document`.
