@@ -1,7 +1,8 @@
 //! The words a diff pairs between two versions of a text. Merges keep or drop whole words, so a word is what an edit
 //! from the other side can't land inside of without changing what it is.
 
-use comrak::Options;
+use comrak::nodes::{AstNode, NodeValue};
+use comrak::{Arena, Options};
 use unicode_segmentation::UnicodeSegmentation as _;
 
 use super::offset_types::Byte;
@@ -12,7 +13,9 @@ pub enum Words {
     /// Unicode's word boundaries.
     #[default]
     Unicode,
-    /// Markdown's words.
+    /// Unicode's word boundaries, but markdown's images, links' targets, wiki links, code spans, math, autolinks,
+    /// shortcodes, inline HTML and escapes are each one word, and an emphasis-like run's delimiters are words of
+    /// their own.
     Markdown,
 }
 
@@ -20,8 +23,34 @@ impl Words {
     /// Where `text`'s words start, then its end.
     pub fn bounds(self, text: &str) -> Vec<Byte> {
         let unicode = text.split_word_bound_indices().map(|(i, _)| i);
-        // markdown's syntax doesn't decide its words yet
-        let mut bounds: Vec<usize> = unicode.collect();
+        let mut bounds: Vec<usize> = match self {
+            Self::Unicode => unicode.collect(),
+            Self::Markdown => {
+                let Syntax { mut atoms, cuts } = markdown(text);
+                atoms.sort_unstable();
+                let mut bounds: Vec<usize> = unicode
+                    .chain(atoms.iter().flat_map(|a| [a.0, a.1]))
+                    .chain(cuts)
+                    .filter(|&i| i < text.len())
+                    .collect();
+                bounds.sort_unstable();
+                bounds.dedup();
+                // no bound inside an atom; both are in order, so one sweep finds them
+                let mut atom = atoms.iter().peekable();
+                let mut end = 0;
+                bounds.retain(|&i| {
+                    while let Some(a) = atom.next_if(|a| a.0 < i) {
+                        end = end.max(a.1);
+                    }
+                    i >= end
+                });
+                // a grapheme is never split: one the syntax ends inside, such as `)` with a combining mark, joins the
+                // word before it
+                let graphemes: Vec<usize> = text.grapheme_indices(true).map(|(i, _)| i).collect();
+                bounds.retain(|i| graphemes.binary_search(i).is_ok());
+                bounds
+            }
+        };
         bounds.push(text.len());
         bounds.into_iter().map(Byte).collect()
     }
@@ -54,6 +83,77 @@ pub fn markdown_options() -> Options<'static> {
     options.extension.wikilinks_title_before_pipe = false; // would not match obsidian
     options.render.escaped_char_spans = true;
     options
+}
+
+/// Byte ranges of a markdown text's syntax: `atoms` no word boundary falls inside, and `cuts` where one falls.
+struct Syntax {
+    atoms: Vec<(usize, usize)>,
+    cuts: Vec<usize>,
+}
+
+fn markdown(text: &str) -> Syntax {
+    // parsed as the editor parses it
+    let source = format!("{text}\n");
+    let line_starts: Vec<usize> = [0]
+        .into_iter()
+        .chain(source.match_indices('\n').map(|(i, _)| i + 1))
+        .collect();
+    let arena = Arena::new();
+    let root = comrak::parse_document(&arena, &source, &markdown_options());
+    let range = |node: &AstNode| {
+        let pos = node.data.borrow().sourcepos;
+        let byte = |line: usize, column: usize| {
+            line_starts
+                .get(line.saturating_sub(1))
+                .map_or(source.len(), |start| start + column)
+        };
+        // sourcepos is inclusive, 1-based
+        (
+            byte(pos.start.line, pos.start.column.saturating_sub(1)),
+            byte(pos.end.line, pos.end.column),
+        )
+    };
+    let mut syntax = Syntax { atoms: vec![], cuts: vec![] };
+    for node in root.descendants() {
+        let value = &node.data.borrow().value;
+        let whole = range(node);
+        match value {
+            NodeValue::Image(_)
+            | NodeValue::WikiLink(_)
+            | NodeValue::Code(_)
+            | NodeValue::Math(_)
+            | NodeValue::ShortCode(_)
+            | NodeValue::HtmlInline(_)
+            | NodeValue::Escaped => syntax.atoms.push(whole),
+            // an autolink is its address
+            NodeValue::Link(_) if source.as_bytes().get(whole.0) != Some(&b'[') => {
+                syntax.atoms.push(whole)
+            }
+            // a link's text is words, its target one word
+            NodeValue::Link(_) => {
+                let text_end = node.last_child().map_or(whole.0 + 1, |c| range(c).1);
+                syntax.atoms.push((text_end, whole.1));
+                syntax.cuts.extend([whole.0, whole.0 + 1]);
+            }
+            NodeValue::Emph
+            | NodeValue::Strong
+            | NodeValue::Strikethrough
+            | NodeValue::Highlight
+            | NodeValue::Insert
+            | NodeValue::Underline
+            | NodeValue::Superscript
+            | NodeValue::Subscript
+            | NodeValue::SpoileredText => {
+                let (first, last) = (node.first_child(), node.last_child());
+                syntax.cuts.extend([whole.0, whole.1]);
+                syntax.cuts.extend(first.map(|c| range(c).0));
+                syntax.cuts.extend(last.map(|c| range(c).1));
+            }
+            _ => {}
+        }
+    }
+    syntax.atoms.retain(|a| a.0 < a.1);
+    syntax
 }
 
 #[cfg(test)]

@@ -1264,6 +1264,7 @@ mod test {
 
     // ── Fuzz ──────────────────────────────────────────────────────────────
 
+    use crate::model::text::words::Words;
     use rand::prelude::*;
 
     /// Grapheme clusters for fuzz testing. Includes ASCII, multi-byte, multi-codepoint emoji
@@ -1339,6 +1340,36 @@ mod test {
             }
         }
         g.concat()
+    }
+
+    #[test]
+    fn buffer_merge_fuzz_markdown() {
+        let mut rng = StdRng::seed_from_u64(7);
+        let bases = [
+            "x ![a](a.png) _yy_ [b c](d)",
+            "`a b` [[w]] **c ~~d~~**\n\n- [x] e https://x.test/f $g$ \\*",
+            "",
+        ];
+        for _ in 0..5_000 {
+            let base = bases[rng.gen_range(0..bases.len())];
+            let mut a = random_edit(&mut rng, base);
+            let mut b = random_edit(&mut rng, base);
+            for _ in 0..rng.gen_range(0..3) {
+                a = random_edit(&mut rng, &a);
+                b = random_edit(&mut rng, &b);
+            }
+
+            // must not panic, merged or reloaded over local edits
+            let markdown = || Buffer::from(base).with_words(Words::Markdown);
+            let _ = markdown().merge(a.clone(), b.clone());
+            let _ = markdown().merge(b.clone(), a.clone());
+            let mut buffer = markdown();
+            let edits = super::super::diff(base, &a).into_iter().rev();
+            buffer.queue(edits.map(Operation::Replace).collect(), Duration::ZERO);
+            buffer.update();
+            buffer.reload(b);
+            buffer.update();
+        }
     }
 
     #[test]

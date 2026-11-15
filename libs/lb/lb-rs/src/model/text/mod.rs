@@ -66,6 +66,7 @@ pub fn diff_words(from: &str, to: &str, words: Words) -> Vec<Replace> {
 
 #[cfg(test)]
 mod test {
+    use super::words::Words;
     use rand::rngs::StdRng;
     use rand::{Rng as _, SeedableRng as _};
 
@@ -135,11 +136,52 @@ mod test {
         }
     }
 
+    #[test]
+    fn diff_fuzz_markdown() {
+        let mut rng = StdRng::seed_from_u64(0);
+        let words = [
+            "![a](a.png)",
+            "[",
+            "](",
+            ")",
+            "_",
+            "**",
+            "`",
+            "[[",
+            "]]",
+            "\\",
+            "$",
+            " ",
+            "\n",
+            "x",
+            "é",
+            "\u{301}",
+            "🇸🇺",
+            "https://x.test/a",
+        ];
+        for _ in 0..10000 {
+            let words_str = |rng: &mut StdRng| -> String {
+                let len = rng.gen_range(0..16);
+                (0..len)
+                    .map(|_| words[rng.gen_range(0..words.len())])
+                    .collect()
+            };
+            let from = words_str(&mut rng);
+            let to = words_str(&mut rng);
+            assert_round_trip_with(&from, &to, Words::Markdown);
+        }
+    }
+
     /// `diff(from, to)` applied to `from` gives `to`.
     fn assert_round_trip(from: &str, to: &str) {
+        assert_round_trip_with(from, to, Words::Unicode);
+    }
+
+    /// `diff_words(from, to, words)` applied to `from` gives `to`.
+    fn assert_round_trip_with(from: &str, to: &str, words: Words) {
         let segs = super::unicode_segs::calc(from);
         let mut applied = from.to_string();
-        for op in super::diff(from, to).iter().rev() {
+        for op in super::diff_words(from, to, words).iter().rev() {
             let (start, end) = segs.range_to_byte(op.range);
             applied.replace_range(start.0..end.0, &op.text);
         }
