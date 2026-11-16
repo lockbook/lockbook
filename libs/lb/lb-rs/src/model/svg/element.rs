@@ -23,12 +23,10 @@ pub struct SvgSerializationContext<'a> {
     pub id: Uuid,
     pub svg_id: &'a str,
     pub z_index: usize,
-    /// Converts the editor's coordinates back into document coordinates.
-    pub document_transform: Transform,
     pub weak_images: &'a mut WeakImages,
 }
 
-/// Serializes an editable element using its document identity and viewport.
+/// Serializes an editable element in document coordinates.
 pub trait SvgSerialize {
     fn to_string(&self, context: &mut SvgSerializationContext<'_>) -> String;
 }
@@ -51,19 +49,17 @@ impl SvgSerialize for Path {
         let mut curve_attrs = " ".to_string();
         if let Some(stroke) = self.stroke {
             curve_attrs = format!(
-                "stroke-width='{}' stroke='rgba({},{},{},{})' fill='none' id='{}' transform='{}'",
-                stroke.width,
+                "stroke-width='{}' stroke='rgba({},{},{},{})' fill='none' id='{}'",
+                stroke.width * self.stroke_scale(),
                 stroke.color.light.red,
                 stroke.color.light.green,
                 stroke.color.light.blue,
                 stroke.opacity,
-                context.svg_id,
-                to_svg_transform(self.transform)
+                context.svg_id
             );
         }
 
-        let mut data = self.data.clone();
-        data.apply_transform(u_transform_to_bezier(&context.document_transform));
+        let data = &self.data;
         let mut svg = String::new();
         if data.len() > 1 {
             data.to_svg(&mut svg, curve_attrs, "".into(), "".into(), "".into());
@@ -75,8 +71,7 @@ impl SvgSerialize for Path {
 impl SvgSerialize for Image {
     fn to_string(&self, context: &mut SvgSerializationContext<'_>) -> String {
         if !self.deleted {
-            let mut image = self.into_weak(context.z_index);
-            image.transform(context.document_transform);
+            let image = self.into_weak(context.z_index);
             context.weak_images.insert(context.id, image);
         }
         String::new()
@@ -90,25 +85,21 @@ impl SvgSerialize for Text {
     }
 }
 
-fn to_svg_transform(transform: Transform) -> String {
-    format!(
-        "matrix({} {} {} {} {} {})",
-        transform.sx, transform.ky, transform.kx, transform.sy, transform.tx, transform.ty
-    )
-}
-
 #[derive(Clone)]
 pub struct Path {
+    /// Geometry in document coordinates; independent of every editor viewport.
     pub data: Subpath<ManipulatorGroupId>,
     pub visible: bool,
     pub fill: Option<Fill>,
     pub stroke: Option<Stroke>,
+    /// Accumulated element edits, used to scale stroke width. Geometry already
+    /// contains these edits; rendering must not apply this matrix again.
     pub transform: Transform,
     pub diff_state: DiffState,
     pub deleted: bool,
 }
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Stroke {
     pub color: DynamicColor,
     pub opacity: f32,
@@ -156,10 +147,18 @@ impl Default for DynamicColor {
 
 impl PartialEq for Path {
     fn eq(&self, other: &Self) -> bool {
-        self.data.len() == other.data.len()
+        self.data == other.data
             && self.visible == other.visible
             && self.transform == other.transform
             && self.deleted == other.deleted
+            && self.stroke == other.stroke
+    }
+}
+
+impl Path {
+    pub fn stroke_scale(&self) -> f32 {
+        (self.transform.sx.hypot(self.transform.ky) + self.transform.kx.hypot(self.transform.sy))
+            / 2.0
     }
 }
 
@@ -241,8 +240,11 @@ impl PartialEq for WeakImage {
     fn eq(&self, other: &Self) -> bool {
         self.href == other.href
             && self.transform == other.transform
-            && self.opacity == other.opacity
             && self.z_index == other.z_index
+            && self.x == other.x
+            && self.y == other.y
+            && self.width == other.width
+            && self.height == other.height
     }
 }
 

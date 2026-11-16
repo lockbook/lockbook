@@ -8,7 +8,6 @@ use lb_rs::Uuid;
 use lb_rs::blocking::Lb;
 use lb_rs::model::account::Account;
 use lb_rs::model::file_metadata::DocumentHmac;
-use lb_rs::model::svg;
 
 use crate::file_cache::{FileCache, FilesExt as _};
 use crate::link_preview::LinkPreviews;
@@ -250,15 +249,7 @@ impl TabContent {
                 true
             }
             TabContent::Svg(svg) => {
-                svg::buffer::Buffer::reload(
-                    &mut svg.buffer.elements,
-                    &mut svg.buffer.weak_images,
-                    &mut svg.buffer.weak_path_pressures,
-                    &mut svg.buffer.weak_viewport_settings,
-                    &svg.opened_content,
-                    &svg::buffer::Buffer::new(String::from_utf8_lossy(bytes).as_ref()),
-                );
-                svg.open_file_hmac = hmac;
+                svg.reload_document(String::from_utf8_lossy(bytes).as_ref(), hmac);
                 true
             }
             #[cfg(not(target_family = "wasm"))]

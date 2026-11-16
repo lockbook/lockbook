@@ -1,3 +1,4 @@
+use crate::tab::input_controller::{InputControllerEvent, ToolPayload};
 use crate::tab::svg_editor::CanvasAction;
 use bezier_rs::Subpath;
 use lb_rs::Uuid;
@@ -9,12 +10,12 @@ use serde::{Deserialize, Serialize};
 use tracing::{Level, event, trace};
 use web_time::Instant;
 
-use crate::tab::input_controller::{InputControllerEvent, ToolPayload};
 use crate::tab::svg_editor::InsertElement;
+use crate::tab::svg_editor::coordinates::{DocumentLength, ScreenLength};
 use crate::tab::svg_editor::history::History;
 use crate::tab::svg_editor::toolbar::ToolContext;
-use crate::tab::svg_editor::tools::InputControllerTool;
 use crate::tab::svg_editor::tools::path_builder::PathBuilder;
+use crate::tab::svg_editor::tools::{CanvasPointer, InputControllerTool};
 use crate::theme::palette::ThemePalette;
 
 pub const DEFAULT_PEN_STROKE_WIDTH: f32 = 1.0;
@@ -125,14 +126,25 @@ impl InputControllerTool for Pen {
         }
 
         match event {
-            PathEvent::Draw(payload) => self.draw(pen_ctx, payload),
-            PathEvent::End(payload) => self.end(pen_ctx, payload),
+            PathEvent::Draw(payload) => {
+                let pointer = CanvasPointer::new(payload, pen_ctx.viewport_settings.coordinates());
+                self.draw(pen_ctx, pointer)
+            }
+            PathEvent::End(payload) => {
+                let pointer = CanvasPointer::new(payload, pen_ctx.viewport_settings.coordinates());
+                self.end(pen_ctx, pointer)
+            }
             PathEvent::CancelStroke => self.cancel_path(pen_ctx),
-            PathEvent::PredictedDraw(payload) => self.predict_draw(pen_ctx, payload),
+            PathEvent::PredictedDraw(payload) => {
+                let pointer = CanvasPointer::new(payload, pen_ctx.viewport_settings.coordinates());
+                self.predict_draw(pen_ctx, pointer)
+            }
         }
     }
 
-    fn show_hover_point(&self, ui: &mut egui::Ui, pos: egui::Pos2, pen_ctx: &mut ToolContext<'_>) {
+    fn show_hover_point(
+        &self, ui: &mut egui::Ui, pointer: CanvasPointer, pen_ctx: &mut ToolContext<'_>,
+    ) {
         let is_current_path_empty = if let Some(EditableElement::Path(path)) =
             pen_ctx.buffer.elements.get_mut(&self.current_id)
         {
@@ -144,14 +156,18 @@ impl InputControllerTool for Pen {
         if is_current_path_empty {
             let mut radius = self.active_stroke_width / 2.0;
             if !self.has_inf_thick {
-                radius *= pen_ctx.viewport_settings.master_transform.sx;
+                radius = pen_ctx
+                    .viewport_settings
+                    .coordinates()
+                    .screen_length(DocumentLength(radius))
+                    .0;
             }
 
             let pressure_adj = self.pressure_alpha * -0.5 + 1.;
             radius *= pressure_adj;
 
             pen_ctx.painter.circle_filled(
-                pos,
+                pointer.screen_pos.0,
                 radius,
                 ThemePalette::resolve_dynamic_color(self.active_color, ui.visuals().dark_mode)
                     .linear_multiply(self.active_opacity),
@@ -206,7 +222,7 @@ impl Pen {
         }
     }
 
-    fn draw(&mut self, pen_ctx: &mut ToolContext<'_>, payload: ToolPayload) {
+    fn draw(&mut self, pen_ctx: &mut ToolContext<'_>, payload: CanvasPointer) {
         let mut path_stroke = Stroke {
             color: self.active_color,
             opacity: self.active_opacity,
@@ -214,21 +230,30 @@ impl Pen {
         };
 
         if self.has_inf_thick {
-            path_stroke.width /= pen_ctx.viewport_settings.master_transform.sx;
+            path_stroke.width = pen_ctx
+                .viewport_settings
+                .coordinates()
+                .document_length(ScreenLength(path_stroke.width))
+                .0;
         };
 
         self.update_long_press(payload);
+        let document_pos = payload.document_pos.0;
+        self.path_builder.tolerance = pen_ctx
+            .viewport_settings
+            .coordinates()
+            .document_length(ScreenLength(0.5))
+            .0 as f64;
 
         if let Some(EditableElement::Path(p)) = pen_ctx.buffer.elements.get_mut(&self.current_id) {
             p.diff_state.data_changed = true;
             p.stroke = Some(path_stroke);
 
             if self.is_long_press(payload) {
-                self.path_builder
-                    .snap(pen_ctx.viewport_settings.master_transform, &mut p.data);
+                self.path_builder.snap(&mut p.data);
             }
 
-            let new_seg_i = self.path_builder.line_to(payload.pos, &mut p.data);
+            let new_seg_i = self.path_builder.line_to(document_pos, &mut p.data);
 
             if new_seg_i.is_some() {
                 self.insert_force(pen_ctx, payload.force);
@@ -247,35 +272,32 @@ impl Pen {
                 deleted: false,
             });
 
-            pen_ctx
-                .buffer
-                .elements
-                .insert_before(0, self.current_id, el);
+            pen_ctx.buffer.insert(self.current_id, el);
 
             if let Some(EditableElement::Path(p)) =
                 pen_ctx.buffer.elements.get_mut(&self.current_id)
             {
-                self.path_builder.line_to(payload.pos, &mut p.data);
+                self.path_builder.line_to(document_pos, &mut p.data);
             }
         }
     }
 
-    fn update_long_press(&mut self, payload: ToolPayload) {
+    fn update_long_press(&mut self, payload: CanvasPointer) {
         if let Some((_, start_pos)) = self.long_press {
-            if start_pos.distance(payload.pos) > LONG_PRESS_MOVE_THRESHOLD {
+            if start_pos.distance(payload.screen_pos.0) > LONG_PRESS_MOVE_THRESHOLD {
                 self.long_press = None;
             }
         } else {
-            self.long_press = Some((Instant::now(), payload.pos));
+            self.long_press = Some((Instant::now(), payload.screen_pos.0));
         }
     }
 
-    fn is_long_press(&mut self, payload: ToolPayload) -> bool {
+    fn is_long_press(&mut self, payload: CanvasPointer) -> bool {
         if let Some((start_time, start_pos)) = self.long_press {
             let long_press_duration = web_time::Duration::from_millis(300);
 
             if start_time.elapsed() >= long_press_duration
-                && start_pos.distance(payload.pos) < LONG_PRESS_MOVE_THRESHOLD
+                && start_pos.distance(payload.screen_pos.0) < LONG_PRESS_MOVE_THRESHOLD
             {
                 self.long_press = None;
                 return true;
@@ -297,11 +319,12 @@ impl Pen {
         }
     }
 
-    fn end(&mut self, pen_ctx: &mut ToolContext<'_>, payload: ToolPayload) {
+    fn end(&mut self, pen_ctx: &mut ToolContext<'_>, payload: CanvasPointer) {
+        let document_pos = payload.document_pos.0;
         if let Some(EditableElement::Path(path)) = pen_ctx.buffer.elements.get_mut(&self.current_id)
         {
             path.diff_state.data_changed = true;
-            self.path_builder.line_to(payload.pos, &mut path.data);
+            self.path_builder.line_to(document_pos, &mut path.data);
 
             self.path_builder.clear();
 
@@ -322,9 +345,11 @@ impl Pen {
         self.current_id = Uuid::new_v4();
     }
 
-    fn predict_draw(&mut self, pen_ctx: &mut ToolContext<'_>, payload: ToolPayload) {
+    fn predict_draw(&mut self, pen_ctx: &mut ToolContext<'_>, payload: CanvasPointer) {
+        let document_pos = payload.document_pos.0;
         if let Some(EditableElement::Path(p)) = pen_ctx.buffer.elements.get_mut(&self.current_id) {
-            let maybe_new_mg = self.path_builder.line_to(payload.pos, &mut p.data);
+            p.diff_state.data_changed = true;
+            let maybe_new_mg = self.path_builder.line_to(document_pos, &mut p.data);
             trace!(maybe_new_mg, "adding predicted touch to the path at");
 
             // let's repeat the last known force for predicted touches
@@ -348,6 +373,7 @@ impl Pen {
             if let Some(EditableElement::Path(p)) =
                 pen_ctx.buffer.elements.get_mut(&self.current_id)
             {
+                p.diff_state.data_changed = true;
                 for n in (first_predicted_mg..p.data.manipulator_groups().len()).rev() {
                     trace!(n, "removing predicted touch at ");
                     p.data.remove_manipulator_group(n);

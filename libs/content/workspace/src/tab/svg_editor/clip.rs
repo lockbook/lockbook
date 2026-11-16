@@ -1,19 +1,20 @@
 use indexmap::IndexMap;
 use lb_rs::Uuid;
-use lb_rs::model::svg::buffer::{Buffer, u_transform_to_bezier};
+use lb_rs::model::svg::buffer::Buffer;
 use lb_rs::model::svg::diff::DiffState;
 use lb_rs::model::svg::element::{EditableElement, Image, WeakPathPressures};
 use resvg::usvg::{NonZeroRect, Transform};
 
-use crate::tab::svg_editor::element::BoundedElement;
 use crate::tab::svg_editor::history::History;
 use crate::tab::svg_editor::tools::selection::SelectedElement;
 use crate::tab::{ClipContent, ExtendedInput as _};
 
+use super::coordinates::{
+    CanvasCoordinates, DocumentRect, DocumentTransform, ScreenPoint, ScreenRect, ScreenTransform,
+};
 use super::element::PromoteBufferWeakImages;
-use super::viewport::get_rect_identity_transform;
-// use super::tools::selection::SelectedElement;
 use super::util::transform_rect;
+use super::viewport::{calc_elements_bounds, get_rect_identity_transform};
 use super::{InsertElement, SVGEditor, Tool};
 
 impl SVGEditor {
@@ -42,30 +43,13 @@ impl SVGEditor {
                             )
                         });
 
-                        let img_rect = egui::Rect::from_min_size(
-                            paste_pos,
+                        let (fitted_img_rect, transform) = image_paste_placement(
+                            self.viewport_settings.coordinates(),
+                            ScreenRect(ui.available_rect_before_wrap()),
                             egui::vec2(img.width() as f32, img.height() as f32),
+                            ScreenPoint(paste_pos),
                         );
-
-                        let transform = if ui.available_rect_before_wrap().width()
-                            < img_rect.width() * 2.0
-                            || ui.available_rect_before_wrap().height() < img_rect.height() * 2.0
-                        {
-                            get_rect_identity_transform(
-                                ui.available_rect_before_wrap(),
-                                img_rect,
-                                0.5,
-                                paste_pos,
-                            )
-                        } else {
-                            Some(Transform::identity().post_translate(
-                                paste_pos.x - img_rect.center().x,
-                                paste_pos.y - img_rect.center().y,
-                            ))
-                        }
-                        .unwrap_or_default();
-
-                        let fitted_img_rect = transform_rect(img_rect, transform);
+                        let fitted_img_rect = fitted_img_rect.0;
 
                         let id = Uuid::new_v4();
                         self.buffer.elements.insert(
@@ -73,7 +57,7 @@ impl SVGEditor {
                             EditableElement::Image(Box::new(Image {
                                 data: resvg::usvg::ImageKind::PNG(data.into()),
                                 visible: true,
-                                transform,
+                                transform: transform.0,
                                 view_box: NonZeroRect::from_xywh(
                                     fitted_img_rect.min.x,
                                     fitted_img_rect.min.y,
@@ -105,46 +89,21 @@ impl SVGEditor {
                     }
                     let mut pasted_buffer = Buffer::new(payload);
 
-                    pasted_buffer.promote_weak_images(
-                        self.viewport_settings.master_transform,
-                        &*self.images,
+                    pasted_buffer.promote_weak_images(&*self.images);
+
+                    let paste_pos = r.pointer.hover_pos().unwrap_or(
+                        self.input_ctx
+                            .last_touch
+                            .unwrap_or(ui.available_rect_before_wrap().center()),
                     );
-
-                    if !pasted_buffer.elements.is_empty() || !pasted_buffer.weak_images.is_empty() {
-                        let mut container = egui::Rect::NOTHING;
-                        for el in pasted_buffer.elements.iter() {
-                            let child = el.1.bounding_box();
-
-                            container.min.x = container.min.x.min(child.min.x);
-                            container.min.y = container.min.y.min(child.min.y);
-
-                            container.max.x = container.max.x.max(child.max.x);
-                            container.max.y = container.max.y.max(child.max.y);
-                        }
-
-                        let paste_pos = r.pointer.hover_pos().unwrap_or(
-                            self.input_ctx
-                                .last_touch
-                                .unwrap_or(ui.available_rect_before_wrap().center()),
-                        );
-                        let delta = paste_pos
-                            - container.center() * self.viewport_settings.master_transform.sx;
-
-                        let transform = Transform::identity()
-                            .post_scale(
-                                self.viewport_settings.master_transform.sx,
-                                self.viewport_settings.master_transform.sy,
-                            )
-                            .post_translate(delta.x, delta.y);
-
-                        let new_ids = duplicate_elements(
-                            pasted_buffer.elements,
-                            pasted_buffer.weak_path_pressures,
-                            &mut self.buffer,
-                            &mut self.history,
-                            Some(transform),
-                        );
-
+                    let new_ids = paste_elements(
+                        pasted_buffer,
+                        &mut self.buffer,
+                        &mut self.history,
+                        self.viewport_settings.coordinates(),
+                        ScreenPoint(paste_pos),
+                    );
+                    if !new_ids.is_empty() {
                         self.toolbar.active_tool = Tool::Selection;
 
                         self.toolbar.selection.selected_elements = new_ids
@@ -156,6 +115,40 @@ impl SVGEditor {
             }
         });
     }
+}
+
+/// Raster imports retain their fitted screen size at the current zoom.
+fn image_paste_placement(
+    coordinates: CanvasCoordinates, container: ScreenRect, size: egui::Vec2, position: ScreenPoint,
+) -> (DocumentRect, DocumentTransform) {
+    let image_rect = egui::Rect::from_min_size(position.0, size);
+    let transform = if container.0.width() < size.x * 2.0 || container.0.height() < size.y * 2.0 {
+        get_rect_identity_transform(container.0, image_rect, 0.5, position.0)
+    } else {
+        let delta = position.0 - image_rect.center();
+        Some(Transform::from_translate(delta.x, delta.y))
+    }
+    .unwrap_or_default();
+    (
+        coordinates.document_rect(ScreenRect(transform_rect(image_rect, transform))),
+        coordinates.document_transform(ScreenTransform(transform)),
+    )
+}
+
+/// SVG clipboard content retains its document size and is centered at the pointer.
+fn paste_elements(
+    source: Buffer, target: &mut Buffer, history: &mut History, coordinates: CanvasCoordinates,
+    position: ScreenPoint,
+) -> Vec<Uuid> {
+    let Some(bounds) = calc_elements_bounds(&source) else { return Vec::new() };
+    let delta = coordinates.document_point(position).0 - bounds.center();
+    duplicate_elements(
+        source.elements,
+        source.weak_path_pressures,
+        target,
+        history,
+        Some(Transform::from_translate(delta.x, delta.y)),
+    )
 }
 
 pub fn duplicate_elements(
@@ -175,20 +168,10 @@ pub fn duplicate_elements(
         }
 
         if let Some(transform) = maybe_transform {
-            match &mut new_el {
-                EditableElement::Path(path) => {
-                    path.data.apply_transform(u_transform_to_bezier(&transform));
-                    path.diff_state = DiffState::new();
-                }
-                EditableElement::Image(image) => {
-                    if let Some(new_vbox) = image.view_box.transform(transform) {
-                        image.view_box = new_vbox;
-                    };
-                    image.diff_state = DiffState::new();
-                }
-                EditableElement::Text(_) => {}
-            }
+            new_el.transform(transform);
         }
+
+        new_el.mark_data_change();
 
         target.elements.insert_before(0, new_id, new_el);
 

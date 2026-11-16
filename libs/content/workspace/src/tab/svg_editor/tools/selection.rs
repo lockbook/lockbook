@@ -17,15 +17,16 @@ use lb_rs::model::svg::buffer::serialize_inner;
 use crate::tab::ExtendedInput as _;
 use crate::tab::input_controller::InputControllerEvent;
 use crate::tab::svg_editor::clip::duplicate_elements;
-use crate::tab::svg_editor::element::BoundedElement;
+use crate::tab::svg_editor::coordinates::{ScreenLength, ScreenPoint};
 use crate::tab::svg_editor::history::{self, TransformElement};
 use crate::tab::svg_editor::toolbar::{
     ToolContext, show_color_btn, show_opacity_slider, show_section_header, show_thickness_slider,
 };
 use crate::tab::svg_editor::tools::pen::DEFAULT_PEN_STROKE_WIDTH;
-use crate::tab::svg_editor::tools::{InputControllerTool, selection};
-use crate::tab::svg_editor::util::{pointer_intersects_element, transform_rect};
 use crate::tab::svg_editor::{CanvasAction, LayerMove};
+
+use crate::tab::svg_editor::tools::{CanvasPointer, InputControllerTool, selection};
+use crate::tab::svg_editor::util::transform_rect;
 use crate::tab::svg_editor::{DeleteElement, Event};
 use crate::theme::icons::Icon;
 use crate::theme::palette::ThemePalette;
@@ -271,7 +272,7 @@ impl InputControllerTool for Selection {
                     .last_pos
                     .replace(pos)
                     .map_or(egui::Vec2::ZERO, |previous| pos - previous);
-                let container_rect = self.get_container_rect(selection_ctx.buffer);
+                let container_rect = self.get_screen_container_rect(selection_ctx);
 
                 let min_allowed = egui::vec2(10.0, 10.0);
 
@@ -337,15 +338,10 @@ impl InputControllerTool for Selection {
                             let sy = new_height / container_rect.height();
                             let sx = new_width / container_rect.width();
 
-                            let s_uniform = (sx + sy) / 2.0;
-
                             let anchor = container_rect.right_top();
                             Transform::identity()
-                                .post_scale(s_uniform, s_uniform)
-                                .post_translate(
-                                    anchor.x * (1. - s_uniform),
-                                    anchor.y * (1. - s_uniform),
-                                )
+                                .post_scale(sx, sy)
+                                .post_translate(anchor.x * (1. - sx), anchor.y * (1. - sy))
                         }
                         SelectionOperation::NorthWestScale => {
                             let new_height =
@@ -356,15 +352,10 @@ impl InputControllerTool for Selection {
                             let sy = new_height / container_rect.height();
                             let sx = new_width / container_rect.width();
 
-                            let s_uniform = (sx + sy) / 2.0;
-
                             let anchor = container_rect.right_bottom();
                             Transform::identity()
-                                .post_scale(s_uniform, s_uniform)
-                                .post_translate(
-                                    anchor.x * (1. - s_uniform),
-                                    anchor.y * (1. - s_uniform),
-                                )
+                                .post_scale(sx, sy)
+                                .post_translate(anchor.x * (1. - sx), anchor.y * (1. - sy))
                         }
                         SelectionOperation::NorthEastScale => {
                             let new_height =
@@ -375,15 +366,10 @@ impl InputControllerTool for Selection {
                             let sy = new_height / container_rect.height();
                             let sx = new_width / container_rect.width();
 
-                            let s_uniform = (sx + sy) / 2.0;
-
                             let anchor = container_rect.left_bottom();
                             Transform::identity()
-                                .post_scale(s_uniform, s_uniform)
-                                .post_translate(
-                                    anchor.x * (1. - s_uniform),
-                                    anchor.y * (1. - s_uniform),
-                                )
+                                .post_scale(sx, sy)
+                                .post_translate(anchor.x * (1. - sx), anchor.y * (1. - sy))
                         }
                         SelectionOperation::SouthEastScale => {
                             let new_height =
@@ -394,15 +380,10 @@ impl InputControllerTool for Selection {
                             let sy = new_height / container_rect.height();
                             let sx = new_width / container_rect.width();
 
-                            let s_uniform = (sx + sy) / 2.0;
-
                             let anchor = container_rect.left_top();
                             Transform::identity()
-                                .post_scale(s_uniform, s_uniform)
-                                .post_translate(
-                                    anchor.x * (1. - s_uniform),
-                                    anchor.y * (1. - s_uniform),
-                                )
+                                .post_scale(sx, sy)
+                                .post_translate(anchor.x * (1. - sx), anchor.y * (1. - sy))
                         }
                         _ => snap_scale(pos, container_rect), // todod: figure out if this can be removed
                     };
@@ -413,6 +394,9 @@ impl InputControllerTool for Selection {
                     }
 
                     if let Some(el) = selection_ctx.buffer.elements.get_mut(&s_el.id) {
+                        let transform = selection_ctx
+                            .viewport_settings
+                            .screen_transform_to_document(transform);
                         el.transform(transform);
                         s_el.transform = s_el.transform.post_concat(transform);
                     }
@@ -479,9 +463,12 @@ impl InputControllerTool for Selection {
 
                     self.new_selection_els(new_els);
                     self.current_op = SelectionOperation::Translation;
-                } else if let Some(maybe_new_selection) =
-                    detect_translation(selection_ctx.buffer, None, build_payload.pos)
+                } else if let Some(id) = selection_ctx
+                    .view()
+                    .hit_test(ScreenPoint(build_payload.pos), ScreenLength(10.0))
                 {
+                    let maybe_new_selection =
+                        SelectedElement { id, transform: Transform::identity() };
                     if build_payload.modifiers.shift_only() {
                         self.push_selection_el(maybe_new_selection);
                     } else if build_payload.modifiers.command_only() {
@@ -542,7 +529,7 @@ impl InputControllerTool for Selection {
         }
     }
 
-    fn show_hover_point(&self, _: &mut egui::Ui, _: egui::Pos2, _: &mut ToolContext<'_>) {}
+    fn show_hover_point(&self, _: &mut egui::Ui, _: CanvasPointer, _: &mut ToolContext<'_>) {}
 
     fn show_tool_ui(&mut self, ui: &mut egui::Ui, selection_ctx: &mut ToolContext) {
         ui.scope_builder(
@@ -611,51 +598,13 @@ impl Selection {
         None
     }
 
-    fn get_laso_selected_els(
-        &mut self, selection_ctx: &mut ToolContext<'_>,
-    ) -> Vec<SelectedElement> {
-        let mut laso_selected_elements = Vec::with_capacity(self.selected_elements.capacity());
-        for (id, el) in selection_ctx.buffer.elements.iter() {
-            if el.deleted() {
-                continue;
-            }
-            if self.el_intersects_laso(el) {
-                laso_selected_elements
-                    .push(SelectedElement { id: *id, transform: Transform::identity() });
-            }
-        }
-        laso_selected_elements
-    }
-
-    fn el_intersects_laso(&mut self, el: &EditableElement) -> bool {
-        let laso_rect = match self.laso_rect {
-            Some(val) => val,
-            None => return false,
-        };
-        match el {
-            EditableElement::Path(path) => {
-                let path_rect = path.bounding_box();
-                if laso_rect.intersects(path_rect) {
-                    let laso_bb = Subpath::new_rect(
-                        glam::DVec2 { x: laso_rect.min.x as f64, y: laso_rect.min.y as f64 },
-                        glam::DVec2 { x: laso_rect.max.x as f64, y: laso_rect.max.y as f64 },
-                    );
-
-                    !path
-                        .data
-                        .subpath_intersections(&laso_bb, None, None)
-                        .is_empty()
-                        || laso_rect.contains_rect(path_rect)
-                } else {
-                    false
-                }
-            }
-            EditableElement::Image(img) => {
-                let img_bb = img.bounding_box();
-                laso_rect.contains_rect(img_bb) || laso_rect.intersects(img_bb)
-            }
-            EditableElement::Text(_) => todo!(),
-        }
+    fn get_laso_selected_els(&self, selection_ctx: &ToolContext<'_>) -> Vec<SelectedElement> {
+        let Some(rect) = self.laso_rect else { return Vec::new() };
+        selection_ctx
+            .view()
+            .elements_in_screen_rect(rect)
+            .map(|id| SelectedElement { id, transform: Transform::identity() })
+            .collect()
     }
 
     fn show_selection_rects(&mut self, ui: &mut egui::Ui, selection_ctx: &mut ToolContext) {
@@ -666,15 +615,15 @@ impl Selection {
             self.layout.popover = None;
             return;
         }
-        let container = self.get_container_rect(selection_ctx.buffer);
+        let container = self.get_screen_container_rect(selection_ctx);
 
         if self.current_op != SelectionOperation::Translation
             && self.selection_stroke_snashot.is_empty()
             && self.selection_opacity_snapshot.is_empty()
         {
             for el in self.selected_elements.iter() {
-                let child = match selection_ctx.buffer.elements.get(&el.id) {
-                    Some(el) => el.bounding_box(),
+                let child = match selection_ctx.view().screen_bounds(el.id) {
+                    Some(bounds) => bounds,
                     None => continue,
                 };
                 if self.selected_elements.len() != 1 {
@@ -850,7 +799,6 @@ impl Selection {
         let serialized_selection = serialize_inner(
             id_map,
             &elements,
-            &selection_ctx.buffer.weak_viewport_settings,
             &WeakImages::default(),
             &selection_ctx.buffer.weak_path_pressures,
         );
@@ -858,21 +806,9 @@ impl Selection {
         ui.ctx().copy_text(serialized_selection);
     }
 
-    pub fn get_container_rect(&self, buffer: &Buffer) -> egui::Rect {
-        let mut container = egui::Rect::NOTHING;
-        for el in self.selected_elements.iter() {
-            let child = match buffer.elements.get(&el.id) {
-                Some(el) => el.bounding_box(),
-                None => continue,
-            };
-
-            container.min.x = container.min.x.min(child.min.x);
-            container.min.y = container.min.y.min(child.min.y);
-
-            container.max.x = container.max.x.max(child.max.x);
-            container.max.y = container.max.y.max(child.max.y);
-        }
-        container
+    fn get_screen_container_rect(&self, ctx: &ToolContext<'_>) -> egui::Rect {
+        ctx.view()
+            .screen_bounds_for(self.selected_elements.iter().map(|el| el.id))
     }
 
     fn show_child_selection_rect(&self, ui: &mut egui::Ui, rect: egui::Rect) {
@@ -1245,6 +1181,9 @@ impl Selection {
                 LayerMove::ToFront => elements.move_index(i, 0),
                 _ => {}
             }
+            if let Some(element) = elements.get_mut(&s_el.id) {
+                element.mark_data_change();
+            }
         }
     }
 
@@ -1287,20 +1226,6 @@ fn get_laso_rect(current: egui::Pos2, drag_origin: egui::Pos2) -> egui::Rect {
         std::mem::swap(&mut laso_rect.min.x, &mut laso_rect.max.x)
     }
     laso_rect
-}
-
-pub fn detect_translation(
-    buffer: &mut Buffer, last_pos: Option<egui::Pos2>, current_pos: egui::Pos2,
-) -> Option<SelectedElement> {
-    for (id, el) in buffer.elements.iter() {
-        if el.deleted() {
-            continue;
-        }
-        if pointer_intersects_element(el, current_pos, last_pos, 10.0) {
-            return Some(SelectedElement { id: *id, transform: Transform::identity() });
-        }
-    }
-    None
 }
 
 pub fn scale_from_center(factor: f32, selected_rect: egui::Rect) -> Transform {

@@ -50,7 +50,12 @@ pub(super) fn live_points(canvas: &TestCanvas) -> Vec<Pos2> {
                 .manipulator_groups()
                 .first()
                 .filter(|group| group.anchor.is_finite())
-                .map(|group| pos2(group.anchor.x as f32, group.anchor.y as f32)),
+                .map(|group| {
+                    canvas
+                        .svg_ref()
+                        .viewport_settings
+                        .document_to_screen(pos2(group.anchor.x as f32, group.anchor.y as f32))
+                }),
             _ => None,
         })
         .collect()

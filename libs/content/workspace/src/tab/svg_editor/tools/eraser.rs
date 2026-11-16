@@ -1,14 +1,14 @@
+use crate::tab::input_controller::InputControllerEvent;
 use crate::tab::svg_editor::CanvasAction;
 use std::collections::HashMap;
 
 use lb_rs::Uuid;
 use lb_rs::model::svg::element::EditableElement;
 
-use crate::tab::input_controller::InputControllerEvent;
 use crate::tab::svg_editor::DeleteElement;
+use crate::tab::svg_editor::coordinates::{ScreenLength, ScreenPoint};
 use crate::tab::svg_editor::toolbar::ToolContext;
-use crate::tab::svg_editor::tools::InputControllerTool;
-use crate::tab::svg_editor::util::pointer_intersects_element;
+use crate::tab::svg_editor::tools::{CanvasPointer, InputControllerTool};
 
 pub struct Eraser {
     pub radius: f32,
@@ -67,17 +67,12 @@ impl InputControllerTool for Eraser {
                 self.pos = pos;
 
                 eraser_ctx
-                    .buffer
-                    .elements
-                    .iter()
-                    .filter(|(_, el)| !el.deleted())
-                    .for_each(|(id, el)| {
-                        if self.delete_candidates.contains_key(id) {
-                            return;
-                        }
-                        if pointer_intersects_element(el, pos, None, self.radius as f64) {
-                            self.delete_candidates.insert(*id, el.opacity());
-                        }
+                    .view()
+                    .hit_test_all(ScreenPoint(pos), ScreenLength(self.radius))
+                    .for_each(|id| {
+                        self.delete_candidates
+                            .entry(id)
+                            .or_insert_with(|| eraser_ctx.buffer.elements[&id].opacity());
                     });
 
                 self.delete_candidates.iter().for_each(|(id, &opacity)| {
@@ -135,9 +130,9 @@ impl InputControllerTool for Eraser {
     }
 
     fn show_hover_point(
-        &self, _: &mut egui::Ui, pos: egui::Pos2, eraser_ctx: &mut ToolContext<'_>,
+        &self, _: &mut egui::Ui, pointer: CanvasPointer, eraser_ctx: &mut ToolContext<'_>,
     ) {
-        self.show_eraser_circle(pos, eraser_ctx);
+        self.show_eraser_circle(pointer.screen_pos.0, eraser_ctx);
     }
 
     fn show_tool_ui(&mut self, _: &mut egui::Ui, eraser_ctx: &mut ToolContext) {

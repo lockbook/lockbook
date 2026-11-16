@@ -7,9 +7,7 @@ use std::fmt::Debug;
 use bezier_rs::Subpath;
 use egui::{Pos2, Rect, pos2, vec2};
 use lb_rs::Uuid;
-use lb_rs::model::svg::buffer::{
-    Buffer, get_highlighter_colors, get_pen_colors, u_transform_to_bezier,
-};
+use lb_rs::model::svg::buffer::{Buffer, get_highlighter_colors, get_pen_colors};
 use lb_rs::model::svg::element::{DynamicColor, EditableElement, ManipulatorGroupId};
 use resvg::usvg::Transform;
 
@@ -151,13 +149,12 @@ struct Seen {
 type View = Vec<Seen>;
 
 /// Coordinates to a tenth of a unit: below a pixel at any zoom we use.
-fn view(b: &Buffer, to_file: Transform) -> View {
+fn view(b: &Buffer) -> View {
     b.elements
         .iter()
         .filter_map(|(id, el)| match el {
             EditableElement::Path(p) if !p.deleted && p.data.len() > 1 => {
-                let mut data = p.data.clone();
-                data.apply_transform(u_transform_to_bezier(&to_file));
+                let data = &p.data;
                 let s = p.stroke.unwrap();
                 Some(Seen {
                     id: b.id_map.get(id).cloned().unwrap_or(id.to_string()),
@@ -169,7 +166,7 @@ fn view(b: &Buffer, to_file: Transform) -> View {
                         })
                         .collect(),
                     rgb: (s.color.light.red, s.color.light.green, s.color.light.blue),
-                    width: (s.width * 100.).round() as i64,
+                    width: (s.width * p.stroke_scale() * 100.).round() as i64,
                     opacity: (s.opacity * 255.).round() as i64,
                 })
             }
@@ -179,11 +176,11 @@ fn view(b: &Buffer, to_file: Transform) -> View {
 }
 
 fn canvas_view(c: &TestCanvas) -> View {
-    view(&c.svg_ref().buffer, c.master().invert().unwrap())
+    view(&c.svg_ref().buffer)
 }
 
 fn file_view(bytes: &str) -> View {
-    view(&Buffer::new(bytes), Transform::identity())
+    view(&Buffer::new(bytes))
 }
 
 fn same(what: &str, a: &View, b: &View, ordered: bool) -> Result<(), String> {
@@ -241,7 +238,9 @@ fn save_reopen_check(c: &Case) -> Result<(), String> {
     let mut canvas = TestCanvas::open(&file_bytes(&c.file));
     c.edits.run(&mut canvas);
     let saved = canvas.save();
-    let reopened = TestCanvas::open(&saved);
+    let mut reopened = TestCanvas::open(&saved);
+    // View state is local: compare rendering through the same viewport.
+    reopened.set_viewport(canvas.master());
     same("reopened", &canvas_view(&canvas), &canvas_view(&reopened), true)?;
     let (a, b) = (canvas_mask(&canvas), canvas_mask(&reopened));
     differs("reopened canvas", &a, &b)
@@ -559,7 +558,10 @@ fn erase_check(case: &EraseCase, undo: bool) -> Result<(), String> {
                     ErasePoint::Anchor(stroke, anchor) if !targets.is_empty() => {
                         let anchors = targets[stroke % targets.len()].data.manipulator_groups();
                         let anchor = anchors[anchor % anchors.len()].anchor;
-                        pos2(anchor.x as f32, anchor.y as f32)
+                        canvas
+                            .svg_ref()
+                            .viewport_settings
+                            .document_to_screen(pos2(anchor.x as f32, anchor.y as f32))
                     }
                     ErasePoint::Anchor(..) => Pos2::ZERO,
                     ErasePoint::Position(pos) => *pos,
@@ -609,9 +611,11 @@ fn erase_check(case: &EraseCase, undo: bool) -> Result<(), String> {
                     if !min.is_finite() || !max.is_finite() {
                         continue;
                     }
-                    let bounds = Rect::from_min_max(
-                        pos2(min.x as f32, min.y as f32),
-                        pos2(max.x as f32, max.y as f32),
+                    let bounds = canvas.svg_ref().viewport_settings.document_rect_to_screen(
+                        Rect::from_min_max(
+                            pos2(min.x as f32, min.y as f32),
+                            pos2(max.x as f32, max.y as f32),
+                        ),
                     );
                     if points.iter().all(|pos| {
                         !bounds.intersects(Rect::from_center_size(
@@ -744,6 +748,33 @@ fn chain_keeps_stacking_order() {
     chain_check(&chain).unwrap();
 }
 
+// A viewport change must affect subsequent screen-space input, including
+// actions in the same frame, without leaking view state into the saved SVG.
+#[test]
+fn save_reopen_after_zoom_and_drawing_in_one_frame() {
+    for batch in [1, 32] {
+        let mut canvas = TestCanvas::open(r#"<svg xmlns="http://www.w3.org/2000/svg"></svg>"#);
+        let mut actions = vec![CanvasAction::TransformViewport(
+            Transform::from_scale(2., 2.).post_translate(-100., -100.),
+        )];
+        actions.extend(fixed_stroke(&[pos2(300., 300.), pos2(400., 400.)]));
+        Program { actions, batches: vec![batch] }.run(&mut canvas);
+        let drawing = canvas_view(&canvas);
+        assert_eq!(drawing.len(), 1);
+        assert_eq!(drawing[0].pts.first(), Some(&(2000, 2000)));
+        assert_eq!(drawing[0].pts.last(), Some(&(2500, 2500)));
+        // End the final frame with another viewport change, then save immediately.
+        canvas.act(CanvasAction::TransformViewport(Transform::from_translate(20., 10.)));
+        let saved = canvas.save();
+        assert!(!saved.contains("lb_viewport_settings"));
+        assert!(!saved.contains("lb_master_transform"));
+        let mut reopened = TestCanvas::open(&saved);
+        reopened.set_viewport(canvas.master());
+        same("zoom then draw", &drawing, &canvas_view(&reopened), true).unwrap();
+        differs("zoom then draw", &canvas_mask(&canvas), &canvas_mask(&reopened)).unwrap();
+    }
+}
+
 // Position-based transforms must behave identically regardless of frame batching.
 #[test]
 fn selection_translation_uses_each_action_position() {
@@ -756,6 +787,8 @@ fn selection_translation_uses_each_action_position() {
     }]);
     for batch in [1, 32] {
         let mut c = TestCanvas::open(&file);
+        // Fixed screen positions below use a one-to-one document view.
+        c.set_viewport(Transform::identity());
         let before = canvas_view(&c);
         Program {
             actions: vec![
@@ -827,6 +860,7 @@ fn pointer_moves_in_one_frame_translate_once_per_event() {
         pts: vec![(300, 300), (360, 330)],
         width: 2,
     }]));
+    c.set_viewport(Transform::identity());
     let mut expected = canvas_view(&c);
     for stroke in &mut expected {
         for (x, y) in &mut stroke.pts {

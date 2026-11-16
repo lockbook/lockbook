@@ -1,14 +1,10 @@
 use lb_rs::Uuid;
 use lb_rs::blocking::Lb;
 use lb_rs::model::errors::LbResult;
-use lb_rs::model::svg::WeakTransform;
-use lb_rs::model::svg::buffer::{Buffer, WeakViewportSettings};
+use lb_rs::model::svg::buffer::Buffer;
 use lb_rs::model::svg::diff::DiffState;
 use lb_rs::model::svg::element::{EditableElement, Image, Path, WeakImage};
 use resvg::usvg::{NonZeroRect, Transform};
-
-use super::ViewportSettings;
-use super::util::{demote_to_weak_rect, promote_weak_rect};
 
 pub trait BoundedElement {
     fn bounding_box(&self) -> egui::Rect;
@@ -96,45 +92,13 @@ impl PromoteWeakImage for Image {
     }
 }
 
-impl From<ViewportSettings> for WeakViewportSettings {
-    fn from(viewport: ViewportSettings) -> Self {
-        WeakViewportSettings {
-            bounded_rect: viewport.bounded_rect.map(demote_to_weak_rect),
-            master_transform: WeakTransform::from(viewport.master_transform),
-            left_locked: viewport.left_locked,
-            right_locked: viewport.right_locked,
-            bottom_locked: viewport.bottom_locked,
-            top_locked: viewport.top_locked,
-            viewport_transform: viewport.viewport_transform.map(WeakTransform::from),
-        }
-    }
-}
-
-impl From<WeakViewportSettings> for ViewportSettings {
-    fn from(weak: WeakViewportSettings) -> Self {
-        ViewportSettings {
-            bounded_rect: weak.bounded_rect.map(promote_weak_rect),
-            working_rect: egui::Rect::NOTHING,
-            viewport_transform: weak.viewport_transform.map(Transform::from),
-            master_transform: Transform::from(weak.master_transform),
-            container_rect: egui::Rect::NOTHING,
-            left_locked: weak.left_locked,
-            right_locked: weak.right_locked,
-            bottom_locked: weak.bottom_locked,
-            top_locked: weak.top_locked,
-        }
-    }
-}
-
 pub trait PromoteBufferWeakImages {
-    fn promote_weak_images(&mut self, master_transform: Transform, images: &dyn CanvasImages);
+    fn promote_weak_images(&mut self, images: &dyn CanvasImages);
 }
 
 impl PromoteBufferWeakImages for Buffer {
-    fn promote_weak_images(&mut self, master_transform: Transform, images: &dyn CanvasImages) {
-        self.weak_images.drain().for_each(|(id, mut weak_image)| {
-            weak_image.transform(master_transform);
-
+    fn promote_weak_images(&mut self, images: &dyn CanvasImages) {
+        self.weak_images.drain().for_each(|(id, weak_image)| {
             let mut image = Image::from_weak(weak_image, images);
 
             image.diff_state.transformed = None;

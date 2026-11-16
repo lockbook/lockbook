@@ -195,19 +195,19 @@ impl TestCanvas {
     /// the next reload merges against.
     pub fn save(&mut self) -> String {
         let bytes = self.file();
-        // CANVAS_PROPS_PARSED_BASE: the base as canvas-remote-style sets it
-        let saved = if std::env::var("CANVAS_PROPS_PARSED_BASE").is_ok() {
-            lb_rs::model::svg::buffer::Buffer::new(&bytes)
-        } else {
-            self.svg_ref().buffer.clone()
-        };
-        self.svg().opened_content = saved;
+        self.svg().opened_content = lb_rs::model::svg::buffer::Buffer::new(&bytes);
         bytes
     }
 
     /// A newer version arriving (open.rs TabContent::reload).
     pub fn reload(&mut self, bytes: &str) {
         self.tab.reload(None, bytes.as_bytes());
+        self.frame(vec![]);
+    }
+
+    /// Compare document rendering independently of locally persisted view state.
+    pub fn set_viewport(&mut self, transform: resvg::usvg::Transform) {
+        self.svg().viewport_settings.master_transform = transform;
         self.frame(vec![]);
     }
 

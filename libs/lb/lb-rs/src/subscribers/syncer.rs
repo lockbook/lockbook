@@ -15,7 +15,6 @@ use std::{
 use futures::{StreamExt, stream};
 use tokio::sync::{Mutex, broadcast::error::TryRecvError};
 use tokio::time;
-use usvg::Transform;
 use uuid::Uuid;
 
 use crate::{
@@ -39,8 +38,7 @@ use crate::{
         lazy::LazyTree,
         signed_meta::SignedMeta,
         staged::StagedTreeLikeMut,
-        svg::{self, buffer::u_transform_to_bezier, element::EditableElement},
-        symkey, text,
+        svg, symkey, text,
         tree_like::TreeLike,
         validate,
     },
@@ -701,22 +699,10 @@ impl Lb {
                                         let mut local_buffer =
                                             svg::buffer::Buffer::new(&local_document);
 
-                                        for (_, el) in local_buffer.elements.iter_mut() {
-                                            if let EditableElement::Path(path) = el {
-                                                path.data.apply_transform(u_transform_to_bezier(
-                                                    &Transform::from(
-                                                        local_buffer
-                                                            .weak_viewport_settings
-                                                            .master_transform,
-                                                    ),
-                                                ));
-                                            }
-                                        }
                                         svg::buffer::Buffer::reload(
                                             &mut local_buffer.elements,
                                             &mut local_buffer.weak_images,
                                             &mut local_buffer.weak_path_pressures,
-                                            &mut local_buffer.weak_viewport_settings,
                                             &base_buffer,
                                             &remote_buffer,
                                         );

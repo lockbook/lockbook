@@ -4,7 +4,6 @@ use bezier_rs::{Bezier, Subpath};
 use glam::DVec2;
 
 use lb_rs::model::svg::element::ManipulatorGroupId;
-use resvg::usvg::Transform;
 
 /// Build a cubic bézier path with Catmull-Rom smoothing and Ramer–Douglas–Peucker compression
 #[derive(Debug)]
@@ -13,6 +12,8 @@ pub struct PathBuilder {
     pub prev_points_window: VecDeque<egui::Pos2>,
     pub is_canceled_path: bool,
     pub first_predicted_mg: Option<usize>,
+    /// Screen sampling threshold expressed in document units.
+    pub tolerance: f64,
 }
 
 impl Default for PathBuilder {
@@ -27,6 +28,7 @@ impl PathBuilder {
             prev_points_window: VecDeque::from(vec![]),
             is_canceled_path: false,
             first_predicted_mg: None,
+            tolerance: 0.5,
         }
     }
 
@@ -71,13 +73,12 @@ impl PathBuilder {
         let distance = last_point
             .anchor
             .distance(glam::DVec2 { x: point.x as f64, y: point.y as f64 });
-        let tolerance = 0.5;
-        distance < tolerance
+        distance < self.tolerance
     }
 
-    pub fn snap(&mut self, master_transform: Transform, path: &mut Subpath<ManipulatorGroupId>) {
+    pub fn snap(&mut self, path: &mut Subpath<ManipulatorGroupId>) {
         let perim = path.length(None) as f32;
-        let tolerance = perim * 0.04 * master_transform.sx;
+        let tolerance = perim * 0.04;
 
         let maybe_simple_points = self.simplify(tolerance, path);
 

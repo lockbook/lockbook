@@ -1,3 +1,4 @@
+use crate::tab::input_controller::InputControllerEvent;
 use crate::tab::svg_editor::CanvasAction;
 use bezier_rs::Subpath;
 use lb_rs::model::svg::{
@@ -7,9 +8,12 @@ use lb_rs::model::svg::{
 use resvg::usvg::Transform;
 
 use crate::{
-    tab::input_controller::InputControllerEvent,
     tab::svg_editor::{
-        Event, InsertElement, toolbar::ToolContext, tools::InputControllerTool, util::pos_to_dvec,
+        Event, InsertElement,
+        coordinates::ScreenPoint,
+        toolbar::ToolContext,
+        tools::{CanvasPointer, InputControllerTool},
+        util::pos_to_dvec,
     },
     theme::icons::Icon,
 };
@@ -84,6 +88,11 @@ impl InputControllerTool for ShapesTool {
                 self.reset_build();
             }
             ShapeEvent::Build(pos) => {
+                let pos = shapes_ctx
+                    .viewport_settings
+                    .coordinates()
+                    .document_point(ScreenPoint(pos))
+                    .0;
                 if self.build_origin.is_none() {
                     self.build_origin = Some(pos);
                 }
@@ -124,13 +133,13 @@ impl InputControllerTool for ShapesTool {
                         deleted: false,
                     });
 
-                    shapes_ctx.buffer.elements.insert_before(0, current_id, el);
+                    shapes_ctx.buffer.insert(current_id, el);
                 }
             }
         }
     }
 
-    fn show_hover_point(&self, _: &mut egui::Ui, _: egui::Pos2, _: &mut ToolContext<'_>) {}
+    fn show_hover_point(&self, _: &mut egui::Ui, _: CanvasPointer, _: &mut ToolContext<'_>) {}
     fn show_tool_ui(&mut self, _: &mut egui::Ui, _: &mut ToolContext) {}
 }
 

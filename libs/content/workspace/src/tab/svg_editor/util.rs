@@ -81,11 +81,21 @@ pub fn pointer_intersects_outline(
 }
 
 pub fn transform_point(point: egui::Pos2, t: Transform) -> egui::Pos2 {
-    egui::Pos2 { x: t.sx * point.x + t.tx, y: t.sy * point.y + t.ty }
+    egui::Pos2 {
+        x: t.sx * point.x + t.kx * point.y + t.tx,
+        y: t.ky * point.x + t.sy * point.y + t.ty,
+    }
 }
 
 pub fn transform_rect(rect: egui::Rect, t: Transform) -> egui::Rect {
-    egui::Rect { min: transform_point(rect.min, t), max: transform_point(rect.max, t) }
+    if !rect.is_finite() {
+        return rect;
+    }
+    let mut transformed = egui::Rect::NOTHING;
+    for corner in [rect.min, rect.max, rect.right_top(), rect.left_bottom()] {
+        transformed.extend_with(transform_point(corner, t));
+    }
+    transformed
 }
 
 pub fn devc_to_point(dvec: DVec2) -> Point {
@@ -106,10 +116,6 @@ pub fn bb_to_rect(bb: [DVec2; 2]) -> egui::Rect {
 pub fn promote_weak_rect(wk: WeakRect) -> egui::Rect {
     egui::Rect::from_min_max(egui::pos2(wk.min.0, wk.min.1), egui::pos2(wk.max.0, wk.max.1))
 }
-pub fn demote_to_weak_rect(src: egui::Rect) -> WeakRect {
-    WeakRect { min: (src.min.x, src.min.y), max: (src.max.x, src.max.y) }
-}
-
 impl CanvasSettings {
     pub fn update_viewport_settings(&mut self, vs: &ViewportSettings) {
         self.bottom_locked = vs.bottom_locked;
