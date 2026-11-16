@@ -258,6 +258,7 @@ impl<S: Server, D: LocalDocuments> Lb<S, D> {
         db.base_metadata.clear()?;
         db.root.take()?;
         db.local_metadata.clear()?;
+        db.pushed_metadata.clear()?;
         db.pub_key_lookup.clear()?;
 
         // todo: clear cache?

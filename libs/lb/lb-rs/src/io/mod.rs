@@ -68,11 +68,15 @@ pub struct CoreV5 {
     pub last_extracted_panic: DbOption<i64>,
 
     pub searched_files: DbVec<Uuid>,
+
+    /// Versions this device sent the server without hearing back, written before they're sent.
+    /// The server holding one of them exactly means it took that push, whose answer was lost.
+    pub pushed_metadata: DbHashMap<Uuid, SignedMeta, UuidIdentityHasherBuilder>,
 }
 
 impl Schema for CoreV5 {
     fn views_mut(&mut self) -> impl AsMut<[&mut dyn View]> {
-        let views: [&mut dyn View; 11] = [
+        let views: [&mut dyn View; 12] = [
             &mut self.account,
             &mut self.last_synced,
             &mut self.root,
@@ -84,6 +88,7 @@ impl Schema for CoreV5 {
             &mut self.pinned_files,
             &mut self.last_extracted_panic,
             &mut self.searched_files,
+            &mut self.pushed_metadata,
         ];
         views
     }
