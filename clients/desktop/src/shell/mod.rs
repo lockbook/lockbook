@@ -112,6 +112,8 @@ pub struct ShellApp<S = Network> {
     core_init: session::CoreInit<S>,
     /// Runs as the app quits: on a close, once every edit is saved.
     pub on_exit: Option<Box<dyn FnOnce()>>,
+    /// A logout or account deletion that closed the app, carried out as it exits.
+    pub(crate) leaving: Option<apply_account::Leaving>,
     /// Transient errors / short notices (import, rename, workspace failures).
     pub toasts: ToastHost,
     /// In-flight system file/folder picker (import / export).
@@ -210,6 +212,7 @@ impl<S: Server> ShellApp<S> {
             import_after_upgrade: None,
             core_init,
             on_exit: None,
+            leaving: None,
         }
     }
 }
@@ -318,10 +321,14 @@ impl<S: Server> ShellApp<S> {
         }
     }
 
-    /// Runs [Self::on_exit], once every edit is saved.
+    /// Runs [Self::on_exit], then any logout or account deletion that closed the app, once every
+    /// edit is saved.
     pub fn exiting(&mut self) {
         if let Some(on_exit) = self.on_exit.take() {
             on_exit();
+        }
+        if let Some(leaving) = self.leaving.take() {
+            apply_account::finish_leaving(self, leaving);
         }
     }
 

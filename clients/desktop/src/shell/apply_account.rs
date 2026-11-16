@@ -19,39 +19,44 @@ pub(crate) fn ensure_settings_account<S: Server>(app: &mut ShellApp<S>) {
     }
 }
 
-/// Classic logout: wipe local data and **exit**. In-process re-init races
-/// `lb_bg_worker` / tokio workers holding the DB — not worth the shared-surface
-/// changes in workspace/lb-rs. Next launch opens onboard.
-pub(crate) fn do_logout<S: Server>(app: &mut ShellApp<S>, _ctx: &Context) {
-    app.modal = None;
-    app.close_account_panel();
-    if let Some(r) = app.session.ready_mut() {
-        r.workspace.save_all_tabs();
-    }
-    app.exiting();
-    if let Some(r) = app.session.ready_mut() {
-        let path = r.workspace.core.get_config().writeable_path.clone();
-        let _ = fs::remove_dir_all(path);
-    }
-    std::process::exit(0);
+/// Classic logout: closes the app the way its close button does, then wipes local data as it
+/// exits (see [`ShellApp::exiting`]). In-process re-init races `lb_bg_worker` / tokio workers
+/// holding the DB — not worth the shared-surface changes in workspace/lb-rs. Next launch opens
+/// onboard.
+pub(crate) fn do_logout<S: Server>(app: &mut ShellApp<S>, ctx: &Context) {
+    leave(app, ctx, Leaving::Logout);
 }
 
-/// Server delete (best-effort), wipe local data, exit.
-pub(crate) fn do_delete_account<S: Server>(app: &mut ShellApp<S>, _ctx: &Context) {
+/// Closes the app, then deletes the account on the server (best-effort) and wipes local data as
+/// it exits.
+pub(crate) fn do_delete_account<S: Server>(app: &mut ShellApp<S>, ctx: &Context) {
+    leave(app, ctx, Leaving::DeleteAccount);
+}
+
+fn leave<S: Server>(app: &mut ShellApp<S>, ctx: &Context, leaving: Leaving) {
     app.modal = None;
     app.close_account_panel();
-    if let Some(r) = app.session.ready_mut() {
-        r.workspace.save_all_tabs();
-    }
-    app.exiting();
-    if let Some(r) = app.session.ready_mut() {
-        let path = r.workspace.core.get_config().writeable_path.clone();
+    app.leaving = Some(leaving);
+    ctx.send_viewport_cmd(egui::ViewportCommand::Close);
+}
+
+/// What the app does to the account as it exits, once every edit is saved.
+pub(crate) enum Leaving {
+    Logout,
+    DeleteAccount,
+}
+
+/// Carries out `leaving`, after the app's exit hook has run on the saved edits.
+pub(crate) fn finish_leaving<S: Server>(app: &mut ShellApp<S>, leaving: Leaving) {
+    let Some(r) = app.session.ready_mut() else {
+        return;
+    };
+    let path = r.workspace.core.get_config().writeable_path.clone();
+    if let Leaving::DeleteAccount = leaving {
         let core = r.workspace.core.clone();
         let _ = core.delete_account();
-        drop(core);
-        let _ = fs::remove_dir_all(path);
     }
-    std::process::exit(0);
+    let _ = fs::remove_dir_all(path);
 }
 
 pub(crate) fn spawn_account_qr<S: Server>(app: &mut ShellApp<S>, ctx: &Context) {
