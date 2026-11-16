@@ -1029,6 +1029,9 @@ mod tests {
     /// place rather than lifting the embed by its title.
     #[test]
     fn open_on_an_embed_opens_it() {
+        if ::test_utils::without_server() {
+            return;
+        }
         let mut t = TestWs::new();
         let (plan, _) = embed_of_a_link(&mut t);
         let tabs = t.ws.tab_strip.len();
@@ -1044,6 +1047,9 @@ mod tests {
     /// Cmd on Open opens the note in a new tab.
     #[test]
     fn cmd_open_on_an_embed_opens_a_tab() {
+        if ::test_utils::without_server() {
+            return;
+        }
         let mut t = TestWs::new();
         embed_of_a_link(&mut t);
         let tabs = t.ws.tab_strip.len();
@@ -1054,6 +1060,9 @@ mod tests {
     /// The rest of a note embed's title, held and moved, lifts the embed.
     #[test]
     fn a_drag_by_an_embeds_title_lifts_it() {
+        if ::test_utils::without_server() {
+            return;
+        }
         let mut t = TestWs::new();
         embed_of_a_link(&mut t);
         let (rect, _) = shown(&mut t).unwrap();
