@@ -2239,7 +2239,7 @@ pub struct WsPresistentData {
     seen_pending_shares: Vec<Uuid>,
 }
 
-fn default_column_width() -> f32 {
+pub fn default_column_width() -> f32 {
     900.0
 }
 

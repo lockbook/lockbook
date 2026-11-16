@@ -58,17 +58,26 @@ pub(crate) fn spawn_account_qr(app: &mut ShellApp, ctx: &Context) {
         }
         *g = super::AccountQrCache::Loading;
     }
-    let Some(r) = app.session.ready() else {
-        if let Ok(mut g) = app.account_qr.lock() {
-            *g = super::AccountQrCache::Err("Not signed in".into());
-        }
-        return;
+    // a new account shows its key before it registers
+    let draft = match &app.modal {
+        Some(super::action::Modal::Onboard { draft: Some(d), .. }) => Some(d.clone()),
+        _ => None,
     };
-    let core = r.workspace.core.clone();
+    let core = app.session.ready().map(|r| r.workspace.core.clone());
+    let make: Box<dyn FnOnce() -> lb::LbResult<Vec<u8>> + Send> = match (draft, core) {
+        (Some(d), _) => Box::new(move || d.qr_png()),
+        (None, Some(core)) => Box::new(move || core.export_account_qr()),
+        (None, None) => {
+            if let Ok(mut g) = app.account_qr.lock() {
+                *g = super::AccountQrCache::Err("Not signed in".into());
+            }
+            return;
+        }
+    };
     let slot = app.account_qr.clone();
     let ctx = ctx.clone();
     thread::spawn(move || {
-        let result = core.export_account_qr().map_err(|e| format!("{e:?}"));
+        let result = make().map_err(|e| format!("{e:?}"));
         if let Ok(mut g) = slot.lock() {
             *g = match result {
                 Ok(png) => super::AccountQrCache::Ready(png),

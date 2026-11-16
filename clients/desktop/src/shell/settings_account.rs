@@ -565,7 +565,7 @@ fn page_account_qr(app: &ShellApp, ui: &mut Ui, t: &Theme, queue: &mut Vec<Actio
 }
 
 /// Decode PNG → texture for the in-Settings QR panel.
-fn paint_account_qr_image(ui: &mut Ui, png: &[u8], side: f32) {
+pub(crate) fn paint_account_qr_image(ui: &mut Ui, png: &[u8], side: f32) {
     #[derive(Clone)]
     struct QrTex(egui::TextureHandle);
     let tex_key = Id::unique("shell_account_qr_texture");

@@ -81,6 +81,19 @@ impl Slot {
         None
     }
 
+    /// What choosing this slot asks for: none for the platform's own.
+    pub fn choice(self) -> Option<&'static str> {
+        if self == Slot::platform() { None } else { self.family() }
+    }
+
+    /// The slot a chosen text family fills; none chosen is the platform's.
+    pub fn of(chosen: Option<&str>) -> Option<Slot> {
+        match chosen {
+            None => Some(Slot::platform()),
+            Some(name) => Slot::ALL.into_iter().find(|s| s.family() == Some(name)),
+        }
+    }
+
     /// The slots this platform fills.
     pub fn shown() -> impl Iterator<Item = Slot> {
         Slot::ALL
