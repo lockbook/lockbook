@@ -1,95 +1,96 @@
 use resvg::usvg::Transform;
 
-use serde::{Deserialize, Serialize};
-
 use super::ViewportSettings;
 use super::element::BoundedElement;
-use super::util::{demote_to_weak_rect, promote_weak_rect, transform_point, transform_rect};
-use lb_rs::model::svg::buffer::{WeakRect, WeakViewportSettings};
+use super::util::promote_weak_rect;
+use lb_rs::model::svg::buffer::WeakViewportSettings;
 
 use super::Buffer;
+use super::coordinates::{
+    CanvasCoordinates, DocumentPoint, DocumentRect, ScreenPoint, ScreenRect, ScreenTransform,
+    ScreenVector,
+};
 pub const MIN_ZOOM_LEVEL: f32 = 0.1;
 
-/// Device-local view state, restored relative to the actual canvas rectangle.
-#[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq)]
-pub struct CanvasFilePersistence {
-    pub center: (f32, f32),
-    pub zoom: f32,
-    pub bounded_rect: Option<WeakRect>,
-    pub left_locked: bool,
-    pub right_locked: bool,
-    pub bottom_locked: bool,
-    pub top_locked: bool,
-}
-
-impl CanvasFilePersistence {
-    pub fn is_valid(&self) -> bool {
-        self.center.0.is_finite()
-            && self.center.1.is_finite()
-            && self.zoom.is_finite()
-            && self.zoom >= MIN_ZOOM_LEVEL
-            && self.bounded_rect.is_none_or(|r| {
-                let r = promote_weak_rect(r);
-                r.is_finite() && r.width() >= 0.0 && r.height() >= 0.0
-            })
-    }
-}
-
 impl ViewportSettings {
+    pub fn coordinates(&self) -> CanvasCoordinates {
+        CanvasCoordinates::new(self.master_transform)
+    }
+
     pub fn document_to_screen(&self, point: egui::Pos2) -> egui::Pos2 {
-        transform_point(point, self.master_transform)
+        self.coordinates().screen_point(DocumentPoint(point)).0
     }
 
     pub fn screen_to_document(&self, point: egui::Pos2) -> egui::Pos2 {
-        transform_point(point, self.master_transform.invert().unwrap_or_default())
+        self.coordinates().document_point(ScreenPoint(point)).0
     }
 
     pub fn screen_vector_to_document(&self, vector: egui::Vec2) -> egui::Vec2 {
-        let inverse = self.master_transform.invert().unwrap_or_default();
-        egui::vec2(
-            inverse.sx * vector.x + inverse.kx * vector.y,
-            inverse.ky * vector.x + inverse.sy * vector.y,
-        )
+        self.coordinates().document_vector(ScreenVector(vector)).0
     }
 
     pub fn document_rect_to_screen(&self, rect: egui::Rect) -> egui::Rect {
-        transform_rect(rect, self.master_transform)
+        self.coordinates().screen_rect(DocumentRect(rect)).0
     }
 
     pub fn screen_rect_to_document(&self, rect: egui::Rect) -> egui::Rect {
-        transform_rect(rect, self.master_transform.invert().unwrap_or_default())
+        self.coordinates().document_rect(ScreenRect(rect)).0
     }
 
-    /// Converts a screen-space editing operation into a document-space edit.
     pub fn screen_transform_to_document(&self, transform: Transform) -> Transform {
-        self.master_transform
-            .post_concat(transform)
-            .post_concat(self.master_transform.invert().unwrap_or_default())
+        self.coordinates()
+            .document_transform(ScreenTransform(transform))
+            .0
     }
 
-    pub fn snapshot(&self) -> CanvasFilePersistence {
-        let center = self.screen_to_document(self.container_rect.center());
-        CanvasFilePersistence {
-            center: (center.x, center.y),
-            zoom: self.master_transform.sx,
-            bounded_rect: self.bounded_rect.map(demote_to_weak_rect),
-            left_locked: self.left_locked,
-            right_locked: self.right_locked,
-            top_locked: self.top_locked,
-            bottom_locked: self.bottom_locked,
+    /// The saved transform maps into viewport-local coordinates. The UI's
+    /// current screen position is runtime layout, not part of the saved view.
+    pub fn viewport_transform(&self) -> Transform {
+        self.master_transform
+            .post_translate(-self.container_rect.min.x, -self.container_rect.min.y)
+    }
+
+    fn restore_transform(&mut self, transform: Transform) {
+        self.master_transform =
+            transform.post_translate(self.container_rect.min.x, self.container_rect.min.y);
+    }
+
+    pub fn update_container(&mut self, container: egui::Rect) {
+        if self.container_rect.min != container.min {
+            let transform = self.viewport_transform();
+            self.container_rect = container;
+            self.restore_transform(transform);
+        } else {
+            self.container_rect = container;
         }
     }
 
-    pub fn restore(&mut self, state: CanvasFilePersistence) {
-        self.master_transform = Transform::from_scale(state.zoom, state.zoom).post_translate(
-            self.container_rect.center().x - state.center.0 * state.zoom,
-            self.container_rect.center().y - state.center.1 * state.zoom,
-        );
-        self.bounded_rect = state.bounded_rect.map(promote_weak_rect);
-        self.left_locked = state.left_locked;
-        self.right_locked = state.right_locked;
-        self.top_locked = state.top_locked;
-        self.bottom_locked = state.bottom_locked;
+    pub fn initialize(&mut self, container: egui::Rect, buffer: &Buffer, saved: Option<Transform>) {
+        self.container_rect = container;
+        let bounds = calc_elements_bounds(buffer);
+        if let Some(transform) = saved.filter(is_valid_transform) {
+            self.restore_transform(transform);
+            self.bounded_rect = bounds;
+        } else if buffer.has_legacy_viewport {
+            self.restore_legacy(buffer.weak_viewport_settings);
+            self.bounded_rect = self.bounded_rect.or(bounds);
+            if self.master_transform.sx < MIN_ZOOM_LEVEL {
+                let center = self.screen_to_document(container.center());
+                self.master_transform = Transform::from_scale(MIN_ZOOM_LEVEL, MIN_ZOOM_LEVEL)
+                    .post_translate(
+                        container.center().x - center.x * MIN_ZOOM_LEVEL,
+                        container.center().y - center.y * MIN_ZOOM_LEVEL,
+                    );
+            }
+        } else {
+            self.bounded_rect = bounds;
+            if let Some(transform) = get_zoom_fit_transform(self) {
+                transform_canvas(self, transform);
+            }
+        }
+        if self.bounded_rect.is_none() {
+            self.bounded_rect = Some(self.screen_rect_to_document(container));
+        }
     }
 
     pub fn restore_legacy(&mut self, state: WeakViewportSettings) {
@@ -118,16 +119,19 @@ impl ViewportSettings {
 pub fn transform_canvas(viewport_settings: &mut ViewportSettings, t: Transform) {
     let new_transform = viewport_settings.master_transform.post_concat(t);
 
-    if !new_transform.is_finite()
-        || new_transform.sx < MIN_ZOOM_LEVEL
-        || new_transform.sx != new_transform.sy
-        || new_transform.kx != 0.0
-        || new_transform.ky != 0.0
-        || new_transform.invert().is_none()
-    {
+    if !is_valid_transform(&new_transform) {
         return;
     }
     viewport_settings.master_transform = new_transform;
+}
+
+pub fn is_valid_transform(transform: &Transform) -> bool {
+    transform.is_finite()
+        && transform.sx >= MIN_ZOOM_LEVEL
+        && transform.sx == transform.sy
+        && transform.kx == 0.0
+        && transform.ky == 0.0
+        && transform.invert().is_some()
 }
 
 /// returns the fit transform in the non master transform plane

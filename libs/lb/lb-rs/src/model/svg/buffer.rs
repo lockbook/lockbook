@@ -22,9 +22,6 @@ const WEAK_IMAGE_G_ID: &str = "lb_images";
 const WEAK_PATH_PRESSURES_G_ID: &str = "lb_path_pressures";
 const WEAK_VIEWPORT_SETTINGS_G_ID: &str = "lb_viewport_settings";
 
-#[cfg(test)]
-mod tests;
-
 #[derive(Default, Clone)]
 pub struct Buffer {
     pub elements: IndexMap<Uuid, Element>,

@@ -8,12 +8,12 @@ use serde::{Deserialize, Serialize};
 use tracing::{Level, event, trace};
 use web_time::Instant;
 
-use crate::tab::input_controller::{InputControllerEvent, ToolPayload};
 use crate::tab::svg_editor::InsertElement;
+use crate::tab::svg_editor::coordinates::{DocumentLength, ScreenLength};
 use crate::tab::svg_editor::history::History;
 use crate::tab::svg_editor::toolbar::ToolContext;
-use crate::tab::svg_editor::tools::InputControllerTool;
 use crate::tab::svg_editor::tools::path_builder::PathBuilder;
+use crate::tab::svg_editor::tools::{CanvasPointer, CanvasToolEvent, InputControllerTool};
 use crate::theme::palette::ThemePalette;
 
 pub const DEFAULT_PEN_STROKE_WIDTH: f32 = 1.0;
@@ -79,9 +79,9 @@ impl PenSettings {
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum PathEvent {
-    Draw(ToolPayload),
-    PredictedDraw(ToolPayload),
-    End(ToolPayload),
+    Draw(CanvasPointer),
+    PredictedDraw(CanvasPointer),
+    End(CanvasPointer),
     CancelStroke,
 }
 
@@ -89,20 +89,16 @@ impl InputControllerTool for Pen {
     type ToolEvent = PathEvent;
 
     fn controller_event_to_tool_event(
-        &self, controller_event: InputControllerEvent,
+        &self, controller_event: CanvasToolEvent,
     ) -> Option<Self::ToolEvent> {
         match controller_event {
-            InputControllerEvent::ToolStart(tool_payload) => Some(PathEvent::Draw(tool_payload)),
-            InputControllerEvent::ToolRun(tool_payload) => Some(PathEvent::Draw(tool_payload)),
-            InputControllerEvent::ToolEnd(tool_payload) => Some(PathEvent::End(tool_payload)),
-            InputControllerEvent::ToolCancel
-            | InputControllerEvent::ViewportChangeWithToolCancel => Some(PathEvent::CancelStroke),
-            InputControllerEvent::ToolHover(_) => None,
-            InputControllerEvent::ViewportChange(_) => None,
-            InputControllerEvent::Gesture(_) => None,
-            InputControllerEvent::ToolPredictedRun(pos2, force) => {
-                Some(PathEvent::PredictedDraw(ToolPayload { pos: pos2, force, id: None }))
+            CanvasToolEvent::Start(payload) | CanvasToolEvent::Run(payload) => {
+                Some(PathEvent::Draw(payload))
             }
+            CanvasToolEvent::End(payload) => Some(PathEvent::End(payload)),
+            CanvasToolEvent::Cancel => Some(PathEvent::CancelStroke),
+            CanvasToolEvent::Hover(_) => None,
+            CanvasToolEvent::PredictedRun(payload) => Some(PathEvent::PredictedDraw(payload)),
         }
     }
 
@@ -119,7 +115,9 @@ impl InputControllerTool for Pen {
         }
     }
 
-    fn show_hover_point(&self, ui: &mut egui::Ui, pos: egui::Pos2, pen_ctx: &mut ToolContext<'_>) {
+    fn show_hover_point(
+        &self, ui: &mut egui::Ui, pointer: CanvasPointer, pen_ctx: &mut ToolContext<'_>,
+    ) {
         let is_current_path_empty =
             if let Some(Element::Path(path)) = pen_ctx.buffer.elements.get_mut(&self.current_id) {
                 path.data.is_empty()
@@ -130,14 +128,18 @@ impl InputControllerTool for Pen {
         if is_current_path_empty {
             let mut radius = self.active_stroke_width / 2.0;
             if !self.has_inf_thick {
-                radius *= pen_ctx.viewport_settings.master_transform.sx;
+                radius = pen_ctx
+                    .viewport_settings
+                    .coordinates()
+                    .screen_length(DocumentLength(radius))
+                    .0;
             }
 
             let pressure_adj = self.pressure_alpha * -0.5 + 1.;
             radius *= pressure_adj;
 
             pen_ctx.painter.circle_filled(
-                pos,
+                pointer.screen_pos.0,
                 radius,
                 ThemePalette::resolve_dynamic_color(self.active_color, ui.visuals().dark_mode)
                     .linear_multiply(self.active_opacity),
@@ -180,7 +182,7 @@ impl Pen {
         }
     }
 
-    fn draw(&mut self, pen_ctx: &mut ToolContext<'_>, payload: ToolPayload) {
+    fn draw(&mut self, pen_ctx: &mut ToolContext<'_>, payload: CanvasPointer) {
         let mut path_stroke = Stroke {
             color: self.active_color,
             opacity: self.active_opacity,
@@ -188,12 +190,20 @@ impl Pen {
         };
 
         if self.has_inf_thick {
-            path_stroke.width /= pen_ctx.viewport_settings.master_transform.sx;
+            path_stroke.width = pen_ctx
+                .viewport_settings
+                .coordinates()
+                .document_length(ScreenLength(path_stroke.width))
+                .0;
         };
 
         self.update_long_press(payload);
-        let document_pos = pen_ctx.viewport_settings.screen_to_document(payload.pos);
-        self.path_builder.tolerance = 0.5 / pen_ctx.viewport_settings.master_transform.sx as f64;
+        let document_pos = payload.document_pos.0;
+        self.path_builder.tolerance = pen_ctx
+            .viewport_settings
+            .coordinates()
+            .document_length(ScreenLength(0.5))
+            .0 as f64;
 
         if let Some(Element::Path(p)) = pen_ctx.buffer.elements.get_mut(&self.current_id) {
             p.diff_state.data_changed = true;
@@ -231,22 +241,22 @@ impl Pen {
         }
     }
 
-    fn update_long_press(&mut self, payload: ToolPayload) {
+    fn update_long_press(&mut self, payload: CanvasPointer) {
         if let Some((_, start_pos)) = self.long_press {
-            if start_pos.distance(payload.pos) > LONG_PRESS_MOVE_THRESHOLD {
+            if start_pos.distance(payload.screen_pos.0) > LONG_PRESS_MOVE_THRESHOLD {
                 self.long_press = None;
             }
         } else {
-            self.long_press = Some((Instant::now(), payload.pos));
+            self.long_press = Some((Instant::now(), payload.screen_pos.0));
         }
     }
 
-    fn is_long_press(&mut self, payload: ToolPayload) -> bool {
+    fn is_long_press(&mut self, payload: CanvasPointer) -> bool {
         if let Some((start_time, start_pos)) = self.long_press {
             let long_press_duration = web_time::Duration::from_millis(300);
 
             if start_time.elapsed() >= long_press_duration
-                && start_pos.distance(payload.pos) < LONG_PRESS_MOVE_THRESHOLD
+                && start_pos.distance(payload.screen_pos.0) < LONG_PRESS_MOVE_THRESHOLD
             {
                 self.long_press = None;
                 return true;
@@ -268,8 +278,8 @@ impl Pen {
         }
     }
 
-    fn end(&mut self, pen_ctx: &mut ToolContext<'_>, payload: ToolPayload) {
-        let document_pos = pen_ctx.viewport_settings.screen_to_document(payload.pos);
+    fn end(&mut self, pen_ctx: &mut ToolContext<'_>, payload: CanvasPointer) {
+        let document_pos = payload.document_pos.0;
         if let Some(Element::Path(path)) = pen_ctx.buffer.elements.get_mut(&self.current_id) {
             path.diff_state.data_changed = true;
             self.path_builder.line_to(document_pos, &mut path.data);
@@ -293,8 +303,8 @@ impl Pen {
         self.current_id = Uuid::new_v4();
     }
 
-    fn predict_draw(&mut self, pen_ctx: &mut ToolContext<'_>, payload: ToolPayload) {
-        let document_pos = pen_ctx.viewport_settings.screen_to_document(payload.pos);
+    fn predict_draw(&mut self, pen_ctx: &mut ToolContext<'_>, payload: CanvasPointer) {
+        let document_pos = payload.document_pos.0;
         if let Some(Element::Path(p)) = pen_ctx.buffer.elements.get_mut(&self.current_id) {
             p.diff_state.data_changed = true;
             let maybe_new_mg = self.path_builder.line_to(document_pos, &mut p.data);

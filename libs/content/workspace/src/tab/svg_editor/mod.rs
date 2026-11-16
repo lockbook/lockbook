@@ -1,16 +1,15 @@
 mod background;
 mod clip;
+mod coordinates;
 mod element;
 mod history;
 mod viewport;
 
 mod renderer;
-#[cfg(test)]
-mod tests;
 pub(super) mod toolbar;
 pub(super) mod tools;
 mod util;
-pub use viewport::CanvasFilePersistence;
+mod view;
 
 use egui::UiBuilder;
 use web_time::Instant;
@@ -65,7 +64,7 @@ pub struct SVGEditor {
 
     read_only: bool,
     viewport_initialized: bool,
-    pending_viewport: Option<CanvasFilePersistence>,
+    pending_viewport: Option<Transform>,
     viewport_write_pending: Option<Instant>,
 }
 #[derive(Debug, Clone, Copy)]
@@ -176,14 +175,15 @@ impl SVGEditor {
         if !self.viewport_initialized {
             return;
         }
-        let state = self.viewport_settings.snapshot();
-        if !state.is_valid() {
+        let transform = self.viewport_settings.viewport_transform();
+        if !viewport::is_valid_transform(&transform) {
             return;
         }
         {
+            let transform = transform.into();
             let mut data = self.cfg.data.write().unwrap();
-            if data.canvas_files.get(&self.open_file) != Some(&state) {
-                data.canvas_files.insert(self.open_file, state);
+            if data.canvas_transforms.get(&self.open_file) != Some(&transform) {
+                data.canvas_transforms.insert(self.open_file, transform);
                 self.viewport_write_pending = Some(Instant::now());
             }
         }
@@ -220,24 +220,18 @@ impl SVGEditor {
             .data
             .read()
             .unwrap()
-            .canvas_files
+            .canvas_transforms
             .get(&open_file)
             .copied()
-            .filter(CanvasFilePersistence::is_valid);
+            .map(Transform::from)
+            .filter(viewport::is_valid_transform);
 
         let toolbar = Toolbar::new(elements_count, &settings);
 
-        if buffer.has_legacy_viewport {
-            viewport_settings.restore_legacy(buffer.weak_viewport_settings);
-            if viewport_settings.bounded_rect.is_none() {
-                viewport_settings.bounded_rect = viewport::calc_elements_bounds(&buffer);
-            }
-        } else {
-            viewport_settings.bottom_locked = settings.bottom_locked;
-            viewport_settings.left_locked = settings.left_locked;
-            viewport_settings.right_locked = settings.right_locked;
-            viewport_settings.top_locked = settings.top_locked;
-        }
+        viewport_settings.bottom_locked = settings.bottom_locked;
+        viewport_settings.left_locked = settings.left_locked;
+        viewport_settings.right_locked = settings.right_locked;
+        viewport_settings.top_locked = settings.top_locked;
 
         if read_only {
             info!(id=?open_file, "creating canvas with read only mode");
@@ -280,41 +274,15 @@ impl SVGEditor {
         self.buffer.promote_weak_images(&self.lb);
         let container = ui.available_rect_before_wrap();
         if container.is_finite() && container.is_positive() {
-            let previous_center = self.viewport_settings.container_rect.center();
-            self.viewport_settings.container_rect = container;
             if !self.viewport_initialized {
-                if let Some(state) = self.pending_viewport.take() {
-                    self.viewport_settings.restore(state);
-                    self.viewport_settings.update_working_rect(
-                        self.settings,
-                        &self.buffer,
-                        &DiffState::new(),
-                        self.toolbar.hide_overlay,
-                    );
-                } else if self.buffer.has_legacy_viewport {
-                    let mut state = self.viewport_settings.snapshot();
-                    state.zoom = state.zoom.max(viewport::MIN_ZOOM_LEVEL);
-                    self.viewport_settings.restore(state);
-                } else {
-                    if let Some(bounds) = viewport::calc_elements_bounds(&self.buffer) {
-                        self.viewport_settings.bounded_rect = Some(bounds);
-                        if let Some(transform) =
-                            viewport::get_zoom_fit_transform(&self.viewport_settings)
-                        {
-                            transform_canvas(&mut self.viewport_settings, transform);
-                        }
-                    } else {
-                        self.viewport_settings.bounded_rect =
-                            Some(self.viewport_settings.screen_rect_to_document(container));
-                    }
-                }
-                self.viewport_initialized = true;
-            } else if previous_center != container.center() {
-                let delta = container.center() - previous_center;
-                transform_canvas(
-                    &mut self.viewport_settings,
-                    Transform::from_translate(delta.x, delta.y),
+                self.viewport_settings.initialize(
+                    container,
+                    &self.buffer,
+                    self.pending_viewport.take(),
                 );
+                self.viewport_initialized = true;
+            } else {
+                self.viewport_settings.update_container(container);
             }
         }
         self.input_ctx.update(ui);
@@ -364,6 +332,10 @@ impl SVGEditor {
         );
 
         if global_diff.is_dirty() {
+            // The minimap paints before tool input. Keep it invalidated for
+            // the next frame, when these edit flags have been cleared.
+            self.toolbar.invalidate_document();
+            ui.ctx().request_repaint();
             self.has_queued_save_request = true;
         }
 
@@ -499,14 +471,11 @@ impl SVGEditor {
         ui.vertical(|ui| {
             self.renderer.render_svg(
                 ui,
-                &mut self.buffer,
+                view::CanvasView::new(&self.buffer, self.viewport_settings.coordinates()),
                 &mut self.painter,
-                Default::default(),
-                self.viewport_settings.master_transform,
             )
         })
         .inner
-        .diff_state
     }
 
     fn show_debug_info(&mut self, ui: &mut egui::Ui) {

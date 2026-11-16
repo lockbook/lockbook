@@ -3,11 +3,10 @@ use std::collections::HashMap;
 use lb_rs::Uuid;
 use lb_rs::model::svg::element::Element;
 
-use crate::tab::input_controller::InputControllerEvent;
 use crate::tab::svg_editor::DeleteElement;
+use crate::tab::svg_editor::coordinates::{ScreenLength, ScreenPoint};
 use crate::tab::svg_editor::toolbar::ToolContext;
-use crate::tab::svg_editor::tools::InputControllerTool;
-use crate::tab::svg_editor::util::pointer_intersects_element;
+use crate::tab::svg_editor::tools::{CanvasPointer, CanvasToolEvent, InputControllerTool};
 
 pub struct Eraser {
     pub radius: f32,
@@ -31,7 +30,7 @@ impl Default for Eraser {
 
 #[derive(PartialEq, Debug)]
 pub enum EraseEvent {
-    Build(egui::Pos2),
+    Build(ScreenPoint),
     End,
     Cancel,
 }
@@ -42,16 +41,14 @@ impl InputControllerTool for Eraser {
     type ToolEvent = EraseEvent;
 
     fn controller_event_to_tool_event(
-        &self, controller_event: InputControllerEvent,
+        &self, controller_event: CanvasToolEvent,
     ) -> Option<Self::ToolEvent> {
         match controller_event {
-            InputControllerEvent::ToolStart(payload) | InputControllerEvent::ToolRun(payload) => {
-                Some(EraseEvent::Build(payload.pos))
-            }
-            InputControllerEvent::ToolPredictedRun(pos, _) => Some(EraseEvent::Build(pos)),
-            InputControllerEvent::ToolEnd(_) => Some(EraseEvent::End),
-            InputControllerEvent::ToolCancel
-            | InputControllerEvent::ViewportChangeWithToolCancel => Some(EraseEvent::Cancel),
+            CanvasToolEvent::Start(payload)
+            | CanvasToolEvent::Run(payload)
+            | CanvasToolEvent::PredictedRun(payload) => Some(EraseEvent::Build(payload.screen_pos)),
+            CanvasToolEvent::End(_) => Some(EraseEvent::End),
+            CanvasToolEvent::Cancel => Some(EraseEvent::Cancel),
             _ => None,
         }
     }
@@ -62,28 +59,15 @@ impl InputControllerTool for Eraser {
         match event {
             EraseEvent::Build(pos) => {
                 self.is_building = true;
-                self.pos = pos;
-                let document_pos = eraser_ctx.viewport_settings.screen_to_document(pos);
-                let document_radius =
-                    self.radius / eraser_ctx.viewport_settings.master_transform.sx;
+                self.pos = pos.0;
 
                 eraser_ctx
-                    .buffer
-                    .elements
-                    .iter()
-                    .filter(|(_, el)| !el.deleted())
-                    .for_each(|(id, el)| {
-                        if self.delete_candidates.contains_key(id) {
-                            return;
-                        }
-                        if pointer_intersects_element(
-                            el,
-                            document_pos,
-                            None,
-                            document_radius as f64,
-                        ) {
-                            self.delete_candidates.insert(*id, el.opacity());
-                        }
+                    .view()
+                    .hit_test_all(pos, ScreenLength(self.radius))
+                    .for_each(|id| {
+                        self.delete_candidates
+                            .entry(id)
+                            .or_insert_with(|| eraser_ctx.buffer.elements[&id].opacity());
                     });
 
                 self.delete_candidates.iter().for_each(|(id, &opacity)| {
@@ -135,9 +119,9 @@ impl InputControllerTool for Eraser {
     }
 
     fn show_hover_point(
-        &self, _: &mut egui::Ui, pos: egui::Pos2, eraser_ctx: &mut ToolContext<'_>,
+        &self, _: &mut egui::Ui, pointer: CanvasPointer, eraser_ctx: &mut ToolContext<'_>,
     ) {
-        self.show_eraser_circle(pos, eraser_ctx);
+        self.show_eraser_circle(pointer.screen_pos.0, eraser_ctx);
     }
 
     fn show_tool_ui(&mut self, _: &mut egui::Ui, eraser_ctx: &mut ToolContext) {

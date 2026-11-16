@@ -114,10 +114,6 @@ pub fn bb_to_rect(bb: [DVec2; 2]) -> egui::Rect {
 pub fn promote_weak_rect(wk: WeakRect) -> egui::Rect {
     egui::Rect::from_min_max(egui::pos2(wk.min.0, wk.min.1), egui::pos2(wk.max.0, wk.max.1))
 }
-pub fn demote_to_weak_rect(src: egui::Rect) -> WeakRect {
-    WeakRect { min: (src.min.x, src.min.y), max: (src.max.x, src.max.y) }
-}
-
 impl CanvasSettings {
     pub fn update_viewport_settings(&mut self, vs: &ViewportSettings) {
         self.bottom_locked = vs.bottom_locked;

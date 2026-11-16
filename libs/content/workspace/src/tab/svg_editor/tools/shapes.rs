@@ -6,9 +6,12 @@ use lb_rs::model::svg::{
 use resvg::usvg::Transform;
 
 use crate::{
-    tab::input_controller::InputControllerEvent,
     tab::svg_editor::{
-        Event, InsertElement, toolbar::ToolContext, tools::InputControllerTool, util::pos_to_dvec,
+        Event, InsertElement,
+        coordinates::DocumentPoint,
+        toolbar::ToolContext,
+        tools::{CanvasPointer, CanvasToolEvent, InputControllerTool},
+        util::pos_to_dvec,
     },
     theme::icons::Icon,
 };
@@ -41,7 +44,7 @@ impl ShapeType {
 }
 #[derive(PartialEq, Debug)]
 pub enum ShapeEvent {
-    Build(egui::Pos2),
+    Build(DocumentPoint),
     End,
     Cancel,
 }
@@ -49,16 +52,13 @@ pub enum ShapeEvent {
 impl InputControllerTool for ShapesTool {
     type ToolEvent = ShapeEvent;
 
-    fn controller_event_to_tool_event(
-        &self, event: InputControllerEvent,
-    ) -> Option<Self::ToolEvent> {
+    fn controller_event_to_tool_event(&self, event: CanvasToolEvent) -> Option<Self::ToolEvent> {
         match event {
-            InputControllerEvent::ToolStart(payload) | InputControllerEvent::ToolRun(payload) => {
-                Some(ShapeEvent::Build(payload.pos))
+            CanvasToolEvent::Start(payload) | CanvasToolEvent::Run(payload) => {
+                Some(ShapeEvent::Build(payload.document_pos))
             }
-            InputControllerEvent::ToolEnd(_) => Some(ShapeEvent::End),
-            InputControllerEvent::ToolCancel
-            | InputControllerEvent::ViewportChangeWithToolCancel => Some(ShapeEvent::Cancel),
+            CanvasToolEvent::End(_) => Some(ShapeEvent::End),
+            CanvasToolEvent::Cancel => Some(ShapeEvent::Cancel),
             _ => None,
         }
     }
@@ -82,7 +82,7 @@ impl InputControllerTool for ShapesTool {
                 self.reset_build();
             }
             ShapeEvent::Build(pos) => {
-                let pos = shapes_ctx.viewport_settings.screen_to_document(pos);
+                let pos = pos.0;
                 if self.build_origin.is_none() {
                     self.build_origin = Some(pos);
                 }
@@ -128,7 +128,7 @@ impl InputControllerTool for ShapesTool {
         }
     }
 
-    fn show_hover_point(&self, _: &mut egui::Ui, _: egui::Pos2, _: &mut ToolContext<'_>) {}
+    fn show_hover_point(&self, _: &mut egui::Ui, _: CanvasPointer, _: &mut ToolContext<'_>) {}
     fn show_tool_ui(&mut self, _: &mut egui::Ui, _: &mut ToolContext) {}
 }
 

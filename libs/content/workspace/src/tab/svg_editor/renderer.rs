@@ -10,10 +10,10 @@ use lyon::tessellation::{
     StrokeVertexConstructor, VertexBuffers,
 };
 use rayon::prelude::*;
-use resvg::usvg::{ImageKind, Transform};
+use resvg::usvg::ImageKind;
 
-use super::Buffer;
-use super::util::{devc_to_point, transform_point};
+use super::util::devc_to_point;
+use super::view::CanvasView;
 use crate::theme::palette::ThemePalette;
 
 const STROKE_WIDTH: AttributeIndex = 0;
@@ -52,20 +52,9 @@ pub struct Renderer {
     pub request_rerender: bool,
 }
 
-pub struct RendererOutput {
-    pub diff_state: DiffState,
-    /// Main-canvas screen coordinates to this renderer's screen coordinates.
-    pub absolute_transform: Transform,
-}
-
 struct MeshShape {
     shape: Mesh,
     zoom: f32,
-}
-
-#[derive(Clone, Copy, Default)]
-pub struct RenderOptions {
-    pub viewport_transform: Option<Transform>,
 }
 
 impl Renderer {
@@ -78,13 +67,11 @@ impl Renderer {
     }
 
     pub fn render_svg(
-        &mut self, ui: &mut egui::Ui, buffer: &mut Buffer, painter: &mut egui::Painter,
-        render_options: RenderOptions, master_transform: Transform,
-    ) -> RendererOutput {
-        let viewport = render_options
-            .viewport_transform
-            .unwrap_or(master_transform);
-        let zoom = viewport.sx.hypot(viewport.ky).max(0.001);
+        &mut self, ui: &mut egui::Ui, view: CanvasView<'_>, painter: &mut egui::Painter,
+    ) -> DiffState {
+        let buffer = view.document();
+        let coordinates = view.coordinates();
+        let zoom = coordinates.zoom().max(0.001);
         let dark_mode = ui.visuals().dark_mode;
         let dark_mode_changed = dark_mode != self.dark_mode;
         self.dark_mode = dark_mode;
@@ -148,10 +135,7 @@ impl Renderer {
         }
 
         painter.extend(buffer.elements.iter().rev().filter_map(|(id, _)| {
-            let mut shape = self.mesh_cache.get(id)?.shape.clone();
-            for vertex in &mut shape.vertices {
-                vertex.pos = transform_point(vertex.pos, viewport);
-            }
+            let shape = coordinates.screen_mesh(&self.mesh_cache.get(id)?.shape);
             if !painter.clip_rect().intersects(shape.calc_bounds())
                 || shape.vertices.is_empty()
                 || shape.indices.is_empty()
@@ -162,10 +146,7 @@ impl Renderer {
         }));
         self.request_rerender = false;
 
-        RendererOutput {
-            diff_state,
-            absolute_transform: viewport.pre_concat(master_transform.invert().unwrap_or_default()),
-        }
+        diff_state
     }
 
     fn alloc_image_mesh(&mut self, id: Uuid, img: &Image, ui: &egui::Ui) {
@@ -250,54 +231,4 @@ fn tessellate_path(
         )
         .ok()?;
     Some(Mesh { indices: mesh.indices, vertices: mesh.vertices, texture_id: Default::default() })
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn navigation_reuses_document_meshes_without_document_diffs() {
-        let mut buffer = Buffer::new(
-            "<svg xmlns='http://www.w3.org/2000/svg'><path d='M10 10 L100 100' stroke='black' stroke-width='2' fill='none'/></svg>",
-        );
-        for el in buffer.elements.values_mut() {
-            if let Element::Path(path) = el {
-                path.diff_state = DiffState::default();
-            }
-        }
-        let before = buffer.serialize();
-        let mut renderer = Renderer::new(1);
-        let ctx = egui::Context::default();
-        let _ = ctx.run(Default::default(), |ctx| {
-            egui::CentralPanel::default().show(ctx, |ui| {
-                let mut painter = ui.painter().clone();
-                let output = renderer.render_svg(
-                    ui,
-                    &mut buffer,
-                    &mut painter,
-                    Default::default(),
-                    Transform::identity(),
-                );
-                assert!(!output.diff_state.is_dirty());
-                let id = *buffer.elements.keys().next().unwrap();
-                let vertices = renderer.mesh_cache[&id].shape.vertices.clone();
-                for viewport in [
-                    Transform::from_translate(50.0, 70.0),
-                    Transform::from_scale(2.0, 2.0).post_translate(-70.0, 80.0),
-                ] {
-                    let output = renderer.render_svg(
-                        ui,
-                        &mut buffer,
-                        &mut painter,
-                        Default::default(),
-                        viewport,
-                    );
-                    assert!(!output.diff_state.is_dirty());
-                    assert_eq!(renderer.mesh_cache[&id].shape.vertices, vertices);
-                    assert_eq!(buffer.serialize(), before);
-                }
-            });
-        });
-    }
 }

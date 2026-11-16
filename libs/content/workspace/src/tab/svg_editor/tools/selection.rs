@@ -12,16 +12,17 @@ use resvg::usvg::Transform;
 
 use lb_rs::model::svg::buffer::serialize_inner;
 
-use crate::tab::input_controller::InputControllerEvent;
 use crate::tab::svg_editor::clip::duplicate_elements;
-use crate::tab::svg_editor::element::BoundedElement;
+use crate::tab::svg_editor::coordinates::{ScreenLength, ScreenPoint};
 use crate::tab::svg_editor::history::{self, TransformElement};
 use crate::tab::svg_editor::toolbar::{
     ToolContext, show_color_btn, show_opacity_slider, show_section_header, show_thickness_slider,
 };
 use crate::tab::svg_editor::tools::pen::DEFAULT_PEN_STROKE_WIDTH;
-use crate::tab::svg_editor::tools::{InputControllerTool, selection};
-use crate::tab::svg_editor::util::{pointer_intersects_element, transform_rect};
+use crate::tab::svg_editor::tools::{
+    CanvasPointer, CanvasToolEvent, InputControllerTool, selection,
+};
+use crate::tab::svg_editor::util::transform_rect;
 use crate::tab::svg_editor::{DeleteElement, Event};
 use crate::theme::icons::Icon;
 use crate::theme::palette::ThemePalette;
@@ -193,14 +194,14 @@ pub enum SelectionEvent {
     EndLaso,
     SelectAll,
     StartTransform(SelectionOperation),
-    Transform(egui::Pos2),
+    Transform(ScreenPoint),
     EndTransform,
     Delete,
     Copy,
 }
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct BuildPayload {
-    pub pos: egui::Pos2,
+    pub screen_pos: ScreenPoint,
     pub modifiers: egui::Modifiers,
 }
 
@@ -208,30 +209,30 @@ impl InputControllerTool for Selection {
     type ToolEvent = SelectionEvent;
 
     fn controller_event_to_tool_event(
-        &self, controller_event: InputControllerEvent,
+        &self, controller_event: CanvasToolEvent,
     ) -> Option<Self::ToolEvent> {
         match controller_event {
-            InputControllerEvent::ToolStart(payload) => {
+            CanvasToolEvent::Start(payload) => {
                 // we're hovering over an element
-                let suggested_op = self.compute_suggested_op(payload.pos);
+                let suggested_op = self.compute_suggested_op(payload.screen_pos.0);
 
                 if let Some(op) = suggested_op {
                     return Some(SelectionEvent::StartTransform(op));
                 }
 
                 Some(SelectionEvent::StartLaso(BuildPayload {
-                    pos: payload.pos,
+                    screen_pos: payload.screen_pos,
                     modifiers: egui::Modifiers::NONE, // todo: should add tool payload modifiers to controller event
                 }))
             }
-            InputControllerEvent::ToolRun(payload) => match self.current_op {
+            CanvasToolEvent::Run(payload) => match self.current_op {
                 SelectionOperation::LasoBuild(_) => Some(SelectionEvent::LasoBuild(BuildPayload {
-                    pos: payload.pos,
+                    screen_pos: payload.screen_pos,
                     modifiers: egui::Modifiers::NONE,
                 })),
-                _ => Some(SelectionEvent::Transform(payload.pos)),
+                _ => Some(SelectionEvent::Transform(payload.screen_pos)),
             },
-            InputControllerEvent::ToolEnd(_) => match self.current_op {
+            CanvasToolEvent::End(_) => match self.current_op {
                 SelectionOperation::LasoBuild(_) => Some(SelectionEvent::EndLaso),
                 _ => Some(SelectionEvent::EndTransform),
             },
@@ -247,9 +248,8 @@ impl InputControllerTool for Selection {
                 self.current_op = op;
             }
             SelectionEvent::Transform(pos) => {
-                let container_rect = selection_ctx
-                    .viewport_settings
-                    .document_rect_to_screen(self.get_container_rect(selection_ctx.buffer));
+                let pos = pos.0;
+                let container_rect = self.get_screen_container_rect(selection_ctx);
 
                 let min_allowed = egui::vec2(10.0, 10.0);
 
@@ -438,14 +438,12 @@ impl InputControllerTool for Selection {
 
                     self.new_selection_els(new_els);
                     self.current_op = SelectionOperation::Translation;
-                } else if let Some(maybe_new_selection) = detect_translation(
-                    selection_ctx.buffer,
-                    None,
-                    selection_ctx
-                        .viewport_settings
-                        .screen_to_document(build_payload.pos),
-                    10.0 / selection_ctx.viewport_settings.master_transform.sx as f64,
-                ) {
+                } else if let Some(id) = selection_ctx
+                    .view()
+                    .hit_test(build_payload.screen_pos, ScreenLength(10.0))
+                {
+                    let maybe_new_selection =
+                        SelectedElement { id, transform: Transform::identity() };
                     if build_payload.modifiers.shift_only() {
                         self.push_selection_el(maybe_new_selection);
                     } else if build_payload.modifiers.command_only() {
@@ -471,14 +469,7 @@ impl InputControllerTool for Selection {
             }
             SelectionEvent::LasoBuild(build_payload) => {
                 if let SelectionOperation::LasoBuild(build_origin) = self.current_op {
-                    let rect = get_laso_rect(
-                        selection_ctx
-                            .viewport_settings
-                            .screen_to_document(build_payload.pos),
-                        selection_ctx
-                            .viewport_settings
-                            .screen_to_document(build_origin.pos),
-                    );
+                    let rect = get_laso_rect(build_payload.screen_pos.0, build_origin.screen_pos.0);
                     self.laso_rect = Some(rect);
 
                     let new_selection_els = self.get_laso_selected_els(selection_ctx);
@@ -511,7 +502,7 @@ impl InputControllerTool for Selection {
         }
     }
 
-    fn show_hover_point(&self, _: &mut egui::Ui, _: egui::Pos2, _: &mut ToolContext<'_>) {}
+    fn show_hover_point(&self, _: &mut egui::Ui, _: CanvasPointer, _: &mut ToolContext<'_>) {}
 
     fn show_tool_ui(&mut self, ui: &mut egui::Ui, selection_ctx: &mut ToolContext) {
         ui.scope_builder(
@@ -523,9 +514,7 @@ impl InputControllerTool for Selection {
                 ui.set_clip_rect(selection_ctx.viewport_settings.working_rect);
                 if let Some(laso_rect) = self.laso_rect {
                     ui.painter().rect_filled(
-                        selection_ctx
-                            .viewport_settings
-                            .document_rect_to_screen(laso_rect),
+                        laso_rect,
                         0.0,
                         ui.visuals().widgets.active.bg_fill.linear_multiply(0.1),
                     );
@@ -579,51 +568,13 @@ impl Selection {
         None
     }
 
-    fn get_laso_selected_els(
-        &mut self, selection_ctx: &mut ToolContext<'_>,
-    ) -> Vec<SelectedElement> {
-        let mut laso_selected_elements = Vec::with_capacity(self.selected_elements.capacity());
-        for (id, el) in selection_ctx.buffer.elements.iter() {
-            if el.deleted() {
-                continue;
-            }
-            if self.el_intersects_laso(el) {
-                laso_selected_elements
-                    .push(SelectedElement { id: *id, transform: Transform::identity() });
-            }
-        }
-        laso_selected_elements
-    }
-
-    fn el_intersects_laso(&mut self, el: &Element) -> bool {
-        let laso_rect = match self.laso_rect {
-            Some(val) => val,
-            None => return false,
-        };
-        match el {
-            Element::Path(path) => {
-                let path_rect = path.bounding_box();
-                if laso_rect.intersects(path_rect) {
-                    let laso_bb = Subpath::new_rect(
-                        glam::DVec2 { x: laso_rect.min.x as f64, y: laso_rect.min.y as f64 },
-                        glam::DVec2 { x: laso_rect.max.x as f64, y: laso_rect.max.y as f64 },
-                    );
-
-                    !path
-                        .data
-                        .subpath_intersections(&laso_bb, None, None)
-                        .is_empty()
-                        || laso_rect.contains_rect(path_rect)
-                } else {
-                    false
-                }
-            }
-            Element::Image(img) => {
-                let img_bb = img.bounding_box();
-                laso_rect.contains_rect(img_bb) || laso_rect.intersects(img_bb)
-            }
-            Element::Text(_) => todo!(),
-        }
+    fn get_laso_selected_els(&self, selection_ctx: &ToolContext<'_>) -> Vec<SelectedElement> {
+        let Some(rect) = self.laso_rect else { return Vec::new() };
+        selection_ctx
+            .view()
+            .elements_in_screen_rect(rect)
+            .map(|id| SelectedElement { id, transform: Transform::identity() })
+            .collect()
     }
 
     fn show_selection_rects(&mut self, ui: &mut egui::Ui, selection_ctx: &mut ToolContext) {
@@ -634,19 +585,15 @@ impl Selection {
             self.layout.popover = None;
             return;
         }
-        let container = selection_ctx
-            .viewport_settings
-            .document_rect_to_screen(self.get_container_rect(selection_ctx.buffer));
+        let container = self.get_screen_container_rect(selection_ctx);
 
         if self.current_op != SelectionOperation::Translation
             && self.selection_stroke_snashot.is_empty()
             && self.selection_opacity_snapshot.is_empty()
         {
             for el in self.selected_elements.iter() {
-                let child = match selection_ctx.buffer.elements.get(&el.id) {
-                    Some(el) => selection_ctx
-                        .viewport_settings
-                        .document_rect_to_screen(el.bounding_box()),
+                let child = match selection_ctx.view().screen_bounds(el.id) {
+                    Some(bounds) => bounds,
                     None => continue,
                 };
                 if self.selected_elements.len() != 1 {
@@ -826,21 +773,9 @@ impl Selection {
         ui.ctx().copy_text(serialized_selection);
     }
 
-    pub fn get_container_rect(&self, buffer: &Buffer) -> egui::Rect {
-        let mut container = egui::Rect::NOTHING;
-        for el in self.selected_elements.iter() {
-            let child = match buffer.elements.get(&el.id) {
-                Some(el) => el.bounding_box(),
-                None => continue,
-            };
-
-            container.min.x = container.min.x.min(child.min.x);
-            container.min.y = container.min.y.min(child.min.y);
-
-            container.max.x = container.max.x.max(child.max.x);
-            container.max.y = container.max.y.max(child.max.y);
-        }
-        container
+    fn get_screen_container_rect(&self, ctx: &ToolContext<'_>) -> egui::Rect {
+        ctx.view()
+            .screen_bounds_for(self.selected_elements.iter().map(|el| el.id))
     }
 
     fn show_child_selection_rect(&self, ui: &mut egui::Ui, rect: egui::Rect) {
@@ -1287,20 +1222,6 @@ fn get_laso_rect(current: egui::Pos2, drag_origin: egui::Pos2) -> egui::Rect {
         std::mem::swap(&mut laso_rect.min.x, &mut laso_rect.max.x)
     }
     laso_rect
-}
-
-pub fn detect_translation(
-    buffer: &mut Buffer, last_pos: Option<egui::Pos2>, current_pos: egui::Pos2, tolerance: f64,
-) -> Option<SelectedElement> {
-    for (id, el) in buffer.elements.iter() {
-        if el.deleted() {
-            continue;
-        }
-        if pointer_intersects_element(el, current_pos, last_pos, tolerance) {
-            return Some(SelectedElement { id: *id, transform: Transform::identity() });
-        }
-    }
-    None
 }
 
 pub fn scale_from_center(factor: f32, selected_rect: egui::Rect) -> Transform {

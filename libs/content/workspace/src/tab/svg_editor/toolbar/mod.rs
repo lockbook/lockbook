@@ -84,6 +84,12 @@ pub struct ToolContext<'a> {
     pub viewport_settings: &'a mut ViewportSettings,
 }
 
+impl ToolContext<'_> {
+    pub fn view(&self) -> super::view::CanvasView<'_> {
+        super::view::CanvasView::new(self.buffer, self.viewport_settings.coordinates())
+    }
+}
+
 pub struct ToolbarContext<'a> {
     pub painter: &'a mut egui::Painter,
     pub buffer: &'a mut Buffer,

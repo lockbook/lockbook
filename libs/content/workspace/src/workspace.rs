@@ -1697,7 +1697,7 @@ pub struct WsPresistentData {
     current_tab_index: Option<usize>,
     canvas: CanvasSettings,
     #[serde(default)]
-    pub canvas_files: HashMap<Uuid, crate::tab::svg_editor::CanvasFilePersistence>,
+    pub canvas_transforms: HashMap<Uuid, lb_rs::model::svg::WeakTransform>,
     pub markdown: MdPersistence,
     auto_save: bool,
     auto_sync: bool,
@@ -1729,7 +1729,7 @@ impl Default for WsPresistentData {
             current_tab_index: None,
             open_in_new_tab: true,
             canvas: CanvasSettings::default(),
-            canvas_files: HashMap::default(),
+            canvas_transforms: HashMap::default(),
             markdown: MdPersistence::default(),
             landing_page: LandingPage::default(),
             zoom_factor: 1.,
