@@ -1,3 +1,4 @@
+use crate::io::CoreV5;
 use crate::io::docs::LocalDocuments;
 use crate::io::server::Server;
 use std::{
@@ -11,6 +12,9 @@ use std::{
 #[cfg(not(any(target_family = "wasm", target_os = "ios")))]
 use std::fs::{File, TryLockError};
 
+use db_rs::View;
+use db_rs::views::hashmap::DbHashMap;
+use db_rs_old::hasher::UuidIdentityHasherBuilder;
 use futures::{StreamExt, stream};
 use tokio::sync::Mutex;
 #[cfg(not(target_family = "wasm"))]
@@ -407,25 +411,67 @@ impl<S: Server, D: LocalDocuments> Lb<S, D> {
         }
     }
 
-    /// Pulls remote changes and constructs a changeset Merge such that Stage<Stage<Stage<Base, Remote>, Local>, Merge> is valid.
-    /// Promotes Base to Stage<Base, Remote> and Local to Stage<Local, Merge>
+    /// Promotes Base to Stage<Base, Remote> and Local to Stage<Local, Merge>, where Merge is built
+    /// by [Self::merge_changes] outside the write lock.
     async fn merge(&self, state: &mut SyncState) -> LbResult<()> {
-        let mut tx = self.begin_tx().await;
-        let db = tx.db();
-        let start = Instant::now();
-
-        let remote_changes = &state.remote_changes;
-
-        // fetch document updates and local documents for merge
         let me = Owner(self.keychain.get_pk()?);
 
-        // compute merge changes
+        loop {
+            // the merge is built from a snapshot so the lock isn't held while documents are read,
+            // merged, and written; it's committed only if nothing changed the metadata meanwhile
+            let (base_metadata, local_metadata, snapshot_version) = {
+                let tx = self.ro_tx().await;
+                let db = tx.db();
+                (snapshot(&db.base_metadata), snapshot(&db.local_metadata), metadata_version(db))
+            };
+            let merge_changes = self
+                .merge_changes(&base_metadata, &local_metadata, state, me)
+                .await?;
+
+            let mut tx = self.begin_tx().await;
+            let db = tx.db();
+            if metadata_version(db) != snapshot_version {
+                continue;
+            }
+            let start = Instant::now();
+
+            // base = remote; local = merge
+            (&mut db.base_metadata)
+                .to_staged(state.remote_changes.clone())
+                .to_lazy()
+                .promote()?;
+            db.local_metadata.clear()?;
+            (&mut db.local_metadata)
+                .to_staged(merge_changes)
+                .to_lazy()
+                .promote()?;
+
+            // todo who else calls this did they manage locks right?
+            // self.cleanup_local_metadata()?;
+            db.base_metadata.stage(&mut db.local_metadata).prune()?;
+
+            if start.elapsed() > web_time::Duration::from_millis(100) {
+                warn!("sync merge held lock for {:?}", start.elapsed());
+            }
+
+            return Ok(());
+        }
+    }
+
+    /// Constructs a changeset Merge such that Stage<Stage<Stage<Base, Remote>, Local>, Merge> is
+    /// valid, writing the documents it merges.
+    async fn merge_changes(
+        &self, base_metadata: &HashMap<Uuid, SignedMeta>,
+        local_metadata: &HashMap<Uuid, SignedMeta>, state: &SyncState, me: Owner,
+    ) -> LbResult<Vec<SignedMeta>> {
+        let remote_changes = &state.remote_changes;
+
         let merge_changes = {
             // assemble trees
-            let mut base = (&db.base_metadata).to_lazy();
-            let remote_unlazy = (&db.base_metadata).to_staged(remote_changes);
+            let mut base = (&base_metadata).to_lazy();
+            let remote_unlazy = (&base_metadata).to_staged(remote_changes);
             let mut remote = remote_unlazy.as_lazy();
-            let mut local = (&db.base_metadata).to_staged(&db.local_metadata).to_lazy();
+            let mut local = (&base_metadata).to_staged(&local_metadata).to_lazy();
 
             // changeset constraints - these evolve as we try to assemble changes and encounter validation failures
             let mut files_to_unmove: HashSet<Uuid> = HashSet::new();
@@ -445,7 +491,7 @@ impl<S: Server, D: LocalDocuments> Lb<S, D> {
 
                     // creations
                     let mut deletion_creations = HashSet::new();
-                    for id in db.local_metadata.ids() {
+                    for id in local_metadata.ids() {
                         if remote.maybe_find(&id).is_none() && !links_to_delete.contains(&id) {
                             deletion_creations.insert(id);
                         }
@@ -467,10 +513,10 @@ impl<S: Server, D: LocalDocuments> Lb<S, D> {
                     // moves (creations happen first in case a file is moved into a new folder);
                     // as in the merge, skipping files the server moved or deleted; parents first,
                     // so a destination is judged where its own kept move puts it
-                    let local_ids = db.local_metadata.ids().into_iter().collect();
+                    let local_ids = local_metadata.ids().into_iter().collect();
                     for id in parents_first(&local, &local_ids)? {
                         let local_file = local.find(&id)?.clone();
-                        if let Some(base_file) = db.base_metadata.maybe_find(&id).cloned() {
+                        if let Some(base_file) = base_metadata.maybe_find(&id).cloned() {
                             if !local_file.explicitly_deleted()
                                 && local_file.parent() != base_file.parent()
                                 && remote.find(&id)?.parent() == base_file.parent()
@@ -505,7 +551,7 @@ impl<S: Server, D: LocalDocuments> Lb<S, D> {
                     }
 
                     // deletions (moves happen first in case a file is moved into a deleted folder)
-                    for id in db.local_metadata.ids() {
+                    for id in local_metadata.ids() {
                         let local_file = local.find(&id)?.clone();
                         let parent = *remote.maybe_find(&id).unwrap_or(&local_file).parent();
                         if local_file.explicitly_deleted()
@@ -525,7 +571,7 @@ impl<S: Server, D: LocalDocuments> Lb<S, D> {
 
                     // creations and edits of created documents
                     let mut creations = HashSet::new();
-                    for id in db.local_metadata.ids() {
+                    for id in local_metadata.ids() {
                         if remote_with_moves.maybe_find(&id).is_some()
                             && !remote_with_moves.calculate_deleted(&id)?
                             && remote.maybe_find(&id).is_none()
@@ -559,8 +605,8 @@ impl<S: Server, D: LocalDocuments> Lb<S, D> {
                     // before moves, so a moved folder leaves the files this device deleted as they
                     // were; a file is deleted itself unless its parent is deleted and holds it in
                     // the merge too, since moves skip deleted files but may lift live ones
-                    for id in db.local_metadata.ids() {
-                        if db.base_metadata.maybe_find(&id).is_none()
+                    for id in local_metadata.ids() {
+                        if base_metadata.maybe_find(&id).is_none()
                             || !remote_with_moves.calculate_deleted(&id)?
                             || remote.calculate_deleted(&id)?
                         {
@@ -588,7 +634,7 @@ impl<S: Server, D: LocalDocuments> Lb<S, D> {
                     // skip files that are already deleted, will be deleted, were not created, or
                     // are no longer reachable from this device
                     let mut replayed = Vec::new();
-                    for id in db.local_metadata.ids() {
+                    for id in local_metadata.ids() {
                         if merge.maybe_find(&id).is_some()
                             && remote_with_moves.maybe_find(&id).is_some()
                             && !remote_with_moves.calculate_deleted(&id)?
@@ -622,7 +668,7 @@ impl<S: Server, D: LocalDocuments> Lb<S, D> {
                         ..
                     }) = merge.assert_no_cycles()
                     {
-                        unmove_cycle(&db.local_metadata, &ids, &mut files_to_unmove)?;
+                        unmove_cycle(&local_metadata, &ids, &mut files_to_unmove)?;
                         continue 'merge_construction;
                     }
 
@@ -866,7 +912,7 @@ impl<S: Server, D: LocalDocuments> Lb<S, D> {
                         LbErrKind::Validation(ref vf) => match vf {
                             // merge changeset has resolvable validation errors and needs modification
                             ValidationFailure::Cycle(ids) => {
-                                unmove_cycle(&db.local_metadata, ids, &mut files_to_unmove)?;
+                                unmove_cycle(&local_metadata, ids, &mut files_to_unmove)?;
                             }
                             ValidationFailure::PathConflict(ids) => {
                                 // pick one local id and generate a non-conflicting filename
@@ -880,7 +926,7 @@ impl<S: Server, D: LocalDocuments> Lb<S, D> {
                                 }
                                 if !progress {
                                     for &id in ids {
-                                        if db.local_metadata.maybe_find(&id).is_some() {
+                                        if local_metadata.maybe_find(&id).is_some() {
                                             *rename_increments.entry(id).or_insert(0) += 1;
                                             progress = true;
                                             break;
@@ -914,10 +960,9 @@ impl<S: Server, D: LocalDocuments> Lb<S, D> {
                                         (base.maybe_find(&id), remote.maybe_find(&id))
                                     {
                                         let from = *remote_file.parent();
-                                        let moved_here =
-                                            db.local_metadata.maybe_find(&id).is_some()
-                                                && local.find(&id)?.parent() != base_file.parent()
-                                                && from == *base_file.parent();
+                                        let moved_here = local_metadata.maybe_find(&id).is_some()
+                                            && local.find(&id)?.parent() != base_file.parent()
+                                            && from == *base_file.parent();
                                         if moved_here
                                             && !remote_with_moves.calculate_deleted(&from)?
                                             && files_to_unmove.insert(id)
@@ -1002,27 +1047,7 @@ impl<S: Server, D: LocalDocuments> Lb<S, D> {
                 }
             }
         };
-
-        // base = remote; local = merge
-        (&mut db.base_metadata)
-            .to_staged(remote_changes.clone())
-            .to_lazy()
-            .promote()?;
-        db.local_metadata.clear()?;
-        (&mut db.local_metadata)
-            .to_staged(merge_changes)
-            .to_lazy()
-            .promote()?;
-
-        // todo who else calls this did they manage locks right?
-        // self.cleanup_local_metadata()?;
-        db.base_metadata.stage(&mut db.local_metadata).prune()?;
-
-        if start.elapsed() > web_time::Duration::from_millis(100) {
-            warn!("sync merge held lock for {:?}", start.elapsed());
-        }
-
-        Ok(())
+        Ok(merge_changes)
     }
 
     async fn send_pull_events(&self, state: &mut SyncState) -> LbResult<()> {
@@ -1513,6 +1538,20 @@ impl<S: Server, D: LocalDocuments> Lb<S, D> {
 /// `remote` has, at or above `id` in this device's tree, by a share this device hasn't declined,
 /// and in this device's own tree. `remote` is the server's tree, with this device's kept moves
 /// applied once they are, so shares are read where each file ends up, not the merge's.
+fn snapshot(
+    metadata: &DbHashMap<Uuid, SignedMeta, UuidIdentityHasherBuilder>,
+) -> HashMap<Uuid, SignedMeta> {
+    metadata
+        .iter()
+        .map(|(&id, meta)| (id, meta.clone()))
+        .collect()
+}
+
+/// Changes whenever a transaction, in this process or another, writes either tree.
+fn metadata_version(db: &CoreV5) -> (u64, u64) {
+    (db.base_metadata.last_modified(), db.local_metadata.last_modified())
+}
+
 fn may_write_in<L: TreeLike, R: TreeLike<F = L::F>>(
     local: &LazyTree<L>, remote: &LazyTree<R>, me: Owner, id: &Uuid,
 ) -> LbResult<bool> {

@@ -40,6 +40,7 @@ mod svg_merge_tests;
 mod sync_during_upload_tests;
 #[cfg(not(any(target_family = "wasm", target_os = "ios")))]
 mod sync_ipc_tests;
+mod sync_merge_outside_lock_tests;
 mod sync_props;
 mod sync_service_concurrent_change_tests;
 mod sync_service_cycle_resolution_tests;
