@@ -1534,8 +1534,12 @@ fn may_write_in<L: TreeLike, R: TreeLike<F = L::F>>(
     Ok(server_access(local, remote, me, &id)? >= Some(UserAccessMode::Write))
 }
 
-/// This device's access to `id` in its own tree. Where that tree ends at a folder it no longer has,
-/// as after losing a share, access goes on from where `remote` puts the topmost file.
+/// This device's access to `id`: what its own tree grants, or more where the server's tree grants
+/// more. The server's tree counts for `id` and each folder above it that the server places
+/// differently, because that is where the file will end up:
+/// - this device no longer has the folder's parent, as after losing a share;
+/// - the server has the folder under another parent, as when this device moved it into a shared
+///   folder that has since become read-only, and the move is about to be undone.
 fn local_access<L: TreeLike, R: TreeLike<F = L::F>>(
     local: &LazyTree<L>, remote: &LazyTree<R>, me: Owner, id: &Uuid,
 ) -> LbResult<Option<UserAccessMode>> {
@@ -1544,11 +1548,13 @@ fn local_access<L: TreeLike, R: TreeLike<F = L::F>>(
     ids.insert(*id);
     for id in ids {
         let file = local.find(&id)?;
-        if file.is_root() || local.maybe_find(file.parent()).is_some() {
+        if file.is_root() {
             continue;
         }
         if let Some(placed) = remote.maybe_find(&id) {
-            if remote.maybe_find(placed.parent()).is_some() {
+            let elsewhere =
+                local.maybe_find(file.parent()).is_none() || placed.parent() != file.parent();
+            if elsewhere && remote.maybe_find(placed.parent()).is_some() {
                 mode = mode.max(server_access(local, remote, me, placed.parent())?);
             }
         }
