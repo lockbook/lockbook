@@ -5,6 +5,7 @@
 
 use egui::{Color32, Response, Ui, pos2, vec2};
 
+use crate::components::atoms::name_trail;
 use crate::components::foundation::chrome::{
     HOVER_ANIM_SECS, Radius, control_height, display_file_name, phosphor_ui_font_id,
 };
@@ -12,9 +13,6 @@ use crate::components::foundation::color::{FG_HOVER, FG_PRESS, Theme};
 use crate::components::foundation::layout::ui_width;
 use crate::components::foundation::space::Space;
 use crate::components::foundation::typography::TypeRole;
-use workspace_rs::style::crumb_label;
-use workspace_rs::style::file_name::{self, measure as measure_file_name, paint_body};
-use workspace_rs::style::file_row::CRUMB_SEP;
 
 /// Chip height — same ladder as buttons / fields.
 pub fn height() -> f32 {
@@ -110,56 +108,15 @@ pub fn quiet_chip(
             ui.painter()
                 .galley(pos2(x, line_top + (lh - icon_h) / 2.0), ig, icon_ink);
             x += icon_w + gap;
-            let slot_w = (rect.right() - pad - x).max(8.0);
-            let name = display_file_name(name);
-            let (name_w, folder) = match folder {
-                None => (slot_w, None),
-                Some(folder) => {
-                    // The name yields to the folder down to half the slot.
-                    let measure = |s: &str| measure_file_name(ui, s);
-                    let name_w =
-                        measure(name).min((slot_w - gap - measure(folder)).max(slot_w / 2.0));
-                    (name_w, Some(fit_trail(folder, slot_w - name_w - gap, measure)))
-                }
-            };
-            let drawn = paint_body(
-                ui,
-                name,
-                t.neutral_fg(),
-                egui::Rect::from_min_size(pos2(x, line_top), vec2(name_w, lh)),
+            let line = egui::Rect::from_min_max(
+                pos2(x, line_top),
+                pos2(rect.right() - pad, line_top + lh),
             );
-            if let Some(folder) = folder {
-                let x = x + drawn + gap;
-                file_name::paint_label(
-                    ui,
-                    crumb_label(&folder, t.neutral_fg_secondary(), t.neutral_fg_secondary()),
-                    egui::Rect::from_min_size(pos2(x, line_top), vec2(rect.right() - pad - x, lh)),
-                    file_name::body_font_size(),
-                    lh,
-                );
-            }
+            name_trail::paint(ui, t, display_file_name(name), folder, line);
         }
     }
 
     resp
-}
-
-/// Shortens a folder trail from the inside, always keeping its outermost
-/// crumb (the one that tells same-named pins apart): `a/b/c` → `a/…/c` → `a/…`.
-fn fit_trail(trail: &str, max_w: f32, measure: impl Fn(&str) -> f32) -> String {
-    let parts: Vec<&str> = trail.split(CRUMB_SEP).collect();
-    if measure(trail) <= max_w || parts.len() < 2 {
-        return trail.to_owned();
-    }
-    (0..parts.len() - 1)
-        .rev()
-        .map(|inner| {
-            let mut kept = vec![parts[0], "…"];
-            kept.extend(&parts[parts.len() - inner..]);
-            kept.join(CRUMB_SEP)
-        })
-        .find(|candidate| measure(candidate) <= max_w)
-        .unwrap_or_else(|| parts[0].to_owned())
 }
 
 /// Min width to show icon + labels (for icon-only collapse).
