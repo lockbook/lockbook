@@ -245,6 +245,17 @@ impl<'ast> MdEdit {
         &mut self, root: &'ast AstNode<'ast>, operations: &mut Vec<Operation>,
     ) -> bool {
         let selection = self.renderer.buffer.current.selection;
+        // a property's value is its URL, as a bare autolink is
+        if let Some((_, range)) = self
+            .renderer
+            .property_links()
+            .into_iter()
+            .find(|(_, range)| *range == selection)
+        {
+            self.renderer.entered_atom = Some(range);
+            operations.push(Operation::Select(range));
+            return true;
+        }
         for node in root.descendants() {
             if !matches!(node.data.borrow().value, NodeValue::Link(_) | NodeValue::WikiLink(_)) {
                 continue;

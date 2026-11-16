@@ -10,7 +10,7 @@ use lb_rs::model::text::offset_types::{
 };
 use unicode_segmentation::UnicodeSegmentation as _;
 
-use crate::front_matter::{FrontMatter, RowKind, Value};
+use crate::front_matter::{FrontMatter, RowKind, Value, url_value};
 use crate::tab::markdown_editor::input::{Event, FrontMatterAction};
 use crate::tab::markdown_editor::widget::utils::wrap_layout::{
     EmbedKind, EmbedSpec, FontFamily, Format, Layout, StyleInfo, WrapUnitLayout,
@@ -140,11 +140,42 @@ impl<'ast> MdRender {
         widest.min(width * KEY_COLUMN_MAX)
     }
 
-    /// The value column of a property row: its text, chips, or checkbox,
-    /// with the syntax around them hidden.
+    /// The value column's width.
+    fn front_matter_value_width(&self, fm: &FrontMatter<Grapheme>, width: f32) -> f32 {
+        let key_column = self.front_matter_key_column(fm, width);
+        (width - key_column - self.layout.block_padding).max(0.0)
+    }
+
+    /// The value column's width in the block `node`.
+    pub(crate) fn property_value_width(&self, node: &'ast AstNode<'ast>) -> Option<f32> {
+        let fm = self.bounds.front_matter.as_ref()?;
+        Some(self.front_matter_value_width(fm, self.width(node)))
+    }
+
+    /// The URL a value or item written at `written` is, unless a caret
+    /// inside its `text` shows its source.
+    fn property_link_at(
+        &self, text: (Grapheme, Grapheme), written: (Grapheme, Grapheme),
+    ) -> Option<String> {
+        url_value(&self.buffer[written]).filter(|_| !self.range_revealed_interior(text))
+    }
+
+    /// A value or item as the collapsed strip shows it: a link by its
+    /// title.
+    fn front_matter_shown(
+        &self, text: (Grapheme, Grapheme), written: (Grapheme, Grapheme),
+    ) -> String {
+        url_value(&self.buffer[written])
+            .and_then(|url| self.get_link_title(&url))
+            .unwrap_or_else(|| self.buffer[text].to_string())
+    }
+
+    /// The value column of a property row, `room` wide: its text, chips,
+    /// or checkbox, with the syntax around them hidden. A value or item
+    /// that is a URL is a link's chip.
     fn layout_front_matter_value(
         &self, v: &mut Layout, key: (Grapheme, Grapheme), sep: (Grapheme, Grapheme),
-        value: &Value<Grapheme>, line_end: Grapheme,
+        value: &Value<Grapheme>, line_end: Grapheme, room: f32,
     ) {
         let value_format = self.text_format_document();
         let hidden = |layout: &mut Layout, range: (Grapheme, Grapheme)| {
@@ -182,7 +213,14 @@ impl<'ast> MdRender {
                         });
                     }
                     _ if text.is_empty() => hidden(v, *text),
-                    _ => v.push_source(*text, &self.buffer[*text], value_format.clone()),
+                    _ => {
+                        let written =
+                            quotes.map_or(*text, |(open, close)| (open.start(), close.end()));
+                        match self.property_link_at(*text, written) {
+                            Some(url) => self.layout_property_link(v, *text, &url, room),
+                            None => v.push_source(*text, &self.buffer[*text], value_format.clone()),
+                        }
+                    }
                 }
                 let close = quotes.map_or(text.end(), |(_, close)| close.start());
                 hidden(v, (close, line_end));
@@ -206,6 +244,11 @@ impl<'ast> MdRender {
                         // the comma or dash between chips reads as a space
                         v.push_override((prev, item.text.start()), " ", value_format.clone());
                     }
+                    prev = item.text.end();
+                    if let Some(url) = self.property_link_at(item.text, item.written()) {
+                        self.layout_property_link(v, item.text, &url, room);
+                        continue;
+                    }
                     v.style_open(StyleInfo {
                         format: chip.clone(),
                         source_range: item.text,
@@ -219,7 +262,6 @@ impl<'ast> MdRender {
                         v.push_source(item.text, &self.buffer[item.text], chip.clone());
                     }
                     v.style_close();
-                    prev = item.text.end();
                 }
                 hidden(v, (prev, line_end));
             }
@@ -230,8 +272,7 @@ impl<'ast> MdRender {
     fn front_matter_units(&self, fm: &FrontMatter<Grapheme>, width: f32) -> (f32, Vec<RowUnits>) {
         let row_height = self.layout.row_height;
         let key_column = self.front_matter_key_column(fm, width);
-        let gap = self.layout.block_padding;
-        let value_width = (width - key_column - gap).max(0.0);
+        let value_width = self.front_matter_value_width(fm, width);
         let last = fm.rows.len().saturating_sub(1);
         let key_format = self.text_format_front_matter_key();
         let value_format = self.text_format_document();
@@ -257,7 +298,14 @@ impl<'ast> MdRender {
                             k.push_source(*key, &self.buffer[*key], key_format.clone());
                         }
                         let mut v = Layout::new((sep.start(), row.line.end()));
-                        self.layout_front_matter_value(&mut v, *key, *sep, value, row.line.end());
+                        self.layout_front_matter_value(
+                            &mut v,
+                            *key,
+                            *sep,
+                            value,
+                            row.line.end(),
+                            value_width,
+                        );
                         if is_last {
                             hidden(&mut v, fm.tail);
                         }
@@ -357,11 +405,15 @@ impl<'ast> MdRender {
             let (key_end, key, value, value_fmt) = match &row.kind {
                 RowKind::Property { key, value, .. } => {
                     let text = match value {
-                        Value::Text { text, .. } => cut(&self.buffer[*text]),
+                        Value::Text { text, quotes, .. } => {
+                            let written =
+                                quotes.map_or(*text, |(open, close)| (open.start(), close.end()));
+                            cut(&self.front_matter_shown(*text, written))
+                        }
                         Value::Empty { .. } => String::new(),
                         Value::List { items, .. } => cut(&items
                             .iter()
-                            .map(|i| &self.buffer[i.text])
+                            .map(|i| self.front_matter_shown(i.text, i.written()))
                             .collect::<Vec<_>>()
                             .join(" · ")),
                     };

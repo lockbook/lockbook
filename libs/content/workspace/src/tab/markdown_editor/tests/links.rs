@@ -246,3 +246,142 @@ fn toggle_link_twice_restores_text() {
         assert_eq!(ws.get_text(), md);
     }
 }
+
+/// The text drawn, in order.
+fn drawn(ws: &TestEditor) -> String {
+    use crate::tab::markdown_editor::widget::utils::wrap_layout::FragmentContent;
+    let fragments = &ws.editor.edit.renderer.fragments;
+    fragments
+        .iter()
+        .filter_map(|f| match &f.content {
+            FragmentContent::Glyphs { buffer, .. } => {
+                let buffer = buffer.read().unwrap();
+                Some(
+                    buffer
+                        .lines
+                        .iter()
+                        .map(|l| l.text().to_string())
+                        .collect::<String>(),
+                )
+            }
+            _ => None,
+        })
+        .collect()
+}
+
+/// `md` in `/project/notes.md`, `{plan}` standing for `/project/plan.md`'s
+/// id, and that id.
+fn note_linking_plan(md: &str) -> (TestEditor, Uuid) {
+    let files = shared_project();
+    let note = at(&files, "/project/notes.md");
+    let plan = at(&files, "/project/plan.md");
+    let ws = TestEditor::in_files(files, note, &md.replace("{plan}", &plan.to_string()));
+    (ws, plan)
+}
+
+/// The middle of the chip drawn for the source at `range`.
+fn chip_at(ws: &TestEditor, range: (usize, usize)) -> egui::Pos2 {
+    let range = (Grapheme(range.0), Grapheme(range.1));
+    ws.editor
+        .edit
+        .renderer
+        .fragments
+        .iter()
+        .filter(|f| {
+            f.style_stack
+                .last()
+                .is_some_and(|s| s.chip && s.source_range == range)
+        })
+        .map(|f| f.rect)
+        .reduce(egui::Rect::union)
+        .expect("the chip draws")
+        .center()
+}
+
+/// A property that is one URL draws as a link's chip, an `lb://` one by its
+/// file's name, and a caret inside it shows its source. Other values draw
+/// as they read.
+#[test]
+fn property_links_draw_by_name() {
+    let md = "---\nblockers: [lb://{plan}, x]\nsession: lb://{plan}\nnot: lb:// x\n---\nbody\n";
+    let (mut ws, plan) = note_linking_plan(md);
+    let text = drawn(&ws);
+    assert_eq!(text.matches("plan").count(), 2, "{text}");
+    assert!(!text.contains(&plan.to_string()), "{text}");
+    assert!(text.contains("lb:// x"), "{text}");
+
+    let value = ws.get_text().find("session: ").unwrap() + "session: lb://".len();
+    ws.push(Event::Select { region: (Grapheme(value), Grapheme(value)).into() });
+    ws.enter_frame();
+    assert!(drawn(&ws).contains(&format!("lb://{plan}")));
+
+    // collapsed, the strip names the file too
+    ws.push(Event::FrontMatter(super::super::input::FrontMatterAction::ToggleCollapsed));
+    ws.enter_frame();
+    let strip = drawn(&ws);
+    assert!(strip.contains("plan") && !strip.contains(&plan.to_string()), "{strip}");
+}
+
+/// A property's link opens as a link in the body does: on a cmd-click, on
+/// a click when read-only, and with Cmd+Enter at it; a right-click finds it.
+#[test]
+fn property_links_open() {
+    use crate::tab::ExtendedOutput as _;
+    use crate::tab::markdown_editor::Arena;
+    let md = "---\nsession: lb://{plan}\n---\nbody\n";
+    let value = |ws: &TestEditor| {
+        let start = ws.get_text().find("lb://").unwrap();
+        (start, start + "lb://".len() + 36)
+    };
+    let click = |ws: &mut TestEditor, modifiers: egui::Modifiers| {
+        let pos = chip_at(ws, value(ws));
+        let button = |pressed| egui::Event::PointerButton {
+            pos,
+            button: egui::PointerButton::Primary,
+            pressed,
+            modifiers,
+        };
+        for _ in 0..3 {
+            ws.enter_frame_with_input_held(vec![egui::Event::PointerMoved(pos)], modifiers);
+        }
+        ws.enter_frame_with_input_held(vec![button(true), button(false)], modifiers);
+        ws.enter_frame();
+        ws.editor.edit.renderer.ctx.pop_open_files()
+    };
+
+    let (mut ws, plan) = note_linking_plan(md);
+    assert_eq!(
+        click(&mut ws, egui::Modifiers::COMMAND)
+            .first()
+            .map(|o| o.0),
+        Some(plan)
+    );
+    // a plain click places the caret
+    let (mut ws, _) = note_linking_plan(md);
+    assert!(click(&mut ws, egui::Modifiers::NONE).is_empty());
+    let (mut ws, _) = note_linking_plan(md);
+    ws.editor.edit.renderer.readonly = true;
+    ws.enter_frame();
+    assert_eq!(click(&mut ws, egui::Modifiers::NONE).first().map(|o| o.0), Some(plan));
+
+    let (mut ws, plan) = note_linking_plan(md);
+    let pos = chip_at(&ws, value(&ws));
+    let arena = Arena::new();
+    let root = ws.editor.edit.renderer.reparse(&arena);
+    let target = ws
+        .editor
+        .edit
+        .link_target_at_pos(root, pos)
+        .expect("a link under the pointer");
+    assert_eq!(target.url, format!("lb://{plan}"));
+
+    let start = value(&ws).0;
+    ws.push(Event::Select { region: (Grapheme(start), Grapheme(start)).into() });
+    ws.enter_frame();
+    ws.enter_frame_with_input(super::harness::key_press(
+        egui::Key::Enter,
+        egui::Modifiers::COMMAND,
+    ));
+    let opened = ws.editor.edit.renderer.ctx.pop_open_files();
+    assert_eq!(opened.first().map(|o| o.0), Some(plan));
+}
