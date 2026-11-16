@@ -75,24 +75,20 @@ impl Try {
         Ok(lb)
     }
 
-    /// The link that opens the fixture's `qa.md`.
-    pub fn qa_link(lb: &Lb) -> LbResult<String> {
-        Ok(format!("lb://{}", qa(lb)?))
+    /// The fixture's `qa.md`: the document a try opens to and writes out.
+    pub fn qa(lb: &Lb) -> LbResult<Uuid> {
+        Ok(lb.get_by_path(&format!("/{QA}"))?.id)
     }
 
-    /// Writes `qa.md`'s text to [Self::out] and removes the run's data directory.
-    pub fn finish(&self, lb: &Lb) -> io::Result<()> {
-        let text = qa(lb)
-            .and_then(|id| lb.read_document(id, false))
-            .map_err(|e| io::Error::other(format!("reading {QA}: {e:?}")))?;
-        fs::write(&self.out, text)?;
+    /// Writes document `qa`'s text to [Self::out], wherever it has been moved, and removes the
+    /// run's data directory.
+    pub fn finish(&self, lb: &Lb, qa: Uuid) -> io::Result<()> {
+        let text = lb
+            .read_document(qa, false)
+            .map_err(|e| io::Error::other(format!("reading {QA}: {e:?}")));
         let _ = fs::remove_dir_all(&self.home);
-        Ok(())
+        fs::write(&self.out, text?)
     }
-}
-
-fn qa(lb: &Lb) -> LbResult<Uuid> {
-    Ok(lb.get_by_path(&format!("/{QA}"))?.id)
 }
 
 /// The signals that end a run from its terminal: Ctrl-C, `kill`, and the terminal closing. Held,
@@ -159,12 +155,14 @@ mod tests {
 
         let lb = try_mode.world().unwrap();
         assert!(lb.get_by_path("/other.md").is_ok(), "the fixture's other files are in the world");
-        let link = Try::qa_link(&lb).unwrap();
-        let qa = Uuid::parse_str(link.strip_prefix("lb://").unwrap()).unwrap();
+        let qa = Try::qa(&lb).unwrap();
         let mut text = lb.read_document(qa, false).unwrap();
         text.extend_from_slice(b"- [x] ticked\n");
         lb.write_document(qa, &text).unwrap();
-        try_mode.finish(&lb).unwrap();
+        let folder = lb.create_at_path("/moved/").unwrap();
+        lb.move_file(&qa, &folder.id).unwrap();
+        lb.rename_file(&qa, "renamed.md").unwrap();
+        try_mode.finish(&lb, qa).unwrap();
 
         assert_eq!(fs::read(&out).unwrap(), text);
         assert_eq!(fs::read_dir(&home).unwrap().count(), 0, "nothing was written to HOME");

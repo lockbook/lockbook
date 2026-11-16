@@ -798,18 +798,18 @@ fn run_try(try_mode: crate::try_mode::Try) {
     unsafe { std::env::set_var("LOCKBOOK_PATH", &try_mode.home) };
     // Before any thread starts, so every thread holds them.
     let signals = crate::try_mode::Signals::hold();
-    let (link, core) = try_mode
+    let (qa, core) = try_mode
         .world()
-        .and_then(|core| Ok((Try::qa_link(&core)?, core)))
+        .and_then(|core| Ok((Try::qa(&core)?, core)))
         .unwrap_or_else(|e| fail(&format!("{e:?}")));
     let finished = core.clone();
     let mut shell = ShellApp::new(Arc::new(move || Ok(core.clone())));
     shell.on_exit = Some(Box::new(move || {
-        if let Err(e) = try_mode.finish(&finished) {
-            eprintln!("lockbook-desktop: {e}");
+        if let Err(e) = try_mode.finish(&finished, qa) {
+            fail(&format!("{e}"));
         }
     }));
-    open(shell, vec![link], |proxy| {
+    open(shell, vec![format!("lb://{qa}")], |proxy| {
         signals.on_signal(move || {
             let _ = proxy.send_event(UserEvent::Close);
         })
