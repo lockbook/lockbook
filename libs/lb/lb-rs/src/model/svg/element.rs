@@ -49,7 +49,7 @@ impl SvgSerialize for Path {
         let mut curve_attrs = " ".to_string();
         if let Some(stroke) = self.stroke {
             curve_attrs = format!(
-                "stroke-width='{}' stroke='rgba({},{},{},{})' fill='none' id='{}'",
+                "stroke-width='{}' stroke='rgba({},{},{},{})' stroke-linecap='round' stroke-linejoin='round' fill='none' id='{}'",
                 stroke.width * self.stroke_scale(),
                 stroke.color.light.red,
                 stroke.color.light.green,

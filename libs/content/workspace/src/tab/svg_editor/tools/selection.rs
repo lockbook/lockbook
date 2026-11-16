@@ -258,6 +258,9 @@ impl InputControllerTool for Selection {
     ) {
         match event {
             SelectionEvent::StartTransform(op, pos) => {
+                if !pos.is_finite() {
+                    return;
+                }
                 self.current_op = op;
                 self.last_pos = Some(pos);
             }
@@ -268,11 +271,22 @@ impl InputControllerTool for Selection {
                 ) {
                     return;
                 }
+                let container_rect = self.get_screen_container_rect(selection_ctx);
+                if !pos.is_finite()
+                    || !container_rect.is_finite()
+                    || !container_rect.size().is_finite()
+                    || (self.current_op != SelectionOperation::Translation
+                        && (container_rect.width() <= 0.0 || container_rect.height() <= 0.0))
+                {
+                    return;
+                }
                 let delta = self
                     .last_pos
-                    .replace(pos)
                     .map_or(egui::Vec2::ZERO, |previous| pos - previous);
-                let container_rect = self.get_screen_container_rect(selection_ctx);
+                if !delta.is_finite() {
+                    return;
+                }
+                self.last_pos = Some(pos);
 
                 let min_allowed = egui::vec2(10.0, 10.0);
 
@@ -388,8 +402,15 @@ impl InputControllerTool for Selection {
                         _ => snap_scale(pos, container_rect), // todod: figure out if this can be removed
                     };
 
+                    if !transform.is_finite() || transform.invert().is_none() {
+                        continue;
+                    }
                     let new_rect = transform_rect(container_rect, transform);
-                    if new_rect.width() < min_allowed.x || new_rect.height() < min_allowed.y {
+                    if !new_rect.is_finite()
+                        || !new_rect.size().is_finite()
+                        || new_rect.width() < min_allowed.x
+                        || new_rect.height() < min_allowed.y
+                    {
                         continue;
                     }
 
@@ -397,8 +418,16 @@ impl InputControllerTool for Selection {
                         let transform = selection_ctx
                             .viewport_settings
                             .screen_transform_to_document(transform);
+                        let accumulated = s_el.transform.post_concat(transform);
+                        if !transform.is_finite()
+                            || transform.invert().is_none()
+                            || !accumulated.is_finite()
+                            || accumulated.invert().is_none()
+                        {
+                            continue;
+                        }
                         el.transform(transform);
-                        s_el.transform = s_el.transform.post_concat(transform);
+                        s_el.transform = accumulated;
                     }
                 }
             }
@@ -608,15 +637,17 @@ impl Selection {
     }
 
     fn show_selection_rects(&mut self, ui: &mut egui::Ui, selection_ctx: &mut ToolContext) {
-        if self.selected_elements.is_empty() {
+        let container = self.get_screen_container_rect(selection_ctx);
+        if self.selected_elements.is_empty()
+            || !container.is_finite()
+            || !container.size().is_finite()
+        {
             self.selection_container = None;
             self.selection_handles = None;
             self.layout.container_tooltip = None;
             self.layout.popover = None;
             return;
         }
-        let container = self.get_screen_container_rect(selection_ctx);
-
         if self.current_op != SelectionOperation::Translation
             && self.selection_stroke_snashot.is_empty()
             && self.selection_opacity_snapshot.is_empty()
@@ -1033,30 +1064,30 @@ impl Selection {
         buffer_changed
     }
 
-    /// A color swatch: each selected stroke takes the panel's stroke in `color`.
+    /// A color swatch changes color while preserving each stroke's other attributes.
     pub fn set_color(&mut self, selection_ctx: &mut ToolContext, color: DynamicColor) {
-        let ElementSpecificEditableProperties::Stroke(StrokeEditableProperties { mut stroke }) =
+        if !matches!(
             ElementEditableProperties::from_selection(
                 &self.selected_elements,
                 selection_ctx.buffer,
             )
-            .specific
-        else {
+            .specific,
+            ElementSpecificEditableProperties::Stroke(_)
+        ) {
             return;
-        };
+        }
         let event = history::Event::StrokeChange(
             self.selected_elements
                 .iter()
                 .filter_map(|s_el: &selection::SelectedElement| {
                     let el = selection_ctx.buffer.elements.get_mut(&s_el.id)?;
-                    let old_stroke = el.stroke();
-                    stroke.color = color;
-                    let mut el_stroke = el.stroke()?;
+                    let old_stroke = el.stroke()?;
+                    let mut el_stroke = old_stroke;
                     el_stroke.color = color;
-                    el.set_stroke(stroke);
+                    el.set_stroke(el_stroke);
                     Some(history::StrokeChangeElement {
                         id: s_el.id,
-                        old_stroke,
+                        old_stroke: Some(old_stroke),
                         new_stroke: Some(el_stroke),
                     })
                 })
@@ -1162,6 +1193,9 @@ impl Selection {
     /// A layer button: moves every selected element, unless the selection
     /// already reaches that end.
     pub fn move_layer(&mut self, selection_ctx: &mut ToolContext, layer: LayerMove) {
+        if self.selected_elements.is_empty() || selection_ctx.buffer.elements.is_empty() {
+            return;
+        }
         let (lowest, highest) = self.layer_span(selection_ctx.buffer);
         let last = selection_ctx.buffer.elements.len() - 1;
         let elements = &mut selection_ctx.buffer.elements;

@@ -524,14 +524,10 @@ fn show_stroke_preview(ui: &mut egui::Ui, pen: &mut Pen, tlbr_ctx: &mut ToolbarC
         ThemePalette::resolve_dynamic_color(pen.active_color, ui.visuals().dark_mode)
             .linear_multiply(pen.active_opacity);
 
-    let mut thickness = pen.active_stroke_width;
-    if !pen.has_inf_thick {
-        thickness *= tlbr_ctx.viewport_settings.master_transform.sx;
-    }
-
+    let coordinates = tlbr_ctx.viewport_settings.coordinates();
     let subapth: Subpath<ManipulatorGroupId> = bez.graduated_outline(
-        (thickness + thickness * pen.pressure_alpha) as f64,
-        (thickness - thickness * pen.pressure_alpha) as f64,
+        pen.screen_radius(coordinates, 1.0).0 as f64,
+        pen.screen_radius(coordinates, 0.0).0 as f64,
         Cap::Round,
     );
 

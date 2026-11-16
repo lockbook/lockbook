@@ -1,6 +1,6 @@
 use crate::tab::input_controller::{InputControllerEvent, ToolPayload};
 use crate::tab::svg_editor::CanvasAction;
-use bezier_rs::Subpath;
+use bezier_rs::{Bezier, Subpath};
 use lb_rs::Uuid;
 use lb_rs::model::svg::buffer::{get_dyn_color, get_highlighter_colors, get_pen_colors};
 use lb_rs::model::svg::diff::DiffState;
@@ -8,10 +8,9 @@ use lb_rs::model::svg::element::{Color, DynamicColor, EditableElement, Path, Str
 use resvg::usvg::Transform;
 use serde::{Deserialize, Serialize};
 use tracing::{Level, event, trace};
-use web_time::Instant;
 
 use crate::tab::svg_editor::InsertElement;
-use crate::tab::svg_editor::coordinates::{DocumentLength, ScreenLength};
+use crate::tab::svg_editor::coordinates::{CanvasCoordinates, DocumentLength, ScreenLength};
 use crate::tab::svg_editor::history::History;
 use crate::tab::svg_editor::toolbar::ToolContext;
 use crate::tab::svg_editor::tools::path_builder::PathBuilder;
@@ -20,7 +19,6 @@ use crate::theme::palette::ThemePalette;
 
 pub const DEFAULT_PEN_STROKE_WIDTH: f32 = 1.0;
 pub const DEFAULT_HIGHLIGHTER_STROKE_WIDTH: f32 = 15.0;
-const LONG_PRESS_MOVE_THRESHOLD: f32 = 2.0;
 
 #[derive(Default)]
 pub enum PenKind {
@@ -40,7 +38,6 @@ pub struct Pen {
     pub has_inf_thick: bool,
     path_builder: PathBuilder,
     pub current_id: Uuid, // todo: this should be at a higher component state, maybe in buffer
-    long_press: Option<(Instant, egui::Pos2)>,
 }
 
 #[derive(Clone, Copy, Serialize, Deserialize, PartialEq)]
@@ -154,21 +151,11 @@ impl InputControllerTool for Pen {
         };
 
         if is_current_path_empty {
-            let mut radius = self.active_stroke_width / 2.0;
-            if !self.has_inf_thick {
-                radius = pen_ctx
-                    .viewport_settings
-                    .coordinates()
-                    .screen_length(DocumentLength(radius))
-                    .0;
-            }
-
-            let pressure_adj = self.pressure_alpha * -0.5 + 1.;
-            radius *= pressure_adj;
+            let radius = self.screen_radius(pen_ctx.viewport_settings.coordinates(), 0.25);
 
             pen_ctx.painter.circle_filled(
                 pointer.screen_pos.0,
-                radius,
+                radius.0,
                 ThemePalette::resolve_dynamic_color(self.active_color, ui.visuals().dark_mode)
                     .linear_multiply(self.active_opacity),
             );
@@ -179,6 +166,17 @@ impl InputControllerTool for Pen {
 }
 
 impl Pen {
+    /// Radius in screen points for a pressure sample in the range 0..=1.
+    pub fn screen_radius(&self, coordinates: CanvasCoordinates, force: f32) -> ScreenLength {
+        let radius = self.active_stroke_width / 2.0;
+        let radius = if self.has_inf_thick {
+            ScreenLength(radius)
+        } else {
+            coordinates.screen_length(DocumentLength(radius))
+        };
+        ScreenLength(radius.0 * (1.0 + self.pressure_alpha * (2.0 * force - 1.0)))
+    }
+
     pub fn change_color(&mut self, new_color: DynamicColor) {
         if new_color == self.active_color {
             return;
@@ -208,7 +206,6 @@ impl Pen {
             has_inf_thick: settings.has_inf_thick,
             pressure_alpha: settings.pressure_alpha,
             colors_history: [pen_colors[1], pen_colors[2]],
-            long_press: None,
         }
     }
 
@@ -216,7 +213,6 @@ impl Pen {
         if let Some(EditableElement::Path(path)) = pen_ctx.buffer.elements.get_mut(&self.current_id)
         {
             self.path_builder.clear();
-            self.path_builder.is_canceled_path = true;
             path.diff_state.data_changed = true;
             path.data = Subpath::new(vec![], false);
         }
@@ -237,7 +233,6 @@ impl Pen {
                 .0;
         };
 
-        self.update_long_press(payload);
         let document_pos = payload.document_pos.0;
         self.path_builder.tolerance = pen_ctx
             .viewport_settings
@@ -248,10 +243,6 @@ impl Pen {
         if let Some(EditableElement::Path(p)) = pen_ctx.buffer.elements.get_mut(&self.current_id) {
             p.diff_state.data_changed = true;
             p.stroke = Some(path_stroke);
-
-            if self.is_long_press(payload) {
-                self.path_builder.snap(&mut p.data);
-            }
 
             let new_seg_i = self.path_builder.line_to(document_pos, &mut p.data);
 
@@ -280,30 +271,6 @@ impl Pen {
                 self.path_builder.line_to(document_pos, &mut p.data);
             }
         }
-    }
-
-    fn update_long_press(&mut self, payload: CanvasPointer) {
-        if let Some((_, start_pos)) = self.long_press {
-            if start_pos.distance(payload.screen_pos.0) > LONG_PRESS_MOVE_THRESHOLD {
-                self.long_press = None;
-            }
-        } else {
-            self.long_press = Some((Instant::now(), payload.screen_pos.0));
-        }
-    }
-
-    fn is_long_press(&mut self, payload: CanvasPointer) -> bool {
-        if let Some((start_time, start_pos)) = self.long_press {
-            let long_press_duration = web_time::Duration::from_millis(300);
-
-            if start_time.elapsed() >= long_press_duration
-                && start_pos.distance(payload.screen_pos.0) < LONG_PRESS_MOVE_THRESHOLD
-            {
-                self.long_press = None;
-                return true;
-            }
-        }
-        false
     }
 
     fn insert_force(&mut self, pen_ctx: &mut ToolContext<'_>, force: Option<f32>) {
@@ -383,6 +350,15 @@ impl Pen {
                     {
                         forces.pop();
                     }
+                }
+                // Removing the first predicted movement can leave just the
+                // starting anchor. Restore its dot until a real sample arrives.
+                if p.data.len() == 1 {
+                    let anchor = p.data.manipulator_groups()[0].anchor;
+                    p.data.append_bezier(
+                        &Bezier::from_linear_dvec2(anchor, anchor),
+                        bezier_rs::AppendType::IgnoreStart,
+                    );
                 }
                 self.path_builder.first_predicted_mg = None;
             } else {
