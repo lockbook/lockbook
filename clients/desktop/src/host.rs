@@ -231,8 +231,16 @@ impl<S: Server> ApplicationHandler<UserEvent> for App<S> {
 
     fn user_event(&mut self, _event_loop: &ActiveEventLoop, event: UserEvent) {
         let Some(state) = &mut self.state else {
-            if let UserEvent::OpenLink(url) = event {
-                self.links.push(url);
+            match event {
+                UserEvent::OpenLink(url) => self.links.push(url),
+                #[cfg(any(target_os = "macos", feature = "try"))]
+                UserEvent::Close => {
+                    if let Some(shell) = &mut self.shell {
+                        shell.exiting();
+                    }
+                    std::process::exit(0);
+                }
+                UserEvent::RepaintRequested { .. } => {}
             }
             return;
         };
@@ -261,6 +269,11 @@ impl<S: Server> ApplicationHandler<UserEvent> for App<S> {
                     .push(crate::shell::action::Action::OpenLink(url));
                 state.window.set_minimized(false);
                 state.window.focus_window();
+                state.window.request_redraw();
+            }
+            #[cfg(any(target_os = "macos", feature = "try"))]
+            UserEvent::Close => {
+                state.close_requested = true;
                 state.window.request_redraw();
             }
         }
@@ -614,6 +627,10 @@ enum UserEvent {
     },
     /// A link another launch of the app handed over.
     OpenLink(String),
+    /// A quit from outside the window, such as the app menu's: closes it the way its close button
+    /// does.
+    #[cfg(any(target_os = "macos", feature = "try"))]
+    Close,
 }
 
 struct IconData {
@@ -763,7 +780,11 @@ pub fn run() {
             return;
         }
     }
-    open(ShellApp::default(), link.into_iter().collect(), true);
+    open(ShellApp::default(), link.into_iter().collect(), |proxy| {
+        crate::link_inbox::listen(move |url| {
+            let _ = proxy.send_event(UserEvent::OpenLink(url));
+        });
+    });
 }
 
 /// The app on a QA fixture, in memory: see [crate::try_mode].
@@ -774,17 +795,24 @@ fn run_try(try_mode: crate::try_mode::Try) {
     // Logs, settings and anything else the app keeps go here instead of the user's data directory.
     // SAFETY: no other thread has started.
     unsafe { std::env::set_var("LOCKBOOK_PATH", &try_mode.home) };
+    // Before any thread starts, so every thread holds them.
+    let signals = crate::try_mode::Signals::hold();
     let (link, core) = try_mode
         .world()
         .and_then(|core| Ok((Try::qa_link(&core)?, core)))
         .unwrap_or_else(|e| fail(&format!("{e:?}")));
+    let finished = core.clone();
     let mut shell = ShellApp::new(Arc::new(move || Ok(core.clone())));
-    shell.on_exit = Some(Box::new(move |core| {
-        if let Err(e) = try_mode.finish(core) {
+    shell.on_exit = Some(Box::new(move || {
+        if let Err(e) = try_mode.finish(&finished) {
             eprintln!("lockbook-desktop: {e}");
         }
     }));
-    open(shell, vec![link], false);
+    open(shell, vec![link], |proxy| {
+        signals.on_signal(move || {
+            let _ = proxy.send_event(UserEvent::Close);
+        })
+    });
 }
 
 #[cfg(feature = "try")]
@@ -793,9 +821,11 @@ fn fail(message: &str) -> ! {
     std::process::exit(2);
 }
 
-/// Opens a window on `shell`, then the `links`. With `inbox`, it also takes links later launches
-/// hand over.
-fn open<S: Server>(shell: ShellApp<S>, links: Vec<String>, inbox: bool) {
+/// Opens a window on `shell`, then the `links`. `listen` is handed the event loop, to send it
+/// events from elsewhere.
+fn open<S: Server>(
+    shell: ShellApp<S>, links: Vec<String>, listen: impl FnOnce(EventLoopProxy<UserEvent>),
+) {
     env_logger::init();
 
     let config = lb::model::core_config::Config::ui_config("egui");
@@ -829,10 +859,12 @@ fn open<S: Server>(shell: ShellApp<S>, links: Vec<String>, inbox: bool) {
     let event_loop = builder.build().expect("failed to create event loop");
     event_loop.set_control_flow(ControlFlow::Wait);
 
-    if inbox {
+    listen(event_loop.create_proxy());
+    #[cfg(target_os = "macos")]
+    {
         let proxy = event_loop.create_proxy();
-        crate::link_inbox::listen(move |url| {
-            let _ = proxy.send_event(UserEvent::OpenLink(url));
+        crate::shell::macos_window::quit_closes(move || {
+            let _ = proxy.send_event(UserEvent::Close);
         });
     }
     let mut app = App { state: None, shell: Some(shell), proxy: event_loop.create_proxy(), links };

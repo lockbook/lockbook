@@ -77,9 +77,6 @@ pub enum AccountQrCache {
     Err(String),
 }
 
-/// Runs on the core as the window closes.
-pub type OnExit<S> = Box<dyn FnOnce(&lb::blocking::Lb<S>)>;
-
 /// Full-window product shell.
 pub struct ShellApp<S = Network> {
     pub session: Session<S>,
@@ -113,8 +110,8 @@ pub struct ShellApp<S = Network> {
     session_stress: Option<SessionStress>,
     /// Makes the core each session starts on.
     core_init: session::CoreInit<S>,
-    /// Runs on the core as the window closes, once every edit is saved.
-    pub on_exit: Option<OnExit<S>>,
+    /// Runs as the app quits: on a close, once every edit is saved.
+    pub on_exit: Option<Box<dyn FnOnce()>>,
     /// Transient errors / short notices (import, rename, workspace failures).
     pub toasts: ToastHost,
     /// In-flight system file/folder picker (import / export).
@@ -323,8 +320,8 @@ impl<S: Server> ShellApp<S> {
 
     /// Runs [Self::on_exit], once every edit is saved.
     pub fn exiting(&mut self) {
-        if let (Some(on_exit), Some(ready)) = (self.on_exit.take(), self.session.ready()) {
-            on_exit(&ready.workspace.core);
+        if let Some(on_exit) = self.on_exit.take() {
+            on_exit();
         }
     }
 

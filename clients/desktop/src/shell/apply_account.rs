@@ -27,6 +27,9 @@ pub(crate) fn do_logout<S: Server>(app: &mut ShellApp<S>, _ctx: &Context) {
     app.close_account_panel();
     if let Some(r) = app.session.ready_mut() {
         r.workspace.save_all_tabs();
+    }
+    app.exiting();
+    if let Some(r) = app.session.ready_mut() {
         let path = r.workspace.core.get_config().writeable_path.clone();
         let _ = fs::remove_dir_all(path);
     }
@@ -39,6 +42,9 @@ pub(crate) fn do_delete_account<S: Server>(app: &mut ShellApp<S>, _ctx: &Context
     app.close_account_panel();
     if let Some(r) = app.session.ready_mut() {
         r.workspace.save_all_tabs();
+    }
+    app.exiting();
+    if let Some(r) = app.session.ready_mut() {
         let path = r.workspace.core.get_config().writeable_path.clone();
         let core = r.workspace.core.clone();
         let _ = core.delete_account();

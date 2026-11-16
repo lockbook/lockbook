@@ -222,6 +222,58 @@ pub fn pick_files_and_folders() -> Option<Vec<std::path::PathBuf>> {
     })
 }
 
+/// AppKit's quit (⌘Q, the app menu's Quit, the Dock's, logging out of the Mac) calls `on_quit`
+/// instead of ending the process, so the window closes the way its close button does: the edits
+/// are saved first. Call once, after the event loop exists.
+pub fn quit_closes(on_quit: impl Fn() + Send + Sync + 'static) {
+    use objc2::ffi;
+    use objc2::runtime::{AnyClass, AnyObject, Sel};
+    use objc2::sel;
+    use objc2_app_kit::{NSApplication, NSApplicationTerminateReply};
+    use objc2_foundation::MainThreadMarker;
+    use std::sync::OnceLock;
+
+    static ON_QUIT: OnceLock<Box<dyn Fn() + Send + Sync>> = OnceLock::new();
+
+    extern "C" fn should_terminate(
+        _: &AnyObject, _: Sel, _: &AnyObject,
+    ) -> NSApplicationTerminateReply {
+        match ON_QUIT.get() {
+            Some(on_quit) => {
+                on_quit();
+                NSApplicationTerminateReply::NSTerminateCancel
+            }
+            None => NSApplicationTerminateReply::NSTerminateNow,
+        }
+    }
+
+    if ON_QUIT.set(Box::new(on_quit)).is_err() {
+        return;
+    }
+    let Some(mtm) = MainThreadMarker::new() else { return };
+    let app = NSApplication::sharedApplication(mtm);
+    // SAFETY: on the main thread; winit set the delegate when it made the event loop.
+    let Some(delegate) = (unsafe { app.delegate() }) else { return };
+    // SAFETY: a protocol object is an object.
+    let delegate: &AnyObject = unsafe { &*Retained::as_ptr(&delegate).cast::<AnyObject>() };
+    let class: &AnyClass = delegate.class();
+    let imp: extern "C" fn(&AnyObject, Sel, &AnyObject) -> NSApplicationTerminateReply =
+        should_terminate;
+    // SAFETY: winit's delegate doesn't answer `applicationShouldTerminate:`, and the types are
+    // `NSApplicationTerminateReply (id self, SEL _cmd, NSApplication *sender)`.
+    unsafe {
+        ffi::class_addMethod(
+            (class as *const AnyClass).cast_mut().cast(),
+            sel!(applicationShouldTerminate:).as_ptr(),
+            Some(std::mem::transmute::<
+                extern "C" fn(&AnyObject, Sel, &AnyObject) -> NSApplicationTerminateReply,
+                unsafe extern "C" fn(),
+            >(imp)),
+            c"Q@:@".as_ptr(),
+        );
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

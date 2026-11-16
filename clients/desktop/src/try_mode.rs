@@ -95,6 +95,49 @@ fn qa(lb: &Lb) -> LbResult<Uuid> {
     Ok(lb.get_by_path(&format!("/{QA}"))?.id)
 }
 
+/// The signals that end a run from its terminal: Ctrl-C, `kill`, and the terminal closing. Held,
+/// they close the window the way its close button does instead of ending the process.
+pub struct Signals {
+    #[cfg(unix)]
+    set: libc::sigset_t,
+}
+
+impl Signals {
+    /// Holds the signals for [Self::on_signal]. Call before any thread starts: a thread holds what
+    /// the thread that started it holds, and one that doesn't would let a signal end the process.
+    pub fn hold() -> Self {
+        #[cfg(unix)]
+        // SAFETY: `set` is initialized by `sigemptyset` before it is read.
+        unsafe {
+            let mut set = std::mem::zeroed();
+            libc::sigemptyset(&mut set);
+            for signal in [libc::SIGINT, libc::SIGTERM, libc::SIGHUP] {
+                libc::sigaddset(&mut set, signal);
+            }
+            libc::pthread_sigmask(libc::SIG_BLOCK, &set, std::ptr::null_mut());
+            Self { set }
+        }
+        #[cfg(not(unix))]
+        Self {}
+    }
+
+    /// Calls `on_signal`, from a thread of its own, on each signal held.
+    pub fn on_signal(self, on_signal: impl Fn() + Send + 'static) {
+        #[cfg(unix)]
+        std::thread::spawn(move || {
+            loop {
+                let mut signal = 0;
+                // SAFETY: `set` is a signal set `hold` made.
+                if unsafe { libc::sigwait(&self.set, &mut signal) } == 0 {
+                    on_signal();
+                }
+            }
+        });
+        #[cfg(not(unix))]
+        let _ = on_signal;
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

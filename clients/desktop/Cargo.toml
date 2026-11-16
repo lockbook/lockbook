@@ -78,3 +78,8 @@ objc2-foundation = { version = "0.2.2", default-features = false, features = [
     "NSUserDefaults",
 ] }
 raw-window-handle = "0.6"
+
+# AppKit's quit, which needs the main thread.
+[[test]]
+name = "quit"
+harness = false
