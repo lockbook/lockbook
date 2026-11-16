@@ -1,5 +1,6 @@
-//! The server as a library inside a client's process. It trusts its caller: requests carry no
-//! signature, and the account's public key stands in for the one a signature would prove.
+//! The server as a library inside a client's process. Called directly, it trusts its caller:
+//! requests carry no signature, and the account's public key stands in for the one a signature
+//! would prove. Served on loopback, it checks requests as a deployed server does.
 
 use std::collections::{HashMap, HashSet};
 use std::fmt::Debug;
@@ -16,6 +17,7 @@ use lb_rs::model::api::*;
 use lb_rs::model::crypto::EncryptedDocument;
 use lb_rs::model::file_metadata::DocumentHmac;
 use uuid::Uuid;
+use warp::Filter as _;
 
 use crate::billing::Nop;
 use crate::billing::app_store_client::AppStoreClient;
@@ -26,6 +28,7 @@ use crate::config::{
     GoogleConfig, IndexDbConf, MetricsConfig, ServerConfig, StripeConfig,
 };
 use crate::document_service::DocumentService;
+use crate::router_service::{build_info, core_routes};
 use crate::schema::ServerDb;
 use crate::utils::get_build_info;
 use crate::{RequestContext, ServerError, ServerState};
@@ -39,6 +42,30 @@ impl InMemoryServer {
     /// An empty server that accepts new accounts and has no admins.
     pub fn in_memory() -> Self {
         ServerState::with_documents(InMemDocuments::default())
+    }
+
+    /// The URL of a new, empty in-memory server answering HTTP on a loopback port of this process
+    /// until it exits. Unlike a call into the server, a request there passes the checks a deployed
+    /// server makes: the client's version, the request's signature and its age.
+    pub fn serve_on_loopback() -> String {
+        let mut state = Self::in_memory();
+        state.config.server.max_auth_delay = 200_000;
+        state.config.server.min_core_version = semver::VersionReq::parse(">=0.6.0").unwrap();
+        let state = Arc::new(state);
+        let (sender, receiver) = std::sync::mpsc::channel();
+        std::thread::Builder::new()
+            .name("loopback server".into())
+            .spawn(move || {
+                let runtime = tokio::runtime::Runtime::new().expect("a runtime starts");
+                runtime.block_on(async {
+                    let routes = core_routes(&state).or(build_info());
+                    let (addr, server) = warp::serve(routes).bind_ephemeral(([127, 0, 0, 1], 0));
+                    sender.send(addr).unwrap();
+                    server.await
+                })
+            })
+            .expect("a thread starts");
+        format!("http://{}", receiver.recv().expect("the loopback server binds"))
     }
 }
 
