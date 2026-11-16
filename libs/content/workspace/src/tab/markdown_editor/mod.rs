@@ -136,6 +136,10 @@ pub struct MdRender {
     pub painting_drag_float: bool,
     /// Where the note embed being dragged starts: only its floating copy shows its tab.
     pub lifted_embed: Option<Grapheme>,
+    /// This frame's note embed title bands, by their embed's source range:
+    /// held, the band lifts its embed. Each is registered as its band
+    /// paints, under the band's Open button, which so keeps its clicks.
+    pub embed_bands: Vec<((Grapheme, Grapheme), egui::Response)>,
     /// The slug of a heading whose link was asked for this frame; the
     /// editor, which knows the note, puts the link on the clipboard.
     pub heading_copy: Option<String>,
@@ -848,6 +852,7 @@ impl MdRender {
             open_origin: None,
             painting_drag_float: false,
             lifted_embed: None,
+            embed_bands: Vec::new(),
             heading_copy: None,
             heading_copied: None,
             caret_moved: false,
@@ -976,6 +981,7 @@ impl MdRender {
             open_origin: None,
             painting_drag_float: false,
             lifted_embed: None,
+            embed_bands: Vec::new(),
             heading_copy: None,
             heading_copied: None,
             caret_moved: false,
@@ -1241,6 +1247,7 @@ impl Editor {
             open_origin: open_origin.clone(),
             painting_drag_float: false,
             lifted_embed: None,
+            embed_bands: Vec::new(),
             heading_copy: None,
             heading_copied: None,
             caret_moved: false,

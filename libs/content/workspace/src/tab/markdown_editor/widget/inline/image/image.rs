@@ -470,23 +470,7 @@ impl<'ast> MdEdit {
             return;
         }
         // a note embed, by its title, as a mouse drags an image
-        let r = &self.renderer;
-        let held: Vec<((Grapheme, Grapheme), egui::Rect)> = r
-            .fragments
-            .iter()
-            .filter_map(|f| match &f.content {
-                FragmentContent::Embed { kind: EmbedKind::Tab, url } => {
-                    Some((f.source_range, r.tab_embed_band(url, f.rect)?))
-                }
-                _ => None,
-            })
-            .collect();
-        for (range, band) in held {
-            let resp = ui.interact(
-                band,
-                ui.scope_id().with(("md_embed_band", range)),
-                egui::Sense::drag(),
-            );
+        for (range, resp) in std::mem::take(&mut self.renderer.embed_bands) {
             if resp.hovered() {
                 ui.ctx().set_cursor_icon(egui::CursorIcon::Grab);
             }
@@ -821,8 +805,9 @@ impl<'ast> MdEdit {
                     .rect_filled(card, corner, theme.neutral_bg());
                 // the floating copy only paints
                 self.renderer.painting_drag_float = true;
+                let scope = float_ui.scope_id();
                 self.renderer
-                    .paint_tab_embed(float_ui, url, card, drag.image.start());
+                    .paint_tab_embed(float_ui, url, card, drag.image, scope);
                 self.renderer.painting_drag_float = false;
             }
             _ => self.renderer.embeds.show(float_ui, url, card, corner),
