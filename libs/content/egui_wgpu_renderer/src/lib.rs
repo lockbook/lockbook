@@ -16,9 +16,11 @@ use wgpu::{
 pub use egui_wgpu;
 pub use wgpu;
 
+mod frame_phases;
 mod frame_shame;
 mod offscreen;
 
+pub use frame_phases::frame_phase;
 pub use offscreen::{OFFSCREEN_FORMAT, OffscreenFrame, render_offscreen};
 
 pub struct RendererState<'w> {
@@ -142,7 +144,8 @@ impl<'w> RendererState<'w> {
     }
 
     /// When set, frames that exceed `frame_budget` write a developer-shaming
-    /// panic report and exit the process.
+    /// panic report, naming each phase's time, and exit the process. The app
+    /// splits its update into phases with [frame_phase].
     pub fn set_frame_budget(&mut self, frame_budget: Option<Duration>) {
         self.frame_budget = frame_budget;
     }
@@ -169,12 +172,15 @@ impl<'w> RendererState<'w> {
 
     pub fn begin_frame(&mut self) {
         self.frame_start = Some(Instant::now());
+        frame_phases::begin_frame(&self.context, "egui input");
         self.set_egui_screen();
         self.raw_input.time = Some(self.start_time.elapsed().as_secs_f64());
         self.context.begin_pass(self.raw_input.take());
+        frame_phase(&self.context, "app update");
     }
 
     pub fn prepare_frame(&mut self) -> PreparedFrame {
+        frame_phase(&self.context, "egui end of pass");
         let full_output = self.context.end_pass();
 
         self.shame_slow_frame();
@@ -235,13 +241,16 @@ impl<'w> RendererState<'w> {
         let Some(budget) = self.frame_budget else {
             return;
         };
+        let phases = frame_phases::end_frame(&self.context);
         let elapsed = frame_start.elapsed();
         if elapsed <= budget {
             return;
         }
 
         // The panic hook writes the report; exiting keeps the app from running on without its UI thread.
-        let _ = std::panic::catch_unwind(|| frame_shame::frame_budget_destroyed(elapsed, budget));
+        let _ = std::panic::catch_unwind(|| {
+            frame_shame::frame_budget_destroyed(elapsed, budget, &phases)
+        });
         std::process::exit(101);
     }
 
