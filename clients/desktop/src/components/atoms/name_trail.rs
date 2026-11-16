@@ -48,6 +48,15 @@ pub fn disambiguating_folders(items: &[(&str, Vec<String>)]) -> Vec<Option<Strin
         .collect()
 }
 
+/// Width of the name and its folder, untruncated. `name` is the display name.
+pub fn natural_width(ui: &Ui, name: &str, folder: Option<&str>) -> f32 {
+    let name_w = measure_file_name(ui, name);
+    match folder {
+        None => name_w,
+        Some(folder) => name_w + GAP.pts() + measure_file_name(ui, folder),
+    }
+}
+
 /// Paints `name` (the display name) and its folder on one body line starting
 /// at `line.left()`, within `line.width()`. The name yields to the folder down
 /// to half the slot; the folder then shortens from the inside.
