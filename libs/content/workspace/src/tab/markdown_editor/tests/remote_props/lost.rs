@@ -310,7 +310,9 @@ impl Session {
 /// `after` is `before` with the image at `image` moved to `to`: cut with
 /// the markers of each style it leaves empty, as the editor parses
 /// `before`, and pasted at `to`. A drop strictly inside that cut moves
-/// nothing.
+/// nothing. A cut that opens a table row written without a leading pipe
+/// may leave the row that pipe, so that the rest of the row keeps its
+/// cells.
 fn drop_moved(
     before: &str, after: &str, image: (Grapheme, Grapheme), to: Grapheme,
 ) -> Result<(), String> {
@@ -318,20 +320,28 @@ fn drop_moved(
     let byte = |i: usize| g[..i].concat().len();
     let text = g[image.0.0..image.1.0].concat();
     let bytes = byte(image.0.0)..byte(image.1.0);
-    let cut = super::interleave::images(before)
+    let parsed = super::interleave::images(before)
         .into_iter()
-        .find(|i| i.range == bytes)
-        .and_then(|i| i.emptied)
-        .unwrap_or(bytes);
+        .find(|i| i.range == bytes);
+    let row = parsed.as_ref().and_then(|i| i.row);
+    let cut = parsed.and_then(|i| i.emptied).unwrap_or(bytes);
     let (to, cut) = (byte(to.0), (cut.start, cut.end));
-    let expected = if cut.0 < to && to < cut.1 {
-        before.to_string()
-    } else if to <= cut.0 {
-        [&before[..to], &text, &before[to..cut.0], &before[cut.1..]].concat()
-    } else {
-        [&before[..cut.0], &before[cut.1..to], &text, &before[to..]].concat()
+    if cut.0 < to && to < cut.1 {
+        if after != before {
+            return Err(format!("{text:?} dropped onto itself moved: {after:?}"));
+        }
+        return Ok(());
+    }
+    let opens_row = row.is_some_and(|s| s <= cut.0 && before[s..cut.0].trim().is_empty());
+    let left = if opens_row { vec!["", "|"] } else { vec![""] };
+    let expected = |left: &str| {
+        if to <= cut.0 {
+            [&before[..to], &text, &before[to..cut.0], left, &before[cut.1..]].concat()
+        } else {
+            [&before[..cut.0], left, &before[cut.1..to], &text, &before[to..]].concat()
+        }
     };
-    if after != expected {
+    if !left.into_iter().any(|left| after == expected(left)) {
         return Err(format!("{text:?} dropped at byte {to} isn't there: {after:?}"));
     }
     Ok(())
@@ -651,6 +661,15 @@ fn drop_moved_cases() {
     drop(line, (2, 13), 1, line).unwrap();
     // and one at their outer edge moves the image there, unstyled
     drop(line, (2, 13), 15, "![a](a.png) d\n").unwrap();
+    // an image opening a row without a leading pipe may leave the row one
+    let pipeless = "p\n\n ![a](a.png) | b\n --- | --- \n";
+    drop(pipeless, (4, 15), 1, "p![a](a.png)\n\n | | b\n --- | --- \n").unwrap();
+    drop(pipeless, (4, 15), 1, "p![a](a.png)\n\n  | b\n --- | --- \n").unwrap();
+    drop(pipeless, (4, 15), 1, "p![a](a.png)\n\n || b\n --- | --- \n").unwrap_err();
+    // a row that has its own pipe is left none
+    let piped = "p\n\n| ![a](a.png) | b |\n| --- | --- |\n";
+    drop(piped, (5, 16), 1, "p![a](a.png)\n\n|  | b |\n| --- | --- |\n").unwrap();
+    drop(piped, (5, 16), 1, "p![a](a.png)\n\n| | | b |\n| --- | --- |\n").unwrap_err();
 }
 
 /// What the editor writes for a drop out of a table row written without a

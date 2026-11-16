@@ -698,6 +698,8 @@ pub(super) struct Image {
     /// Whether it opens a table row written without a leading pipe: only
     /// indentation is between the row's start and the image.
     opens_row: bool,
+    /// Where its table row starts, if it is in one.
+    pub(super) row: Option<usize>,
     /// The bytes of the outermost of the styles around it that hold nothing
     /// else, if any.
     pub(super) emptied: Option<std::ops::Range<usize>>,
@@ -720,9 +722,9 @@ pub(super) fn images(md: &str) -> Vec<Image> {
             let range = bytes(n);
             let row = n
                 .ancestors()
-                .find(|a| matches!(a.data.borrow().value, NodeValue::TableRow(_)));
-            let opens_row = row.is_some_and(|row| {
-                let start = bytes(row).start;
+                .find(|a| matches!(a.data.borrow().value, NodeValue::TableRow(_)))
+                .map(|row| bytes(row).start);
+            let opens_row = row.is_some_and(|start| {
                 start <= range.start && md[start..range.start].trim().is_empty()
             });
             let mut filled = n;
@@ -745,7 +747,7 @@ pub(super) fn images(md: &str) -> Vec<Image> {
                 filled = style;
             }
             let emptied = (!std::ptr::eq(filled, n)).then(|| bytes(filled));
-            Image { range, opens_row, emptied }
+            Image { range, opens_row, row, emptied }
         })
         .collect()
 }
