@@ -1,6 +1,7 @@
 use crate::{fs_impl::Drive, utils::file_id};
 use lb_rs::model::file::File;
 use nfs3_server::nfs3_types::nfs3::{fattr3, ftype3, nfstime3};
+use std::collections::HashSet;
 use std::time::{Duration, SystemTime};
 use tracing::info;
 
@@ -59,7 +60,17 @@ impl Drive {
     // todo: probably need a variant of this that is more suitable post sync cache updates
     pub async fn fill_cache(&self) {
         info!("preparing cache, are you release build?");
+        // the mount is your tree; shares you haven't accepted have no place in it
+        let pending: HashSet<_> = self
+            .lb
+            .get_pending_share_files()
+            .await
+            .unwrap()
+            .into_iter()
+            .map(|f| f.id)
+            .collect();
         let files = self.lb.list_metadatas().await.unwrap();
+        let files = files.into_iter().filter(|f| !pending.contains(&f.id));
 
         let mut data = self.data.lock().await;
         data.clear();

@@ -4,6 +4,7 @@ use linkify::{LinkFinder, LinkKind};
 use num_cpus;
 use scraper::{Html, Selector};
 use serde::{Deserialize, Serialize};
+use std::collections::HashSet;
 use std::sync::atomic::{AtomicBool, AtomicIsize, AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 use tokio::runtime::Runtime;
@@ -74,8 +75,15 @@ pub fn lockbook_data(core: &Lb) -> Graph {
     let mut id: usize = 0;
     let mut info: Vec<(String, String, Uuid)> = Vec::new();
 
+    // your notes; shares you haven't accepted aren't part of your graph
+    let pending: HashSet<Uuid> = core
+        .get_pending_share_files()
+        .unwrap()
+        .into_iter()
+        .map(|f| f.id)
+        .collect();
     for file in core.list_metadatas().unwrap() {
-        if file.is_document() && file.name.ends_with(".md") {
+        if file.is_document() && file.name.ends_with(".md") && !pending.contains(&file.id) {
             let file_id = file.id;
             let doc = core.read_document(file.id, false).unwrap();
             let doc = String::from_utf8(doc).unwrap();

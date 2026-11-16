@@ -244,7 +244,6 @@ fn read_notes(files: &RwLock<FileCache>, lb: &Lb, only_new: bool) {
         .list_metadatas()
         .unwrap_or_default()
         .into_iter()
-        .chain(lb.get_pending_share_files().unwrap_or_default())
         .filter(is_note)
         .map(|f| f.id)
         .collect();

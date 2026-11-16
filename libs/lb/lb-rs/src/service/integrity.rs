@@ -1,4 +1,5 @@
 use crate::io::server::Server;
+use std::collections::HashSet;
 use std::num::NonZeroUsize;
 use std::thread;
 
@@ -43,8 +44,15 @@ impl<S: Server> Lb<S> {
 
         let mut warnings = Vec::new();
         let mut tasks = vec![];
+        // your documents; shares you haven't accepted aren't yours to vouch for
+        let pending: HashSet<_> = self
+            .get_pending_share_files()
+            .await?
+            .into_iter()
+            .map(|f| f.id)
+            .collect();
         for file in self.list_metadatas().await? {
-            if file.is_document() {
+            if file.is_document() && !pending.contains(&file.id) {
                 let is_text =
                     DocumentType::from_file_name_using_extension(&file.name) == DocumentType::Text;
 

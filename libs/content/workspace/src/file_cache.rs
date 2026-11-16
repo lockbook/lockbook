@@ -144,13 +144,12 @@ impl FileCache {
     #[instrument(name = "FileCache::new", level = "trace", skip_all, fields(n_files = tracing::field::Empty))]
     pub fn new(lb: &Lb) -> LbResult<Self> {
         let root = lb.get_root()?;
+        // own tree and pending shares alike
         let files = lb.list_metadatas()?;
         let suggested = lb.suggested_docs(Default::default())?;
-        let shared = lb.get_pending_share_files()?;
         let shared_roots = lb.get_pending_shares()?;
-        tracing::Span::current().record("n_files", files.len() + shared.len());
-        let mut cache =
-            Self::from_rows(root, files.into_iter().chain(shared), shared_roots, suggested);
+        tracing::Span::current().record("n_files", files.len());
+        let mut cache = Self::from_rows(root, files, shared_roots, suggested);
         cache.fill_recursive();
         Ok(cache)
     }

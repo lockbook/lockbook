@@ -118,7 +118,8 @@ where
 
         let mut paths = vec![];
         for id in filtered {
-            if !self.is_invisible_id(id)? {
+            // a file in a share you haven't accepted has no place in your tree
+            if !self.is_invisible_id(id)? && !self.in_pending_share(&id)? {
                 paths.push((id, self.id_to_path(&id, keychain)?));
             }
         }

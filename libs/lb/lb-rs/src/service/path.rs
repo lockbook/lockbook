@@ -74,6 +74,19 @@ impl<S> Lb<S> {
         Ok(path)
     }
 
+    /// A file's path, or `None` for a file in a share you haven't accepted, which has no path.
+    #[instrument(level = "debug", skip(self), err(Debug))]
+    pub(crate) async fn path_unless_pending(&self, id: Uuid) -> LbResult<Option<String>> {
+        let tx = self.ro_tx().await;
+        let db = tx.db();
+
+        let mut tree = (&db.base_metadata).to_staged(&db.local_metadata).to_lazy();
+        if tree.in_pending_share(&id)? {
+            return Ok(None);
+        }
+        Ok(Some(tree.id_to_path(&id, &self.keychain)?))
+    }
+
     #[instrument(level = "debug", skip(self), err(Debug))]
     pub async fn list_paths(&self, filter: Option<Filter>) -> LbResult<Vec<String>> {
         Ok(self

@@ -32,6 +32,13 @@ impl ContentSearcher {
         let start = Instant::now();
         let metas = lb.list_metadatas().unwrap_or_default();
         let paths = Arc::new(lb.list_paths_with_ids(None).unwrap_or_default());
+        let pending: Arc<HashSet<Uuid>> = Arc::new(
+            lb.get_pending_share_files()
+                .unwrap_or_default()
+                .into_iter()
+                .map(|f| f.id)
+                .collect(),
+        );
 
         let descendants = build_descendants(&metas);
         let path_to_id = paths.iter().map(|(id, path)| (path.clone(), *id)).collect();
@@ -50,6 +57,7 @@ impl ContentSearcher {
             .map(|_| {
                 let queue = queue.clone();
                 let paths = paths.clone();
+                let pending = pending.clone();
                 let documents = documents.clone();
                 let lb = lb.clone();
                 thread::spawn(move || {
@@ -65,18 +73,24 @@ impl ContentSearcher {
                             .and_then(|bytes| String::from_utf8(bytes).ok());
 
                         if let Some(content) = doc {
-                            let path = paths
-                                .iter()
-                                .find(|(i, _)| *i == id)
-                                .map(|(_, p)| p.clone())
-                                .unwrap_or_default();
-
-                            let (parent, name) = split_path(&path);
+                            // a pending share's file has no path: its name, nowhere
+                            let in_pending_share = pending.contains(&id);
+                            let (parent_path, filename) = if in_pending_share {
+                                (String::new(), meta.name.clone())
+                            } else {
+                                let path = paths
+                                    .iter()
+                                    .find(|(i, _)| *i == id)
+                                    .map(|(_, p)| p.clone())
+                                    .unwrap_or_default();
+                                let (parent, name) = split_path(&path);
+                                (parent.to_string(), name.to_string())
+                            };
 
                             documents.lock().unwrap().push(Document {
                                 file: meta,
-                                filename: name.to_string(),
-                                parent_path: parent.to_string(),
+                                filename,
+                                parent_path,
                                 lowercased_content: content.to_lowercase(),
                             });
                         }

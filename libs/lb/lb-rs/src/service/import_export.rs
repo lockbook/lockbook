@@ -155,7 +155,7 @@ impl<S: Server> Lb<S> {
         if let Some(update_status) = update_status {
             update_status(ExportFileInfo {
                 disk_path: disk_path.to_path_buf(),
-                lockbook_path: self.get_path_by_id(file.id).await?,
+                lockbook_path: self.path_unless_pending(file.id).await?,
             });
         }
 
@@ -249,5 +249,6 @@ fn get_child_count(path: &Path) -> LbResult<usize> {
 #[derive(Debug, Clone)]
 pub struct ExportFileInfo {
     pub disk_path: PathBuf,
-    pub lockbook_path: String,
+    /// `None` for a file in a share you haven't accepted: it has no path in your tree.
+    pub lockbook_path: Option<String>,
 }

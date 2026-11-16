@@ -1460,7 +1460,10 @@ impl<S: Server> Lb<S> {
         // we can only fetch things we know the server knows about
         let mut tree = db.base_metadata.stage(None).to_lazy();
 
-        for id in tree.descendants_using_links(root)? {
+        // pending shares too: they're browsable before they're accepted
+        let mut ids = tree.descendants_using_links(root)?;
+        ids.extend(tree.non_deleted_pending_files(&self.keychain)?);
+        for id in ids {
             let file = tree.find(&id)?;
             let hmac = file.document_hmac().copied();
 

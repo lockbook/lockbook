@@ -124,10 +124,12 @@ object FileMetadataStore {
             val previous = state.value?.idsAndFiles.orEmpty()
 
             fun retainUnchanged(file: File): File = previous[file.id]?.takeIf { it.sameMetadataAs(file) } ?: file
-            val listed = Lb.listMetadatas().map(::retainUnchanged)
+            val shares = Lb.getPendingShareFiles().map(::retainUnchanged).sortedBy { it.id }
+            // lb lists pending shares too; here files is your own tree
+            val shareIds = shares.mapTo(HashSet()) { it.id }
+            val listed = Lb.listMetadatas().filter { it.id !in shareIds }.map(::retainUnchanged)
             val root = retainUnchanged(Lb.getRoot())
             val files = if (listed.any { it.id == root.id }) listed else listed + root
-            val shares = Lb.getPendingShareFiles().map(::retainUnchanged).sortedBy { it.id }
             val snapshot = FileMetadataSnapshot(root, files, shares)
             synchronized(lock) {
                 if (version == generation) {

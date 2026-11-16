@@ -74,9 +74,6 @@ impl<S> Lb<S> {
             if tree.calculate_deleted(id)? {
                 continue;
             }
-            if tree.in_pending_share(id)? {
-                continue;
-            }
             result.push(*id);
         }
 

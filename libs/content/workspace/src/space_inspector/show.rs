@@ -12,6 +12,7 @@ use lb_rs::model::errors::LbErr;
 use lb_rs::model::file::File;
 use lb_rs::model::usage::bytes_to_human;
 use lb_rs::{LbErrKind, Uuid, spawn};
+use std::collections::HashSet;
 use std::sync::{Arc, Mutex};
 
 /// Responsible for tracking on screen locations for folders
@@ -73,7 +74,15 @@ impl SpaceInspector {
     #[tracing::instrument(name = "SpaceInspector::load", level = "trace", skip_all)]
     fn load(bg_lb: Lb, bg_state: Arc<Mutex<AppState>>, potential_root: Option<File>, ctx: Context) {
         let usage = bg_lb.get_usage();
-        let meta_data = bg_lb.list_metadatas();
+        // your storage; shares you haven't accepted have no place in your tree
+        let meta_data = bg_lb.get_pending_share_files().and_then(|pending| {
+            let pending: HashSet<_> = pending.into_iter().map(|f| f.id).collect();
+            Ok(bg_lb
+                .list_metadatas()?
+                .into_iter()
+                .filter(|f| !pending.contains(&f.id))
+                .collect::<Vec<_>>())
+        });
 
         match (usage, meta_data) {
             (Ok(usage_result), Ok(metadata_result)) => {

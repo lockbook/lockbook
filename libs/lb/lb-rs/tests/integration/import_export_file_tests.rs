@@ -88,7 +88,9 @@ async fn export_file_successfully() {
     // todo(parth): fix clippy warning await_holding_lock
     let paths = paths.lock().unwrap().clone();
     for info in paths.iter() {
-        core.get_by_path(&info.lockbook_path).await.unwrap();
+        core.get_by_path(info.lockbook_path.as_ref().unwrap())
+            .await
+            .unwrap();
         assert!(info.disk_path.exists());
     }
 
