@@ -8,6 +8,7 @@ use comrak::Arena;
 use comrak::nodes::{AstNode, LineColumn, NodeValue};
 
 use crate::file_cache::{link_id, web_link};
+use crate::front_matter::{self, url_value, yaml_scalar};
 use crate::tab::markdown_editor::MdRender;
 use crate::tab::markdown_editor::fragment::{Heading, headings_in};
 
@@ -54,21 +55,28 @@ pub const PROPERTY_VALUE_BYTES: usize = 80;
 /// Plain text kept on either side of a link's own words.
 const CONTEXT_BYTES: usize = 160;
 
-/// Reads a note's headings and the links that may reach a file; web URLs
-/// are left out.
+/// Reads a note's headings and the links that may reach a file, those in
+/// its properties first; web URLs are left out.
 pub fn read_note(md: &str) -> NoteText {
     let arena = Arena::new();
     let root = comrak::parse_document(&arena, md, &MdRender::comrak_options());
     let lines = line_starts(md);
+    let properties = property_links(md, &lines, root)
+        .into_iter()
+        .map(|(found, key)| {
+            let context = format!("{key}: {}", found.dest);
+            let label = key.len() + 2..context.len();
+            (found, (context, label))
+        });
+    let body = root
+        .descendants()
+        .filter_map(|node| Some((link_at(md, &lines, node)?, node)))
+        .map(|(found, node)| (found, context(node)));
     let mut links = vec![];
-    for node in root.descendants() {
-        let Some(Found { kind, dest, span, written }) = link_at(md, &lines, node) else {
-            continue;
-        };
+    for (Found { kind, dest, span, written, .. }, (context, label)) in properties.chain(body) {
         if web_link(&dest) && link_id(&dest).is_none() {
             continue;
         }
-        let (context, label) = context(node);
         let rewritable = written.is_some();
         links.push(NoteLink { kind, dest, span, context, label, rewritable });
     }
@@ -111,13 +119,55 @@ pub fn properties_in(block: &str) -> Vec<(String, Vec<String>)> {
         .collect()
 }
 
-/// A link node as written: its kind, destination, bytes, and where its
+/// A link as written: its kind, destination, bytes, and where its
 /// destination is written in them.
 struct Found {
     kind: LinkKind,
     dest: String,
     span: Range<usize>,
     written: Option<Range<usize>>,
+    /// For a property's value, how it is written in YAML.
+    yaml: Option<Yaml>,
+}
+
+/// How a property's value is written: its quote, if any, and whether it
+/// is an item in brackets.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Yaml {
+    pub quote: Option<char>,
+    pub flow: bool,
+}
+
+/// The links in a note's front matter, each with the key it is under:
+/// every value and list item that is one URL. A value is rewritable when
+/// it is written as it reads, with no escapes.
+fn property_links<'a>(md: &str, lines: &[usize], root: &'a AstNode<'a>) -> Vec<(Found, String)> {
+    let Some(first) = root.first_child() else { return vec![] };
+    if !matches!(first.data.borrow().value, NodeValue::FrontMatter(_)) {
+        return vec![];
+    }
+    let pos = first.data.borrow().sourcepos;
+    let base = offset(md, lines, pos.start);
+    let end = (offset(md, lines, pos.end) + 1).min(md.len());
+    let Some(block) = md.get(base..end) else { return vec![] };
+    let Some(fm) = front_matter::parse(block) else { return vec![] };
+    fm.scalars()
+        .filter_map(|s| {
+            let (start, end) = s.written();
+            let written = &block[start..end];
+            let dest = url_value(written)?;
+            let quote = s.quotes.and_then(|_| written.chars().next());
+            let verbatim = block[s.text.0..s.text.1] == dest;
+            let found = Found {
+                kind: LinkKind::Link,
+                span: base + start..base + end,
+                written: verbatim.then_some(base + s.text.0..base + s.text.1),
+                yaml: Some(Yaml { quote, flow: s.flow }),
+                dest,
+            };
+            Some((found, block[s.key.0..s.key.1].to_string()))
+        })
+        .collect()
 }
 
 fn link_at<'a>(md: &str, lines: &[usize], node: &'a AstNode<'a>) -> Option<Found> {
@@ -133,19 +183,54 @@ fn link_at<'a>(md: &str, lines: &[usize], node: &'a AstNode<'a>) -> Option<Found
         .get(span.clone())
         .and_then(|raw| dest_in(kind, raw, &dest))
         .map(|at| span.start + at.start..span.start + at.end);
-    Some(Found { kind, dest, span, written })
+    Some(Found { kind, dest, span, written, yaml: None })
 }
 
-/// Where each link's destination is written in `md`, for rewriting it:
-/// the kind, the destination as read, and its bytes. A destination that
-/// isn't written inside the link (a reference link's) has none.
-pub fn written_dests(md: &str) -> Vec<(LinkKind, String, Range<usize>)> {
+/// A destination written where it can be rewritten.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Written {
+    pub kind: LinkKind,
+    /// The destination as read.
+    pub dest: String,
+    /// Its bytes.
+    pub at: Range<usize>,
+    /// The whole link's bytes, a property's quotes included.
+    span: Range<usize>,
+    yaml: Option<Yaml>,
+}
+
+impl Written {
+    /// The bytes to replace, and what to write there, for the destination
+    /// to read `to`. A property's value takes the quotes or escapes `to`
+    /// needs there.
+    pub fn rewrite(&self, to: &str) -> (Range<usize>, String) {
+        let Some(Yaml { quote, flow }) = self.yaml else { return (self.at.clone(), to.into()) };
+        let escaped = yaml_scalar(to, quote, flow);
+        match quote {
+            Some(_) if escaped == to => (self.at.clone(), escaped),
+            Some(q) => (self.span.clone(), format!("{q}{escaped}{q}")),
+            None => (self.at.clone(), escaped),
+        }
+    }
+}
+
+/// Where each link's destination is written in `md`, for rewriting it. A
+/// destination that isn't written inside the link as it reads (a reference
+/// link's, an escaped spelling) has none.
+pub fn written_dests(md: &str) -> Vec<Written> {
     let arena = Arena::new();
     let root = comrak::parse_document(&arena, md, &MdRender::comrak_options());
     let lines = line_starts(md);
-    root.descendants()
-        .filter_map(|node| link_at(md, &lines, node))
-        .filter_map(|f| Some((f.kind, f.dest, f.written?)))
+    let properties = property_links(md, &lines, root).into_iter().map(|(f, _)| f);
+    let body = root
+        .descendants()
+        .filter_map(|node| link_at(md, &lines, node));
+    properties
+        .chain(body)
+        .filter_map(|f| {
+            let at = f.written?;
+            Some(Written { kind: f.kind, dest: f.dest, at, span: f.span, yaml: f.yaml })
+        })
         .collect()
 }
 
@@ -298,10 +383,7 @@ mod tests {
     #[test]
     fn finds_each_destination_where_it_is_written() {
         let md = "---\ntitle: x\n---\n# [[Plan#Goals|the plan]]\n\n| a | [b](../b%20c.md \"t\") |\n|---|---|\n\n- ![](img.png) ![[Chart.png|300]]\n";
-        let found: Vec<&str> = written_dests(md)
-            .into_iter()
-            .map(|(_, _, at)| &md[at])
-            .collect();
+        let found: Vec<&str> = written_dests(md).into_iter().map(|w| &md[w.at]).collect();
         assert_eq!(found, ["Plan#Goals", "../b%20c.md", "img.png", "Chart.png"]);
     }
 
@@ -327,10 +409,34 @@ mod tests {
         );
         let at = written_dests(md)
             .into_iter()
-            .find(|(_, d, _)| d == "p.md")
+            .find(|w| w.dest == "p.md")
             .unwrap()
-            .2;
+            .at;
         assert_eq!(at.start, md.find("(p.md").unwrap() + 1);
+    }
+
+    /// A property value, or a list item, that is one URL is a link of its
+    /// own, read from where it is written.
+    #[test]
+    fn reads_links_in_properties() {
+        let a = "lb://00000000-0000-0000-0000-000000000001";
+        let b = "lb://00000000-0000-0000-0000-000000000002";
+        let md = format!(
+            "---\nsession: {a}\nblockers: [{b}, '{a}']\nsee:\n  - {b}\n\
+             site: https://example.com\nnot: lb:// x\n---\n[[body]]\n"
+        );
+        let links = read_note(&md).links;
+        let found: Vec<(&str, &str, &str)> = links
+            .iter()
+            .map(|l| (l.dest.as_str(), &md[l.span.clone()], &l.context[l.label.clone()]))
+            .collect();
+        let quoted = format!("'{a}'");
+        assert_eq!(
+            found,
+            [(a, a, a), (b, b, b), (a, &quoted, a), (b, b, b), ("body", "[[body]]", "body")]
+        );
+        assert_eq!(links[1].context, format!("blockers: {b}"));
+        assert!(links.iter().all(|l| l.rewritable));
     }
 
     #[test]
