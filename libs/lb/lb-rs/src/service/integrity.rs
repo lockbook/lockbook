@@ -1,3 +1,5 @@
+use crate::io::docs::LocalDocuments;
+use crate::io::server::Server;
 use std::num::NonZeroUsize;
 use std::thread;
 
@@ -10,7 +12,7 @@ use crate::model::tree_like::TreeLike;
 use crate::Lb;
 use crate::model::errors::{LbErrKind, LbResult, Warning};
 
-impl Lb {
+impl<S: Server, D: LocalDocuments> Lb<S, D> {
     #[instrument(level = "debug", skip(self), err(Debug))]
     pub async fn test_repo_integrity(&self, check_docs: bool) -> LbResult<Vec<Warning>> {
         let tx = self.ro_tx().await;
@@ -42,7 +44,7 @@ impl Lb {
 
         let mut warnings = Vec::new();
         let mut tasks = vec![];
-        for file in self.list_metadatas().await? {
+        for file in self.all_metadatas().await? {
             if file.is_document() {
                 let is_text =
                     DocumentType::from_file_name_using_extension(&file.name) == DocumentType::Text;

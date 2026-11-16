@@ -65,9 +65,10 @@ pub(crate) fn show_onboard(
     };
     let field_dirty =
         !uname_snap.trim().is_empty() && !uname_snap.trim().eq_ignore_ascii_case(&uname_lookup_for);
-    let uname_available = !uname_snap.trim().is_empty()
-        && uname_snap.trim().eq_ignore_ascii_case(&uname_lookup_for)
-        && matches!(uname_lookup, OnboardLookup::Available);
+    // Create waits on a pending check, like Return; only a settled taken/invalid name blocks it.
+    let uname_rejected =
+        !field_dirty && matches!(uname_lookup, OnboardLookup::Taken | OnboardLookup::Error(_));
+    let can_create = !uname_snap.trim().is_empty() && !uname_rejected;
 
     Area::new(Id::unique("shell_onboard"))
         .order(Order::Foreground)
@@ -165,7 +166,7 @@ pub(crate) fn show_onboard(
                                     t.danger()
                                 },
                             ),
-                            OnboardLookup::Idle | OnboardLookup::Checking => {
+                            OnboardLookup::Idle | OnboardLookup::Checking { .. } => {
                                 (phosphor::USER, t.neutral_fg_secondary())
                             }
                         };
@@ -219,9 +220,10 @@ pub(crate) fn show_onboard(
                                 }
                                 OnboardLookup::Taken => ("Username taken", t.danger()),
                                 OnboardLookup::Error(e) => (e.as_str(), t.danger()),
-                                OnboardLookup::Idle | OnboardLookup::Checking => {
-                                    ("", t.neutral_fg_secondary())
+                                OnboardLookup::Checking { .. } => {
+                                    ("Checking…", t.neutral_fg_secondary())
                                 }
+                                OnboardLookup::Idle => ("", t.neutral_fg_secondary()),
                             }
                         };
                         let status_h = TypeRole::Body.line_height();
@@ -252,7 +254,7 @@ pub(crate) fn show_onboard(
                             if busy { "Working…" } else { "Create" },
                             SheetFooterOpts::default()
                                 .divider(false)
-                                .primary_enabled(!busy && uname_available)
+                                .primary_enabled(!busy && can_create)
                                 .primary_shortcut(shortcut_return()),
                         );
                         if foot.cancel {

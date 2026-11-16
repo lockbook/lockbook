@@ -3,6 +3,7 @@
 use egui::{Key, Modifiers};
 use lb_rs::model::text::offset_types::Grapheme;
 
+use crate::tab::markdown_editor::Arena;
 use crate::tab::markdown_editor::input::{Event, Location, Region};
 use crate::tab::markdown_editor::tests::harness::{TestEditor, key_press};
 use crate::tab::{CopiedRendered, ExtendedOutput as _};
@@ -151,7 +152,7 @@ fn code_block_copies_its_code() {
     let doc = "> ```sh\n> echo hi\n>   ls -la\n> ```\n\n    indented\n";
     let mut ws = TestEditor::new(doc);
     let r = &mut ws.editor.edit.renderer;
-    let arena = comrak::Arena::new();
+    let arena = Arena::new();
     let root = r.reparse(&arena);
     let code_blocks = root
         .descendants()

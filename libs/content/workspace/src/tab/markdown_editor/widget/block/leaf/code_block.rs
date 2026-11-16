@@ -3,12 +3,12 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use comrak::nodes::{AstNode, NodeCodeBlock};
-use egui::{Align2, Color32, Context, Pos2, Rangef, Rect, Sense, Ui, UiBuilder, Vec2};
+use egui::{Color32, Context, Pos2, Rangef, Rect, Sense, Ui, UiBuilder, Vec2};
 use lb_rs::model::text::offset_types::{Grapheme, RangeExt as _, RangeIterExt};
 
 use comrak::nodes::NodeValue;
 
-use crate::style::{FG_HOVER, Radius, phosphor, phosphor_font_id, tip_text};
+use crate::style::{FG_HOVER, Radius, control_cursor, phosphor, tip_text};
 use crate::syntax::{Highlights, Lang, Role, agreeing, roles_in};
 use crate::tab::markdown_editor::input::Event;
 use crate::tab::markdown_editor::row_scroll::RowScroller;
@@ -19,6 +19,7 @@ use crate::tab::markdown_editor::widget::utils::wrap_layout::{
 use crate::tab::markdown_editor::{MdRender, TouchTarget};
 
 use crate::theme::palette_v2::ThemeExt as _;
+use crate::widgets::GlyphonLabel;
 
 /// Code lines in the editor are laid out this wide: they never wrap.
 const UNBOUNDED: f32 = 100_000.0;
@@ -68,7 +69,9 @@ impl CopyButton {
         let painter = ui.painter();
         painter.rect_filled(self.rect, Radius::Sm.corner(), fill);
         let size = self.rect.height() * 0.6;
-        painter.text(self.rect.center(), Align2::CENTER_CENTER, glyph, phosphor_font_id(size), ink);
+        GlyphonLabel::icon(glyph, ink, size)
+            .build(ui.ctx())
+            .paint_centered(painter, self.rect.center());
     }
 }
 
@@ -191,6 +194,8 @@ impl<'ast> MdRender {
                 rows.push(CodeRow { line, top: y - layout.height, layout, scrolls: true });
             }
         }
+        self.error_marks
+            .extend(self.diagram_error(node, node_code_block));
         self.show_code_rows(ui, node, rect, rows);
         self.show_diagram_preview(ui, node, rect.left_bottom(), node_code_block);
     }
@@ -446,7 +451,8 @@ impl<'ast> MdRender {
         }
 
         let copy = Event::CopyCode { node: range };
-        let resp = ui.interact(button, ui.scope_id().with(("code_copy", range)), Sense::click());
+        let resp = ui.interact(button, ui.scope_id().with("code_copy"), Sense::click());
+        control_cursor(ui, button);
         if resp.clicked() {
             self.render_events.push(copy.clone());
         }
@@ -532,7 +538,7 @@ impl<'ast> MdRender {
                 parent_item_padding + 4
             };
             let text = &self.buffer[node_line];
-            let strip_graphemes = consume_indent_columns(text, target_cols);
+            let strip_graphemes = consume_indent_columns(text, 0, target_cols);
             let chunk_start = (node_line.start() + strip_graphemes).min(node_line.end());
             (chunk_start, node_line.end())
         }
@@ -608,6 +614,7 @@ impl<'ast> MdRender {
         let code_line = self.code_line_range(node, node_code_block, node_line, synthetic);
         let code_line_text = &self.buffer[code_line];
         let mut layout = Layout::new(code_line);
+        layout.keep_spaces();
         let regions = self.code_line_regions(node, node_code_block, code_line, synthetic);
         if let Some(regions) = regions {
             let text_format = self.text_format(node);

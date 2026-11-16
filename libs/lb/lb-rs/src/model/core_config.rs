@@ -58,6 +58,27 @@ pub struct Config {
 
     #[serde(default)]
     pub client_type: ClientType,
+
+    /// Should dev accounts exit when a db lock is held past its budget? Set per platform: a host
+    /// turns it on where it enforces the frame budget. lb-rs can't derive it, since
+    /// [ClientType::Ui] doesn't mean the host has a frame budget.
+    #[serde(default)]
+    pub lock_budget: bool,
+
+    #[serde(default)]
+    pub read_only: bool,
+
+    /// Should listings, recents, suggestions, pending shares and search include attachments
+    /// folders and their contents? The apps leave them out; the CLI and the Files app show them.
+    #[serde(default)]
+    pub list_attachments: bool,
+
+    /// Seeds the ids and keys of new files and accounts, so a test that takes the same steps
+    /// replays them; None draws from the OS. Seeded keys are guessable, so only test builds have
+    /// it and no saved config sets one.
+    #[cfg(feature = "test-seed")]
+    #[serde(skip)]
+    pub seed: Option<u64>,
 }
 
 impl Default for Config {
@@ -74,6 +95,11 @@ impl Default for Config {
             stdout_logs: false,
             colored_logs: false,
             client_type: ClientType::Unknown,
+            lock_budget: false,
+            read_only: false,
+            list_attachments: false,
+            #[cfg(feature = "test-seed")]
+            seed: None,
         }
     }
 }
@@ -97,6 +123,7 @@ impl Config {
             logs: true,
             colored_logs: true,
             client_type: ClientType::Cli,
+            list_attachments: true,
             ..Default::default()
         }
     }

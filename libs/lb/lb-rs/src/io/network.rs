@@ -7,6 +7,7 @@ use futures::stream;
 use reqwest::{Body, Client};
 
 use crate::get_code_version;
+use crate::io::server::{ApiResult, Server};
 use crate::model::account::Account;
 use crate::model::api::*;
 use crate::model::clock::{Timestamp, get_time};
@@ -158,4 +159,168 @@ fn body_for(serialized_request: Vec<u8>) -> Body {
 #[cfg(target_family = "wasm")]
 fn body_for(serialized_request: Vec<u8>) -> Body {
     Body::from(serialized_request)
+}
+
+impl Server for Network {
+    async fn new_account_v2(
+        &self, account: &Account, request: NewAccountRequestV2,
+    ) -> ApiResult<NewAccountRequestV2> {
+        self.request(account, request).await
+    }
+
+    async fn change_doc_v2(
+        &self, account: &Account, request: ChangeDocRequestV2,
+    ) -> ApiResult<ChangeDocRequestV2> {
+        self.request(account, request).await
+    }
+
+    async fn upsert_file_metadata_v2(
+        &self, account: &Account, request: UpsertRequestV2,
+    ) -> ApiResult<UpsertRequestV2> {
+        self.request(account, request).await
+    }
+
+    async fn get_document(
+        &self, account: &Account, request: GetDocRequest,
+    ) -> ApiResult<GetDocRequest> {
+        self.request(account, request).await
+    }
+
+    async fn get_public_key(
+        &self, account: &Account, request: GetPublicKeyRequest,
+    ) -> ApiResult<GetPublicKeyRequest> {
+        self.request(account, request).await
+    }
+
+    async fn get_username(
+        &self, account: &Account, request: GetUsernameRequest,
+    ) -> ApiResult<GetUsernameRequest> {
+        self.request(account, request).await
+    }
+
+    async fn get_usage(
+        &self, account: &Account, request: GetUsageRequest,
+    ) -> ApiResult<GetUsageRequest> {
+        self.request(account, request).await
+    }
+
+    async fn get_file_ids(
+        &self, account: &Account, request: GetFileIdsRequest,
+    ) -> ApiResult<GetFileIdsRequest> {
+        self.request(account, request).await
+    }
+
+    async fn get_updates_v2(
+        &self, account: &Account, request: GetUpdatesRequestV2,
+    ) -> ApiResult<GetUpdatesRequestV2> {
+        self.request(account, request).await
+    }
+
+    async fn get_build_info(
+        &self, account: &Account, request: GetBuildInfoRequest,
+    ) -> ApiResult<GetBuildInfoRequest> {
+        self.request(account, request).await
+    }
+
+    async fn delete_account(
+        &self, account: &Account, request: DeleteAccountRequest,
+    ) -> ApiResult<DeleteAccountRequest> {
+        self.request(account, request).await
+    }
+
+    async fn upgrade_account_stripe(
+        &self, account: &Account, request: UpgradeAccountStripeRequest,
+    ) -> ApiResult<UpgradeAccountStripeRequest> {
+        self.request(account, request).await
+    }
+
+    async fn upgrade_account_google_play(
+        &self, account: &Account, request: UpgradeAccountGooglePlayRequest,
+    ) -> ApiResult<UpgradeAccountGooglePlayRequest> {
+        self.request(account, request).await
+    }
+
+    async fn upgrade_account_app_store(
+        &self, account: &Account, request: UpgradeAccountAppStoreRequest,
+    ) -> ApiResult<UpgradeAccountAppStoreRequest> {
+        self.request(account, request).await
+    }
+
+    async fn cancel_subscription(
+        &self, account: &Account, request: CancelSubscriptionRequest,
+    ) -> ApiResult<CancelSubscriptionRequest> {
+        self.request(account, request).await
+    }
+
+    async fn get_subscription_info(
+        &self, account: &Account, request: GetSubscriptionInfoRequest,
+    ) -> ApiResult<GetSubscriptionInfoRequest> {
+        self.request(account, request).await
+    }
+
+    async fn get_subscription_info_v2(
+        &self, account: &Account, request: GetSubscriptionInfoRequestV2,
+    ) -> ApiResult<GetSubscriptionInfoRequestV2> {
+        self.request(account, request).await
+    }
+
+    async fn upsert_debug_info(
+        &self, account: &Account, request: UpsertDebugInfoRequest,
+    ) -> ApiResult<UpsertDebugInfoRequest> {
+        self.request(account, request).await
+    }
+
+    async fn admin_disappear_account(
+        &self, account: &Account, request: AdminDisappearAccountRequest,
+    ) -> ApiResult<AdminDisappearAccountRequest> {
+        self.request(account, request).await
+    }
+
+    async fn admin_disappear_file(
+        &self, account: &Account, request: AdminDisappearFileRequest,
+    ) -> ApiResult<AdminDisappearFileRequest> {
+        self.request(account, request).await
+    }
+
+    async fn admin_validate_account(
+        &self, account: &Account, request: AdminValidateAccountRequest,
+    ) -> ApiResult<AdminValidateAccountRequest> {
+        self.request(account, request).await
+    }
+
+    async fn admin_validate_server(
+        &self, account: &Account, request: AdminValidateServerRequest,
+    ) -> ApiResult<AdminValidateServerRequest> {
+        self.request(account, request).await
+    }
+
+    async fn admin_list_users(
+        &self, account: &Account, request: AdminListUsersRequest,
+    ) -> ApiResult<AdminListUsersRequest> {
+        self.request(account, request).await
+    }
+
+    async fn admin_get_account_info(
+        &self, account: &Account, request: AdminGetAccountInfoRequest,
+    ) -> ApiResult<AdminGetAccountInfoRequest> {
+        self.request(account, request).await
+    }
+
+    async fn admin_file_info(
+        &self, account: &Account, request: AdminFileInfoRequest,
+    ) -> ApiResult<AdminFileInfoRequest> {
+        self.request(account, request).await
+    }
+
+    async fn admin_set_user_tier(
+        &self, account: &Account, request: AdminSetUserTierRequest,
+    ) -> ApiResult<AdminSetUserTierRequest> {
+        self.request(account, request).await
+    }
+
+    async fn admin_rebuild_index(
+        &self, account: &Account, request: AdminRebuildIndexRequest,
+    ) -> ApiResult<AdminRebuildIndexRequest> {
+        self.request(account, request).await
+    }
 }

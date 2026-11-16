@@ -4,8 +4,9 @@ use crate::model::crypto::{AESKey, DecryptedDocument, EncryptedDocument};
 use crate::model::errors::{LbErrKind, LbResult};
 use crate::model::file::{File, Share, ShareMode};
 use crate::model::file_metadata::{DocumentHmac, FileType, Owner};
+use crate::model::filename::{NameComponents, attachments_folder_name};
 use crate::model::lazy::LazyTree;
-use crate::model::meta::Meta;
+use crate::model::meta::{AttachmentsOf, Meta};
 use crate::model::secret_filename::{HmacSha256, SecretFileName};
 use crate::model::staged::{StagedTree, StagedTreeLike};
 use crate::model::tree_like::{TreeLike, TreeLikeMut};
@@ -14,6 +15,7 @@ use crate::service::keychain::Keychain;
 use db_rs::views::hashmap::DbHashMap;
 use hmac::{Mac, NewMac};
 use libsecp256k1::PublicKey;
+use std::collections::HashSet;
 use tracing::debug;
 use uuid::Uuid;
 
@@ -54,7 +56,10 @@ where
 
         let mut shares = Vec::new();
         for user_access_key in meta.user_access_keys() {
+            // a share to the file's owner, which a move into the recipient's folder carries along,
+            // grants nothing
             if user_access_key.encrypted_by == user_access_key.encrypted_for
+                || user_access_key.encrypted_for == meta.owner().0
                 || user_access_key.deleted
             {
                 continue;
@@ -146,6 +151,53 @@ where
         Ok((file, id))
     }
 
+    /// `document`'s attachments folder, beside it and named for it as it is now.
+    pub fn create_attachments_op(
+        &mut self, id: Uuid, key: AESKey, document: &Uuid, keychain: &Keychain,
+    ) -> LbResult<SignedMeta> {
+        let doc = self.find(document)?;
+        validate::is_document(doc)?;
+        let parent = *doc.parent();
+        if self.maybe_find(&parent).is_none() {
+            return Err(LbErrKind::InsufficientPermission.into());
+        }
+        let name = self.attachments_name(document, keychain)?;
+        let document_key = self.decrypt_key(document, keychain)?;
+        let (file, _) = self.create_op(id, key, &parent, &name, FileType::Folder, keychain)?;
+        let attachments_of =
+            AttachmentsOf { id: *document, key: symkey::encrypt(&document_key, &key)? };
+        file.timestamped_value
+            .value
+            .into_attachments(attachments_of)
+            .sign(keychain)
+    }
+
+    /// The name a new attachments folder for `document` gets: the first name for it that no other
+    /// file beside the document has. The folder keeps it: nothing renames the folder to follow its
+    /// document, since the document's text names it.
+    pub fn attachments_name(&mut self, document: &Uuid, keychain: &Keychain) -> LbResult<String> {
+        let document_name = self.name(document, keychain)?;
+        let parent = *self.find(document)?.parent();
+        let taken = self.names_beside(&parent, None, keychain)?;
+        Ok((1..=taken.len() + 1)
+            .map(|n| attachments_folder_name(&document_name, n))
+            .find(|name| !taken.contains(name))
+            .expect("one of n + 1 names is free beside n files"))
+    }
+
+    /// The names of the live files in `parent`, but for `except`.
+    fn names_beside(
+        &mut self, parent: &Uuid, except: Option<Uuid>, keychain: &Keychain,
+    ) -> LbResult<HashSet<String>> {
+        let mut taken = HashSet::new();
+        for sibling in self.children(parent)? {
+            if Some(sibling) != except && !self.calculate_deleted(&sibling)? {
+                taken.insert(self.name(&sibling, keychain)?);
+            }
+        }
+        Ok(taken)
+    }
+
     pub fn rename_op(
         &mut self, id: &Uuid, name: &str, keychain: &Keychain,
     ) -> LbResult<SignedMeta> {
@@ -180,8 +232,14 @@ where
         let file = file.sign(keychain)?;
 
         let mut result = vec![file];
-        for id in self.descendants(id)? {
-            if self.calculate_deleted(&id)? {
+        let moved = *id;
+        for id in self.descendants(&moved)? {
+            // deleted after the move: deleted inside the moved file, not above it
+            let mut file = self.find(&id)?;
+            while !file.explicitly_deleted() && *file.parent() != moved {
+                file = self.find(file.parent())?;
+            }
+            if file.explicitly_deleted() {
                 continue;
             }
             let mut descendant = self.find(&id)?.timestamped_value.value.clone();
@@ -266,12 +324,27 @@ where
         if !found {
             return Err(LbErrKind::ShareNonexistent.into());
         }
-        result.push(file.sign(keychain)?);
+        let unshared = file.sign(keychain)?;
+        result.push(unshared.clone());
 
-        // delete any links pointing to file
-        if let Some(encrypted_for) = maybe_encrypted_for {
-            if encrypted_for == keychain.get_pk()? {
-                if let Some(link) = self.linked_by(id)? {
+        // delete my links to the file, and to files in it that are no longer shared with me
+        let me = Owner(keychain.get_pk()?);
+        if maybe_encrypted_for == Some(me.0) {
+            let mut links = vec![];
+            for link in self.ids() {
+                if let FileType::Link { target } = self.find(&link)?.file_type() {
+                    if self.find(&link)?.owner() == me && !self.calculate_deleted(&link)? {
+                        links.push((link, target));
+                    }
+                }
+            }
+            let after = StagedTree::new(&self.tree, Some(unshared)).to_lazy();
+            for (link, target) in links {
+                let unreachable = target == *id
+                    || (after.maybe_find(&target).is_some()
+                        && after.ancestors(&target)?.contains(id)
+                        && after.access_mode(me, &target)?.is_none());
+                if unreachable {
                     let mut link = self.find(&link)?.timestamped_value.value.clone();
                     link.set_deleted(true);
                     result.push(link.sign(keychain)?);
@@ -360,6 +433,28 @@ where
         Ok(id)
     }
 
+    /// Creates `document`'s attachments folder beside it.
+    pub fn create_attachments(
+        &mut self, id: Uuid, key: AESKey, document: &Uuid, keychain: &Keychain,
+    ) -> LbResult<Uuid> {
+        if self.calculate_deleted(document)? {
+            return Err(LbErrKind::FileNonexistent.into());
+        }
+        let op = self.create_attachments_op(id, key, document, keychain)?;
+        self.stage_validate_and_promote(Some(op), Owner(keychain.get_pk()?))?;
+        Ok(id)
+    }
+
+    /// Makes the new folder `id` an attachments folder, as `attachments_of` says.
+    pub fn attach_unvalidated(
+        &mut self, id: &Uuid, attachments_of: AttachmentsOf, keychain: &Keychain,
+    ) -> LbResult<()> {
+        let file = self.find(id)?.timestamped_value.value.clone();
+        let op = file.into_attachments(attachments_of).sign(keychain)?;
+        self.stage_and_promote(Some(op))?;
+        Ok(())
+    }
+
     pub fn rename_unvalidated(
         &mut self, id: &Uuid, name: &str, keychain: &Keychain,
     ) -> LbResult<()> {
@@ -368,9 +463,65 @@ where
         Ok(())
     }
 
+    /// Renames `id`. A document's attachments folder keeps its name, and can't be renamed itself.
     pub fn rename(&mut self, id: &Uuid, name: &str, keychain: &Keychain) -> LbResult<()> {
+        if self.find(id)?.attachments_of().is_some() {
+            return Err(LbErrKind::AttachmentsFolderFixed.into());
+        }
         let op = self.rename_op(id, name, keychain)?;
         self.stage_validate_and_promote(Some(op), Owner(keychain.get_pk()?))?;
+        Ok(())
+    }
+
+    /// Whether `id` is a live document of `me`'s with no attachments folder that someone else
+    /// writes by a share of its own. Sharing a document alone gives its writers no say in its
+    /// folder, so they can't make its attachments folder, and its owner makes it for them.
+    pub fn wants_shared_attachments(&mut self, id: &Uuid, me: Owner) -> LbResult<bool> {
+        let file = self.find(id)?;
+        let written = file
+            .user_access_keys()
+            .iter()
+            .any(|k| !k.deleted && k.mode == UserAccessMode::Write && k.encrypted_for != me.0);
+        Ok(file.is_document()
+            && file.owner() == me
+            && written
+            && !self.calculate_deleted(id)?
+            && self.attachments_folder(id)?.is_none())
+    }
+
+    /// Puts `document`'s attachments folder, if it has one, beside it, as
+    /// [Self::place_attachments_folder] does.
+    pub fn place_attachments(&mut self, document: &Uuid, keychain: &Keychain) -> LbResult<()> {
+        if !self.find(document)?.is_document() || self.calculate_deleted(document)? {
+            return Ok(());
+        }
+        let Some(folder) = self.attachments_folder(document)? else {
+            return Ok(());
+        };
+        self.place_attachments_folder(document, &folder, keychain)
+    }
+
+    /// Puts `folder`, an attachments folder of the live `document`, beside it. It keeps its name,
+    /// numbered as a conflict is (`plan-attachments 2`) where another file beside the document has
+    /// it.
+    pub fn place_attachments_folder(
+        &mut self, document: &Uuid, folder: &Uuid, keychain: &Keychain,
+    ) -> LbResult<()> {
+        let folder = *folder;
+        let parent = *self.find(document)?.parent();
+        if *self.find(&folder)?.parent() != parent {
+            self.move_unvalidated(&folder, &parent, keychain)?;
+        }
+        let taken = self.names_beside(&parent, Some(folder), keychain)?;
+        let name = self.name(&folder, keychain)?;
+        if taken.contains(&name) {
+            let numbered = NameComponents::folder(&name);
+            let free = (2..=taken.len() + 2)
+                .map(|n| numbered.numbered(n))
+                .find(|name| !taken.contains(name))
+                .expect("one of n + 1 names is free beside n files");
+            self.rename_unvalidated(&folder, &free, keychain)?;
+        }
         Ok(())
     }
 
@@ -386,8 +537,14 @@ where
         if self.maybe_find(new_parent).is_none() || self.calculate_deleted(new_parent)? {
             return Err(LbErrKind::FileParentNonexistent.into());
         }
-        let op = self.move_op(id, new_parent, keychain)?;
-        self.stage_validate_and_promote(op, Owner(keychain.get_pk()?))?;
+        if self.find(id)?.attachments_of().is_some() {
+            return Err(LbErrKind::AttachmentsFolderFixed.into());
+        }
+        let mut tree = StagedTree::new(&self.tree, Vec::new()).to_lazy();
+        tree.move_unvalidated(id, new_parent, keychain)?;
+        tree.place_attachments(id, keychain)?;
+        let (_, ops) = tree.unstage();
+        self.stage_validate_and_promote(ops, Owner(keychain.get_pk()?))?;
         Ok(())
     }
 
@@ -411,6 +568,27 @@ where
         Ok(())
     }
 
+    /// Shares `id`, and with `attachments`, an id and key for a new folder, makes the attachments
+    /// folder its owner makes for a document others write by a share of its own, in the same
+    /// change.
+    pub fn add_share_and_attach(
+        &mut self, id: Uuid, sharee: Owner, mode: ShareMode, attachments: Option<(Uuid, AESKey)>,
+        keychain: &Keychain,
+    ) -> LbResult<()> {
+        let me = Owner(keychain.get_pk()?);
+        let mut tree = StagedTree::new(&self.tree, Vec::new()).to_lazy();
+        tree.add_share_unvalidated(id, sharee, mode, keychain)?;
+        if let Some((folder, key)) = attachments {
+            if tree.wants_shared_attachments(&id, me)? {
+                let op = tree.create_attachments_op(folder, key, &id, keychain)?;
+                tree.stage_and_promote(Some(op))?;
+            }
+        }
+        let (_, ops) = tree.unstage();
+        self.stage_validate_and_promote(ops, me)?;
+        Ok(())
+    }
+
     pub fn add_share(
         &mut self, id: Uuid, sharee: Owner, mode: ShareMode, keychain: &Keychain,
     ) -> LbResult<()> {
@@ -430,8 +608,96 @@ where
     pub fn delete_share(
         &mut self, id: &Uuid, maybe_encrypted_for: Option<PublicKey>, keychain: &Keychain,
     ) -> LbResult<()> {
-        let op = self.delete_share_op(id, maybe_encrypted_for, keychain)?;
-        self.stage_validate_and_promote(op, Owner(keychain.get_pk()?))?;
+        let me = Owner(keychain.get_pk()?);
+        let mut tree = StagedTree::new(&self.tree, Vec::new()).to_lazy();
+        if maybe_encrypted_for == Some(me.0) {
+            // this device is leaving the share: its moves into the share that never reached the
+            // server go back, as a sync would put them, rather than leaving with the share. e.g.
+            // the server has /notes/ and /team/, the share; here notes was moved to /team/notes/;
+            // after leaving, notes is back at /notes/
+            let synced = self.tree.base().to_lazy();
+
+            // 1. the unsynced moves, as (file, to, from): files whose parent here differs from
+            //    the server's, skipping files deleted here and files whose old parent was
+            //    deleted here, whose move stays
+            let mut moves = Vec::new();
+            for moved in self.tree.staged().ids() {
+                let Some(base) = synced.maybe_find(&moved) else { continue };
+                let file = self.find(&moved)?;
+                if !file.explicitly_deleted()
+                    && file.parent() != base.parent()
+                    && !tree.calculate_deleted(base.parent())?
+                {
+                    moves.push((moved, *file.parent(), *base.parent()));
+                }
+            }
+
+            // 2. a move goes back when its new parent is in the share and its old parent isn't.
+            //    whether a file is in the share is asked of the server's tree, or of this
+            //    device's for a file the server doesn't have. a new parent must be in the share
+            //    here too: one this device took out of the share keeps what moved into it, as a
+            //    sync judges it where this device's own move puts it
+            let in_share = |file: &Uuid| -> LbResult<bool> {
+                Ok(file == id
+                    || match synced.maybe_find(file) {
+                        Some(_) => synced.ancestors(file)?.contains(id),
+                        None => self.ancestors(file)?.contains(id),
+                    })
+            };
+            let kept_in_share = |file: &Uuid| -> LbResult<bool> {
+                Ok(in_share(file)? && (file == id || self.ancestors(file)?.contains(id)))
+            };
+            let mut undone = Vec::new();
+            for &(moved, to, from) in &moves {
+                if kept_in_share(&to)? && !in_share(&from)? {
+                    tree.move_unvalidated(&moved, &from, keychain)?;
+                    undone.push(moved);
+                }
+            }
+
+            // 3. undoing can leave a folder inside itself. e.g. the server has /p/a/; here a was
+            //    moved into the share, then p into a; putting a back under p makes p its own
+            //    ancestor. so any recorded move whose file is now its own ancestor goes back too
+            while let Some(&(moved, _, from)) = moves.iter().find(|(moved, _, _)| {
+                !undone.contains(moved) && tree.ancestors(moved).is_ok_and(|a| a.contains(moved))
+            }) {
+                tree.move_unvalidated(&moved, &from, keychain)?;
+                undone.push(moved);
+            }
+
+            // 4. each file put back takes the first free numbered name in its parent ("notes",
+            //    then "notes 2"), in id order, so which of two same-named files keeps the name
+            //    doesn't depend on the order the moves were found in
+            undone.sort();
+            for moved in undone {
+                let parent = *tree.find(&moved)?.parent();
+                let name = tree.name(&moved, keychain)?;
+                let mut taken = HashSet::new();
+                for sibling in tree.children(&parent)? {
+                    if sibling != moved && !tree.calculate_deleted(&sibling)? {
+                        taken.insert(tree.name(&sibling, keychain)?);
+                    }
+                }
+                let components = if tree.find(&moved)?.is_folder() {
+                    NameComponents::folder(&name)
+                } else {
+                    NameComponents::from(&name)
+                };
+                let free = (1..)
+                    .map(|n| components.numbered(n))
+                    .find(|name| !taken.contains(name))
+                    .unwrap();
+                if free != name {
+                    tree.rename_unvalidated(&moved, &free, keychain)?;
+                }
+            }
+        }
+        // the moves put back, their renames and the unshare are staged together, then validated
+        // and promoted as one change
+        let unshared = tree.delete_share_op(id, maybe_encrypted_for, keychain)?;
+        tree.stage_and_promote(unshared)?;
+        let (_, op) = tree.unstage();
+        self.stage_validate_and_promote(op, me)?;
         Ok(())
     }
 

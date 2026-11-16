@@ -2,7 +2,9 @@ pub mod document_preview;
 pub(crate) mod egress;
 pub mod file_cache;
 pub mod font;
+pub mod front_matter;
 pub mod history_swipe;
+pub mod import;
 pub mod landing;
 pub mod link_plan;
 pub mod link_preview;
@@ -44,6 +46,6 @@ pub fn register_fonts(fonts: &mut epaint::text::FontDefinitions) {
 }
 
 pub use widgets::glyphon_render::{
-    GlyphonRenderCallbackResources, GlyphonRendererCallback, TextBufferArea, register_font_system,
-    register_render_callback_resources,
+    GlyphonRenderCallbackResources, GlyphonRendererCallback, Printing, TextBufferArea, paint_text,
+    printing, register_font_system, register_render_callback_resources,
 };

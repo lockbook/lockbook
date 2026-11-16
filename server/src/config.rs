@@ -3,6 +3,7 @@ use lb_rs::model::account::Username;
 use semver::VersionReq;
 use std::collections::HashSet;
 use std::fmt::Display;
+use std::net::SocketAddr;
 use std::path::PathBuf;
 use std::time::Duration;
 use std::{env, fmt, fs};
@@ -78,6 +79,10 @@ pub struct FeatureFlags {
     pub new_accounts: bool,
     pub new_account_rate_limit: bool,
     pub bandwidth_controls: bool,
+    /// Accept metadata V2, which only attachments folders are written as. Set in code, not read
+    /// from the environment: off in production until the change that turns creation on, on in the
+    /// in-process server tests use.
+    pub meta_v2: bool,
 }
 
 impl FeatureFlags {
@@ -95,6 +100,7 @@ impl FeatureFlags {
                 .unwrap_or_else(|_| "true".to_string())
                 .parse()
                 .unwrap(),
+            meta_v2: false,
         }
     }
 }
@@ -187,6 +193,7 @@ impl ServerConfig {
 
 #[derive(Clone, Debug)]
 pub struct MetricsConfig {
+    pub addr: SocketAddr,
     pub time_between_metrics_refresh: Duration,
     pub time_between_metrics: Duration,
 }
@@ -194,6 +201,9 @@ pub struct MetricsConfig {
 impl MetricsConfig {
     pub fn from_env_vars() -> Self {
         Self {
+            addr: env_or_empty("METRICS_ADDR")
+                .map(|addr| addr.parse().unwrap())
+                .unwrap_or(([127, 0, 0, 1], 8080).into()),
             time_between_metrics_refresh: Duration::from_secs(
                 env_or_panic("MINUTES_BETWEEN_METRICS_REFRESH")
                     .parse::<u64>()

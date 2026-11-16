@@ -46,7 +46,7 @@ impl Response {
                 }
             }
         } else {
-            eprintln!("viewport missing: not redrawing or setting window title");
+            tracing::warn!("viewport missing: not redrawing or setting window title");
         }
 
         let (copied_text, copied_html) = match context.pop_copied_rendered() {
@@ -80,7 +80,7 @@ impl Response {
                         .and_then(|i| match encode_png(i) {
                             Ok(png) => Some(png),
                             Err(err) => {
-                                eprintln!("failed to encode copied image: {err}");
+                                tracing::warn!("failed to encode copied image: {err}");
                                 None
                             }
                         })

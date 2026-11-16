@@ -59,6 +59,9 @@ pub struct DocScrollContent<'a, 'ast> {
     bounds: Option<(DocRowId, DocRowId)>,
 }
 
+/// The top pad, which holds content clear of the Android status bar.
+pub const DEFAULT_LEADING: f32 = 15.0;
+
 impl<'a, 'ast> DocScrollContent<'a, 'ast> {
     pub fn new(renderer: &'a MdRender, root: &'ast AstNode<'ast>, trailing_precise: f32) -> Self {
         let source = renderer.view == View::Source;
@@ -78,12 +81,21 @@ impl<'a, 'ast> DocScrollContent<'a, 'ast> {
     }
 
     /// Set `leading_precise` to the default top-padding for production
-    /// rendering. Platform chrome is handled separately from document padding.
+    /// rendering, or to how far the first row's font rises above its row
+    /// when that is more.
+    /// Platform chrome is handled separately from document padding.
     /// All production walks (render + persistence + scroll-
     /// to) must agree on this value or anchor offsets drift by the
     /// difference.
     pub fn with_default_leading(mut self) -> Self {
-        self.leading_precise = 15.0;
+        let first_row_height = match self.blocks.first() {
+            Some(node) => self.renderer.row_height(node),
+            None => self.renderer.layout.row_height,
+        };
+        self.leading_precise = self
+            .renderer
+            .ascent_overflow(first_row_height)
+            .max(DEFAULT_LEADING);
         self
     }
 
@@ -97,11 +109,11 @@ impl<'a, 'ast> DocScrollContent<'a, 'ast> {
     }
 
     /// Row whose layout holds `target`: the block whose source range
-    /// contains it (endpoints inclusive, so an end-of-line cursor
-    /// matches), or whose spacing lays out the blank line it is on, the
-    /// blank lines before a block and those after the last one. Other
-    /// targets past every row resolve to `Trailing`, before every row to
-    /// `Leading`.
+    /// contains it (endpoints inclusive, so an end-of-line cursor matches)
+    /// or whose first line's indent holds it, or whose spacing lays out the
+    /// blank line it is on, the blank lines before a block and those after
+    /// the last one. Other targets past every row resolve to `Trailing`,
+    /// before every row to `Leading`.
     pub fn find_text_row(&self, target: Grapheme) -> Option<DocRowId> {
         if self.source {
             for i in 0..self.line_count {
@@ -122,6 +134,13 @@ impl<'a, 'ast> DocScrollContent<'a, 'ast> {
             let (_, e) = self.renderer.node_range(self.blocks[i]);
             if target <= e {
                 return Some(DocRowId::Block(i));
+            }
+        }
+        if let Some(node) = self.blocks.get(after) {
+            let (s, _) = self.renderer.node_range(node);
+            let indent = &self.renderer.buffer[(target, s)];
+            if indent.chars().all(|c| c == ' ' || c == '\t') {
+                return Some(DocRowId::Block(after));
             }
         }
         let holds = |lines| {

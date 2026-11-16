@@ -3,7 +3,7 @@ use crate::billing::app_store_client::AppStoreClient;
 use crate::billing::billing_model::BillingPlatform;
 use crate::billing::google_play_client::GooglePlayClient;
 use crate::billing::stripe_client::StripeClient;
-use crate::document_service::DocumentService;
+use crate::document_service::{DocumentService, stored};
 use crate::guard::ServerTx;
 use crate::schema::{Account, ServerV6};
 use crate::utils::username_is_valid;
@@ -17,9 +17,8 @@ use lb_rs::model::api::{
     AdminListUsersResponse, DeleteAccountError, DeleteAccountRequest, FileUsage, GetPublicKeyError,
     GetPublicKeyRequest, GetPublicKeyResponse, GetUsageError, GetUsageRequest, GetUsageResponse,
     GetUsernameError, GetUsernameRequest, GetUsernameResponse, METADATA_FEE, NewAccountError,
-    NewAccountRequestV2, NewAccountResponse, PaymentPlatform,
+    NewAccountRequestV2, NewAccountResponse, PaymentPlatformV2,
 };
-use lb_rs::model::clock::get_time;
 use lb_rs::model::file_like::FileLike;
 use lb_rs::model::file_metadata::Owner;
 use lb_rs::model::server_meta::IntoServerMeta;
@@ -57,13 +56,18 @@ where
             return Err(ClientError(NewAccountError::Disabled));
         }
 
-        let root = request.root_folder.clone();
-        let now = get_time().0 as u64;
-        let root = root.add_time(now);
+        // a root is never an attachments folder, the only file written as V2
+        if crate::file_service::writes_v2(&request.root_folder) {
+            return Err(internal!("new account root is V2 metadata"));
+        }
 
         let mut guard = self.index_db.lock().await;
         let mut tx = ServerTx::begin(&mut guard)?;
         let db = &mut *tx;
+        let root = request
+            .root_folder
+            .clone()
+            .add_time(self.clock.now().0 as u64);
         if let Some(ip) = context.ip {
             if !self.can_create_account(ip.ip()).await {
                 return Err(ClientError(NewAccountError::RateLimited));
@@ -320,11 +324,15 @@ where
             .clone();
 
         let mut maybe_root = None;
+        let deleted = db
+            .owned_files
+            .get(&owner)
+            .is_none_or(|owned_ids| owned_ids.is_empty());
         if let Some(owned_ids) = db.owned_files.get(&owner) {
             for id in owned_ids {
                 if let Some(meta) = db.metas.get(id) {
                     if meta.is_root() {
-                        maybe_root = Some(*meta.id());
+                        maybe_root = Some(meta.clone());
                     }
                 } else {
                     return Err(internal!(
@@ -334,49 +342,49 @@ where
                     ));
                 }
             }
-        } else {
-            return Err(internal!("Owned files not indexed for user, owner: {:?}", owner));
         }
-        let root = if let Some(root) = maybe_root {
-            root
-        } else {
+        if !deleted && maybe_root.is_none() {
             return Err(internal!("User root not found, owner: {:?}", owner));
-        };
+        }
 
         let payment_platform = account
             .billing_info
             .billing_platform
             .map(|billing_platform| match billing_platform {
                 BillingPlatform::Stripe(user_info) => {
-                    PaymentPlatform::Stripe { card_last_4_digits: user_info.last_4 }
+                    PaymentPlatformV2::Stripe { card_last_4_digits: user_info.last_4 }
                 }
                 BillingPlatform::GooglePlay(user_info) => {
-                    PaymentPlatform::GooglePlay { account_state: user_info.account_state }
+                    PaymentPlatformV2::GooglePlay { account_state: user_info.account_state }
                 }
                 BillingPlatform::AppStore(user_info) => {
-                    PaymentPlatform::AppStore { account_state: user_info.account_state }
+                    PaymentPlatformV2::AppStore { account_state: user_info.account_state }
                 }
             });
 
-        let mut tree = ServerTree::new(
-            owner,
-            &mut db.owned_files,
-            &mut db.shared_files,
-            &mut db.file_children,
-            &mut db.metas,
-        )?
-        .to_lazy();
-
-        let usage = tree.calculate_usage(owner)?;
-
-        let usage_str = bytes_to_human(usage);
+        let usage = if deleted {
+            0
+        } else {
+            ServerTree::new(
+                owner,
+                &mut db.owned_files,
+                &mut db.shared_files,
+                &mut db.file_children,
+                &mut db.metas,
+            )?
+            .to_lazy()
+            .calculate_usage(owner)?
+        };
 
         Ok(AdminGetAccountInfoResponse {
             account: AccountInfo {
                 username: account.username,
-                root,
+                root: maybe_root.as_ref().map(|root| *root.id()),
                 payment_platform,
-                usage: usage_str,
+                usage: bytes_to_human(usage),
+                created: maybe_root.map(|root| root.file.timestamped_value.timestamp as u64),
+                last_seen: db.last_seen.get(&owner).copied(),
+                deleted,
             },
         })
     }
@@ -442,7 +450,10 @@ where
         }
 
         for (id, version) in docs_to_delete {
-            self.document_service.delete(&id, &version).await?;
+            self.document_service
+                .delete(id, version)
+                .await
+                .map_err(stored)?;
         }
         Ok(())
     }

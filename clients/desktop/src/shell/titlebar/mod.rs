@@ -29,7 +29,7 @@ use egui::Sense;
 use egui::{Area, Id, Order, Rect, pos2, vec2};
 
 use crate::components::{
-    Theme, claim, icon_button_glyph, phosphor, phosphor_font_id, place_at, tip_text,
+    Theme, claim, icon_button_glyph, icon_plate, phosphor, phosphor_font_id, place_at, tip_text,
 };
 use egui::{Align, Layout};
 
@@ -254,6 +254,10 @@ fn floating_toolbar(app: &mut ShellApp, ctx: &egui::Context, t: &Theme, queue: &
         .ready()
         .map(|r| (r.workspace.can_back(), r.workspace.can_forward()))
         .unwrap_or((false, false));
+    let unseen_shares = app
+        .session
+        .ready()
+        .is_some_and(|r| r.workspace.has_unseen_shares());
 
     Area::new(Id::unique("shell_sidebar_toolbar"))
         .enabled(app.modal.is_none())
@@ -273,6 +277,10 @@ fn floating_toolbar(app: &mut ShellApp, ctx: &egui::Context, t: &Theme, queue: &
                 let (resp, _) = place_at(ui, slot, Layout::top_down(Align::Min), |ui| {
                     titlebar_icon(ui, t, pane.icon(), active, true, ground, pane.title())
                 });
+                // An open pane marks its shares seen after the titlebar draws.
+                if *pane == SidebarPane::Shared && unseen_shares && !active {
+                    paint_badge(ui, t, resp.rect, pane.icon(), icon_plate(ui, t, &resp, ground));
+                }
                 if resp.clicked() {
                     queue.push(A::SelectPane(*pane));
                 }
@@ -378,9 +386,37 @@ fn titlebar_icon(
     }
 }
 
+/// Accent dot on the top-right corner of `icon`'s glyph inside `hit`, ringed
+/// in `plate` so it reads as cut out of the glyph.
+fn paint_badge(ui: &egui::Ui, t: &Theme, hit: Rect, icon: &'static str, plate: egui::Color32) {
+    const R: f32 = 3.0;
+    const RING: f32 = 1.5;
+    let painter = ui.painter();
+    let g = painter.layout_no_wrap(
+        icon.into(),
+        phosphor_font_id(titlebar_glyph()),
+        egui::Color32::PLACEHOLDER,
+    );
+    // Drawn ink, not the line box: placed the way icon_button_glyph places it.
+    let ink = g
+        .mesh_bounds
+        .translate((hit.center() - g.size() / 2.0).to_vec2());
+    let c = ink.right_top();
+    painter.circle_filled(c, R + RING, plate);
+    painter.circle_filled(c, R, t.accent());
+}
+
 #[cfg(not(target_os = "macos"))]
 fn window_resize_edges(ctx: &egui::Context) {
     use egui::{CursorIcon, PointerButton, ResizeDirection, ViewportCommand};
+    // A resize on a maximized or fullscreen window never starts, and on Windows
+    // winit then refuses every later resize and title-bar drag.
+    let sized_by_os = ctx.input(|i| {
+        i.viewport().maximized.unwrap_or(false) || i.viewport().fullscreen.unwrap_or(false)
+    });
+    if sized_by_os {
+        return;
+    }
     let r = ctx.content_rect();
     let b = 6.0;
     let zones = [
@@ -445,6 +481,13 @@ fn window_resize_edges(ctx: &egui::Context) {
             CursorIcon::ResizeNwSe,
         ),
     ];
+    // One resize per press, sent once the press is decidedly a drag, so its
+    // release (which the window manager keeps) never counts as a click.
+    let armed_id = Id::unique("shell_window_resize_armed");
+    if !ctx.input(|i| i.pointer.primary_down()) {
+        ctx.data_mut(|d| d.insert_temp(armed_id, false));
+    }
+    let decided = ctx.input(|i| i.pointer.is_decidedly_dragging());
     for (id, rect, dir, cursor) in zones {
         Area::new(Id::unique(id))
             .order(Order::Foreground)
@@ -453,7 +496,9 @@ fn window_resize_edges(ctx: &egui::Context) {
                 let resp = ui
                     .allocate_response(rect.size(), Sense::drag())
                     .on_hover_cursor(cursor);
-                if resp.drag_started_by(PointerButton::Primary) {
+                let armed = ui.data(|d| d.get_temp::<bool>(armed_id).unwrap_or(false));
+                if resp.dragged_by(PointerButton::Primary) && decided && !armed {
+                    ui.data_mut(|d| d.insert_temp(armed_id, true));
                     ui.ctx()
                         .send_viewport_cmd(ViewportCommand::BeginResize(dir));
                 }

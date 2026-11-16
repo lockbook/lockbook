@@ -39,8 +39,7 @@ impl<'ast> MdRender {
     }
 
     pub fn rendered_html_of(&self, markdown: &str) -> String {
-        let mut options = Self::comrak_options();
-        options.parse.smart = false; // the plain flavor and the screen show the source characters
+        let options = Self::comrak_options();
         let html = self.diagrams_as_images(comrak::markdown_to_html(markdown, &options));
         match html
             .strip_prefix("<p>")
@@ -68,7 +67,7 @@ impl<'ast> MdRender {
                 let picture = self
                     .diagrams
                     .image(source)
-                    .and_then(|(image, size)| Some((encode_png(&image).ok()?, size)));
+                    .and_then(|image| Some((encode_png(&image).ok()?, image.source_size)));
                 match picture {
                     Some((png, size)) => format!(
                         r#"<img src="data:image/png;base64,{}" width="{}" alt="diagram">"#,

@@ -7,6 +7,9 @@ We're not in the business of making a build-your-own markdown flavor so each use
 ## Soft breaks are hard
 The spec leaves soft-break rendering to the implementer, so we render **soft breaks as hard breaks, everywhere** — the note, the composer, previews. That is what an interactive editor needs, even if it's not the norm for rendering. Obsidian's editor does the same, but not in their render previews, which creates confusion when switching between these modes. We push that division out to the export boundary so notes within Lockbook appear consistently throughout.
 
+## Blank lines are spacing
+A blank line ends a block, and the reader sees it: the gap between two paragraphs is the blank line between them, drawn. So every line in the source is a line on screen, a line break is a row, a blank line is a taller gap. Edits keep that: nothing adds a blank line the user didn't type, and nothing takes one away while what it separated is still there. An image or embed dropped onto a blank line goes on that line, as typing there would, and the lines around it become one paragraph.
+
 ## Interactive editing
 Some CommonMark behavior is faithful and still feels wrong *while you type*. Setext headings are off because starting a hyphen-bullet under a paragraph briefly turned that paragraph into a heading and users found it very confusing. A lone hyphen on the next line is a one-item empty list — unless there is no blank line after the paragraph, in which case it is just a hyphen. Work-in-progress syntax should not surprise people mid-keystroke as able (subject to parser constraints).
 

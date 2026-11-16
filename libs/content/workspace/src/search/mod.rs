@@ -100,10 +100,10 @@ pub(crate) fn row_menu(
     crate::style::context_menu::show(resp, t, |e| {
         e.item(phosphor::ARROW_SQUARE_OUT, "Open", RowMenu::Open { new_tab: false });
         if !is_folder {
-            e.item(phosphor::APP_WINDOW, "Open in new tab", RowMenu::Open { new_tab: true });
+            e.item(phosphor::APP_WINDOW, "Open in New Tab", RowMenu::Open { new_tab: true });
         }
         e.separator();
-        e.item(phosphor::LINK, "Copy link", RowMenu::File(FileCmd::CopyLink));
+        e.item(phosphor::LINK, "Copy Link", RowMenu::File(FileCmd::CopyLink));
         if let Some(pinned) = pin_state() {
             let label = if pinned { "Unpin" } else { "Pin" };
             e.item(phosphor::PUSH_PIN, label, RowMenu::File(FileCmd::TogglePin));
@@ -669,6 +669,9 @@ impl Workspace {
         let Some((id, new_tab)) = activated else {
             return;
         };
+        if let Err(err) = self.core.search_accepted(id) {
+            tracing::warn!("search result not recorded: {err}");
+        }
         if self.is_folder(id) {
             let files = self.files.read().unwrap();
             let root = files.root().id;

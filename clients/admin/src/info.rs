@@ -2,6 +2,7 @@ use std::iter;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use basic_human_duration::ChronoHumanDuration;
+use cli_rs::cli_error::CliResult;
 use lb::Uuid;
 use lb::blocking::Lb;
 use lb::model::api::AccountIdentifier;
@@ -9,12 +10,16 @@ use lb::model::file_like::FileLike;
 use lb::model::lazy::LazyTree;
 use lb::model::server_meta::ServerMeta;
 use lb::model::tree_like::TreeLike;
+use lb::model::usage::bytes_to_human;
 use time::Duration;
 
-use crate::Res;
-
-pub fn file(core: &Lb, id: Uuid) -> Res<()> {
+pub fn file(core: &Lb, id: Uuid) -> CliResult<()> {
     let info = core.admin_file_info(id)?;
+    let mut tree = iter::once(info.file.clone())
+        .chain(info.ancestors.iter().cloned())
+        .chain(info.descendants.iter().cloned())
+        .collect::<Vec<_>>()
+        .to_lazy();
     println!("id:\t\t\t{}", info.file.id());
     println!("file_type:\t\t{:?}", info.file.file_type());
     println!("parent:\t\t\t{}", info.file.parent());
@@ -25,6 +30,18 @@ pub fn file(core: &Lb, id: Uuid) -> Res<()> {
     );
     println!("explicitly_deleted:\t{}", info.file.explicitly_deleted());
     println!("document_hmac:\t\t{}", info.file.document_hmac().is_some());
+    if info.file.is_document() {
+        let size = info.file.doc_size().map(|size| bytes_to_human(size as u64));
+        println!("size:\t\t\t{}", size.unwrap_or("unknown".into()));
+    } else if info.file.is_folder() {
+        let mut size = 0;
+        for file in &info.descendants {
+            if file.is_document() && !tree.calculate_deleted(file.id())? {
+                size += file.doc_size().unwrap_or_default();
+            }
+        }
+        println!("size:\t\t\t{} in the documents inside", bytes_to_human(size as u64));
+    }
     println!("user_access_keys:");
     for k in info.file.user_access_keys() {
         println!(
@@ -41,11 +58,6 @@ pub fn file(core: &Lb, id: Uuid) -> Res<()> {
         println!("\tdeleted: {:?}", k.deleted);
     }
     println!();
-    let mut tree = iter::once(info.file)
-        .chain(info.ancestors)
-        .chain(info.descendants)
-        .collect::<Vec<_>>()
-        .to_lazy();
     pretty_print(&mut tree);
     Ok(())
 }

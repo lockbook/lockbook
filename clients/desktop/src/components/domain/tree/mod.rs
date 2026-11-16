@@ -32,6 +32,7 @@ use egui::{
 };
 use lb::Uuid;
 use workspace_rs::file_cache::{FileCache, FilesExt};
+use workspace_rs::tab::{Destination, Place};
 
 use crate::components::domain::pins;
 use crate::components::{
@@ -541,7 +542,7 @@ pub fn show_tree(app: &mut ShellApp, ui: &mut Ui, t: &Theme, queue: &mut Vec<Act
     };
 
     if flat.is_empty() {
-        empty_state(ui, t, "No files");
+        empty_files(ui, t);
         return;
     }
 
@@ -726,8 +727,8 @@ pub fn show_tree(app: &mut ShellApp, ui: &mut Ui, t: &Theme, queue: &mut Vec<Act
                         e.item(phosphor::NOTE_PENCIL, "Create…", FileCmd::Create);
                         if flat.iter().any(|r| r.is_folder) {
                             e.separator();
-                            e.item(phosphor::CARET_DOWN, "Expand all", FileCmd::ExpandAll);
-                            e.item(phosphor::CARET_LEFT, "Collapse all", FileCmd::CollapseAll);
+                            e.item(phosphor::CARET_DOWN, "Expand All", FileCmd::ExpandAll);
+                            e.item(phosphor::CARET_LEFT, "Collapse All", FileCmd::CollapseAll);
                         }
                     }) {
                         match cmd {
@@ -870,14 +871,14 @@ fn paint_row(
         // Open | Create / expand | Arrange | Share / export | Delete
         if !row.is_folder {
             e.item(phosphor::ARROW_SQUARE_OUT, "Open", FileCmd::Open);
-            e.item(phosphor::APP_WINDOW, "Open in new tab", FileCmd::OpenNewTab);
+            e.item(phosphor::APP_WINDOW, "Open in New Tab", FileCmd::OpenNewTab);
             e.separator();
         }
         e.item(phosphor::NOTE_PENCIL, "Create…", FileCmd::Create);
         if row.is_folder && !kids_empty {
             e.separator();
-            e.item(phosphor::CARET_DOWN, "Expand all", FileCmd::ExpandAll);
-            e.item(phosphor::CARET_LEFT, "Collapse all", FileCmd::CollapseAll);
+            e.item(phosphor::CARET_DOWN, "Expand All", FileCmd::ExpandAll);
+            e.item(phosphor::CARET_LEFT, "Collapse All", FileCmd::CollapseAll);
         }
         e.separator();
         // Arrange — structure + pin (sidebar surface).
@@ -896,7 +897,7 @@ fn paint_row(
         if !multi_sel {
             e.item(phosphor::USERS, "Share…", FileCmd::Share);
             if !row.is_folder {
-                e.item(phosphor::LINK, "Copy link", FileCmd::CopyLink);
+                e.item(phosphor::LINK, "Copy Link", FileCmd::CopyLink);
             }
         }
         if !row.is_folder {
@@ -904,8 +905,8 @@ fn paint_row(
         }
         e.separator();
         if targets_are_saved_shares {
-            // Opposite of Shared with me → "Save to your files…".
-            e.item(phosphor::FOLDER_MINUS, "Remove from files…", FileCmd::Delete);
+            // Opposite of Shared with me → "Save to Your Files…".
+            e.item(phosphor::FOLDER_MINUS, "Remove from Files…", FileCmd::Delete);
         } else {
             e.item_danger(phosphor::TRASH, "Delete…", FileCmd::Delete);
         }
@@ -947,12 +948,29 @@ fn paint_row(
             }
             FileCmd::Duplicate => queue.push(Action::Duplicate(targets.clone())),
             FileCmd::Export => queue.push(Action::Export(targets.clone())),
-            FileCmd::CopyLink => queue.push(Action::CopyLink(row.id)),
+            FileCmd::CopyLink => {
+                queue.push(Action::CopyLink(Place::new(Destination::File(row.id))))
+            }
             FileCmd::ExpandAll => queue.push(Action::ExpandSubtree(row.id)),
             FileCmd::CollapseAll => queue.push(Action::CollapseSubtree(row.id)),
             FileCmd::OrganizeShare | FileCmd::DeclineShare => {}
         }
     }
+}
+
+/// An empty Files tree points at the way in, starting where a row's icon would.
+fn empty_files(ui: &mut Ui, t: &Theme) {
+    ui.add(Spacer::new(Space::Lg));
+    let inset = LIST_PAD.pts() + workspace_rs::style::tree_metrics::INDENT_BASE;
+    let ink = t.neutral_fg_secondary();
+    let msg = "No files yet. Create or import to get started.";
+    let w = crate::components::ui_width(ui);
+    let galley = ui.fonts_mut(|f| {
+        f.layout(msg.into(), TypeRole::Body.font_id(), ink, (w - 2.0 * inset).max(1.0))
+    });
+    let (rect, _) = ui.allocate_exact_size(vec2(w, galley.size().y), egui::Sense::hover());
+    ui.painter()
+        .galley(rect.min + vec2(inset, 0.0), galley, ink);
 }
 
 pub(crate) fn empty_state(ui: &mut Ui, t: &Theme, msg: &str) {

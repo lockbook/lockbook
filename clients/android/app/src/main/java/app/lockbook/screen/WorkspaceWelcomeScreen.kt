@@ -2,9 +2,7 @@ package app.lockbook.screen
 
 import android.content.Context
 import android.graphics.Paint
-import android.os.Build
 import android.os.Bundle
-import android.view.HapticFeedbackConstants
 import android.view.View
 import android.view.ViewGroup
 import android.view.inputmethod.InputMethodManager
@@ -93,7 +91,7 @@ internal class WorkspaceWelcomeScreen(
             result.getString(CreateFileBottomSheetFragment.SELECTED_FOLDER_ID)?.let(quickCapture::selectSaveFolder)
         }
         empty.captureFolder.setOnClickListener {
-            if (captureExpansion == null && !quickCapture.isSaving &&
+            if (captureExpansion == null && !quickCapture.hasPendingCapture &&
                 fragment.childFragmentManager.findFragmentByTag(QUICK_CAPTURE_FOLDER) == null
             ) {
                 hideEditorKeyboard()
@@ -128,8 +126,11 @@ internal class WorkspaceWelcomeScreen(
         empty.captureText.doAfterTextChanged { text -> quickCapture.setDraft(text.toString()) }
         quickCapture.draft.observe(fragment.viewLifecycleOwner) { text ->
             if (empty.captureText.text.toString() != text) empty.captureText.setText(text)
-            if (text.isNotEmpty() || !quickCapture.isSaving) captureExpansion?.updateText(text)
+            if (text.isNotEmpty() || !quickCapture.hasPendingCapture) captureExpansion?.updateText(text)
             scheduleCaptureExpansion(text)
+        }
+        quickCapture.readyNote.observe(fragment.viewLifecycleOwner) {
+            scheduleCaptureExpansion(quickCapture.draft.value.orEmpty())
         }
         quickCapture.error.observe(fragment.viewLifecycleOwner) { error ->
             Toast.makeText(fragment.requireContext(), error, Toast.LENGTH_LONG).show()
@@ -139,13 +140,6 @@ internal class WorkspaceWelcomeScreen(
         }
         quickCapture.createdNote.observe(fragment.viewLifecycleOwner) { id ->
             captureEditorId = id
-            binding.captureText.performHapticFeedback(
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                    HapticFeedbackConstants.CONFIRM
-                } else {
-                    HapticFeedbackConstants.KEYBOARD_TAP
-                },
-            )
             mainScreenModel.navigate(MainNavigationAction.OpenDocument(id, newFile = false, closeDetailOnBack = false))
         }
         val adapter =
@@ -181,12 +175,12 @@ internal class WorkspaceWelcomeScreen(
         val input = binding.captureText
         captureStart?.let(input::removeCallbacks)
         captureStart = null
-        if (text.isBlank() || captureExpansion != null || quickCapture.isSaving || !isVisible) return
+        if (text.isBlank() || captureExpansion != null || quickCapture.readyNote.value == null || !isVisible) return
         captureStart =
             Runnable {
                 captureStart = null
                 if (viewBinding == null || workspaceRoot?.isShown != true ||
-                    !isVisible || quickCapture.isSaving
+                    !isVisible || quickCapture.readyNote.value == null
                 ) {
                     return@Runnable
                 }
@@ -204,7 +198,7 @@ internal class WorkspaceWelcomeScreen(
                         quickCapture.save()
                     }
                 }
-            }.also { input.postDelayed(it, 350) }
+            }.also { input.post(it) }
     }
 
     fun finishCaptureHandoff(
@@ -225,7 +219,7 @@ internal class WorkspaceWelcomeScreen(
         editor.requestFocus()
         captureEditorId = null
         binding.root.isVisible = false
-        if (pendingText.isNotEmpty()) quickCapture.setDraft("")
+        quickCapture.finishHandoff()
         val keyboard = fragment.requireContext().getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
         keyboard.restartInput(editor)
         if (keepKeyboard) {
@@ -234,7 +228,10 @@ internal class WorkspaceWelcomeScreen(
             }
         }
         wrapper.workspaceView.drawImmediately()
-        captureExpansion?.finish { captureExpansion = null }
+        captureExpansion?.finish {
+            captureExpansion = null
+            updateVisibility()
+        }
     }
 
     private fun showCoverMenu(
@@ -274,6 +271,7 @@ internal class WorkspaceWelcomeScreen(
         binding.root.isVisible = isVisible || isExpanding
         if (isVisible) {
             binding.captureText.isEnabled = true
+            scheduleCaptureExpansion(quickCapture.draft.value.orEmpty())
         } else if (!isExpanding) {
             binding.captureText.clearFocus()
         }

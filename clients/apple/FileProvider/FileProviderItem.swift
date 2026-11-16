@@ -12,9 +12,12 @@ final class FileProviderItem: NSObject, NSFileProviderItem, Codable {
     var contentVersion: Data
     var size: Int?
     var writable: Bool
+    // An attachments folder moves only with its note and keeps its name; lb refuses moving or
+    // renaming it.
+    var fixed: Bool
 
     init(id: String, parent: String, name: String, folder: Bool, modified: UInt64,
-         contentVersion: Data, writable: Bool = true) {
+         contentVersion: Data, writable: Bool = true, fixed: Bool = false) {
         self.id = id
         self.parent = parent
         self.name = name
@@ -22,6 +25,7 @@ final class FileProviderItem: NSObject, NSFileProviderItem, Codable {
         self.modified = modified
         self.contentVersion = contentVersion
         self.writable = writable
+        self.fixed = fixed
     }
 
     var itemIdentifier: NSFileProviderItemIdentifier { .init(id) }
@@ -29,10 +33,10 @@ final class FileProviderItem: NSObject, NSFileProviderItem, Codable {
     var filename: String { name }
     var contentType: UTType { folder ? .folder : UTType(filenameExtension: (name as NSString).pathExtension) ?? .data }
     var documentSize: NSNumber? { size.map(NSNumber.init(value:)) }
-    var contentPolicy: NSFileProviderContentPolicy { .downloadLazily }
+    var contentPolicy: NSFileProviderContentPolicy { .downloadLazilyAndEvictOnRemoteUpdate }
     var contentModificationDate: Date? { modifiedDate ?? Date(timeIntervalSince1970: Double(modified) / 1000) }
     var itemVersion: NSFileProviderItemVersion {
-        let metadata = Data("\(parent)\u{0}\(name)\u{0}\(contentModificationDate!.timeIntervalSince1970)\u{0}\(writable)\u{0}\(size ?? 0)\u{0}\(contentPolicy.rawValue)".utf8)
+        let metadata = Data("\(parent)\u{0}\(name)\u{0}\(contentModificationDate!.timeIntervalSince1970)\u{0}\(writable)\u{0}\(fixed)\u{0}\(size ?? 0)\u{0}\(contentPolicy.rawValue)".utf8)
         return NSFileProviderItemVersion(contentVersion: contentVersion, metadataVersion: Data(SHA256.hash(data: metadata)))
     }
     var capabilities: NSFileProviderItemCapabilities {
@@ -41,7 +45,8 @@ final class FileProviderItem: NSObject, NSFileProviderItem, Codable {
         if writable {
             result.formUnion(folder ? [.allowsAddingSubItems] : [.allowsWriting])
             if itemIdentifier != .rootContainer {
-                result.formUnion([.allowsRenaming, .allowsReparenting, .allowsDeleting])
+                result.insert(.allowsDeleting)
+                if !fixed { result.formUnion([.allowsRenaming, .allowsReparenting]) }
             }
         }
         return result

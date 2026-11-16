@@ -1,7 +1,7 @@
-use crate::file_cache::{FileCache, FilesExt};
+use crate::file_cache::{FileCache, FilesExt, link_id, split_fragment};
 #[cfg(not(target_family = "wasm"))]
 use crate::mind_map::show::MindMap;
-use crate::search::{Search, SearchState};
+use crate::search::{Search, SearchState, SearchType};
 use crate::space_inspector::show::SpaceInspector;
 #[cfg(not(target_family = "wasm"))]
 use crate::tab::chat::Chat;
@@ -22,6 +22,7 @@ use lb_rs::model::file::File;
 use lb_rs::model::file_metadata::{DocumentHmac, FileType};
 use lb_rs::model::svg;
 use serde::{Deserialize, Serialize};
+use std::borrow::Cow;
 use std::path::PathBuf;
 use web_time::{Instant, SystemTime, UNIX_EPOCH};
 
@@ -42,13 +43,15 @@ pub enum Destination {
     Search(SearchState),
     /// A note's diagram, by its source, in the image viewer.
     Diagram(String),
+    /// A note's formula, in the image viewer.
+    Formula(crate::widgets::math::Formula),
 }
 
 impl Destination {
     pub fn id(&self) -> Uuid {
         match self {
             Self::File(id) | Self::MindMap(id) | Self::SpaceInspector(id) => *id,
-            Self::Search(_) | Self::Diagram(_) => Uuid::nil(),
+            Self::Search(_) | Self::Diagram(_) | Self::Formula(_) => Uuid::nil(),
         }
     }
 
@@ -56,7 +59,7 @@ impl Destination {
     pub fn backing_file(&self) -> Option<Uuid> {
         match self {
             Self::File(id) | Self::MindMap(id) | Self::SpaceInspector(id) => Some(*id),
-            Self::Search(_) | Self::Diagram(_) => None,
+            Self::Search(_) | Self::Diagram(_) | Self::Formula(_) => None,
         }
     }
 
@@ -68,6 +71,7 @@ impl Destination {
             Self::MindMap(_) => 2,
             Self::SpaceInspector(_) => 3,
             Self::Diagram(_) => 4,
+            Self::Formula(_) => 5,
         }
     }
 }
@@ -159,17 +163,93 @@ impl Place {
     pub fn at(dest: Destination, fragment: Option<Fragment>) -> Self {
         Self { dest, fragment }
     }
+
+    /// The place a link names: a file by its id link (`lb://<id>#heading`, or
+    /// the external URL), or a search: `lb://search?q=…&type=content&scope=/notes`.
+    pub fn from_url(url: &str) -> Option<Self> {
+        if let Some(id) = link_id(url) {
+            let fragment = split_fragment(url).1.and_then(Fragment::from_url);
+            return Some(Self::at(Destination::File(id), fragment));
+        }
+        let url = url::Url::parse(url).ok().filter(|u| u.scheme() == "lb")?;
+        let is_search = url.host_str()?.eq_ignore_ascii_case("search");
+        if !is_search || !url.path().trim_matches('/').is_empty() {
+            return None;
+        }
+        let mut state = SearchState::default();
+        for (key, value) in url.query_pairs() {
+            match &*key {
+                "q" => state.query = value.into(),
+                "scope" => state.scope_path = value.into(),
+                "type" => {
+                    state.search_type = match &*value {
+                        "path" => SearchType::Path,
+                        "content" => SearchType::Content,
+                        _ => return None,
+                    }
+                }
+                _ => {}
+            }
+        }
+        Some(Self::new(Destination::Search(state)))
+    }
+
+    /// The link [`Self::from_url`] reads back as this place, with only the
+    /// fragments a link writes down: a heading that reads as something else
+    /// is left off. None for a destination no link names.
+    pub fn to_url(&self) -> Option<String> {
+        self.to_url_with(|id| Some(format!("lb://{id}")))
+    }
+
+    /// [`Self::to_url`] with a file's link from `file_url`, such as the
+    /// external URL anyone the file is shared with can open.
+    pub fn to_url_with(&self, file_url: impl FnOnce(Uuid) -> Option<String>) -> Option<String> {
+        match &self.dest {
+            Destination::File(id) => {
+                let fragment = match self.fragment.as_ref().filter(|f| f.persists()) {
+                    // a heading written like a page or an entry would read back as one
+                    Some(Fragment::Heading(slug))
+                        if Fragment::from_url(slug).as_ref() == self.fragment.as_ref() =>
+                    {
+                        format!("#{slug}")
+                    }
+                    Some(Fragment::Page(page)) => format!("#page={}", page.saturating_add(1)),
+                    Some(Fragment::Entry(entry)) => format!("#{entry}"),
+                    _ => String::new(),
+                };
+                Some(format!("{}{fragment}", file_url(*id)?))
+            }
+            Destination::Search(state) => {
+                let mut query = url::form_urlencoded::Serializer::new(String::new());
+                if !state.query.is_empty() {
+                    query.append_pair("q", &state.query);
+                }
+                let search_type = match state.search_type {
+                    SearchType::Path => "path",
+                    SearchType::Content => "content",
+                };
+                query.append_pair("type", search_type);
+                if !state.scope_path.is_empty() {
+                    query.append_pair("scope", &state.scope_path);
+                }
+                Some(format!("lb://search?{}", query.finish()))
+            }
+            Destination::MindMap(_)
+            | Destination::SpaceInspector(_)
+            | Destination::Diagram(_)
+            | Destination::Formula(_) => None,
+        }
+    }
 }
 
-/// A persistable navigation journey: the current dest plus back/forward stacks.
-/// Changes to `dest` or `fragment` are navigation; stacks are the undo/redo of
-/// those changes. `id` identifies this session/tab instance and is not persisted.
+/// A persistable navigation journey: the current place plus back/forward stacks.
+/// Changes to `place` are navigation; stacks are the undo/redo of those
+/// changes. `id` identifies this session/tab instance and is not persisted.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(from = "PersistedSession", into = "PersistedSession")]
 pub struct Session {
     pub id: SessionId,
-    pub dest: Destination,
-    pub fragment: Option<Fragment>,
+    pub place: Place,
     pub back: Vec<Place>,
     pub forward: Vec<Place>,
 }
@@ -205,8 +285,8 @@ impl From<Session> for PersistedSession {
         let (back, back_fragments) = split(s.back);
         let (forward, forward_fragments) = split(s.forward);
         Self {
-            dest: s.dest,
-            fragment: persisted(&s.fragment),
+            dest: s.place.dest,
+            fragment: persisted(&s.place.fragment),
             back,
             forward,
             back_fragments,
@@ -227,8 +307,7 @@ impl From<PersistedSession> for Session {
         };
         Self {
             id: SessionId::new(),
-            dest: p.dest,
-            fragment: p.fragment,
+            place: Place::at(p.dest, p.fragment),
             back: join(p.back, p.back_fragments),
             forward: join(p.forward, p.forward_fragments),
         }
@@ -241,24 +320,11 @@ impl Session {
     }
 
     pub fn at(place: Place) -> Self {
-        Self {
-            id: SessionId::new(),
-            dest: place.dest,
-            fragment: place.fragment,
-            back: Vec::new(),
-            forward: Vec::new(),
-        }
-    }
-
-    pub fn place(&self) -> Place {
-        Place::at(self.dest.clone(), self.fragment.clone())
+        Self { id: SessionId::new(), place, back: Vec::new(), forward: Vec::new() }
     }
 
     fn swap_place(&mut self, to: Place) -> Place {
-        let from = self.place();
-        self.dest = to.dest;
-        self.fragment = to.fragment;
-        from
+        std::mem::replace(&mut self.place, to)
     }
 
     /// Push the current place onto back, clear forward, and move to `to`.
@@ -270,11 +336,13 @@ impl Session {
     /// [`Self::navigate`] to a place. `here` names where the session is
     /// when it has no fragment, so Back from a jump within the dest returns.
     pub fn navigate_to(&mut self, to: Place, here: Option<Fragment>) {
-        if self.dest == to.dest && (to.fragment.is_none() || self.fragment == to.fragment) {
+        if self.place.dest == to.dest
+            && (to.fragment.is_none() || self.place.fragment == to.fragment)
+        {
             return;
         }
         let mut from = self.swap_place(to);
-        if from.dest == self.dest && from.fragment.is_none() {
+        if from.dest == self.place.dest && from.fragment.is_none() {
             from.fragment = here;
         }
         self.back.push(from);
@@ -321,7 +389,7 @@ impl Session {
 
 /// A tab that has only ever shown search: safe to close when leaving search.
 pub fn session_is_disposable_search(s: &Session) -> bool {
-    std::iter::once(&s.dest)
+    std::iter::once(&s.place.dest)
         .chain(s.back.iter().map(|p| &p.dest))
         .chain(s.forward.iter().map(|p| &p.dest))
         .all(|d| matches!(d, Destination::Search(_)))
@@ -337,18 +405,18 @@ pub enum TabAction {
 }
 
 /// `in_new_tab` is the explicit menu/cmd-click request. `desktop_tab_policy`
-/// is activate-if-open / honor the open-in-new-tab setting. Desktop with the
-/// setting off navigates in the current session so back still works.
+/// is activate-if-open. Desktop with the setting off navigates in the current
+/// session so back still works.
 pub fn tab_action_for_open(
     dest_already_open: bool, in_new_tab: bool, desktop_tab_policy: bool, open_in_new_tab: bool,
 ) -> TabAction {
     if in_new_tab {
         return TabAction::Create;
     }
-    if desktop_tab_policy && dest_already_open {
+    if (desktop_tab_policy || open_in_new_tab) && dest_already_open {
         return TabAction::Activate;
     }
-    if desktop_tab_policy && open_in_new_tab {
+    if open_in_new_tab {
         return TabAction::Create;
     }
     if desktop_tab_policy {
@@ -363,16 +431,22 @@ pub fn index_of_dest_to_activate(
     strip: &[Session], current: Option<SessionId>, recents: &[SessionId], dest: &Destination,
 ) -> Option<usize> {
     if let Some(id) = current {
-        if let Some(i) = strip.iter().position(|s| s.id == id && s.dest == *dest) {
+        if let Some(i) = strip
+            .iter()
+            .position(|s| s.id == id && s.place.dest == *dest)
+        {
             return Some(i);
         }
     }
     for id in recents.iter().rev() {
-        if let Some(i) = strip.iter().position(|s| s.id == *id && s.dest == *dest) {
+        if let Some(i) = strip
+            .iter()
+            .position(|s| s.id == *id && s.place.dest == *dest)
+        {
             return Some(i);
         }
     }
-    strip.iter().position(|s| s.dest == *dest)
+    strip.iter().position(|s| s.place.dest == *dest)
 }
 
 pub use open::{Doc, TabResources};
@@ -418,6 +492,9 @@ pub enum Presentation {
     /// Embedded in a hover card: it takes the wheel, so what doesn't fit
     /// scrolls.
     Card,
+    /// Embedded for print: tables share the width, folds are open, and its
+    /// text paints for a PDF, not the GPU, while it draws.
+    Print,
 }
 
 /// A place for a tab's content to show once it has loaded.
@@ -449,7 +526,7 @@ impl Tab {
 
     pub fn id(&self) -> Option<Uuid> {
         match self.destination {
-            Destination::Search(_) | Destination::Diagram(_) => None,
+            Destination::Search(_) | Destination::Diagram(_) | Destination::Formula(_) => None,
             _ => Some(self.destination.id()),
         }
     }
@@ -598,7 +675,17 @@ impl Tab {
         if let ContentState::Open(content) = &mut self.content {
             content.set_presentation(self.presentation);
         }
+        // the outermost printed tab marks its drawing as printing
+        let printing = self.presentation == Presentation::Print && !crate::printing(ui.ctx());
+        if printing {
+            ui.ctx()
+                .data_mut(|d| d.insert_temp(egui::Id::NULL, crate::Printing));
+        }
         let resp = ui.push_id(self.salt, |ui| self.show_inner(ui)).inner;
+        if printing {
+            ui.ctx()
+                .data_mut(|d| d.remove::<crate::Printing>(egui::Id::NULL));
+        }
         self.first_draw = false;
         match embedded {
             // a host takes nothing from an embed but a file to open
@@ -696,7 +783,11 @@ impl Tab {
                 ..Default::default()
             },
             ContentState::Failed(fail) => {
-                ui.label(fail.msg());
+                crate::style::message_indicator(
+                    ui,
+                    crate::style::phosphor::WARNING_CIRCLE,
+                    &fail.msg(),
+                );
                 Response::default()
             }
             ContentState::Open(content) => {
@@ -738,6 +829,7 @@ impl Tab {
                         resp.text_interaction_rect = md_resp.text_interaction_rect;
                         resp.mobile_toolbar_shown = md_resp.mobile_toolbar_shown;
                         resp.caret_covered = md_resp.caret_covered;
+                        resp.lifted = md_resp.lifted;
                     }
                     TabContent::Image(img) => img.show(ui),
                     TabContent::Pdf(pdf) => {
@@ -846,6 +938,10 @@ impl TabContent {
                 md.edit.takes_focus = !embedded;
                 md.edit.clip_to_host = embedded;
                 md.edit.renderer.interactive = !embedded;
+                md.edit.renderer.print = presentation == Presentation::Print;
+                if md.edit.renderer.print {
+                    md.edit.renderer.layout.max_width = f32::INFINITY;
+                }
             }
             TabContent::Image(img) => img.embedded = embedded,
             TabContent::Pdf(pdf) => pdf.embedded = embedded,
@@ -875,7 +971,7 @@ impl TabContent {
         match self {
             // an embed shows its region from the region's top, unwashed
             TabContent::Markdown(md) if md.embedded => {
-                md.region = reveal
+                md.edit.renderer.region = reveal
                     .fragment
                     .clone()
                     .filter(|f| matches!(f, Fragment::Heading(_)));
@@ -966,11 +1062,11 @@ pub enum TabSaveContent {
 }
 
 impl TabSaveContent {
-    pub fn into_bytes(self) -> Vec<u8> {
+    pub fn bytes(&self) -> Cow<'_, [u8]> {
         match self {
-            TabSaveContent::Bytes(bytes) => bytes,
-            TabSaveContent::String(string) => string.into_bytes(),
-            TabSaveContent::Svg(buffer) => buffer.serialize().into_bytes(),
+            TabSaveContent::Bytes(bytes) => Cow::Borrowed(bytes),
+            TabSaveContent::String(string) => Cow::Borrowed(string.as_bytes()),
+            TabSaveContent::Svg(buffer) => Cow::Owned(buffer.serialize().into_bytes()),
         }
     }
 }
@@ -984,6 +1080,7 @@ pub struct Response {
     pub text_interaction_rect: Option<egui::Rect>,
     pub mobile_toolbar_shown: bool,
     pub caret_covered: bool,
+    pub lifted: bool,
     pub open_file: Option<Uuid>,
     pub open_anyway: Option<Uuid>,
     /// The user scrolled or edited, so the tab no longer shows its fragment.
@@ -1001,7 +1098,7 @@ impl From<LbErr> for TabFailure {
     fn from(err: LbErr) -> Self {
         match err.kind {
             LbErrKind::Unexpected(msg) => Self::Unexpected(msg),
-            _ => Self::SimpleMisc(format!("{err:?}")),
+            _ => Self::SimpleMisc(err.to_string()),
         }
     }
 }
@@ -1066,12 +1163,12 @@ impl Workspace {
                     "Unknown".into()
                 }
             }
-            None => match tab.content {
+            None => match &tab.content {
                 #[cfg(not(target_family = "wasm"))]
                 ContentState::Open(TabContent::MindMap(_)) => "Mind Map".into(),
                 ContentState::Open(TabContent::SpaceInspector(_)) => "Space Inspector".into(),
                 ContentState::Open(TabContent::Search(_)) => "Search".into(),
-                ContentState::Open(TabContent::Image(_)) => "Diagram".into(),
+                ContentState::Open(TabContent::Image(viewer)) => viewer.title().into(),
                 _ => "Unknown".into(),
             },
         }
@@ -1115,9 +1212,9 @@ pub trait ExtendedOutput {
     /// open the document.
     fn create_note(&self, parent: Uuid, names: Vec<String>);
     fn pop_create_notes(&self) -> Vec<(Uuid, Vec<String>)>;
-    /// Open a note's diagram, by its source, in the image viewer.
-    fn open_diagram(&self, source: String);
-    fn pop_open_diagram(&self) -> Option<String>;
+    /// Open a note's diagram or formula, by its source, in the image viewer.
+    fn open_picture(&self, dest: Destination);
+    fn pop_open_picture(&self) -> Option<Destination>;
     /// A rendered copy; hosts put both flavors on the clipboard at once.
     fn set_copied_rendered(&self, copied: CopiedRendered);
     fn pop_copied_rendered(&self) -> Option<CopiedRendered>;
@@ -1202,12 +1299,16 @@ impl ExtendedOutput for egui::Context {
         })
     }
 
-    fn open_diagram(&self, source: String) {
-        self.memory_mut(|m| m.data.insert_temp(Id::unique("open_diagram"), source));
+    fn open_picture(&self, dest: Destination) {
+        self.memory_mut(|m| m.data.insert_temp(Id::unique("open_picture"), Some(dest)));
     }
 
-    fn pop_open_diagram(&self) -> Option<String> {
-        self.memory_mut(|m| m.data.remove_temp(Id::unique("open_diagram")))
+    fn pop_open_picture(&self) -> Option<Destination> {
+        self.memory_mut(|m| {
+            m.data
+                .remove_temp::<Option<Destination>>(Id::unique("open_picture"))
+        })
+        .flatten()
     }
 
     fn pop_open_files(&self) -> Vec<(Uuid, Option<String>, bool)> {
@@ -1521,6 +1622,7 @@ pub fn imported_image_link(cache: &FileCache, target: Uuid, file: &File) -> Resu
 #[cfg(test)]
 mod nav_tests {
     use super::*;
+    use crate::test_utils::byte_source::ByteSource;
 
     fn file(n: u8) -> Destination {
         let mut bytes = [0u8; 16];
@@ -1534,16 +1636,16 @@ mod nav_tests {
         let b = file(2);
         let mut session = Session::new(a.clone());
         session.navigate(b.clone());
-        assert_eq!(session.dest, b);
+        assert_eq!(session.place.dest, b);
         assert_eq!(session.back, vec![Place::new(a.clone())]);
         assert!(session.forward.is_empty());
 
         assert!(session.go_back());
-        assert_eq!(session.dest, a);
+        assert_eq!(session.place.dest, a);
         assert_eq!(session.forward, vec![Place::new(b.clone())]);
 
         assert!(session.go_forward());
-        assert_eq!(session.dest, b);
+        assert_eq!(session.place.dest, b);
     }
 
     #[test]
@@ -1552,7 +1654,7 @@ mod nav_tests {
         let mut session = Session::new(a.clone());
         session.navigate(a.clone());
         assert!(session.back.is_empty());
-        assert_eq!(session.dest, a);
+        assert_eq!(session.place.dest, a);
     }
 
     #[test]
@@ -1563,7 +1665,7 @@ mod nav_tests {
         session.navigate(file(3));
         let id = session.id;
         session.replace(b.clone());
-        assert_eq!(session.dest, b);
+        assert_eq!(session.place.dest, b);
         assert_eq!(session.id, id);
         assert!(session.back.is_empty());
         assert!(session.forward.is_empty());
@@ -1575,7 +1677,7 @@ mod nav_tests {
         let a = Session::new(dest.clone());
         let b = Session::new(dest.clone());
         assert_ne!(a.id, b.id);
-        assert_eq!(a.dest, b.dest);
+        assert_eq!(a.place.dest, b.place.dest);
     }
 
     #[test]
@@ -1622,8 +1724,14 @@ mod nav_tests {
     }
 
     #[test]
-    fn tab_action_mobile_replaces_even_if_dest_open() {
-        assert_eq!(tab_action_for_open(true, false, false, true), TabAction::Replace);
+    fn tab_action_mobile_setting_off_replaces_even_if_dest_open() {
+        assert_eq!(tab_action_for_open(true, false, false, false), TabAction::Replace);
+    }
+
+    #[test]
+    fn tab_action_mobile_setting_on_activates_or_creates() {
+        assert_eq!(tab_action_for_open(true, false, false, true), TabAction::Activate);
+        assert_eq!(tab_action_for_open(false, false, false, true), TabAction::Create);
     }
 
     #[test]
@@ -1633,7 +1741,7 @@ mod nav_tests {
         let mut session = Session::new(a.clone());
         session.navigate(b.clone());
         assert!(session.go_back());
-        assert_eq!(session.dest, a);
+        assert_eq!(session.place.dest, a);
         assert!(!session.forward.is_empty());
         let id = session.id;
         session.replace(a.clone());
@@ -1658,6 +1766,118 @@ mod nav_tests {
     }
 
     #[test]
+    fn places_from_urls() {
+        let id = Uuid::from_u128(2);
+        let heading = Some(Fragment::Heading("next-steps".into()));
+        assert_eq!(
+            Place::from_url(&format!("lb://{id}#next-steps")),
+            Some(Place::at(Destination::File(id), heading))
+        );
+        assert_eq!(
+            Place::from_url(&format!("https://app.lockbook.net/open/{id}#page=3")),
+            Some(Place::at(Destination::File(id), Some(Fragment::Page(2))))
+        );
+        let state = SearchState {
+            search_type: SearchType::Content,
+            scope_path: "/my notes/".into(),
+            query: "q3 plan".into(),
+        };
+        assert_eq!(
+            Place::from_url(
+                "LB://Search?q=q3%20plan&type=content&scope=/my%20notes/&utm_source=mail"
+            ),
+            Some(Place::new(Destination::Search(state)))
+        );
+        assert_eq!(Place::from_url("lb://search"), Some(Place::new(search(""))));
+        for bad in ["lb://search?type=fuzzy", "lb://search/plan", "lb://mindmap", "https://x.com"] {
+            assert_eq!(Place::from_url(bad), None, "{bad}");
+        }
+    }
+
+    #[test]
+    fn places_to_urls() {
+        let id = Uuid::from_u128(2);
+        let at = |fragment| Place::at(Destination::File(id), Some(fragment)).to_url();
+        assert_eq!(Place::new(Destination::File(id)).to_url(), Some(format!("lb://{id}")));
+        assert_eq!(
+            at(Fragment::Heading("next-steps".into())),
+            Some(format!("lb://{id}#next-steps"))
+        );
+        assert_eq!(at(Fragment::Page(2)), Some(format!("lb://{id}#page=3")));
+        assert_eq!(at(Fragment::Entry(id)), Some(format!("lb://{id}#{id}")));
+        assert_eq!(at(Fragment::Text(3..9)), Some(format!("lb://{id}")));
+        for heading in ["page=2", "#x", "deadbeefdeadbeefdeadbeefdeadbeef"] {
+            assert_eq!(at(Fragment::Heading(heading.into())), Some(format!("lb://{id}")));
+        }
+        let state = SearchState {
+            search_type: SearchType::Content,
+            scope_path: "/my notes/".into(),
+            query: "q3 plan".into(),
+        };
+        assert_eq!(
+            Place::new(Destination::Search(state)).to_url().as_deref(),
+            Some("lb://search?q=q3+plan&type=content&scope=%2Fmy+notes%2F")
+        );
+        assert_eq!(Place::new(search("")).to_url().as_deref(), Some("lb://search?type=path"));
+        assert_eq!(Place::new(Destination::MindMap(id)).to_url(), None);
+
+        let page = Place::at(Destination::File(id), Some(Fragment::Page(2)));
+        let shared = page.to_url_with(|id| Some(format!("https://app.lockbook.net/open/{id}")));
+        assert_eq!(shared, Some(format!("https://app.lockbook.net/open/{id}#page=3")));
+        assert_eq!(Place::from_url(&shared.unwrap()), Some(page));
+    }
+
+    /// A place with a link: no text ranges, and headings as a link or the
+    /// outline may hold them.
+    fn gen_linked_place(src: &mut ByteSource) -> Place {
+        fn id(src: &mut ByteSource) -> Uuid {
+            Uuid::from_bytes(std::array::from_fn(|_| src.draw(256) as u8))
+        }
+        fn text(src: &mut ByteSource, chars: &[char], min: usize) -> String {
+            let len = min + src.draw(40 - min);
+            (0..len).map(|_| chars[src.draw(chars.len())]).collect()
+        }
+        const HEADING: &[char] =
+            &['a', 'f', '0', '9', '-', '_', ' ', '#', '=', '?', 'p', 'g', 'e', 'é', '日'];
+        const ANY: &[char] =
+            &['a', 'Z', '1', ' ', '/', '&', '=', '#', '%', '+', '?', ';', 'é', '日', '\0'];
+        if src.draw(2) == 0 {
+            let fragment = match src.draw(4) {
+                0 => None,
+                1 => Some(Fragment::Heading(text(src, HEADING, 1))),
+                2 => Some(Fragment::Page(src.draw(256) * 256 + src.draw(256))),
+                _ => Some(Fragment::Entry(id(src))),
+            };
+            return Place::at(Destination::File(id(src)), fragment);
+        }
+        let search_type = [SearchType::Path, SearchType::Content][src.draw(2)];
+        let query = text(src, ANY, 0);
+        let scope_path = text(src, ANY, 0);
+        Place::new(Destination::Search(SearchState { search_type, scope_path, query }))
+    }
+
+    #[test]
+    fn place_url_round_trip() {
+        crate::test_utils::prop::run(
+            1000,
+            64,
+            |b| {
+                let place = gen_linked_place(&mut ByteSource::new(b));
+                let url = place
+                    .to_url()
+                    .ok_or_else(|| format!("{place:?} has no url"))?;
+                let dropped = Place::new(place.dest.clone());
+                let heading = matches!(place.fragment, Some(Fragment::Heading(_)));
+                match Place::from_url(&url) {
+                    Some(read) if read == place || (heading && read == dropped) => Ok(()),
+                    read => Err(format!("{url} read back as {read:?}")),
+                }
+            },
+            |b| format!("{:?}", gen_linked_place(&mut ByteSource::new(b))),
+        );
+    }
+
+    #[test]
     fn dest_kind_codes_are_stable() {
         assert_eq!(file(1).kind_code(), 0);
         assert_eq!(search("").kind_code(), 1);
@@ -1672,7 +1892,7 @@ mod nav_tests {
         session.navigate(file(3));
         let json = serde_json::to_string(&session).unwrap();
         let restored: Session = serde_json::from_str(&json).unwrap();
-        assert_eq!(restored.dest, session.dest);
+        assert_eq!(restored.place.dest, session.place.dest);
         assert_eq!(restored.back, session.back);
         assert_eq!(restored.forward, session.forward);
         assert!(!restored.id.is_nil());
@@ -1694,11 +1914,11 @@ mod nav_tests {
         let json = serde_json::to_value(&session).unwrap();
         assert_eq!(json["back"], serde_json::to_value(vec![&a, &a]).unwrap());
         let restored: Session = serde_json::from_value(json).unwrap();
-        assert_eq!(restored.fragment, None);
+        assert_eq!(restored.place.fragment, None);
         assert_eq!(restored.back, session.back);
 
         assert!(session.go_back());
-        assert_eq!(session.fragment, heading("x"));
+        assert_eq!(session.place.fragment, heading("x"));
         assert_eq!(session.forward[0].fragment, Some(Fragment::Text(3..5)));
     }
 
@@ -1708,7 +1928,7 @@ mod nav_tests {
         let json = serde_json::to_string(&vec![dest.clone()]).unwrap();
         let dests: Vec<Destination> = serde_json::from_str(&json).unwrap();
         let sessions: Vec<Session> = dests.into_iter().map(Session::new).collect();
-        assert_eq!(sessions[0].dest, dest);
+        assert_eq!(sessions[0].place.dest, dest);
         assert!(sessions[0].back.is_empty());
     }
 }

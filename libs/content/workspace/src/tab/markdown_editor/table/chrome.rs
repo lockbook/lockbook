@@ -5,18 +5,19 @@
 //! long press on a body row or a header cell starts the same drags.
 
 use comrak::nodes::{AstNode, NodeValue, TableAlignment};
-use egui::{Align2, CornerRadius, Id, Pos2, Rect, Sense, Stroke, StrokeKind, Ui, UiBuilder, Vec2};
+use egui::{CornerRadius, Id, Pos2, Rect, Sense, Stroke, StrokeKind, Ui, UiBuilder, Vec2};
 use lb_rs::model::text::buffer;
 use lb_rs::model::text::offset_types::{Grapheme, RangeExt as _};
 
 use super::structure::ColumnEdit;
 use super::{CellBounds, TableAction, TableCellBox};
-use crate::style::{context_menu, phosphor, phosphor_font_id};
+use crate::style::{context_menu, control_cursor, phosphor};
 use crate::tab::markdown_editor::input::Event;
 use crate::tab::markdown_editor::row_scroll::RowScroller;
 use crate::tab::markdown_editor::widget::block::drag::{BlockDrag, DragUnit, DropGap};
-use crate::tab::markdown_editor::{MdEdit, MdRender};
+use crate::tab::markdown_editor::{Arena, MdEdit, MdRender};
 use crate::theme::palette_v2::ThemeExt as _;
+use crate::widgets::GlyphonLabel;
 
 /// A row's handle; a column's is as long and lies along the top border.
 const HANDLE: Vec2 = Vec2::new(12.0, 20.0);
@@ -143,6 +144,7 @@ impl MdRender {
             parent_start: key,
             grab_offset: pos - rect.left_top(),
             unit: DragUnit::Column(column),
+            seq: self.buffer.current.seq,
         })
     }
 
@@ -259,19 +261,20 @@ impl MdRender {
             drag.unit == DragUnit::Row && row.line.contains_inclusive(drag.section_range.0)
         });
         let id = row_handle_id(row.line.start());
-        // the header does not drag: its pill is plain
-        let glyph = if row.index > 0 { phosphor::DOTS_SIX_VERTICAL } else { "" };
+        // body rows reorder among themselves; a handle that can't drag is plain
+        let drags = row.index > 0 && row.of > 2;
+        let glyph = if drags { phosphor::DOTS_SIX_VERTICAL } else { "" };
         let resp = self.table_handle(ui, id, pill, glyph, dragging);
 
-        // body rows reorder among themselves
-        if row.index > 0 && row.of > 2 {
-            self.handle_drag_resp(ui, &resp, dragging, |_, origin| {
+        if drags {
+            self.handle_drag_resp(ui, &resp, dragging, true, |r, origin| {
                 Some(BlockDrag {
                     section_range: row.line,
                     grabbed: row.line,
                     parent_start: key,
                     grab_offset: origin - row.rect.left_top(),
                     unit: DragUnit::Row,
+                    seq: r.buffer.current.seq,
                 })
             });
         }
@@ -280,18 +283,18 @@ impl MdRender {
                 .push(Event::Select { region: row.line.into() });
         }
         let chosen = context_menu::show_toggle(&resp, &self.ctx.get_lb_theme(), |e| {
-            e.item(phosphor::ROWS_PLUS_TOP, "Insert row above", InsertRow { below: false });
-            e.item(phosphor::ROWS_PLUS_BOTTOM, "Insert row below", InsertRow { below: true });
+            e.item(phosphor::ROWS_PLUS_TOP, "Insert Row Above", InsertRow { below: false });
+            e.item(phosphor::ROWS_PLUS_BOTTOM, "Insert Row Below", InsertRow { below: true });
             // the header stays the header; it is the table
             if row.index > 0 {
                 e.separator();
-                e.item(phosphor::ARROW_UP, "Move up", MoveRow { down: false });
+                e.item(phosphor::ARROW_UP, "Move Up", MoveRow { down: false });
                 if row.index + 1 < row.of {
-                    e.item(phosphor::ARROW_DOWN, "Move down", MoveRow { down: true });
+                    e.item(phosphor::ARROW_DOWN, "Move Down", MoveRow { down: true });
                 }
             }
             e.separator();
-            let delete = if row.index > 0 { "Delete row" } else { "Delete table" };
+            let delete = if row.index > 0 { "Delete Row" } else { "Delete Table" };
             e.item_danger(phosphor::TRASH, delete, DeleteRow);
         });
         self.render_events.extend(chosen.map(Event::Table));
@@ -313,10 +316,12 @@ impl MdRender {
             ui.painter()
                 .rect_filled(column.rect, 0.0, theme.accent().gamma_multiply(0.12));
         }
-        let resp = self.table_handle(ui, id, pill, phosphor::DOTS_SIX, dragging);
+        let drags = column.of > 1;
+        let glyph = if drags { phosphor::DOTS_SIX } else { "" };
+        let resp = self.table_handle(ui, id, pill, glyph, dragging);
 
-        if column.of > 1 {
-            self.handle_drag_resp(ui, &resp, dragging, |r, origin| {
+        if drags {
+            self.handle_drag_resp(ui, &resp, dragging, true, |r, origin| {
                 r.table_column_drag((key, column.index), origin)
             });
         }
@@ -327,26 +332,26 @@ impl MdRender {
         let chosen = context_menu::show_toggle(&resp, &theme, |e| {
             e.item(
                 phosphor::COLUMNS_PLUS_LEFT,
-                "Insert column left",
+                "Insert Column Left",
                 InsertColumn { right: false },
             );
             e.item(
                 phosphor::COLUMNS_PLUS_RIGHT,
-                "Insert column right",
+                "Insert Column Right",
                 InsertColumn { right: true },
             );
             e.separator();
             if column.index > 0 {
-                e.item(phosphor::ARROW_LEFT, "Move left", MoveColumn { right: false });
+                e.item(phosphor::ARROW_LEFT, "Move Left", MoveColumn { right: false });
             }
             if column.index + 1 < column.of {
-                e.item(phosphor::ARROW_RIGHT, "Move right", MoveColumn { right: true });
+                e.item(phosphor::ARROW_RIGHT, "Move Right", MoveColumn { right: true });
             }
             e.separator();
             for (icon, label, alignment) in [
-                (phosphor::TEXT_ALIGN_LEFT, "Align left", TableAlignment::Left),
-                (phosphor::TEXT_ALIGN_CENTER, "Align center", TableAlignment::Center),
-                (phosphor::TEXT_ALIGN_RIGHT, "Align right", TableAlignment::Right),
+                (phosphor::TEXT_ALIGN_LEFT, "Align Left", TableAlignment::Left),
+                (phosphor::TEXT_ALIGN_CENTER, "Align Center", TableAlignment::Center),
+                (phosphor::TEXT_ALIGN_RIGHT, "Align Right", TableAlignment::Right),
             ] {
                 // the column's own is marked, and choosing it takes it away
                 if column.alignment == alignment {
@@ -356,7 +361,7 @@ impl MdRender {
                 }
             }
             e.separator();
-            e.item_danger(phosphor::TRASH, "Delete column", DeleteColumn);
+            e.item_danger(phosphor::TRASH, "Delete Column", DeleteColumn);
         });
         self.render_events.extend(chosen.map(Event::Table));
     }
@@ -367,6 +372,7 @@ impl MdRender {
         &mut self, ui: &mut Ui, id: Id, pill: Rect, glyph: &'static str, dragging: bool,
     ) -> egui::Response {
         let resp = ui.interact(pill.expand(3.0), id, Sense::click_and_drag());
+        control_cursor(ui, resp.rect);
         let pressed = ui.input(|i| i.pointer.press_start_time());
         if let Some(pressed) = pressed.filter(|_| resp.is_pointer_button_down_on()) {
             ui.data_mut(|d| d.insert_temp(Id::unique("table_handle_held"), (id, pressed)));
@@ -386,7 +392,9 @@ impl MdRender {
         let painter = ui.painter();
         painter.rect_filled(pill, 4.0, fill);
         painter.rect_stroke(pill, 4.0, Stroke::new(1.0_f32, edge), StrokeKind::Inside);
-        painter.text(pill.center(), Align2::CENTER_CENTER, glyph, phosphor_font_id(12.0), ink);
+        GlyphonLabel::icon(glyph, ink, 12.0)
+            .build(ui.ctx())
+            .paint_centered(painter, pill.center());
         resp
     }
 }
@@ -398,7 +406,7 @@ impl MdEdit {
     pub fn move_table_part(
         &mut self, drag: BlockDrag, insert_offset: Grapheme,
     ) -> buffer::Response {
-        let arena = comrak::Arena::new();
+        let arena = Arena::new();
         self.renderer.reparse(&arena);
         let r = &self.renderer;
 
@@ -427,7 +435,7 @@ impl MdEdit {
             }
         }
 
-        self.renderer.buffer.queue(operations);
+        self.renderer.buffer.queue(operations, self.renderer.now());
         let mut resp = self.renderer.buffer.update();
         if resp.text_updated {
             self.renderer.bump_text_seq();
@@ -444,7 +452,6 @@ impl MdEdit {
     ) {
         let r = &self.renderer;
         let theme = r.ctx.get_lb_theme();
-        let primary = theme.bg().get_color(theme.prefs().primary);
         let key = drag.parent_start;
         let cells: Vec<TableCellBox> = r
             .table_boxes(key)
@@ -462,20 +469,8 @@ impl MdEdit {
         // Drop-gap indicator: soft capsule with a hollow leading dot, which
         // starts above the table so the card doesn't hide it.
         if let Some(gap) = r.drop_gap_for(&drag, p) {
-            let (dot, half) = (4.0, 1.25);
-            let (x, y0, y1) = (gap.at as f32, src_rect.top() - 3.0 * dot, src_rect.bottom());
-            painter.rect_filled(
-                Rect::from_min_max(Pos2::new(x - 3.0, y0), Pos2::new(x + 3.0, y1)),
-                CornerRadius::same(3),
-                primary.gamma_multiply(0.18),
-            );
-            painter.rect_filled(
-                Rect::from_min_max(Pos2::new(x - half, y0 + dot), Pos2::new(x + half, y1)),
-                CornerRadius::same(1),
-                primary,
-            );
-            painter.circle_filled(Pos2::new(x, y0 + dot), dot, primary);
-            painter.circle_filled(Pos2::new(x, y0 + dot), dot - 1.5, theme.neutral_bg());
+            let (x, y0, y1) = (gap.at as f32, src_rect.top() - 12.0, src_rect.bottom());
+            crate::style::paint_drop_line(painter, Pos2::new(x, y0), Pos2::new(x, y1), &theme);
         }
 
         // Source slot: an empty ghost of the card.
@@ -492,6 +487,8 @@ impl MdEdit {
         // Floating card; the header's fill and the rows' rules go with it.
         let offset = (p - src_rect.left_top()) - drag.grab_offset;
         let card = src_rect.translate(offset);
+        let mut painter = painter.clone();
+        painter.multiply_opacity(crate::style::DRAG_OPACITY);
         painter.rect_filled(card, card_corner, fill);
         for cell_box in &cells {
             let cell = cell_box.rect.translate(offset);

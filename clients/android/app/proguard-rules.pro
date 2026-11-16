@@ -32,7 +32,6 @@
 # their concrete package names and constructor signatures.
 -keep class app.lockbook.util.WorkspaceTheme { *; }
 -keep class app.lockbook.util.WorkspaceThemeVariant { *; }
--keep class app.lockbook.util.WorkspaceThemePreferences { *; }
 
 # Keep `Companion` object fields of serializable classes.
 # This avoids serializer lookup through `getDeclaredClasses` as done for named companion objects.

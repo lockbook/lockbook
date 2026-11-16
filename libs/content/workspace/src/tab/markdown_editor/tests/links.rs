@@ -79,6 +79,12 @@ fn pasted_id_links_are_written_for_the_note() {
     assert_eq!(paste("see ", (4, 4), "https://lockbook.net"), "see https://lockbook.net");
 }
 
+#[test]
+fn pasted_url_links_a_selection_ending_at_a_link() {
+    let pasted = paste("hello\n\n[x](y)", (2, 7), "https://lockbook.net");
+    assert!(pasted.contains("](https://lockbook.net)"), "{pasted:?}");
+}
+
 /// Whether completions are open after typing `typed` at `caret` in `md`,
 /// one grapheme a frame, in `/project/notes.md`.
 fn completes(md: &str, caret: usize, typed: &str) -> bool {
@@ -95,6 +101,10 @@ fn completes(md: &str, caret: usize, typed: &str) -> bool {
         });
         ws.enter_frame();
     }
+    // the popup reads the buffer as a frame starts, and a parked caret
+    // must keep it closed past its first frame
+    ws.enter_frame();
+    ws.enter_frame();
     ws.editor.edit.link_completions.active
 }
 
@@ -111,6 +121,58 @@ fn link_completions_open_mid_line() {
         }
     }
     assert!(closed.is_empty(), "closed: {closed:#?}");
+}
+
+/// Typing in a closed wikilink completes as in an unclosed one, `#` its
+/// headings, but moving the caret into one opens nothing.
+#[test]
+fn closed_wikilinks_complete_as_typed() {
+    assert!(completes("# Next steps\n\nsee [[]]", 20, "#"));
+    assert!(completes("see [[pl]]", 8, "a"));
+    for md in ["see [[Plan]]", "see [[plan.md]]", "see [[pla]]", "see [[]]", "see ![[chart.png]]"] {
+        assert!(!completes(md, md.find("]]").unwrap(), ""), "{md}");
+    }
+    // nor into a link to headings not read yet
+    for md in ["see [x](design/plan.md#)", "see [[design/plan#]]"] {
+        assert!(!completes(md, md.find('#').unwrap() + 1, ""), "{md}");
+    }
+}
+
+/// A `#` opens the popup at once, loading until the note's headings are
+/// read, which can be frames after the `#` was typed.
+#[test]
+fn a_hash_lists_headings_read_late() {
+    let files = shared_project();
+    let note = at(&files, "/project/notes.md");
+    let plan = at(&files, "/project/design/plan.md");
+    let md = "see [[design/plan]]";
+    let mut ws = TestEditor::in_files(files, note, md);
+    ws.push(Event::Select { region: (Grapheme(17), Grapheme(17)).into() });
+    ws.enter_frame();
+    ws.push(Event::Replace { region: Region::Selection, text: "#".into(), advance_cursor: true });
+    ws.enter_frame();
+    ws.enter_frame();
+    let completions = &ws.editor.edit.link_completions;
+    assert!(completions.active && completions.loading);
+    let enter = egui::Event::Key {
+        key: egui::Key::Enter,
+        physical_key: None,
+        pressed: true,
+        repeat: false,
+        modifiers: egui::Modifiers::NONE,
+    };
+    ws.enter_frame_with_input(vec![enter]);
+    assert_eq!(ws.get_text(), "see [[design/plan#]]", "Enter waits with the loading row");
+    let files = ws.editor.edit.renderer.files.clone();
+    files
+        .write()
+        .unwrap()
+        .notes
+        .insert(plan, crate::links::read_note("# Tent"));
+    ws.enter_frame();
+    ws.enter_frame();
+    let completions = &ws.editor.edit.link_completions;
+    assert!(completions.active && !completions.loading);
 }
 
 /// A link to a file is a pill unless it was given a title of its own.
@@ -163,4 +225,24 @@ fn read_only_pill_opens_on_click() {
     ws.enter_frame_with_input(vec![button(false)]);
     let opened = ws.editor.edit.renderer.ctx.pop_open_files();
     assert_eq!(opened.first().map(|o| o.0), Some(plan));
+}
+
+/// #5109
+#[test]
+fn toggle_link_twice_restores_text() {
+    let link = || Event::ToggleStyle {
+        region: Region::Selection,
+        style: comrak::nodes::NodeValue::Link(Default::default()),
+    };
+    for (md, (start, end)) in [("hello", (0, 0)), ("hello world", (0, 5))] {
+        let mut ws = TestEditor::new(md);
+        ws.enter_frame();
+        ws.push(Event::Select { region: (Grapheme(start), Grapheme(end)).into() });
+        ws.enter_frame();
+        ws.push(link());
+        ws.enter_frame();
+        ws.push(link());
+        ws.enter_frame();
+        assert_eq!(ws.get_text(), md);
+    }
 }

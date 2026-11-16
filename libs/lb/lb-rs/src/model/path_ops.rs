@@ -1,10 +1,11 @@
 use crate::model::access_info::UserAccessMode;
+use crate::model::entropy::Entropy;
 use crate::model::errors::{LbErrKind, LbResult};
 use crate::model::file_like::FileLike;
 use crate::model::file_metadata::{FileType, Owner};
 use crate::model::lazy::{LazyStaged1, LazyTree};
 use crate::model::tree_like::{TreeLike, TreeLikeMut};
-use crate::model::{symkey, validate};
+use crate::model::validate;
 use crate::service::keychain::Keychain;
 use std::collections::HashSet;
 use uuid::Uuid;
@@ -24,25 +25,39 @@ where
             } else {
                 current
             };
-            'child: for child in self.children(&id)? {
-                if self.calculate_deleted(&child)? {
-                    continue 'child;
-                }
-
-                if self.name_using_links(&child, keychain)? == name {
-                    current = match self.find(&child)?.file_type() {
-                        FileType::Link { target } => target,
-                        _ => child,
-                    };
-
-                    continue 'path;
-                }
+            let children = self.children(&id)?;
+            if let Some(child) = self.child_named(children, name, keychain)? {
+                current = child;
+                continue 'path;
+            }
+            // looked up only when nothing else matches, since finding these reads the whole tree
+            let beside = self.attachments_beside(&id)?;
+            if let Some(child) = self.child_named(beside, name, keychain)? {
+                current = child;
+                continue 'path;
             }
 
             return Err(LbErrKind::FileNonexistent.into());
         }
 
         Ok(current)
+    }
+
+    fn child_named(
+        &mut self, children: Vec<Uuid>, name: &str, keychain: &Keychain,
+    ) -> LbResult<Option<Uuid>> {
+        for child in children {
+            if self.calculate_deleted(&child)? {
+                continue;
+            }
+            if self.name_using_links(&child, keychain)? == name {
+                return Ok(Some(match self.find(&child)?.file_type() {
+                    FileType::Link { target } => target,
+                    _ => child,
+                }));
+            }
+        }
+        Ok(None)
     }
 
     pub fn id_to_path(&mut self, id: &Uuid, keychain: &Keychain) -> LbResult<String> {
@@ -69,13 +84,13 @@ where
             } else {
                 self.find(&current)?
             };
-            if self.maybe_find(current_meta.parent()).is_none() {
-                return Err(LbErrKind::FileParentNonexistent.into());
-            }
             if current_meta.is_root() {
                 return Ok(path);
             }
-            let next = *current_meta.parent();
+            let next = self.parent_using_links(&current)?;
+            if self.maybe_find(&next).is_none() {
+                return Err(LbErrKind::FileParentNonexistent.into());
+            }
             let current_name = self.name_using_links(&current, keychain)?;
             path = format!("/{current_name}{path}");
             current = next;
@@ -133,26 +148,26 @@ where
     Local: TreeLikeMut<F = Base::F>,
 {
     pub fn create_link_at_path(
-        &mut self, path: &str, target_id: Uuid, root: &Uuid, keychain: &Keychain,
+        &mut self, path: &str, target_id: Uuid, root: &Uuid, keychain: &Keychain, entropy: &Entropy,
     ) -> LbResult<Uuid> {
         validate::path(path)?;
         let file_type = FileType::Link { target: target_id };
         let path_components = split_path(path);
-        self.create_at_path_helper(file_type, path_components, root, keychain)
+        self.create_at_path_helper(file_type, path_components, root, keychain, entropy)
     }
 
     pub fn create_at_path(
-        &mut self, path: &str, root: &Uuid, keychain: &Keychain,
+        &mut self, path: &str, root: &Uuid, keychain: &Keychain, entropy: &Entropy,
     ) -> LbResult<Uuid> {
         validate::path(path)?;
         let file_type = if path.ends_with('/') { FileType::Folder } else { FileType::Document };
         let path_components = split_path(path);
-        self.create_at_path_helper(file_type, path_components, root, keychain)
+        self.create_at_path_helper(file_type, path_components, root, keychain, entropy)
     }
 
     fn create_at_path_helper(
         &mut self, file_type: FileType, path_components: Vec<&str>, root: &Uuid,
-        keychain: &Keychain,
+        keychain: &Keychain, entropy: &Entropy,
     ) -> LbResult<Uuid> {
         let mut current = *root;
 
@@ -195,8 +210,8 @@ where
                 if index != path_components.len() - 1 { FileType::Folder } else { file_type };
 
             current = self.create(
-                Uuid::new_v4(),
-                symkey::generate_key(),
+                entropy.id(),
+                entropy.key(),
                 &current,
                 path_components[index],
                 this_file_type,

@@ -11,9 +11,8 @@ import kotlin.math.min
 data class WorkspaceTheme(
     val isDark: Boolean,
     val dim: WorkspaceThemeVariant,
-    val lightPrefs: WorkspaceThemePreferences,
     val bright: WorkspaceThemeVariant,
-    val darkPrefs: WorkspaceThemePreferences,
+    val accent: String,
 )
 
 data class WorkspaceThemeVariant(
@@ -26,13 +25,6 @@ data class WorkspaceThemeVariant(
     val magenta: Int,
     val cyan: Int,
     val white: Int,
-)
-
-data class WorkspaceThemePreferences(
-    val primary: String,
-    val secondary: String,
-    val tertiary: String,
-    val quaternary: String,
 )
 
 object WorkspaceThemeHelper {
@@ -109,22 +101,22 @@ object WorkspaceThemeHelper {
             } else {
                 harmonizedDim.accentColors()
             }
-        val prefs =
-            pickWorkspacePreferences(
+        val slots =
+            pickPaletteSlots(
                 intArrayOf(materialPrimary, materialSecondary, materialTertiary),
                 renderedAccentSlots,
             )
         val fgAccentColors =
             mapOf(
-                prefs.primary to materialPrimary,
-                prefs.secondary to materialSecondary,
-                prefs.tertiary to materialTertiary,
+                slots[0] to materialPrimary,
+                slots[1] to materialSecondary,
+                slots[2] to materialTertiary,
             )
         val bgAccentColors =
             mapOf(
-                prefs.primary to materialPrimaryContainer,
-                prefs.secondary to materialSecondaryContainer,
-                prefs.tertiary to materialTertiaryContainer,
+                slots[0] to materialPrimaryContainer,
+                slots[1] to materialSecondaryContainer,
+                slots[2] to materialTertiaryContainer,
             )
 
         val dim =
@@ -146,9 +138,8 @@ object WorkspaceThemeHelper {
         return WorkspaceTheme(
             isDark = darkMode,
             dim = dim,
-            lightPrefs = prefs,
             bright = bright,
-            darkPrefs = prefs,
+            accent = slots[0],
         )
     }
 
@@ -183,10 +174,11 @@ object WorkspaceThemeHelper {
             else -> this
         }
 
-    private fun pickWorkspacePreferences(
+    /** The palette slot nearest each Material role, in role order. */
+    private fun pickPaletteSlots(
         materialRoles: IntArray,
         renderedAccentSlots: List<Int>,
-    ): WorkspaceThemePreferences {
+    ): List<String> {
         val paletteSlots =
             mutableListOf(
                 PALETTE_RED to renderedAccentSlots[0],
@@ -197,24 +189,14 @@ object WorkspaceThemeHelper {
                 PALETTE_CYAN to renderedAccentSlots[5],
             )
 
-        val picked =
-            materialRoles
-                .map { roleColor ->
-                    val best =
-                        paletteSlots.minByOrNull { (_, slotColor) ->
-                            colorMatchScore(roleColor, slotColor)
-                        } ?: paletteSlots.first()
-                    paletteSlots.remove(best)
-                    best.first
-                }.toMutableList()
-
-        picked += paletteSlots.maxByOrNull { (_, slotColor) -> saturation(slotColor) }?.first ?: PALETTE_CYAN
-        return WorkspaceThemePreferences(
-            primary = picked[0],
-            secondary = picked[1],
-            tertiary = picked[2],
-            quaternary = picked[3],
-        )
+        return materialRoles.map { roleColor ->
+            val best =
+                paletteSlots.minByOrNull { (_, slotColor) ->
+                    colorMatchScore(roleColor, slotColor)
+                } ?: paletteSlots.first()
+            paletteSlots.remove(best)
+            best.first
+        }
     }
 
     private fun colorMatchScore(
@@ -234,11 +216,5 @@ object WorkspaceThemeHelper {
     ): Float {
         val diff = abs(a - b)
         return min(diff, 360f - diff)
-    }
-
-    private fun saturation(color: Int): Float {
-        val hsv = FloatArray(3)
-        Color.colorToHSV(color, hsv)
-        return hsv[1]
     }
 }

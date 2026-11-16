@@ -10,7 +10,7 @@ use crate::{
     search::{SearchExecutor, SearchType, path},
     show::InputStateExt,
     style::{
-        FileRow, RowGeom, Space, ThemeExt, file_row_icon, parent_crumbs, phosphor,
+        FileRow, RowGeom, Space, ThemeExt, file_row_icon, path_crumbs, phosphor,
         with_overlay_scroll,
     },
 };
@@ -483,7 +483,7 @@ impl ContentSearch {
         let sc_w = if ordinal < 9 { path::shortcut_trail_w(ui, &t) } else { 0.0 };
         let resp = FileRow::new(&t, &result.filename)
             .icon(file_row_icon(&result.filename, false))
-            .subtitle(parent_crumbs(&result.parent_path))
+            .subtitle(path_crumbs(&result.parent_path))
             .highlighted(selected)
             .trail_reserve(sc_w)
             .show(ui, Id::unique("content_file").with(result.id));

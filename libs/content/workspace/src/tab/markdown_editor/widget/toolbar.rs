@@ -1,13 +1,12 @@
+use crate::widgets::GlyphonLabel;
 use std::mem;
-use std::sync::Arc;
 use web_time::{Duration, Instant};
 
-use comrak::Arena;
 use comrak::nodes::{AstNode, ListType, NodeHeading, NodeList, NodeValue, TableAlignment};
 use egui::scroll_area::{ScrollBarVisibility, ScrollSource};
 use egui::{
-    Color32, FontId, Frame, Label, Layout, Margin, Pos2, Rect, Response, RichText, ScrollArea,
-    Separator, Stroke, StrokeKind, Ui, UiBuilder, Vec2, Widget,
+    Color32, Frame, Layout, Margin, Pos2, Rect, Response, ScrollArea, Separator, Stroke,
+    StrokeKind, Ui, UiBuilder, Vec2, Widget,
 };
 use lb_rs::model::text::offset_types::{IntoRangeExt, RangeExt as _};
 use lb_rs::model::text::operation_types::Operation;
@@ -15,16 +14,16 @@ use serde::{Deserialize, Serialize};
 
 use crate::style::{
     CHROME_BAND_GLYPH, CHROME_BAND_H, STROKE_HAIRLINE, ThemeExt, control_height, icon_button_glyph,
-    icon_button_mark, phosphor, phosphor_font_id, place_at, tip_text,
+    icon_button_mark, phosphor, place_at, tip_text,
 };
 use crate::tab::markdown_editor::table::TableAction;
 use crate::tab::markdown_editor::widget::utils::NodeValueExt;
-use crate::tab::markdown_editor::{MdRender, TouchTarget};
+use crate::tab::markdown_editor::{Arena, MdRender, TouchTarget};
 use crate::tab::{ExtendedInput as _, ExtendedOutput as _};
 
 use crate::tab::markdown_editor::{self, Editor};
 use markdown_editor::Event;
-use markdown_editor::input::Region;
+use markdown_editor::input::{FrontMatterAction, Region};
 
 pub const MOBILE_TOOL_BAR_SIZE: f32 = CHROME_BAND_H;
 pub const MENU_SPACE: f32 = 20.; // space used for separators between menu sections
@@ -137,9 +136,9 @@ impl Mark {
     fn paint(self, painter: &egui::Painter, rect: Rect, color: Color32) {
         let rows = match self {
             Mark::Glyph(icon) => {
-                let font = phosphor_font_id(CHROME_BAND_GLYPH);
-                let g = painter.layout_no_wrap(icon.into(), font, Color32::PLACEHOLDER);
-                painter.galley(rect.center() - g.size() / 2.0, g, color);
+                GlyphonLabel::icon(icon, color, CHROME_BAND_GLYPH)
+                    .build(painter.ctx())
+                    .paint_centered(painter, rect.center());
                 return;
             }
             Mark::RemoveRow => true,
@@ -310,10 +309,10 @@ fn show_table_picker(
                     None => "Table size".to_string(),
                 };
                 ui.add_space(gap);
-                ui.label(
-                    RichText::new(caption)
-                        .color(t.neutral_fg_secondary())
-                        .size(caption_size),
+                ui.add(
+                    GlyphonLabel::new(&caption, t.neutral_fg_secondary())
+                        .font_size(caption_size)
+                        .interface(),
                 );
                 // a finger slid to its size and lifted is no click to egui
                 let lifted = ui.input(|i| {
@@ -355,8 +354,14 @@ pub struct ToolbarPersistence {
     task_list: bool,
     #[serde(default)]
     quote: bool,
+    #[serde(default)]
+    code_block: bool,
+    #[serde(default)]
+    rule: bool,
     link: bool,
     image: bool,
+    #[serde(default)]
+    front_matter: bool,
     indent: bool,
     deindent: bool,
     search: bool,
@@ -583,29 +588,30 @@ impl<'ast> Editor {
         for tools in table_tools.iter().flatten() {
             w += group(tools.len());
         }
-        w += group(
-            block(&[persistence.heading])
-                + count(&[
-                    persistence.bold,
-                    persistence.emph,
-                    persistence.code,
-                    persistence.strikethrough,
-                    persistence.highlight,
-                    persistence.underline,
-                    persistence.spoiler,
-                    persistence.subscript,
-                    persistence.superscript,
-                ]),
-        );
+        w += group(count(&[
+            persistence.bold,
+            persistence.emph,
+            persistence.code,
+            persistence.strikethrough,
+            persistence.highlight,
+            persistence.underline,
+            persistence.spoiler,
+            persistence.subscript,
+            persistence.superscript,
+        ]));
         w += group(block(&[
+            persistence.heading,
             persistence.ordered_list,
             persistence.unordered_list,
             persistence.task_list,
             persistence.quote,
+            persistence.code_block,
+            persistence.rule,
             persistence.table,
         ]));
 
-        let mut media = count(&[persistence.link]);
+        // link, front matter, and image
+        let mut media = 2 * count(&[persistence.link]) + count(&[persistence.front_matter]);
         if (persistence.image || is_default) && supports_attachments {
             media += 1;
         }
@@ -776,10 +782,6 @@ impl<'ast> Editor {
                 }
 
                 let mut any_style = false;
-                if block(persistence.heading) {
-                    self.heading_button(root, ui).map(|e| events.push(e));
-                    any_style = true;
-                }
                 if persistence.bold || toolbar_is_default {
                     if any_style {
                         ui.add_space(5.);
@@ -857,7 +859,14 @@ impl<'ast> Editor {
                 }
 
                 let mut any_list = false;
+                if block(persistence.heading) {
+                    self.heading_button(root, ui).map(|e| events.push(e));
+                    any_list = true;
+                }
                 if block(persistence.ordered_list) {
+                    if any_list {
+                        ui.add_space(5.);
+                    }
                     self.style(
                         phosphor::LIST_NUMBERS,
                         NodeValue::List(NodeList {
@@ -909,6 +918,32 @@ impl<'ast> Editor {
                     }
                     self.style(phosphor::QUOTES, NodeValue::BlockQuote, root, ui)
                         .map(|e| events.push(e));
+                    any_list = true;
+                }
+                if block(persistence.code_block) {
+                    if any_list {
+                        ui.add_space(5.);
+                    }
+                    self.style(
+                        phosphor::CODE_BLOCK,
+                        NodeValue::CodeBlock(Default::default()),
+                        root,
+                        ui,
+                    )
+                    .map(|e| events.push(e));
+                    any_list = true;
+                }
+                if block(persistence.rule) {
+                    if any_list {
+                        ui.add_space(5.);
+                    }
+                    self.style(
+                        phosphor::ARROWS_OUT_LINE_VERTICAL,
+                        NodeValue::ThematicBreak,
+                        root,
+                        ui,
+                    )
+                    .map(|e| events.push(e));
                     any_list = true;
                 }
                 if block(persistence.table) {
@@ -963,6 +998,23 @@ impl<'ast> Editor {
                     ui.add_space(5.);
                     self.style(phosphor::IMAGE, NodeValue::Image(Default::default()), root, ui)
                         .map(|e| events.push(e));
+                    any_media = true;
+                }
+                if persistence.front_matter || toolbar_is_default {
+                    if any_media {
+                        ui.add_space(5.);
+                    }
+                    let in_block = self.edit.in_front_matter();
+                    if toolbar_icon(
+                        ui,
+                        &t,
+                        phosphor::LIST_DASHES,
+                        in_block,
+                        menu_open,
+                        "Add Property",
+                    ) {
+                        events.push(Event::FrontMatter(FrontMatterAction::Add));
+                    }
                     any_media = true;
                 }
                 if (persistence.image || toolbar_is_default) && supports_attachments {
@@ -1163,11 +1215,16 @@ impl<'ast> Editor {
                             ui.add_space(MENU_SPACE);
                             top_left.y += MENU_SPACE;
 
-                            ui.vertical_centered_justified(|ui| {
-                                let font =
-                                    FontId::new(16.0, egui::FontFamily::Name(Arc::from("Bold")));
-                                Label::new(RichText::from("Show / Hide Toolbar Buttons").font(font))
-                                    .ui(ui)
+                            ui.vertical_centered(|ui| {
+                                let title = "Show / Hide Toolbar Buttons";
+                                ui.add(
+                                    GlyphonLabel::new_rich(
+                                        vec![(title, true)],
+                                        ui.visuals().text_color(),
+                                    )
+                                    .font_size(16.0)
+                                    .interface(),
+                                )
                             });
                             top_left.y += ui.text_style_height(&egui::TextStyle::Heading)
                                 + ui.spacing().item_spacing.y;
@@ -1240,24 +1297,6 @@ impl<'ast> Editor {
                             top_left.y += MENU_SPACE;
 
                             // styles
-                            if self
-                                .menu_toggle(
-                                    ui,
-                                    top_left,
-                                    md_width,
-                                    "### Heading",
-                                    phosphor::TEXT_H_ONE,
-                                    persistence.heading,
-                                )
-                                .clicked()
-                            {
-                                let mut persistence = self.persistence.data.write().unwrap();
-                                let persistence = &mut persistence.markdown.toolbar;
-                                persistence.heading ^= true;
-                                self.persistence.write_to_file();
-                            }
-                            top_left.y += self.menu_toggle_height("### Heading");
-
                             if self
                                 .menu_toggle(
                                     ui,
@@ -1423,7 +1462,25 @@ impl<'ast> Editor {
                             Separator::default().spacing(MENU_SPACE).ui(ui);
                             top_left.y += MENU_SPACE;
 
-                            // lists
+                            // blocks
+                            if self
+                                .menu_toggle(
+                                    ui,
+                                    top_left,
+                                    md_width,
+                                    "### Heading",
+                                    phosphor::TEXT_H_ONE,
+                                    persistence.heading,
+                                )
+                                .clicked()
+                            {
+                                let mut persistence = self.persistence.data.write().unwrap();
+                                let persistence = &mut persistence.markdown.toolbar;
+                                persistence.heading ^= true;
+                                self.persistence.write_to_file();
+                            }
+                            top_left.y += self.menu_toggle_height("### Heading");
+
                             if self
                                 .menu_toggle(
                                     ui,
@@ -1501,6 +1558,42 @@ impl<'ast> Editor {
                                     ui,
                                     top_left,
                                     md_width,
+                                    "``` Code Block",
+                                    phosphor::CODE_BLOCK,
+                                    persistence.code_block,
+                                )
+                                .clicked()
+                            {
+                                let mut persistence = self.persistence.data.write().unwrap();
+                                let persistence = &mut persistence.markdown.toolbar;
+                                persistence.code_block ^= true;
+                                self.persistence.write_to_file();
+                            }
+                            top_left.y += self.menu_toggle_height("``` Code Block");
+
+                            if self
+                                .menu_toggle(
+                                    ui,
+                                    top_left,
+                                    md_width,
+                                    "--- Divider",
+                                    phosphor::ARROWS_OUT_LINE_VERTICAL,
+                                    persistence.rule,
+                                )
+                                .clicked()
+                            {
+                                let mut persistence = self.persistence.data.write().unwrap();
+                                let persistence = &mut persistence.markdown.toolbar;
+                                persistence.rule ^= true;
+                                self.persistence.write_to_file();
+                            }
+                            top_left.y += self.menu_toggle_height("--- Divider");
+
+                            if self
+                                .menu_toggle(
+                                    ui,
+                                    top_left,
+                                    md_width,
                                     "Table",
                                     phosphor::TABLE,
                                     persistence.table,
@@ -1535,6 +1628,24 @@ impl<'ast> Editor {
                                 self.persistence.write_to_file();
                             }
                             top_left.y += self.menu_toggle_height("[Link](url)");
+
+                            if self
+                                .menu_toggle(
+                                    ui,
+                                    top_left,
+                                    md_width,
+                                    "Property",
+                                    phosphor::LIST_DASHES,
+                                    persistence.front_matter,
+                                )
+                                .clicked()
+                            {
+                                let mut persistence = self.persistence.data.write().unwrap();
+                                let persistence = &mut persistence.markdown.toolbar;
+                                persistence.front_matter ^= true;
+                                self.persistence.write_to_file();
+                            }
+                            top_left.y += self.menu_toggle_height("Property");
 
                             if supports_attachments {
                                 if self
@@ -1615,12 +1726,7 @@ impl<'ast> Editor {
                             // the menu is open
                             let text_areas = mem::take(&mut self.edit.renderer.text_areas);
                             if !text_areas.is_empty() {
-                                ui.painter().add(
-                                    egui_wgpu_renderer::egui_wgpu::Callback::new_paint_callback(
-                                        ui.clip_rect(),
-                                        crate::GlyphonRendererCallback::new(text_areas),
-                                    ),
-                                );
+                                crate::paint_text(ui.painter(), ui.clip_rect(), text_areas);
                             }
 
                             // restore stored values
@@ -1684,19 +1790,22 @@ impl<'ast> Editor {
         self.edit.renderer.buffer = md.into();
 
         // place cursor (affects capture)
-        self.edit.renderer.buffer.queue(vec![Operation::Select(
-            self.edit
-                .renderer
-                .buffer
-                .current
-                .segs
-                .last_cursor_position()
-                .into_range(),
-        )]);
+        self.edit.renderer.buffer.queue(
+            vec![Operation::Select(
+                self.edit
+                    .renderer
+                    .buffer
+                    .current
+                    .segs
+                    .last_cursor_position()
+                    .into_range(),
+            )],
+            self.edit.renderer.now(),
+        );
         self.edit.renderer.buffer.update();
 
         // parse
-        let arena = Arena::new();
+        let arena = comrak::Arena::new();
         let options = MdRender::comrak_options();
         let text_with_newline = self.edit.renderer.buffer.current.text.to_string() + "\n";
         let root = comrak::parse_document(&arena, &text_with_newline, &options);
@@ -1721,19 +1830,22 @@ impl<'ast> Editor {
         self.edit.renderer.buffer = md.into();
 
         // place cursor (affects capture)
-        self.edit.renderer.buffer.queue(vec![Operation::Select(
-            self.edit
-                .renderer
-                .buffer
-                .current
-                .segs
-                .last_cursor_position()
-                .into_range(),
-        )]);
+        self.edit.renderer.buffer.queue(
+            vec![Operation::Select(
+                self.edit
+                    .renderer
+                    .buffer
+                    .current
+                    .segs
+                    .last_cursor_position()
+                    .into_range(),
+            )],
+            self.edit.renderer.now(),
+        );
         self.edit.renderer.buffer.update();
 
         // parse
-        let arena = Arena::new();
+        let arena = comrak::Arena::new();
         let options = MdRender::comrak_options();
         let text_with_newline = self.edit.renderer.buffer.current.text.to_string() + "\n";
         let root = comrak::parse_document(&arena, &text_with_newline, &options);
@@ -1796,11 +1908,11 @@ impl Name for NodeValue {
             NodeValue::DescriptionItem(_) => "",
             NodeValue::DescriptionTerm => "",
             NodeValue::DescriptionDetails => "",
-            NodeValue::CodeBlock(_) => "",
+            NodeValue::CodeBlock(_) => "Code Block",
             NodeValue::HtmlBlock(_) => "",
             NodeValue::Paragraph => "",
             NodeValue::Heading(_) => "Heading",
-            NodeValue::ThematicBreak => "",
+            NodeValue::ThematicBreak => "Divider",
             NodeValue::FootnoteDefinition(_) => "",
             NodeValue::Table(_) => "",
             NodeValue::TableRow(_) => "",

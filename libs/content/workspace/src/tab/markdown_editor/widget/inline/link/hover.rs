@@ -1,8 +1,8 @@
-//! A web link's preview card: the hover tip on desktop, and the body a bare
+//! A web link's preview card: the hover tip under a pointer, and the body a bare
 //! link alone on its line shows as a block. Its picture runs edge to edge;
 //! then where it stands, the site, the title, who, labels and description.
 
-use egui::{Align2, Color32, CornerRadius, Painter, Rect, Response, Sense, Ui, vec2};
+use egui::{Color32, CornerRadius, Painter, Rect, Response, Sense, Ui, vec2};
 
 use super::{LinkMenuAction, fill_link_menu};
 use crate::file_cache::ResolvedLink;
@@ -10,7 +10,7 @@ use crate::link_preview::{LinkMeta, Status};
 use crate::style::button::{Button, icon_button};
 use crate::style::phosphor::DOTS_THREE;
 use crate::style::phosphor::{CHECK_CIRCLE, CIRCLE, GIT_MERGE, GIT_PULL_REQUEST, PROHIBIT};
-use crate::style::{Pill, PillLead, Radius, Space, TypeRole, context_menu, phosphor_font_id};
+use crate::style::{Pill, PillLead, Radius, Space, TypeRole, context_menu};
 use crate::tab::markdown_editor::MdRender;
 use crate::tab::markdown_editor::widget::inline::link::LinkMetaLookup;
 use crate::theme::palette_v2::{Theme, ThemeExt as _};
@@ -36,9 +36,6 @@ impl MdRender {
     pub(super) fn show_link_preview(
         &self, ctx: &egui::Context, response: &Response, url: &str, shows_url: bool, wikilink: bool,
     ) -> bool {
-        if self.touch_mode {
-            return false;
-        }
         if let Some(place) = self.link_place(url, wikilink) {
             return self.show_tab_card(ctx, response, url, place);
         }
@@ -313,7 +310,9 @@ pub(super) fn paint_status(painter: &Painter, rect: Rect, status: Status, t: &Th
         painter.circle_filled(rect.center(), size * 0.13, color);
         return;
     }
-    painter.text(rect.center(), Align2::CENTER_CENTER, glyph, phosphor_font_id(size), color);
+    GlyphonLabel::icon(glyph, color, size)
+        .build(painter.ctx())
+        .paint_centered(painter, rect.center());
 }
 
 /// 17831 → "17,831".

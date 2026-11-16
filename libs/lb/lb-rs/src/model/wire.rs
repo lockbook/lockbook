@@ -106,6 +106,27 @@ mod tests {
     }
 
     #[test]
+    fn roundtrip_account_info_with_payment_platform() {
+        use crate::model::api::{AccountInfo, PaymentPlatformV2};
+
+        let info = AccountInfo {
+            username: "parth".into(),
+            root: None,
+            payment_platform: Some(PaymentPlatformV2::Stripe { card_last_4_digits: "4242".into() }),
+            usage: "1 KB".into(),
+            created: Some(1),
+            last_seen: None,
+            deleted: true,
+        };
+
+        for fmt in [WireFormat::Json, WireFormat::Bincode] {
+            let encoded = fmt.serialize(&info).unwrap();
+            let decoded: AccountInfo = fmt.deserialize(&encoded).unwrap();
+            assert_eq!(info, decoded, "{fmt:?} roundtrip mismatch");
+        }
+    }
+
+    #[test]
     fn bincode_is_more_compact_for_bytes_than_json() {
         #[derive(serde::Serialize, serde::Deserialize)]
         struct Doc {

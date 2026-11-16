@@ -14,6 +14,7 @@
 //! - The [blocking] module contains blocking variants of all [Lb] functions for consumers without
 //!   async runtimes.
 //! - The [io] module contains interactions with disk and network.
+use crate::io::docs::LocalDocuments;
 
 #[macro_use]
 extern crate tracing;
@@ -29,20 +30,37 @@ pub mod subscribers;
 #[cfg(target_family = "wasm")]
 pub mod wasm;
 
+/// Do devices create attachments folders? Off until every client in the field reads metadata V2;
+/// turning it on is a change to this line.
+pub const ATTACHMENTS_FOLDERS: bool = false;
+
+// C headers name only `blocking::Lb`; cbindgen keys types by bare name, so this one stays out.
+/// cbindgen:ignore
 #[derive(Clone)]
-pub struct Lb {
+pub struct Lb<S = Network, D = AsyncDocs> {
     pub config: Config,
     pub user_last_seen: Arc<RwLock<Instant>>,
     pub user_wake: Arc<Notify>,
     pub keychain: Keychain,
+    pub entropy: Entropy,
     pub db: LbDb,
-    pub docs: AsyncDocs,
-    pub client: Network,
+    pub docs: D,
+    pub client: S,
     pub events: EventSubs,
     pub status: StatusUpdater,
     pub syncer: Syncer,
+    /// Does this device create attachments folders? Gates creating them and nothing else: a device
+    /// that doesn't reads, merges, moves, renames, deletes and shares them like one that does.
+    /// Set in code, not configured: every instance starts at [ATTACHMENTS_FOLDERS], and tests turn
+    /// it on for the devices they need before using them.
+    pub attachments_folders: bool,
     #[cfg(all(unix, not(target_os = "ios")))]
-    pub(crate) ipc: Arc<Ipc>,
+    /// None for an instance that shares its database with no other process.
+    pub(crate) ipc: Option<Arc<Ipc>>,
+    #[cfg(not(any(target_family = "wasm", target_os = "ios")))]
+    /// The file that keeps two instances on one data directory from syncing at once; None for an
+    /// instance with no data directory.
+    pub(crate) sync_lock: Option<std::path::PathBuf>,
 }
 
 impl Lb {
@@ -51,13 +69,66 @@ impl Lb {
         logging::init(&config)?;
 
         let docs = AsyncDocs::from(&config);
-        let db = io::init_with_migration(Path::new(&config.writeable_path))
-            .map_err(|err| LbErrKind::Unexpected(format!("{err:#?}")))?;
-        let keychain = Keychain::from(db.schema.account.as_ref());
-        let db = Arc::new(RwLock::new(db));
+        let path = Path::new(&config.writeable_path);
+        let db =
+            if config.read_only { io::init_read_only(path) } else { io::init_with_migration(path) }
+                .map_err(|err| LbErrKind::Unexpected(format!("{err:#?}")))?;
         #[cfg(all(unix, not(target_os = "ios")))]
-        let ipc = Arc::new(Ipc::new(&*db.read().await, config.background_work)?);
+        let ipc = if config.read_only {
+            None
+        } else {
+            Some(Arc::new(Ipc::new(&db, config.background_work)?))
+        };
+        #[cfg(not(any(target_family = "wasm", target_os = "ios")))]
+        let sync_lock = Some(Path::new(&config.writeable_path).join("sync.lock"));
         let client = Network { client_type: config.client_type, ..Network::default() };
+
+        Self::assemble(
+            config,
+            db,
+            docs,
+            client,
+            #[cfg(all(unix, not(target_os = "ios")))]
+            ipc,
+            #[cfg(not(any(target_family = "wasm", target_os = "ios")))]
+            sync_lock,
+        )
+        .await
+    }
+}
+
+impl<S: Server, D: LocalDocuments> Lb<S, D> {
+    /// An instance whose database lives in memory, shared with no other process, that keeps its
+    /// documents in `docs` and sends every request to `server`. Only logs and panic reports use
+    /// `config.writeable_path`.
+    pub async fn in_memory(config: Config, server: S, docs: D) -> LbResult<Self> {
+        logging::init(&config)?;
+
+        let db = io::CoreDb::init(&db_rs::config::Config::in_memory())?;
+
+        Self::assemble(
+            config,
+            db,
+            docs,
+            server,
+            #[cfg(all(unix, not(target_os = "ios")))]
+            None,
+            #[cfg(not(any(target_family = "wasm", target_os = "ios")))]
+            None,
+        )
+        .await
+    }
+
+    async fn assemble(
+        config: Config, db: io::CoreDb, docs: D, client: S,
+        #[cfg(all(unix, not(target_os = "ios")))] ipc: Option<Arc<Ipc>>,
+        #[cfg(not(any(target_family = "wasm", target_os = "ios")))] sync_lock: Option<
+            std::path::PathBuf,
+        >,
+    ) -> LbResult<Self> {
+        let keychain = Keychain::from(db.schema.account.as_ref());
+        let entropy = Entropy::new(&config);
+        let db = Arc::new(RwLock::new(db));
 
         let status = StatusUpdater::default();
         let syncer = Default::default();
@@ -68,23 +139,27 @@ impl Lb {
         let result = Self {
             config,
             keychain,
+            entropy,
             db,
             docs,
             client,
             syncer,
+            attachments_folders: ATTACHMENTS_FOLDERS,
             events,
             status,
             user_last_seen,
             user_wake,
             #[cfg(all(unix, not(target_os = "ios")))]
             ipc,
+            #[cfg(not(any(target_family = "wasm", target_os = "ios")))]
+            sync_lock,
         };
 
         #[cfg(all(unix, not(target_os = "ios")))]
         result.setup_ipc().await?;
 
         #[cfg(not(target_family = "wasm"))]
-        {
+        if !result.config.read_only {
             result.setup_syncer();
             result.setup_status().await?;
         }
@@ -109,10 +184,13 @@ use crate::subscribers::ipc::Ipc;
 use crate::subscribers::syncer::Syncer;
 
 use crate::service::logging;
+use db_rs::View;
 use io::LbDb;
 use io::docs::AsyncDocs;
 use io::network::Network;
+use io::server::Server;
 use model::core_config::Config;
+use model::entropy::Entropy;
 pub use model::errors::{LbErrKind, LbResult};
 use service::events::EventSubs;
 use service::keychain::Keychain;

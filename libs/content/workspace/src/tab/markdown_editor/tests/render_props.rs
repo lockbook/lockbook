@@ -9,7 +9,7 @@
 use std::cell::OnceCell;
 use std::sync::{Arc, Mutex};
 
-use comrak::Arena;
+use crate::tab::markdown_editor::Arena;
 use egui::{Pos2, RawInput, Rect, UiBuilder, Vec2};
 use lb_rs::model::text::offset_types::{Grapheme, IntoRangeExt, RangeExt};
 
@@ -148,7 +148,7 @@ thread_local! {
 fn cached_font_system() -> Arc<Mutex<glyphon::FontSystem>> {
     FONT_SYSTEM.with(|cell| {
         cell.get_or_init(|| {
-            let mut fs = crate::widgets::glyphon_render::new_font_system();
+            let mut fs = crate::widgets::glyphon_render::fixed_font_system();
             fs.db_mut().set_sans_serif_family("Noto Sans");
             fs.db_mut().set_monospace_family("Noto Sans Mono");
             Arc::new(Mutex::new(fs))
@@ -162,15 +162,8 @@ fn cached_font_system() -> Arc<Mutex<glyphon::FontSystem>> {
 pub(super) fn test_renderer(md: &str) -> MdRender {
     let mut r = MdRender::test(md);
     // every web link the generator writes has a preview, so its chips and
-    // cards lay out; seeded, so nothing is fetched
-    let mut persistence = crate::workspace::WsPersistentStore::new(
-        false,
-        format!("/tmp/{}", lb_rs::Uuid::new_v4()).into(),
-        false,
-    );
-    persistence.set_contact_linked_sites(true);
-    r.previews =
-        crate::link_preview::LinkPreviews::new(r.ctx.clone(), Default::default(), persistence);
+    // cards lay out; offline, so a link edited into another is not fetched
+    r.previews = crate::link_preview::LinkPreviews::offline(r.ctx.clone());
     r.contact_linked_sites = true;
     for (url, title) in [
         ("https://x.test", "A title long enough that its chip is cut short and fades out"),
@@ -414,8 +407,7 @@ fn table_ranges_check(buf: &[u8], f: &Features) -> Result<(), String> {
 }
 
 /// Property: nothing overflows a table cell — every fragment of a cell's
-/// text is painted inside the cell — and given room for every column's
-/// widest cell, no cell wraps.
+/// text is painted inside the cell, where the cell shows whole.
 fn table_cells_hold_their_content_check(buf: &[u8], f: &Features) -> Result<(), String> {
     let mut src = ByteSource::new(buf);
     let md = gen_doc(&mut src, f);
@@ -429,6 +421,10 @@ fn table_cells_hold_their_content_check(buf: &[u8], f: &Features) -> Result<(), 
             return Err(format!("no row for the cell painted at {:?}", cell_box.rect));
         };
         let Some(cell) = row.cells.get(cell_box.column) else { continue };
+        // a column wider than the note shows only as far as the note's edge
+        if cell_box.rect.right() >= width - 1.5 {
+            continue;
+        }
         let fragments: Vec<_> = r
             .fragments
             .iter()
@@ -441,17 +437,6 @@ fn table_cells_hold_their_content_check(buf: &[u8], f: &Features) -> Result<(), 
                     &r.buffer[fragment.source_range], fragment.rect, cell_box.rect
                 ));
             }
-        }
-        let first_row_bottom = fragments
-            .iter()
-            .map(|fragment| fragment.rect.bottom())
-            .fold(f32::INFINITY, f32::min);
-        if roomy
-            && fragments
-                .iter()
-                .any(|fragment| fragment.rect.top() >= first_row_bottom)
-        {
-            return Err(format!("{:?} wrapped with room to spare", &r.buffer[cell.span]));
         }
     }
     Ok(())

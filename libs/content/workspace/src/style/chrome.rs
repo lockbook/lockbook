@@ -12,7 +12,7 @@
 use std::sync::Arc;
 
 use egui::{
-    Align, Align2, Color32, CornerRadius, FontFamily, FontId, Frame, Layout, Margin, Rect,
+    Align, Align2, Color32, CornerRadius, FontFamily, FontId, Frame, Layout, Margin, Pos2, Rect,
     Response, Sense, Shadow, Stroke, StrokeKind, Ui, pos2, vec2,
 };
 
@@ -260,6 +260,29 @@ pub fn plate_content_shadow(
         .response
 }
 
+/// How much of a dragged copy shows, so where it lands shows through it.
+pub const DRAG_OPACITY: f32 = 0.5;
+
+/// How far a drop line's mark reaches to either side of it: its dot's radius.
+pub const DROP_LINE_REACH: f32 = 4.0;
+
+/// Where a drag lands between others, from `start` to `end` along the flow
+/// (across a list, down a column or a line of text): a soft capsule, a line
+/// down its middle, and a hollow dot at `start`. One mark for every drop.
+pub fn paint_drop_line(painter: &egui::Painter, start: Pos2, end: Pos2, t: &Theme) {
+    let primary = t.accent_bg();
+    let (dot, half, wash) = (DROP_LINE_REACH, 1.25, 3.0);
+    let along = (end - start).normalized();
+    let across = vec2(along.y.abs(), along.x.abs());
+    let capsule = Rect::from_two_pos(start, end).expand2(across * wash);
+    painter.rect_filled(capsule, CornerRadius::same(3), primary.gamma_multiply(0.18));
+    let head = start + along * dot;
+    let line = Rect::from_two_pos(head, end).expand2(across * half);
+    painter.rect_filled(line, CornerRadius::same(1), primary);
+    painter.circle_filled(head, dot, primary);
+    painter.circle_filled(head, dot - 1.5, t.neutral_bg());
+}
+
 /// The slot something was lifted out of: shaded in from its edges, most
 /// under the top one, as if pressed into the surface.
 pub fn paint_inset_shadow(
@@ -332,6 +355,8 @@ pub mod phosphor {
     pub const PHONE_DISCONNECT: &str = "\u{e3bc}";
     /// `ph-phone-slash`.
     pub const PHONE_SLASH: &str = "\u{e3c2}";
+    /// `ph-qr-code`.
+    pub const QR_CODE: &str = "\u{e3e6}";
     /// `ph-microphone`. U+E328 is `microphone-slash`.
     pub const MICROPHONE: &str = "\u{e326}";
     /// `ph-microphone-slash`.
@@ -422,6 +447,9 @@ pub mod phosphor {
     pub const TEXT_INDENT: &str = "\u{ea1e}";
     pub const TEXT_OUTDENT: &str = "\u{ea1c}";
     pub const QUOTES: &str = "\u{e660}";
+    pub const CODE_BLOCK: &str = "\u{eafe}";
+    /// Horizontal rule (`ph-arrows-out-line-vertical`).
+    pub const ARROWS_OUT_LINE_VERTICAL: &str = "\u{e536}";
     pub const TABLE: &str = "\u{e476}";
     pub const ROWS_PLUS_TOP: &str = "\u{e5a0}";
     pub const ROWS_PLUS_BOTTOM: &str = "\u{e59e}";
@@ -551,6 +579,7 @@ pub fn tab_icon(dest: &crate::tab::Destination, name: &str) -> &'static str {
         Destination::MindMap(_) => phosphor::GRAPH,
         Destination::SpaceInspector(_) => phosphor::CHART_PIE_SLICE,
         Destination::Diagram(_) => phosphor::FLOW_ARROW,
+        Destination::Formula(_) => phosphor::FUNCTION,
         Destination::File(_) => file_row_icon(name, false),
     }
 }
@@ -569,20 +598,36 @@ pub fn phosphor_ui_font_id() -> FontId {
 }
 
 /// Centered Phosphor spinner + muted caption. Call every frame while waiting.
+/// egui draws it, for the turn glyphon can't: print waits for what loads.
 pub fn loading_indicator(ui: &mut Ui) {
     let t = ui.ctx().get_lb_theme();
     ui.ctx().request_repaint();
     let angle = (ui.input(|i| i.time) * std::f64::consts::TAU) as f32;
-    centered_status(ui, phosphor::SPINNER_GAP, "Loading…", t.accent(), angle);
+    spinner_status(ui, phosphor::SPINNER_GAP, "Loading…", t.accent(), angle);
 }
 
 /// Centered muted Phosphor mark + caption (failed loads, empty states).
 pub fn message_indicator(ui: &mut Ui, icon: &'static str, caption: &str) {
-    let t = ui.ctx().get_lb_theme();
-    centered_status(ui, icon, caption, t.neutral_fg_secondary(), 0.0);
+    let ink = ui.ctx().get_lb_theme().neutral_fg_secondary();
+    let rect = ui.available_rect_before_wrap();
+    let icon = crate::widgets::GlyphonLabel::icon(icon, ink, TypeRole::Body.size()).build(ui.ctx());
+    let caption = crate::widgets::GlyphonLabel::new(caption, ink)
+        .role(TypeRole::Body)
+        .interface()
+        .centered()
+        .max_width(rect.width())
+        .max_lines(usize::MAX)
+        .build(ui.ctx());
+    let gap = Space::Xs.pts();
+    let top = (rect.center().y - (icon.size.y + gap + caption.size.y) / 2.0).max(rect.top());
+    let icon_at = pos2(rect.center().x, top + icon.size.y / 2.0);
+    let caption_at = pos2(rect.center().x, top + icon.size.y + gap + caption.size.y / 2.0);
+    icon.paint_centered(ui.painter(), icon_at);
+    caption.paint_centered(ui.painter(), caption_at);
+    let _ = ui.allocate_rect(rect, Sense::hover());
 }
 
-fn centered_status(ui: &mut Ui, icon: &'static str, caption: &str, ink: Color32, angle: f32) {
+fn spinner_status(ui: &mut Ui, icon: &'static str, caption: &str, ink: Color32, angle: f32) {
     let t = ui.ctx().get_lb_theme();
     let g = ui
         .painter()

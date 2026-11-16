@@ -35,3 +35,14 @@ pub fn inset_rect(ctx: &egui::Context, bounds: egui::Rect) -> egui::Rect {
         .unwrap_or_default()
         .inset(bounds)
 }
+
+/// How far above the workspace a finger still reaches, over a host's own
+/// title strip; a drag counts the strip as part of the note's top edge.
+pub fn set_top_reach(ctx: &egui::Context, reach: f32) {
+    ctx.data_mut(|data| data.insert_temp(egui::Id::unique("workspace_top_reach"), reach));
+}
+
+pub fn top_reach(ctx: &egui::Context) -> f32 {
+    ctx.data(|data| data.get_temp::<f32>(egui::Id::unique("workspace_top_reach")))
+        .unwrap_or_default()
+}

@@ -1,9 +1,6 @@
 use crate::ServerError;
 use lb_rs::model::account::MAX_USERNAME_LENGTH;
 use lb_rs::model::api::{GetBuildInfoError, GetBuildInfoResponse};
-use shadow_rs::shadow;
-
-shadow!(build_info);
 
 pub fn username_is_valid(username: &str) -> bool {
     !username.is_empty()
@@ -21,6 +18,6 @@ pub fn username_is_valid(username: &str) -> bool {
 pub fn get_build_info() -> Result<GetBuildInfoResponse, ServerError<GetBuildInfoError>> {
     Ok(GetBuildInfoResponse {
         build_version: env!("CARGO_PKG_VERSION").to_string(),
-        git_commit_hash: build_info::COMMIT_HASH.to_string(),
+        git_commit_hash: lb_rs::get_code_commit().unwrap_or_default().to_string(),
     })
 }

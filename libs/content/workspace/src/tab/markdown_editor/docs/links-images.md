@@ -54,6 +54,6 @@ Grouping attachments is good. Constraints:
 Pasted images land in a sibling `imports/` folder today; the name is not intuitive, and the path is not frozen.
 
 ## Embeds
-`![[title]]` embeds the file a wiki title names. A title ending in an image's extension (or `.svg`) is an image, and everything `![]()` is: one glyph in the wrap, green, hidden, or red by the same rules, Edit selecting what is between the brackets, with Obsidian's `|W` or `|WxH` after the pipe as its size. Any other embed (`![[Plan]]`, `![[Plan#Goals]]`, `![[paper.pdf]]`) is the wiki link it names. Renames and moves rewrite an embed as they do a wiki link, `!` kept.
+`![[title]]` embeds the file a wiki title names. A title ending in an image's extension (or `.svg`) is an image, and everything `![]()` is: one glyph in the wrap, green, hidden, or red by the same rules, Edit selecting what is between the brackets, with Obsidian's `|W` or `|WxH` after the pipe as its size. Any other embed (`![[Plan]]`, `![[Plan#Goals]]`, `![[paper.pdf]]`) is the wiki link it names. Where it shows the file's tab, a click on it away from the tab's own links selects it as an image is, a backspace against it selects it before deleting it, and a cmd-click or its pop-out button opens the file. Renames and moves rewrite an embed as they do a wiki link, `!` kept.
 
 We are open to embedding more than images. It is oddly specific that an image embeds and a drawing or a table file does not — we already show arbitrary tab types in search previews. SVG is particularly exciting.

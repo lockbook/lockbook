@@ -26,3 +26,12 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           cargo run -p lbdev -- releaser bump-versions ${{ github.event.inputs.bump_type }}
+  master:
+    needs: bump
+    runs-on: ubuntu-latest
+    permissions:
+      actions: write
+    steps:
+      - run: gh workflow run master.yml --repo ${{ github.repository }} --ref master
+        env:
+          GH_TOKEN: ${{ github.token }}

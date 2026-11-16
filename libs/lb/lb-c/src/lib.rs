@@ -14,7 +14,6 @@ use lb_rs::model::core_config::host_os_version;
 pub use lb_rs::model::core_config::{ClientType, Config};
 use lb_rs::model::file::ShareMode;
 use lb_rs::model::filename::NameComponents;
-use lb_rs::service::activity::RankingWeights;
 use lb_rs::service::debug::DebugInfoDisplay;
 use lb_rs::service::events::Event;
 pub use lb_rs::*;
@@ -39,9 +38,11 @@ pub struct LbInitRes {
 /// `build_info` optionally identifies the caller's build in the startup log.
 /// Release the result with `lb_free_init`.
 #[unsafe(no_mangle)]
+/// `list_attachments` makes listings include attachments folders, as the CLI's do: the Files
+/// app shows them, since it has no other way to reach a note's images.
 pub extern "C" fn lb_init(
     writeable_path: *const c_char, client_name: *const c_char, build_info: *const c_char,
-    logs: bool, background_work: bool,
+    logs: bool, background_work: bool, list_attachments: bool,
 ) -> LbInitRes {
     let config = Config {
         client_name: r_opt_str(client_name).unwrap_or_default().to_owned(),
@@ -53,9 +54,35 @@ pub extern "C" fn lb_init(
         stdout_logs: true,
         colored_logs: false,
         client_type: ClientType::Ui,
+        list_attachments,
         ..Default::default()
     };
 
+    init_res(config)
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn lb_init_read_only(
+    writeable_path: *const c_char, client_name: *const c_char, build_info: *const c_char,
+    logs: bool,
+) -> LbInitRes {
+    let config = Config {
+        client_name: r_opt_str(client_name).unwrap_or_default().to_owned(),
+        build_info: r_opt_str(build_info).map(str::to_owned),
+        os_version: host_os_version(),
+        writeable_path: rstring(writeable_path),
+        logs,
+        stdout_logs: true,
+        colored_logs: false,
+        client_type: ClientType::Ui,
+        read_only: true,
+        ..Default::default()
+    };
+
+    init_res(config)
+}
+
+fn init_res(config: Config) -> LbInitRes {
     match Lb::init(config) {
         Ok(lb) => {
             let lb = Box::into_raw(Box::new(lb));
@@ -273,12 +300,8 @@ pub extern "C" fn lb_next_name(
 
     match lb.get_children(&parent.into()) {
         Ok(children) => {
-            let mut name = NameComponents::from(rstr(desired));
-            if let Some(variant) = name.variant.take() {
-                name.name = format!("{}-{}", name.name, variant);
-            }
-            name.next_in_children(children);
-            LbNextNameRes { err: null_mut(), name: cstring(name.to_name()) }
+            let name = NameComponents::from(rstr(desired)).free_number_in(&children);
+            LbNextNameRes { err: null_mut(), name: cstring(name) }
         }
         Err(err) => LbNextNameRes { err: lb_err(err), name: null_mut() },
     }
@@ -464,6 +487,74 @@ pub extern "C" fn lb_unshare_file(
     match lb.unshare_file(id.into(), username) {
         Ok(()) => null_mut(),
         Err(err) => lb_err(err),
+    }
+}
+
+#[repr(C)]
+pub struct LbUsernamesRes {
+    err: *mut LbFfiErr,
+    usernames: *mut *mut c_char,
+    len: usize,
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn lb_known_usernames(lb: *mut Lb) -> LbUsernamesRes {
+    let lb = rlb(lb);
+
+    match lb.known_usernames() {
+        Ok(usernames) => {
+            let (usernames, len) = cstring_array(usernames);
+
+            LbUsernamesRes { err: null_mut(), usernames, len }
+        }
+        Err(err) => LbUsernamesRes { err: lb_err(err), usernames: null_mut(), len: 0 },
+    }
+}
+
+#[repr(C)]
+pub struct LbAttachmentsOfRes {
+    err: *mut LbFfiErr,
+    /// Whether the file is an attachments folder; `document` is meaningful only when it is.
+    is_attachments: bool,
+    document: LbUuid,
+}
+
+/// The document `id` is the attachments folder of, if it is one.
+#[unsafe(no_mangle)]
+pub extern "C" fn lb_attachments_of(lb: *mut Lb, id: LbUuid) -> LbAttachmentsOfRes {
+    let lb = rlb(lb);
+
+    match lb.attachments_of(&id.into()) {
+        Ok(Some(document)) => {
+            LbAttachmentsOfRes { err: null_mut(), is_attachments: true, document: document.into() }
+        }
+        Ok(None) => LbAttachmentsOfRes {
+            err: null_mut(),
+            is_attachments: false,
+            document: Default::default(),
+        },
+        Err(err) => LbAttachmentsOfRes {
+            err: lb_err(err),
+            is_attachments: false,
+            document: Default::default(),
+        },
+    }
+}
+
+#[repr(C)]
+pub struct LbUsernameExistsRes {
+    err: *mut LbFfiErr,
+    exists: bool,
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn lb_username_exists(lb: *mut Lb, username: *const c_char) -> LbUsernameExistsRes {
+    let lb = rlb(lb);
+    let username = rstr(username);
+
+    match lb.username_exists(username) {
+        Ok(exists) => LbUsernameExistsRes { err: null_mut(), exists },
+        Err(err) => LbUsernameExistsRes { err: lb_err(err), exists: false },
     }
 }
 
@@ -658,33 +749,10 @@ pub struct LbIdListRes {
 }
 
 #[unsafe(no_mangle)]
-pub extern "C" fn lb_suggested_docs(lb: *mut Lb) -> LbIdListRes {
+pub extern "C" fn lb_search_accepted(lb: *mut Lb, id: LbUuid) -> *mut LbFfiErr {
     let lb = rlb(lb);
 
-    match lb.suggested_docs(RankingWeights::default()) {
-        Ok(ids) => {
-            let (ids, len) = carray(ids.into_iter().map(LbUuid::from).collect());
-            LbIdListRes { err: null_mut(), ids, len }
-        }
-        Err(err) => LbIdListRes { err: lb_err(err), ids: null_mut(), len: 0 },
-    }
-}
-
-#[unsafe(no_mangle)]
-pub extern "C" fn lb_clear_suggested(lb: *mut Lb) -> *mut LbFfiErr {
-    let lb = rlb(lb);
-
-    match lb.clear_suggested() {
-        Ok(()) => null_mut(),
-        Err(err) => lb_err(err),
-    }
-}
-
-#[unsafe(no_mangle)]
-pub extern "C" fn lb_clear_suggested_id(lb: *mut Lb, id: LbUuid) -> *mut LbFfiErr {
-    let lb = rlb(lb);
-
-    match lb.clear_suggested_id(id.into()) {
+    match lb.search_accepted(id.into()) {
         Ok(()) => null_mut(),
         Err(err) => lb_err(err),
     }
@@ -772,9 +840,7 @@ pub extern "C" fn lb_import_files(
 
     let sources = r_paths(sources, sources_len);
 
-    match lb
-        .import_files(&sources, dest.into(), &|_status: ImportStatus| println!("imported one file"))
-    {
+    match lb.import_files(&sources, dest.into(), &|_status: ImportStatus| {}) {
         Ok(()) => null_mut(),
         Err(err) => lb_err(err),
     }

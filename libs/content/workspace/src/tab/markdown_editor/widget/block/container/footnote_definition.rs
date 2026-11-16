@@ -1,12 +1,12 @@
 use comrak::nodes::{AstNode, NodeValue};
-use egui::text::LayoutJob;
-use egui::{FontFamily, FontId, Pos2, Rect, TextFormat, Ui, Vec2};
+use egui::{Pos2, Rect, Ui, Vec2};
 use lb_rs::model::text::offset_types::{Grapheme, Graphemes, RangeExt};
 
 use crate::tab::markdown_editor::MdRender;
 use crate::tab::markdown_editor::widget::utils::wrap_layout::Format;
 
 use crate::theme::palette_v2::ThemeExt as _;
+use crate::widgets::GlyphonLabel;
 
 impl<'ast> MdRender {
     pub fn text_format_footnote_definition(&self, parent: &AstNode<'_>) -> Format {
@@ -28,17 +28,12 @@ impl<'ast> MdRender {
         if !self.reveal_line(node, self.node_first_line(node)) {
             let color = self.ctx.get_lb_theme().neutral_fg_secondary();
             let text = format!("{}.", self.definition_number(node));
-            let layout_job = LayoutJob::single_section(
-                text,
-                TextFormat {
-                    font_id: FontId::new(self.layout.row_height, FontFamily::Monospace),
-                    color,
-                    ..Default::default()
-                },
-            );
-            let galley = ui.fonts_mut(|fonts| fonts.layout_job(layout_job));
-            ui.painter()
-                .galley(annotation_space.left_top(), galley, Default::default());
+            GlyphonLabel::new(&text, color)
+                .font_size(self.layout.row_height)
+                .mono()
+                .interface()
+                .build(ui.ctx())
+                .paint(ui.painter(), annotation_space.left_top());
         }
 
         // debug

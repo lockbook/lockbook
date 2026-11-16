@@ -136,6 +136,27 @@ fn send_to_pagerduty(handle: &Handle, env: String, api_key: &str, alert: AlertDe
     });
 }
 
+pub fn log_startup(config: &Config, url: &str) {
+    tracing::warn!("{}", startup_message(config, url));
+}
+
+fn startup_message(config: &Config, url: &str) -> String {
+    let commit = lb_rs::get_code_commit().unwrap_or("unknown");
+    let server = &config.server;
+    format!(
+        "lockbook-server {CARGO_PKG_VERSION} ({commit}) started on {url}, env: {}, min core version: {}, max auth delay: {}ms, db: {}, files: {}, logs: {}, metrics: {}, admins: {}, features: {:?}",
+        server.env,
+        server.min_core_version,
+        server.max_auth_delay,
+        config.index_db.db_location,
+        config.files.path.display(),
+        server.log_path,
+        config.metrics.addr,
+        config.admin.admins.len(),
+        config.features,
+    )
+}
+
 #[derive(Serialize, Default, Clone)]
 struct AlertDetails {
     message: String,

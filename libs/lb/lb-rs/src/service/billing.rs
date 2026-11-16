@@ -1,5 +1,7 @@
 use crate::Lb;
+use crate::io::docs::LocalDocuments;
 use crate::io::network::ApiError;
+use crate::io::server::Server;
 use crate::model::api::{
     CancelSubscriptionError, CancelSubscriptionRequest, GetSubscriptionInfoRequestV2,
     StripeAccountTier, SubscriptionInfo, UpgradeAccountAppStoreError,
@@ -9,13 +11,13 @@ use crate::model::api::{
 use crate::model::errors::{LbErrKind, LbResult, core_err_unexpected};
 
 // todo: when core is responsible for syncing, these should probably trigger syncs and status updates
-impl Lb {
+impl<S: Server, D: LocalDocuments> Lb<S, D> {
     #[instrument(level = "debug", skip(self, account_tier), err(Debug))]
     pub async fn upgrade_account_stripe(&self, account_tier: StripeAccountTier) -> LbResult<()> {
         let account = self.get_account()?;
 
         self.client
-            .request(account, UpgradeAccountStripeRequest { account_tier })
+            .upgrade_account_stripe(account, UpgradeAccountStripeRequest { account_tier })
             .await
             .map_err(|err| match err {
                 ApiError::Endpoint(err) => match err {
@@ -56,7 +58,7 @@ impl Lb {
         let account = self.get_account()?;
 
         self.client
-            .request(
+            .upgrade_account_google_play(
                 account,
                 UpgradeAccountGooglePlayRequest {
                     purchase_token: purchase_token.to_string(),
@@ -90,7 +92,7 @@ impl Lb {
         let account = self.get_account()?;
 
         self.client
-            .request(
+            .upgrade_account_app_store(
                 account,
                 UpgradeAccountAppStoreRequest { original_transaction_id, app_account_token },
             )
@@ -122,7 +124,7 @@ impl Lb {
         let account = self.get_account()?;
 
         self.client
-            .request(account, CancelSubscriptionRequest {})
+            .cancel_subscription(account, CancelSubscriptionRequest {})
             .await
             .map_err(|err| match err {
                 ApiError::Endpoint(CancelSubscriptionError::NotPremium) => LbErrKind::NotPremium,
@@ -152,7 +154,7 @@ impl Lb {
 
         let response = self
             .client
-            .request(account, GetSubscriptionInfoRequestV2 {})
+            .get_subscription_info_v2(account, GetSubscriptionInfoRequestV2 {})
             .await
             .map_err(|err| match err {
                 ApiError::SendFailed(_) => LbErrKind::ServerUnreachable,

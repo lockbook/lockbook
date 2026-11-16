@@ -1,11 +1,11 @@
 use crate::style::button::COPY_FEEDBACK_SECS;
 use crate::tab::markdown_editor::Syntax;
 use crate::tab::markdown_editor::bounds::{BoundExt as _, RangesExt as _};
-use crate::tab::markdown_editor::input::{Event, Increment};
+use crate::tab::markdown_editor::input::{Event, FrontMatterAction, Increment};
 use crate::tab::markdown_editor::widget::utils::{
     NodeValueExt as _, leading_indent_cols, leading_indent_range, wrap_layout,
 };
-use crate::tab::markdown_editor::{MdEdit, MdRender};
+use crate::tab::markdown_editor::{Affinity, Arena, MdEdit, MdRender};
 use crate::tab::{CopiedRendered, ExtendedOutput as _};
 use comrak::nodes::{
     AstNode, LineColumn, ListType, NodeAlert, NodeHeading, NodeLink, NodeList, NodeShortCode,
@@ -26,14 +26,28 @@ pub struct EventState {
     pub internal_events: Vec<Event>,
 }
 
-impl MdEdit {
+impl<'ast> MdEdit {
+    /// Flips the task item or front matter checkbox whose mark is at
+    /// `check`, and animates it.
+    pub fn toggle_check(&mut self, check: Grapheme, operations: &mut Vec<Operation>) {
+        let (range, text) = match self.front_matter_checkbox_at(check) {
+            Some((value, checked)) => (value, if checked { "false" } else { "true" }),
+            None => {
+                let mark = &self.renderer.buffer[(check, check + 1)];
+                ((check, check + 1), if mark == " " { "x" } else { " " })
+            }
+        };
+        operations.push(Operation::Replace(Replace { range, text: text.into() }));
+        self.renderer.task_toggle_pending = Some(check);
+    }
+
     /// Reorder a list item to the gap at `insert_offset` via
     /// [`MdRender::plan_block_move`]. The selection is left where the
     /// edit transform lands it — a drop doesn't reselect the moved item.
     pub fn move_block(
         &mut self, section_range: (Grapheme, Grapheme), insert_offset: Grapheme,
     ) -> buffer::Response {
-        let arena = comrak::Arena::new();
+        let arena = Arena::new();
         let root = self.renderer.reparse(&arena);
         let Some(plan) = self
             .renderer
@@ -42,9 +56,10 @@ impl MdEdit {
             return Default::default();
         };
 
-        self.renderer
-            .buffer
-            .queue(vec![Operation::Replace(Replace { range: plan.run_range, text: plan.new_run })]);
+        self.renderer.buffer.queue(
+            vec![Operation::Replace(Replace { range: plan.run_range, text: plan.new_run })],
+            self.renderer.now(),
+        );
         let mut resp = self.renderer.buffer.update();
         if !resp.text_updated {
             return resp;
@@ -54,6 +69,59 @@ impl MdEdit {
         // the drag already positioned the viewport; don't scroll-to-cursor
         resp.selection_user_moved = false;
         resp
+    }
+
+    /// Moves the text of `range` to `to` as a cut and a paste would: only
+    /// those characters, a table cell they leave or enter staying one cell,
+    /// and the markers of any style they leave empty.
+    fn move_text(
+        &self, root: &'ast AstNode<'ast>, range: (Grapheme, Grapheme), to: Grapheme,
+        operations: &mut Vec<Operation>,
+    ) {
+        let cut = self.emptied_styles(root, range);
+        if range.contains_inclusive(to) || cut.contains(to, false, false) {
+            return;
+        }
+        let pasted = self.renderer.buffer[range].to_string();
+        if !self.replace_in_table(cut, "", false, operations) {
+            operations.push(Operation::Replace(Replace { range: cut, text: "".into() }));
+        }
+        if !self.replace_in_table(to.into_range(), &pasted, false, operations) {
+            operations.push(Operation::Replace(Replace { range: to.into_range(), text: pasted }));
+        }
+    }
+
+    /// `range`, an image's, grown over each style around it that has
+    /// nothing else in it: its markers left with nothing between them read
+    /// as something else, `~~~~` a code fence and `****` a divider.
+    fn emptied_styles(
+        &self, root: &'ast AstNode<'ast>, range: (Grapheme, Grapheme),
+    ) -> (Grapheme, Grapheme) {
+        let Some(mut node) = root.descendants().find(|n| {
+            matches!(n.data.borrow().value, NodeValue::Image(_))
+                && self.renderer.node_range(n) == range
+        }) else {
+            return range;
+        };
+        while let Some(style) = node.parent() {
+            let alone = style.children().count() == 1;
+            let emptied = matches!(
+                style.data.borrow().value,
+                NodeValue::Emph
+                    | NodeValue::Strong
+                    | NodeValue::Strikethrough
+                    | NodeValue::Highlight
+                    | NodeValue::Underline
+                    | NodeValue::SpoileredText
+                    | NodeValue::Subscript
+                    | NodeValue::Superscript
+            );
+            if !(alone && emptied) {
+                break;
+            }
+            node = style;
+        }
+        self.renderer.node_range(node)
     }
 }
 
@@ -73,6 +141,7 @@ impl<'ast> MdEdit {
     ) -> buffer::Response {
         let current_selection = self.renderer.buffer.current.selection;
         let mut response = buffer::Response::default();
+        self.property_completions.note(&event);
         match event {
             Event::Select { region: Region::Syntax { larger } } => {
                 if let Some(range) = self.syntax_select(root, larger) {
@@ -83,15 +152,25 @@ impl<'ast> MdEdit {
                 if self.table_select_edits(region, operations) {
                     return response;
                 }
-                let range = self
-                    .extend_table_selection(region)
-                    .unwrap_or_else(|| self.region_to_range(region));
-                let range = self.renderer.snap_selection_out_of_fold_tags(range);
-                let range = self.renderer.snap_selection_into_table_cells(range);
-                operations.push(Operation::Select(range));
+                let (range, affinity) = match self.extend_table_selection(region) {
+                    Some(range) => (range, Affinity::Downstream),
+                    None => self.region_to_selection(region),
+                };
+                let snapped = self.renderer.snap_selection_out_of_fold_tags(range);
+                let snapped = self.renderer.snap_selection_into_table_cells(snapped);
+                let snapped = self
+                    .renderer
+                    .snap_caret_out_of_front_matter_separator(snapped);
+                let affinity = if snapped.1 == range.1 { affinity } else { Affinity::Downstream };
+                self.renderer.caret_affinity = (snapped.1, affinity);
+                operations.push(Operation::Select(snapped));
             }
             Event::Replace { region, text, advance_cursor } => {
-                let mut range = self.region_to_range(region);
+                if self.front_matter_typed(region, &text, operations) {
+                    return response;
+                }
+                let range = self.region_to_range(region);
+                let mut range = self.front_matter_span(range);
                 if matches!(region, Region::Selection) {
                     // selecting a fold chip is just selecting a fold tag, but
                     // replacing it should delete folded content
@@ -108,7 +187,23 @@ impl<'ast> MdEdit {
                     operations.push(Operation::Select(range.start().to_range()));
                 }
             }
+            Event::Move { range, to } => {
+                // A step of its own selects it where it was: an undo of the
+                // move comes back to it there, not to a caret a tap since
+                // moved. The caret is back by the frame's end.
+                self.renderer
+                    .buffer
+                    .queue(vec![Operation::Select(range)], self.renderer.now());
+                response |= self.renderer.buffer.update();
+                self.move_text(root, range, to, operations);
+                operations.push(Operation::Select(current_selection));
+            }
             Event::ToggleStyle { region, style } => {
+                // a divider goes after the block, as from any other block
+                if self.in_front_matter() && style != NodeValue::ThematicBreak {
+                    self.front_matter_style(&style, operations);
+                    return response;
+                }
                 // ToggleStyle inserts markdown syntax (e.g. `**…**`)
                 if self.renderer.kind == Syntax::Markdown {
                     self.toggle_style(root, region, style, current_selection, operations);
@@ -130,6 +225,9 @@ impl<'ast> MdEdit {
                 // item after the hidden contents
                 let handled = !shift && self.newline_at_fold(root, operations);
                 if handled {
+                    return response;
+                }
+                if self.front_matter_newline(operations) {
                     return response;
                 }
                 if self.newline_in_code(root, operations) {
@@ -238,11 +336,18 @@ impl<'ast> MdEdit {
 
                 // Deleting against a collapsed image selects it (a second
                 // press deletes) rather than erasing a char of its source.
-                if self.delete_at_image(region, operations) {
+                if self.delete_at_image(root, region, operations) {
+                    return response;
+                }
+                if self.front_matter_delete(region, operations) {
                     return response;
                 }
 
                 if self.delete_from_caret_at_table(region, operations) {
+                    return response;
+                }
+
+                if self.delete_at_code_start(root, region, current_selection, operations) {
                     return response;
                 }
 
@@ -288,7 +393,8 @@ impl<'ast> MdEdit {
                 };
                 if !handled() {
                     // default -> delete region
-                    let mut range = self.region_to_range(region);
+                    let range = self.region_to_range(region);
+                    let mut range = self.front_matter_span(range);
 
                     // selecting a fold chip is just selecting a fold tag, but
                     // deleting it should delete folded content
@@ -314,6 +420,9 @@ impl<'ast> MdEdit {
                     return response;
                 }
 
+                if self.front_matter_indent(deindent, operations) {
+                    return response;
+                }
                 let selected_lines = self
                     .renderer
                     .bounds
@@ -491,11 +600,18 @@ impl<'ast> MdEdit {
 
                 operations.push(Operation::Select(current_selection));
             }
-            Event::Undo => {
-                response |= self.renderer.buffer.undo();
-            }
-            Event::Redo => {
-                response |= self.renderer.buffer.redo();
+            Event::Undo | Event::Redo => {
+                self.in_progress_image_drag = None;
+                let undone = if matches!(event, Event::Undo) {
+                    self.renderer.buffer.undo()
+                } else {
+                    self.renderer.buffer.redo()
+                };
+                // the frame's next parse is of this text, not the one undone
+                if undone.text_updated {
+                    self.renderer.bump_text_seq();
+                }
+                response |= undone;
             }
             Event::Cut => {
                 let range = self.clipboard_range(current_selection);
@@ -579,6 +695,9 @@ impl<'ast> MdEdit {
                 //         self.appearance.base_font_size.map(|size| size - 1.)
                 // }
             }
+            Event::ToggleFold { node: None } if self.in_front_matter() => {
+                self.front_matter_toggle_collapsed(operations);
+            }
             Event::ToggleFold { node: at } => {
                 let unapply = at.is_none().then(|| self.unapply_fold(root));
                 for node in root.descendants() {
@@ -603,6 +722,7 @@ impl<'ast> MdEdit {
                     self.renderer.apply_fold(node, contents, unapply);
                 }
             }
+            Event::ToggleTask { check } => self.toggle_check(check, operations),
             Event::ToggleSpoiler { node: range } => {
                 let Some(node) = root
                     .descendants()
@@ -620,10 +740,20 @@ impl<'ast> MdEdit {
                 self.renderer.open_dest(&url, wikilink, &ctx);
             }
             Event::LoadImage { url } => self.renderer.embeds.load_anyway(&url),
+            Event::FrontMatter(FrontMatterAction::ToggleCollapsed) => {
+                self.front_matter_toggle_collapsed(operations);
+            }
+            Event::FrontMatter(action) => self.front_matter_action(action, operations),
             Event::OpenDiagram => {
                 use crate::tab::markdown_editor::widget::block::leaf::diagram::Picture;
-                if let Some(Picture::Diagram(source)) = self.renderer.selected_picture(root) {
-                    self.renderer.ctx.open_diagram(source);
+                use crate::tab::{Destination, ExtendedOutput as _};
+                let dest = match self.renderer.selected_picture(root) {
+                    Some(Picture::Diagram(source)) => Some(Destination::Diagram(source)),
+                    Some(Picture::Formula(formula)) => Some(Destination::Formula(formula)),
+                    _ => None,
+                };
+                if let Some(dest) = dest {
+                    self.renderer.ctx.open_picture(dest);
                 }
             }
             Event::CopyImage => {
@@ -633,6 +763,7 @@ impl<'ast> MdEdit {
             }
             Event::EnterAtom => {
                 if !self.enter_at_diagram(root, operations)
+                    && !self.enter_at_math(root, operations)
                     && !self.enter_at_image(root, operations)
                 {
                     self.enter_at_link(root, operations);
@@ -663,6 +794,10 @@ impl<'ast> MdEdit {
 
         match style {
             NodeValue::Document | NodeValue::Paragraph => {}
+            NodeValue::CodeBlock(_) => self.toggle_code_block(root, current_selection, operations),
+            NodeValue::ThematicBreak => {
+                self.insert_thematic_break(root, current_selection, operations)
+            }
             _ if style.is_inline() => {
                 let unapply = self.unapply_inline(root, range, &style);
 
@@ -932,12 +1067,221 @@ impl<'ast> MdEdit {
         }
     }
 
+    /// Unfences the selected fenced code blocks; else fences the selected
+    /// blocks, or opens an empty fence at a caret between blocks.
+    fn toggle_code_block(
+        &mut self, root: &'ast AstNode<'ast>, current_selection: (Grapheme, Grapheme),
+        operations: &mut Vec<Operation>,
+    ) {
+        let selected = self.code_block_targets(root);
+        let code_blocks: Vec<_> = selected
+            .iter()
+            .filter(|node| matches!(node.data.borrow().value, NodeValue::CodeBlock(_)))
+            .collect();
+        if !code_blocks.is_empty() {
+            for &&node in &code_blocks {
+                let NodeValue::CodeBlock(code_block) = &node.data.borrow().value else {
+                    unreachable!()
+                };
+                if !code_block.fenced {
+                    continue;
+                }
+                let lines = &self.renderer.bounds.source_lines;
+                let (first_idx, last_idx) = (
+                    self.renderer.node_first_line_idx(node),
+                    self.renderer.node_last_line_idx(node),
+                );
+                let first = lines[first_idx];
+
+                // the opening fence line, through the next line's container prefixes;
+                // under a checkbox, the text comes back up beside it
+                let under_checkbox = opens_task(node)
+                    && node
+                        .parent()
+                        .is_some_and(|task| self.renderer.node_first_line_idx(task) < first_idx);
+                let mut range = if under_checkbox {
+                    (lines[first_idx - 1].end(), first.end())
+                } else {
+                    (self.renderer.node_line(node, first).start(), first.end())
+                };
+                if let Some(&next) = lines.get(first_idx + 1) {
+                    range.1 = self.renderer.node_line(node, next).start();
+                }
+                let text = if under_checkbox { " " } else { "" };
+                let last = lines[last_idx];
+                if last_idx > first_idx && self.renderer.is_closing_fence(node, code_block, last) {
+                    let close = (lines[last_idx - 1].end(), last.end());
+                    if close.start() < range.end() {
+                        range.1 = close.end();
+                    } else {
+                        operations
+                            .push(Operation::Replace(Replace { range: close, text: "".into() }));
+                    }
+                }
+                operations.push(Operation::Replace(Replace { range, text: text.into() }));
+            }
+            operations.push(Operation::Select(current_selection));
+            return;
+        }
+
+        let (Some(&first), Some(&last)) = (selected.first(), selected.last()) else {
+            let container = self
+                .renderer
+                .deepest_container_block_at_offset(root, current_selection.start());
+            let Some(prefix) = self.renderer.extension_prefix(container) else { return };
+            let line = self.renderer.line_at_offset(current_selection.start());
+            let blank = (self.renderer.line_prefix(container, line).end(), line.end());
+            if !self.renderer.buffer[blank].trim().is_empty() {
+                return;
+            }
+            let at = blank.start().into_range();
+            operations
+                .push(Operation::Replace(Replace { range: at, text: format!("```\n{prefix}") }));
+            operations.push(Operation::Select(at));
+            operations
+                .push(Operation::Replace(Replace { range: at, text: format!("\n{prefix}```") }));
+            operations.push(Operation::Replace(Replace { range: blank, text: "".into() }));
+            return;
+        };
+        let parent_prefix = |node: &'ast AstNode<'ast>| {
+            node.parent()
+                .and_then(|parent| self.renderer.extension_prefix(parent))
+        };
+        let (Some(first_prefix), Some(last_prefix)) = (parent_prefix(first), parent_prefix(last))
+        else {
+            return;
+        };
+        // whole lines, so the blocks keep their indents and trailing spaces
+        let first_line = self.renderer.node_first_line(first);
+        let start = self.renderer.line_ancestors_prefix(first, first_line).end();
+        let end = self.renderer.node_last_line(last).end();
+        // longer than any backtick run inside, so none of them closes it
+        let longest_run = self.renderer.buffer[(start, end)]
+            .split(|c| c != '`')
+            .map(str::len)
+            .max()
+            .unwrap_or_default();
+        let fence = "`".repeat(longest_run.max(2) + 1);
+        // a task's text moves under its checkbox: `- [ ] ```` would be no task
+        let open = if opens_task(first) {
+            let text_start = self.renderer.node_range(first).start();
+            let before = &self.renderer.buffer[(first_line.start(), text_start)];
+            let spaces = Graphemes(before.len() - before.trim_end().len());
+            (text_start - spaces, text_start)
+        } else {
+            start.into_range()
+        };
+        let open_text = if opens_task(first) {
+            format!("\n{first_prefix}{fence}\n{first_prefix}")
+        } else {
+            format!("{fence}\n{first_prefix}")
+        };
+        operations.push(Operation::Replace(Replace { range: open, text: open_text }));
+        operations.push(Operation::Replace(Replace {
+            range: end.into_range(),
+            text: format!("\n{last_prefix}{fence}"),
+        }));
+        operations.push(Operation::Select(current_selection));
+    }
+
+    /// The blocks a code block toggle acts on: it unfences the code blocks
+    /// among them, or else fences them all.
+    fn code_block_targets(&self, root: &'ast AstNode<'ast>) -> Vec<&'ast AstNode<'ast>> {
+        // a container holding the whole selection was picked for a blank line in it
+        root.descendants()
+            .filter(|&node| self.renderer.table_styled_whole(node))
+            .filter(|&node| {
+                node.is_leaf_block()
+                    || matches!(node.data.borrow().value, NodeValue::Table(_))
+                    || !self.renderer.node_contains_selection(node)
+            })
+            .collect()
+    }
+
+    /// Backspace at the start of a fenced code block's first line takes the
+    /// fence away, as a code block toggle does. True if handled (ops pushed).
+    fn delete_at_code_start(
+        &mut self, root: &'ast AstNode<'ast>, region: Region,
+        current_selection: (Grapheme, Grapheme), operations: &mut Vec<Operation>,
+    ) -> bool {
+        let Region::SelectionOrAdvance { backwards: true, .. } = region else { return false };
+        let Some(offset) = self.renderer.selection_offset() else { return false };
+        let at_start = root.descendants().any(|node| {
+            let NodeValue::CodeBlock(code) = &node.data.borrow().value else { return false };
+            let first_idx = self.renderer.node_first_line_idx(node);
+            let Some(&line) = self.renderer.bounds.source_lines.get(first_idx + 1) else {
+                return false;
+            };
+            code.fenced
+                && first_idx < self.renderer.node_last_line_idx(node)
+                && self.renderer.node_line(node, line).start() == offset
+        });
+        if at_start {
+            self.toggle_code_block(root, current_selection, operations);
+        }
+        at_start
+    }
+
+    /// Inserts a `---` after the top-level block holding the selection's
+    /// end, or at that end between blocks.
+    fn insert_thematic_break(
+        &mut self, root: &'ast AstNode<'ast>, current_selection: (Grapheme, Grapheme),
+        operations: &mut Vec<Operation>,
+    ) {
+        let end = current_selection.end();
+        let lines = &self.renderer.bounds.source_lines;
+        let (line_idx, _) = lines.find_containing(end, true, true);
+        let block_at = |line_idx| {
+            root.children().find(|&node| {
+                let (first, last) = self.renderer.node_lines(node);
+                (first..last).contains(&line_idx)
+            })
+        };
+        // `---` right under these runs on: HTML takes it in, and readers with
+        // setext headings underline a paragraph into one
+        let runs_on = |node: &'ast AstNode<'ast>| {
+            matches!(node.data.borrow().value, NodeValue::Paragraph | NodeValue::HtmlBlock(_))
+        };
+        let block = block_at(line_idx);
+        // a `---` on the first line, or after one there, would open front matter
+        let first_line = lines.first().map(|&line| self.renderer.buffer[line].trim());
+        let fronts = first_line == Some("---") || (block.is_none() && line_idx == 0);
+        let rule = if fronts { "***" } else { "---" };
+        let (at, text) = match block {
+            Some(block) => {
+                // an unclosed fence runs to the end of the doc, so close it first
+                let close = match &block.data.borrow().value {
+                    NodeValue::CodeBlock(code) if code.fenced && !code.closed => {
+                        let fence = (code.fence_char as char).to_string();
+                        format!("\n{}", fence.repeat(code.fence_length))
+                    }
+                    _ => String::new(),
+                };
+                let gap = if runs_on(block) { "\n\n" } else { "\n" };
+                (self.renderer.node_last_line(block).end(), format!("{close}{gap}{rule}"))
+            }
+            None => {
+                let under = line_idx > 0 && block_at(line_idx - 1).is_some_and(runs_on);
+                let at = lines[line_idx].start();
+                (at, if under { format!("\n{rule}") } else { rule.into() })
+            }
+        };
+        operations.push(Operation::Replace(Replace { range: at.into_range(), text }));
+        if block.is_none() {
+            operations.push(Operation::Select(at.into_range()));
+        }
+    }
+
     /// Returns true if all text in the given range has style `style`
     pub fn inline_styled(
         &self, root: &'ast AstNode<'ast>, range: (Grapheme, Grapheme), style: &NodeValue,
     ) -> bool {
+        // a style with a payload, as a pasted link's url, matches no node
+        if style.node_type() != *style {
+            return false;
+        }
         for node in root.descendants() {
-            if &node.node_type() == style
+            if node.is_type(style)
                 && self
                     .renderer
                     .node_range(node)
@@ -970,6 +1314,12 @@ impl<'ast> MdEdit {
 
     /// Returns true if a block style would be unapplied instead of applied
     pub fn unapply_block(&self, root: &'ast AstNode<'ast>, style: &NodeValue) -> bool {
+        if let NodeValue::CodeBlock(_) = style {
+            let targets = self.code_block_targets(root);
+            return targets
+                .iter()
+                .any(|node| matches!(node.data.borrow().value, NodeValue::CodeBlock(_)));
+        }
         let mut unapply = false;
         let mut any_selected_blocks = false;
         for node in root.descendants() {
@@ -1081,10 +1431,17 @@ impl<'ast> MdEdit {
             }
         }
 
+        // the content between head and tail, where a selection can crop the styled region
+        let content = |node| {
+            let head = self.renderer.head_range(node).unwrap();
+            let tail = self.renderer.tail_range(node).unwrap();
+            (head.end(), tail.start())
+        };
         if unapply {
             // if unapplying, tail or dehead node containing start to crop styled region to selection
             if let Some(start_node) = start_node {
-                if self.renderer.head_range(start_node).unwrap().end() < range.start() {
+                let (content_start, content_end) = content(start_node);
+                if content_start < range.start() && range.start() <= content_end {
                     let offset = self.adjust_for_whitespace(range.start(), true);
                     self.insert_tail(offset, style.clone(), operations);
                 } else {
@@ -1097,7 +1454,8 @@ impl<'ast> MdEdit {
 
             // if unapplying, head or detail node containing end to crop styled region to selection
             if let Some(end_node) = end_node {
-                if self.renderer.tail_range(end_node).unwrap().start() > range.end() {
+                let (content_start, content_end) = content(end_node);
+                if content_start <= range.end() && range.end() < content_end {
                     let offset = self.adjust_for_whitespace(range.end(), false);
                     self.insert_head(offset, style.clone(), operations);
                 } else {
@@ -1148,6 +1506,11 @@ impl<'ast> MdEdit {
 
     // todo: self by shared reference
     pub fn region_to_range(&mut self, region: Region) -> (Grapheme, Grapheme) {
+        self.region_to_selection(region).0
+    }
+
+    /// [`Self::region_to_range`], with the affinity of the caret at its end.
+    pub fn region_to_selection(&mut self, region: Region) -> ((Grapheme, Grapheme), Affinity) {
         // Pointer click ends an up/down chain — the next arrow must
         // start from the click x, not the stale column.
         let has_pos = |loc: &Location| matches!(loc, Location::Pos(_));
@@ -1161,20 +1524,31 @@ impl<'ast> MdEdit {
             self.cursor.x_target = None;
         }
         let mut current_selection = self.renderer.buffer.current.selection;
+        let at = |edit: &Self, location: Location, caret: Grapheme| match location {
+            Location::Pos(pos) => edit.pos_affinity(pos, caret),
+            _ => Affinity::Downstream,
+        };
         match region {
-            Region::Location(location) => self.location_to_range(location),
+            Region::Location(location) => {
+                let range = self.location_to_range(location);
+                (range, at(self, location, range.1))
+            }
             Region::ToLocation(location) => {
-                (current_selection.0, self.location_to_char_offset(location))
+                let caret = self.location_to_char_offset(location);
+                ((current_selection.0, caret), at(self, location, caret))
             }
             Region::BetweenLocations { start, end } => {
-                (self.location_to_char_offset(start), self.location_to_char_offset(end))
+                let caret = self.location_to_char_offset(end);
+                ((self.location_to_char_offset(start), caret), at(self, end, caret))
             }
-            Region::Selection | Region::Syntax { .. } => current_selection,
+            Region::Selection | Region::Syntax { .. } => {
+                (current_selection, self.renderer.caret_affinity_at(current_selection.1))
+            }
             Region::SelectionOrAdvance { advance: offset, backwards } => {
                 if current_selection.is_empty() {
-                    current_selection.0 = self.advance(current_selection.0, offset, backwards);
+                    current_selection.0 = self.advance(current_selection.0, offset, backwards).0;
                 }
-                current_selection
+                (current_selection, self.renderer.caret_affinity_at(current_selection.1))
             }
             Region::ToAdvance { advance, backwards, extend_selection } => {
                 if extend_selection
@@ -1182,31 +1556,48 @@ impl<'ast> MdEdit {
                     || matches!(advance, Advance::To(..))
                 {
                     let mut selection = current_selection;
-                    selection.1 = self.advance(selection.1, advance, backwards);
+                    let affinity;
+                    (selection.1, affinity) = self.advance(selection.1, advance, backwards);
                     if extend_selection {
                         selection.0 = current_selection.0;
                     } else {
                         selection.0 = selection.1;
                     }
-                    selection
+                    (selection, affinity)
                 } else if backwards {
-                    current_selection.start().to_range()
+                    (current_selection.start().to_range(), Affinity::Downstream)
                 } else {
-                    current_selection.end().to_range()
+                    (current_selection.end().to_range(), Affinity::Downstream)
                 }
             }
             Region::Bound { bound, backwards } => {
                 let offset = current_selection.1;
-                offset
+                let range = offset
                     .range_bound(bound, backwards, false, &self.renderer.bounds)
-                    .unwrap_or((offset, offset))
+                    .unwrap_or((offset, offset));
+                (range, Affinity::Downstream)
             }
             Region::BoundAt { bound, location, backwards } => {
                 let offset = self.location_to_char_offset(location);
-                offset
+                let range = offset
                     .range_bound(bound, backwards, true, &self.renderer.bounds)
-                    .unwrap_or((offset, offset))
+                    .unwrap_or((offset, offset));
+                (range, Affinity::Downstream)
             }
+        }
+    }
+
+    /// Upstream when a click at `pos` on a row resolves to `caret`, the offset
+    /// that also starts the next row.
+    fn pos_affinity(&self, pos: Pos2, caret: Grapheme) -> Affinity {
+        let r = &self.renderer;
+        let hit = r.closest_fragment_at_pos(pos);
+        let downstream = r.fragment_idx_at_offset(caret, Affinity::Downstream);
+        match hit.zip(downstream) {
+            Some((hit, down)) if r.fragments[hit].rect.bottom() <= r.fragments[down].rect.top() => {
+                Affinity::Upstream
+            }
+            _ => Affinity::Downstream,
         }
     }
 
@@ -1342,6 +1733,16 @@ pub fn distance(coord: f32, range: Rangef) -> f32 {
 /// Nearest container at or above `node` of `style`'s kind: the list for
 /// any list style, the quote for a quote. A leaf's walk starts at its
 /// parent; `* foo` is `List > Item > Paragraph`, bullet style on `List`.
+/// Whether `node` is the first block in a task item, the one its checkbox stands beside.
+fn opens_task(node: &AstNode<'_>) -> bool {
+    node.parent().is_some_and(|parent| {
+        matches!(parent.data.borrow().value, NodeValue::TaskItem(_))
+            && parent
+                .first_child()
+                .is_some_and(|child| child.same_node(node))
+    })
+}
+
 fn kind_ancestor<'ast>(
     node: &'ast AstNode<'ast>, style: &NodeValue,
 ) -> Option<&'ast AstNode<'ast>> {
@@ -1571,15 +1972,32 @@ impl<'ast> MdEdit {
 
 trait NodeType {
     fn node_type(&self) -> NodeValue;
+
+    /// `self.node_type() == style.node_type()`, without building either.
+    fn is_type(&self, style: &NodeValue) -> bool;
 }
 
 impl NodeType for AstNode<'_> {
     fn node_type(&self) -> NodeValue {
         self.data.borrow().value.node_type()
     }
+
+    fn is_type(&self, style: &NodeValue) -> bool {
+        self.data.borrow().value.is_type(style)
+    }
 }
 
 impl NodeType for NodeValue {
+    fn is_type(&self, style: &NodeValue) -> bool {
+        match (self, style) {
+            (NodeValue::List(a), NodeValue::List(b)) | (NodeValue::Item(a), NodeValue::Item(b)) => {
+                a.list_type == b.list_type && a.is_task_list == b.is_task_list
+            }
+            (NodeValue::Heading(a), NodeValue::Heading(b)) => a.level == b.level,
+            _ => std::mem::discriminant(self) == std::mem::discriminant(style),
+        }
+    }
+
     fn node_type(&self) -> NodeValue {
         match self {
             NodeValue::Document => NodeValue::Document,

@@ -308,6 +308,29 @@ impl<'ast> MdRender {
 
         let value = &node.data.borrow().value;
         let sp = &node.data.borrow().sourcepos;
+        if self.print {
+            let rect = egui::Rect::from_min_size(
+                top_left,
+                egui::vec2(self.width(node), self.height(node)),
+            );
+            // a heading stays with the block after it
+            match value {
+                NodeValue::Document => {}
+                NodeValue::Heading(_) => self.print_heading_top = Some(rect.top()),
+                value if value.block() => {
+                    if let Some(top) = self.print_heading_top.take() {
+                        self.unbreakable.push(rect.with_min_y(top));
+                    }
+                }
+                _ => {}
+            }
+            if matches!(
+                value,
+                NodeValue::Table(_) | NodeValue::TableRow(_) | NodeValue::CodeBlock(_)
+            ) {
+                self.unbreakable.push(rect);
+            }
+        }
         match value {
             NodeValue::FrontMatter(_) => self.show_front_matter(ui, node, top_left),
             NodeValue::Raw(_) => unreachable!("can only be created programmatically"),
@@ -527,6 +550,9 @@ impl<'ast> MdRender {
 
     /// Returns the fold node - the node that is causing this node to be folded - if there is one
     pub fn fold(&self, node: &'ast AstNode<'ast>) -> Option<&'ast AstNode<'ast>> {
+        if self.print {
+            return None;
+        }
         if let Some(foldable) = self.foldable(node) {
             for inline in foldable.children() {
                 if let NodeValue::HtmlInline(html) = &inline.data.borrow().value {
@@ -712,13 +738,14 @@ type LinePrefixKey = (u64, (Grapheme, Grapheme));
 type TableColumns = (std::rc::Rc<[f32]>, HeightDeps);
 type LinePrefixValue = (Graphemes, bool);
 
-/// height inputs: `[width_seq, embeds_seq, link_seq, reveal_seq, diagrams_seq]`. Text-
+/// height inputs: `[width_seq, embeds_seq, link_seq, reveal_seq, diagrams_seq,
+/// tab_embeds_seq, math_seq]`. Text-
 /// change invalidation is handled wholesale by [`LayoutCache::ensure_text_consistent`]
 /// before any read, so text_seq isn't part of the per-entry stamp.
-pub type HeightDeps = [u64; 6];
+pub type HeightDeps = [u64; 7];
 
-/// A table cell's stamp, a width as bits, and whether the cell is being
-/// measured for its column's width or laid out in it.
+/// A table cell's stamp, a width as bits, and whether it keys how wide the
+/// cell's content is within that width rather than how tall.
 pub type TableCellKey = (u64, u32, bool);
 
 #[derive(Default)]
@@ -729,14 +756,14 @@ pub struct LayoutCache {
     pub node_range: RefCell<HashMap<u64, (Grapheme, Grapheme)>>,
     /// Each table's column widths, with the inputs heights have.
     pub table_columns: RefCell<HashMap<u64, TableColumns>>,
-    /// The width every table cell has while a table's columns are being
-    /// measured: content sized to its cell cannot size the cell.
-    pub table_cell_measure: std::cell::Cell<Option<f32>>,
-    /// What a table cell measures, and how tall it is at a width, by what
+    /// Set while a table's columns are measured: syntax shows nowhere then,
+    /// so placing the caret doesn't move them.
+    pub table_cell_measuring: std::cell::Cell<bool>,
+    /// How tall a table cell is at a width, or how wide within one, by what
     /// its layout is made from (see `MdRender::table_cell_stamp`) and not
     /// by where it is: an edit or a caret move elsewhere leaves it good,
     /// so it outlives [`Self::clear`].
-    pub table_cells: RefCell<HashMap<TableCellKey, (f32, f32)>>,
+    pub table_cells: RefCell<HashMap<TableCellKey, f32>>,
 
     // deps: `reveal_seq` last populated, or `None` if never.
     pub hidden_by_fold: RefCell<HashMap<u64, bool>>,
@@ -748,6 +775,11 @@ pub struct LayoutCache {
     /// heights, AST re-parse shifts sourcepos keys), so per-entry
     /// stamping wouldn't help.
     pub text_seq: std::cell::Cell<u64>,
+
+    /// Body text's baseline, down from a row's top, and its ascent, up from
+    /// the baseline, as fractions of the row height, and the
+    /// [`crate::font::chosen_seq`] they were measured at.
+    pub body_metrics: std::cell::Cell<Option<(u64, f32, f32)>>,
 }
 
 impl LayoutCache {
@@ -883,7 +915,8 @@ impl MdRender {
                 .family(format.family.glyphon_family())
                 .weight(if format.bold { glyphon::Weight::BOLD } else { glyphon::Weight::NORMAL })
                 .style(if format.italic { glyphon::Style::Italic } else { glyphon::Style::Normal });
-            let metrics = glyphon::Metrics::new(font_size, line_height);
+            let metrics =
+                glyphon::Metrics::new(font_size * format.family.size_adjust(), line_height);
             let mut fs = fs.lock().unwrap();
             let mut b = glyphon::Buffer::new(&mut fs, metrics);
             b.set_size(Some(width), None);
@@ -927,6 +960,7 @@ impl<'ast> MdRender {
             self.reveal_seq,
             self.diagrams.seq(),
             self.tab_embeds.seq(),
+            self.math.seq(),
         ]
     }
 

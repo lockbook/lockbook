@@ -1,15 +1,22 @@
 use std::{fs, io, path::PathBuf};
 
-use crate::components::ModePreference;
+use crate::components::{ModePreference, ThemeFamily};
 use crate::util::data_dir;
+use workspace_rs::theme::palette_v2::Palette;
 
 #[derive(Clone, Debug, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
 #[serde(default)]
 pub struct Settings {
     pub theme_mode: ModePreference,
-    pub theme_name: String,
+    #[serde(rename = "theme_name")]
+    pub theme_family: ThemeFamily,
+    /// Overrides the theme's accent; cleared when the theme changes.
+    pub theme_accent: Option<Palette>,
     pub sidebar_usage: bool,
     pub zen_mode: bool, // hide side panel and maximize the content workspace
+    /// installed family names; unset draws in the platform's
+    pub text_font: Option<String>,
+    pub code_font: Option<String>,
     #[cfg(target_os = "linux")]
     pub allow_wayland: bool,
     #[serde(skip_serializing, skip_deserializing)]
@@ -72,12 +79,35 @@ impl Default for Settings {
     fn default() -> Self {
         Self {
             theme_mode: ModePreference::System,
-            theme_name: "default".to_string(),
+            theme_family: ThemeFamily::default(),
+            theme_accent: None,
             sidebar_usage: true,
             path: "".to_string(),
             zen_mode: false,
+            text_font: None,
+            code_font: None,
             #[cfg(target_os = "linux")]
             allow_wayland: false,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn theme_family_round_trips_and_unknown_names_save_as_the_default() {
+        for family in ThemeFamily::ALL {
+            let saved = Settings { theme_family: family, ..Default::default() };
+            let json = serde_json::to_string(&saved).unwrap();
+            let loaded: Settings = serde_json::from_str(&json).unwrap();
+            assert_eq!(loaded.theme_family, family, "{json}");
+        }
+
+        let old: Settings = serde_json::from_str(r#"{"theme_name":"default"}"#).unwrap();
+        assert_eq!(old.theme_family, ThemeFamily::default());
+        let resaved = serde_json::to_string(&old).unwrap();
+        assert!(resaved.contains(r#""theme_name":"mnemonic""#), "{resaved}");
     }
 }

@@ -39,14 +39,8 @@ impl MdRender {
                 expansion,
             },
             active: WidgetVisuals {
-                weak_bg_fill: theme
-                    .bg()
-                    .get_color(theme.prefs().primary)
-                    .gamma_multiply(0.2),
-                bg_fill: theme
-                    .bg()
-                    .get_color(theme.prefs().primary)
-                    .gamma_multiply(0.2),
+                weak_bg_fill: theme.accent_bg().gamma_multiply(0.2),
+                bg_fill: theme.accent_bg().gamma_multiply(0.2),
                 bg_stroke,
                 fg_stroke,
                 corner_radius: rounding,

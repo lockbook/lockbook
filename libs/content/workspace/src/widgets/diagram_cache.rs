@@ -7,9 +7,10 @@
 
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::hash::{DefaultHasher, Hash, Hasher};
+use std::ops::Range;
 use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::{Arc, Mutex, OnceLock};
+use std::sync::{Arc, Mutex};
 
 use egui::{Color32, ColorImage, Context, Id, TextureHandle, TextureId, TextureOptions, Vec2};
 use glyphon::cosmic_text::{
@@ -35,7 +36,27 @@ use crate::theme::palette_v2::{Theme, ThemeExt as _};
 pub enum DiagramSize {
     Pending,
     Ready(Vec2),
-    Failed(String),
+    Failed(DiagramError),
+}
+
+/// Why a diagram didn't draw, and the bytes of its source the parser points
+/// at: empty where something is missing.
+#[derive(Clone, Debug, PartialEq)]
+pub struct DiagramError {
+    pub message: String,
+    pub span: Option<Range<usize>>,
+}
+
+impl From<String> for DiagramError {
+    fn from(message: String) -> Self {
+        Self { message, span: None }
+    }
+}
+
+impl From<&str> for DiagramError {
+    fn from(message: &str) -> Self {
+        message.to_string().into()
+    }
 }
 
 #[derive(Clone)]
@@ -78,7 +99,7 @@ enum State {
         textures: Vec<(u32, TextureHandle, bool)>,
         rastering: bool,
     },
-    Failed(String),
+    Failed(DiagramError),
 }
 
 /// A render to run, and the width to raster it at, if one is waiting.
@@ -159,7 +180,7 @@ impl DiagramTheme {
 
 impl Inner {
     fn key(&self, source: &str) -> u64 {
-        hash(&(source, self.theme_key))
+        hash(&(source, self.theme_key, crate::font::chosen_seq()))
     }
 
     fn theme(&self) -> &DiagramTheme {
@@ -191,15 +212,14 @@ impl Inner {
 impl DiagramCache {
     pub fn of(ctx: &Context) -> Self {
         let ws_seq = ws_seq(ctx);
-        ctx.data_mut(|d| {
-            d.get_temp_mut_or_insert_with(Id::unique("diagram_cache"), || Self {
-                inner: Default::default(),
-                seq: Arc::new(AtomicU64::new(0)),
-                ws_seq,
-                ctx: ctx.clone(),
+        // the context keeps all but itself, which would keep it alive
+        let (inner, seq, ws_seq) = ctx.data_mut(|d| {
+            d.get_temp_mut_or_insert_with(Id::unique("diagram_cache"), || {
+                (Default::default(), Arc::new(AtomicU64::new(0)), ws_seq)
             })
             .clone()
-        })
+        });
+        Self { inner, seq, ws_seq, ctx: ctx.clone() }
     }
 
     /// Starts a frame: what isn't looked up or drawn by its end is let go,
@@ -290,9 +310,36 @@ impl DiagramCache {
         shown
     }
 
+    /// The diagram's picture, while it's kept; one let go draws again.
+    pub fn tree(&self, source: &str) -> Option<Arc<usvg::Tree>> {
+        let mut inner = self.lookup();
+        let key = inner.key(source);
+        inner.used.insert(key);
+        let State::Ready { tree, rastering, .. } = inner.entries.get_mut(&key)? else {
+            return None;
+        };
+        if let Some(tree) = tree {
+            return Some(tree.clone());
+        }
+        if !std::mem::replace(rastering, true) {
+            self.queue(inner, key, source, None);
+        }
+        None
+    }
+
+    /// Whether a diagram is still drawing.
+    pub fn busy(&self) -> bool {
+        let inner = self.lock();
+        inner.rendering
+            || inner
+                .entries
+                .values()
+                .any(|s| matches!(s, State::Pending | State::Ready { rastering: true, .. }))
+    }
+
     /// The diagram on the theme background with a margin, at twice its
-    /// natural size, for the clipboard; and that picture's natural size.
-    pub fn image(&self, source: &str) -> Option<(ColorImage, Vec2)> {
+    /// natural size, for the clipboard; its `source_size` is that natural size.
+    pub fn image(&self, source: &str) -> Option<ColorImage> {
         let (cached, theme) = {
             let inner = self.lookup();
             let cached = match inner.entries.get(&inner.key(source)) {
@@ -304,10 +351,12 @@ impl DiagramCache {
         let tree = match cached {
             Some(tree) => tree,
             None => {
-                catch_unwind(AssertUnwindSafe(|| render(source, &theme, OperationControl::new())))
-                    .ok()?
-                    .ok()?
-                    .0
+                catch_unwind(AssertUnwindSafe(|| {
+                    render(source, &theme, OperationControl::new(), true)
+                }))
+                .ok()?
+                .ok()?
+                .0
             }
         };
         const MARGIN: f32 = 16.0;
@@ -315,8 +364,9 @@ impl DiagramCache {
         let width = fit_width(&tree, (natural.x * 2.0) as u32, 4096);
         let margin = (MARGIN * width as f32 / natural.x).round() as u32;
         let [r, g, b] = theme.background;
-        let image = rasterize(&tree, width, Some((Color32::from_rgb(r, g, b), margin))).ok()?;
-        Some((image, natural + Vec2::splat(2.0 * MARGIN)))
+        let mut image = rasterize(&tree, width, Some((Color32::from_rgb(r, g, b), margin))).ok()?;
+        image.source_size = natural + Vec2::splat(2.0 * MARGIN);
+        Some(image)
     }
 
     fn lock(&self) -> std::sync::MutexGuard<'_, Inner> {
@@ -378,7 +428,7 @@ impl DiagramCache {
     fn run_job(&self, Job { key, source, theme, width_px }: Job, control: OperationControl) {
         // a panic fails its diagram, not the render thread
         let rendered = catch_unwind(AssertUnwindSafe(|| {
-            let (tree, size) = render(&source, &theme, control.clone())?;
+            let (tree, size) = render(&source, &theme, control.clone(), false)?;
             let texture = width_px.and_then(|w| Some((w, self.upload(key, &tree, w)?, true)));
             Ok((tree, size, texture))
         }))
@@ -437,6 +487,10 @@ impl DiagramCache {
     }
 }
 
+/// A picture painted for print rather than the GPU, a diagram or a formula:
+/// its tree, to draw as paths across the callback's rect.
+pub struct PrintSvg(pub Arc<usvg::Tree>);
+
 /// Off the UI thread, except in tests, which want renders to land in order.
 fn run(job: impl FnOnce() + Send + 'static) {
     if cfg!(test) {
@@ -453,10 +507,12 @@ fn hash(value: &impl Hash) -> u64 {
 }
 
 /// Parsed SVG and its natural size in points.
+/// `stale` renders in the fonts last built rather than building new ones.
 fn render(
-    source: &str, theme: &DiagramTheme, control: OperationControl,
-) -> Result<(Arc<usvg::Tree>, Vec2), String> {
+    source: &str, theme: &DiagramTheme, control: OperationControl, stale: bool,
+) -> Result<(Arc<usvg::Tree>, Vec2), DiagramError> {
     let _span = tracing::trace_span!("Diagram::render", len = source.len()).entered();
+    let fonts = fonts(stale).ok_or("diagram fonts aren't loaded yet")?;
     let merman_span = tracing::trace_span!("Diagram::merman").entered();
     let resolved = Presentation::new()
         .with_profile(PresentationProfile::MermanModern)
@@ -471,7 +527,7 @@ fn render(
     };
     let request = SvgRequest {
         environment: SvgEnvironment::deterministic()
-            .with_text_measurement_policy(fonts().measurement.clone()),
+            .with_text_measurement_policy(fonts.measurement.clone()),
         pipeline: Some(output.pipeline()),
         presentation: resolved.render_policy(),
         options: merman::svg::SvgRenderOptions {
@@ -483,11 +539,17 @@ fn render(
     let svg = match renderer.render(RenderRequest::svg(source, control, request)) {
         Ok(RenderOutput::Svg(Some(svg))) => svg.into_parts().0,
         Ok(_) => return Err("Not a Mermaid diagram".into()),
-        Err(e) => return Err(e.to_string()),
+        Err(e) => {
+            let span = match &e {
+                merman::RenderError::Parse(parse) => parse.terminal_diagnostic_details().span,
+                _ => None,
+            };
+            let span = span.map(|span| span.start..span.end);
+            return Err(DiagramError { message: e.to_string(), span });
+        }
     };
     drop(merman_span);
 
-    let fonts = fonts();
     let svg = {
         let _span = tracing::trace_span!("Diagram::outline_labels").entered();
         fonts.shaper.lock().unwrap().outline_labels(&svg, &fonts.db)
@@ -526,7 +588,7 @@ fn escape(text: &str) -> String {
 }
 
 /// `width_px`, or less so neither side passes `max_side`.
-fn fit_width(tree: &usvg::Tree, width_px: u32, max_side: u32) -> u32 {
+pub(crate) fn fit_width(tree: &usvg::Tree, width_px: u32, max_side: u32) -> u32 {
     let size = tree.size();
     let tallest = max_side as f32 * size.width() / size.height();
     (width_px.min(max_side) as f32).min(tallest).max(1.0) as u32
@@ -534,7 +596,7 @@ fn fit_width(tree: &usvg::Tree, width_px: u32, max_side: u32) -> u32 {
 
 /// The diagram `width_px` wide, on a `matte` of a color and a margin in
 /// pixels if one is given.
-fn rasterize(
+pub(crate) fn rasterize(
     tree: &usvg::Tree, width_px: u32, matte: Option<(Color32, u32)>,
 ) -> Result<ColorImage, String> {
     let _span = tracing::trace_span!("Diagram::raster", width_px).entered();
@@ -561,36 +623,57 @@ struct Fonts {
     measurement: TextMeasurementPolicy,
 }
 
-fn fonts() -> &'static Fonts {
-    static FONTS: OnceLock<Fonts> = OnceLock::new();
-    FONTS.get_or_init(|| {
-        let mut db = usvg::fontdb::Database::new();
-        crate::font::load(&mut db);
-        // labels left as text fall back to serif
-        let sans = db.family_name(&usvg::fontdb::Family::SansSerif).to_string();
-        db.set_serif_family(sans);
-        // a clone keeps the face ids, so the shaper's picks name faces in `db`
-        let fallback = crate::font::Fallback::default();
-        let shaper = Arc::new(Mutex::new(Shaper {
-            fonts: FontSystem::new_with_locale_and_db_and_fallback(
-                "en-US".into(),
-                db.clone(),
-                fallback,
-            ),
-            ems: HashMap::new(),
-            swash: SwashCache::new(),
-        }));
-        let measure = shaper.clone();
-        let measurer = DeterministicTextMeasurer::default()
-            .with_width_callback(move |text, style| measure.lock().unwrap().width(text, style));
-        let id = TextMeasurementProfileIdentity::new(
-            MeasurementProfileId::new("lockbook.app-fonts").expect("valid id"),
-            "1".to_string(),
-        )
-        .expect("valid identity");
-        let measurement = TextMeasurementPolicy::uniform(TextMeasurementProfile::new(id, measurer));
-        Fonts { db: Arc::new(db), shaper, measurement }
-    })
+/// The fonts for the families last chosen, built outside the lock so a
+/// caller only ever waits for the swap. `stale` takes the last built
+/// instead, and none before any were: the UI thread never builds them.
+fn fonts(stale: bool) -> Option<Arc<Fonts>> {
+    static FONTS: Mutex<Option<(u64, Arc<Fonts>)>> = Mutex::new(None);
+    let seq = crate::font::chosen_seq();
+    match &*FONTS.lock().unwrap() {
+        Some((at, current)) if *at == seq || stale => return Some(current.clone()),
+        None if stale => return None,
+        _ => {}
+    }
+    let current = Arc::new(new_fonts());
+    let mut fonts = FONTS.lock().unwrap();
+    if fonts.as_ref().is_none_or(|(at, _)| *at < seq) {
+        *fonts = Some((seq, current.clone()));
+    }
+    Some(current)
+}
+
+fn new_fonts() -> Fonts {
+    let mut db = usvg::fontdb::Database::new();
+    // tests draw in the same fonts whichever fallbacks other tests read
+    #[cfg(test)]
+    crate::font::load_fixed(&mut db);
+    #[cfg(not(test))]
+    crate::font::load(&mut db);
+    // diagrams draw in the note's family; labels left as text fall back to serif
+    let sans = crate::font::note_family(false);
+    db.set_sans_serif_family(sans);
+    db.set_serif_family(sans);
+    // a clone keeps the face ids, so the shaper's picks name faces in `db`
+    let fallback = crate::font::Fallback::default();
+    let shaper = Arc::new(Mutex::new(Shaper {
+        fonts: FontSystem::new_with_locale_and_db_and_fallback(
+            "en-US".into(),
+            db.clone(),
+            fallback,
+        ),
+        ems: HashMap::new(),
+        swash: SwashCache::new(),
+    }));
+    let measure = shaper.clone();
+    let measurer = DeterministicTextMeasurer::default()
+        .with_width_callback(move |text, style| measure.lock().unwrap().width(text, style));
+    let id = TextMeasurementProfileIdentity::new(
+        MeasurementProfileId::new("lockbook.app-fonts").expect("valid id"),
+        "1".to_string(),
+    )
+    .expect("valid identity");
+    let measurement = TextMeasurementPolicy::uniform(TextMeasurementProfile::new(id, measurer));
+    Fonts { db: Arc::new(db), shaper, measurement }
 }
 
 /// How [`Shaper::outline_labels`] marks labels, numbered.
@@ -985,6 +1068,21 @@ impl Shaper {
 mod tests {
     use super::*;
     use crate::theme::palette_v2::{Mode, Theme};
+
+    /// A context with a diagram or math cache is freed once nothing else
+    /// holds it.
+    #[test]
+    fn a_context_with_a_cache_is_freed() {
+        let ctx = Context::default();
+        let held = Arc::new(());
+        ctx.data_mut(|d| d.insert_temp(Id::unique("held"), held.clone()));
+        let weak = Arc::downgrade(&held);
+        drop(held);
+        DiagramCache::of(&ctx);
+        crate::widgets::math::MathCache::of(&ctx);
+        drop(ctx);
+        assert!(weak.upgrade().is_none(), "the context outlives its last handle");
+    }
 
     /// A frame keeps what it draws; one that doesn't use a diagram lets all
     /// but its size go; drawing it again brings it back.

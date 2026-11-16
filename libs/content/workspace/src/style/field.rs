@@ -323,7 +323,7 @@ impl<'a> Field<'a> {
             e.item(phosphor::COPY, "Copy", FieldEditCmd::Copy);
             e.item(phosphor::CLIPBOARD_TEXT, "Paste", FieldEditCmd::Paste);
             e.separator();
-            e.item(phosphor::SELECTION_ALL, "Select all", FieldEditCmd::SelectAll);
+            e.item(phosphor::SELECTION_ALL, "Select All", FieldEditCmd::SelectAll);
         }) {
             ui.memory_mut(|m| m.request_focus(edit_id));
             match cmd {

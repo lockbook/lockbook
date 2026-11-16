@@ -2,10 +2,12 @@
 //! whole fence is one atom, like an image. With the caret inside, the source
 //! shows as code with the last good render below it.
 
+use std::ops::Range;
+
 use comrak::nodes::{AstNode, NodeCodeBlock, NodeValue};
 use egui::{Color32, Pos2, Rect, Sense, Stroke, StrokeKind, Ui, UiBuilder, Vec2, pos2, vec2};
 use epaint::RectShape;
-use lb_rs::model::text::offset_types::{Grapheme, RangeExt as _};
+use lb_rs::model::text::offset_types::{Byte, Grapheme, RangeExt as _};
 use lb_rs::model::text::operation_types::Operation;
 
 use crate::style::phosphor;
@@ -14,11 +16,12 @@ use crate::tab::markdown_editor::row_scroll::RowScroller;
 use crate::tab::markdown_editor::widget::utils::wrap_layout::{
     EmbedKind, EmbedSpec, Layout, WrapUnitLayout,
 };
-use crate::tab::markdown_editor::{MdEdit, MdRender, TouchTarget, View};
-use crate::tab::{ContextMenuTarget, ExtendedOutput as _};
+use crate::tab::markdown_editor::{Arena, MdEdit, MdRender, TouchTarget, View};
+use crate::tab::{ContextMenuTarget, Destination, ExtendedOutput as _};
 use crate::theme::palette_v2::ThemeExt as _;
-use crate::widgets::diagram_cache::DiagramSize;
+use crate::widgets::diagram_cache::{DiagramSize, PrintSvg};
 use crate::widgets::glyphon_label::{GlyphonLabel, ShapedLabel};
+use crate::widgets::math::{Formula, Typeset};
 
 const PENDING_HEIGHT: f32 = 120.0;
 /// How far a diagram shrinks to fit the note: its 16pt labels stay about
@@ -66,19 +69,67 @@ impl<'ast> MdRender {
     }
 
     /// The fence's content lines, without fence indent or container prefixes.
+    fn diagram_lines(
+        &self, node: &'ast AstNode<'ast>, node_code_block: &NodeCodeBlock,
+    ) -> Vec<(Grapheme, Grapheme)> {
+        let first = self.node_first_line_idx(node);
+        let last = self.node_last_line_idx(node);
+        (first + 1..last)
+            .map(|idx| {
+                let node_line = self.node_line(node, self.bounds.source_lines[idx]);
+                self.code_line_range(node, node_code_block, node_line, false)
+            })
+            .collect()
+    }
+
+    /// The fence's content lines joined: what merman reads.
     pub fn diagram_source(
         &self, node: &'ast AstNode<'ast>, node_code_block: &NodeCodeBlock,
     ) -> String {
-        let first = self.node_first_line_idx(node);
-        let last = self.node_last_line_idx(node);
-        let lines: Vec<&str> = (first + 1..last)
-            .map(|idx| {
-                let node_line = self.node_line(node, self.bounds.source_lines[idx]);
-                let code = self.code_line_range(node, node_code_block, node_line, false);
-                &self.buffer[code]
-            })
-            .collect();
+        let lines = self.diagram_lines(node, node_code_block);
+        let lines: Vec<&str> = lines.into_iter().map(|line| &self.buffer[line]).collect();
         lines.join("\n")
+    }
+
+    /// Where in the note `span` of the diagram's source falls: the span, or
+    /// the line it falls on (else the last line above with text) when it
+    /// holds no text, as where something is missing.
+    fn diagram_error_range(
+        &self, node: &'ast AstNode<'ast>, node_code_block: &NodeCodeBlock, span: Range<usize>,
+    ) -> Option<(Grapheme, Grapheme)> {
+        let segs = &self.buffer.current.segs;
+        let lines = self.diagram_lines(node, node_code_block);
+        let bytes: Vec<(usize, usize)> = lines
+            .iter()
+            .map(|&line| segs.range_to_byte(line))
+            .map(|(s, e)| (s.0, e.0))
+            .collect();
+        // each line's start in the source, which joins them with a newline
+        let mut starts = Vec::with_capacity(bytes.len());
+        let mut at = 0;
+        for (start, end) in &bytes {
+            starts.push(at);
+            at += end - start + 1;
+        }
+        let to_note = |offset: usize| {
+            let line = starts
+                .partition_point(|&start| start <= offset)
+                .checked_sub(1)?;
+            let (start, end) = bytes[line];
+            Some((line, (start + offset - starts[line]).min(end)))
+        };
+        let (line, start) = to_note(span.start)?;
+        let (_, end) = to_note(span.end.max(span.start))?;
+        let text = &self.buffer.current.text;
+        if !text[start..end].trim().is_empty() {
+            return Some((segs.byte_to_char_floor(Byte(start)), segs.byte_to_char_ceil(Byte(end))));
+        }
+        let line = (0..=line)
+            .rev()
+            .find(|&l| !self.buffer[lines[l]].trim().is_empty())?;
+        let (start, end) = bytes[line];
+        let indent = text[start..end].len() - text[start..end].trim_start().len();
+        Some((segs.byte_to_char_floor(Byte(start + indent)), lines[line].end()))
     }
 
     /// The diagram's box: its natural size, shrunk to fit `width` but no
@@ -91,8 +142,8 @@ impl<'ast> MdRender {
                 (natural * scale).max(Vec2::splat(1.0))
             }
             DiagramSize::Pending => vec2(width, PENDING_HEIGHT),
-            DiagramSize::Failed(message) => {
-                let label = self.diagram_error_label(&message, width - 2.0 * ERROR_PAD);
+            DiagramSize::Failed(error) => {
+                let label = self.diagram_error_label(&error.message, width - 2.0 * ERROR_PAD);
                 vec2(width, label.size.y + 2.0 * ERROR_PAD)
             }
         }
@@ -184,6 +235,12 @@ impl<'ast> MdRender {
         let painter = ui.painter();
         let width_px = (rect.width() * self.ctx.pixels_per_point()).round() as u32;
         match self.diagrams.size(source) {
+            DiagramSize::Ready(_) if self.print => {
+                if let Some(tree) = self.diagrams.tree(source) {
+                    let callback = std::sync::Arc::new(PrintSvg(tree));
+                    painter.add(egui::PaintCallback { rect, callback });
+                }
+            }
             DiagramSize::Ready(_) => match self.diagrams.texture(source, width_px) {
                 Some(texture) => {
                     let uv = Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0));
@@ -198,7 +255,7 @@ impl<'ast> MdRender {
             DiagramSize::Pending => {
                 painter.rect_filled(rect, RADIUS, theme.neutral_bg_secondary());
             }
-            DiagramSize::Failed(message) => {
+            DiagramSize::Failed(error) => {
                 painter.rect_filled(rect, RADIUS, theme.neutral_bg_secondary());
                 painter.rect_stroke(
                     rect,
@@ -206,12 +263,29 @@ impl<'ast> MdRender {
                     Stroke::new(1.0_f32, theme.neutral_bg_tertiary()),
                     StrokeKind::Inside,
                 );
-                let label = self.diagram_error_label(&message, rect.width() - 2.0 * ERROR_PAD);
+                let label =
+                    self.diagram_error_label(&error.message, rect.width() - 2.0 * ERROR_PAD);
                 let at = Rect::from_min_size(rect.min + Vec2::splat(ERROR_PAD), label.size);
                 self.text_areas
                     .push(label.text_area(at, &self.ctx, ui.clip_rect()));
             }
         }
+    }
+
+    /// Where a revealed diagram's error points in the note, if it knows.
+    pub fn diagram_error(
+        &self, node: &'ast AstNode<'ast>, node_code_block: &NodeCodeBlock,
+    ) -> Option<(Grapheme, Grapheme)> {
+        if !self.diagram_eligible(node, node_code_block) {
+            return None;
+        }
+        let DiagramSize::Failed(error) = self
+            .diagrams
+            .size(&self.diagram_source(node, node_code_block))
+        else {
+            return None;
+        };
+        self.diagram_error_range(node, node_code_block, error.span?)
     }
 
     fn diagram_preview(
@@ -230,9 +304,10 @@ impl<'ast> MdRender {
                 (None, Some(source))
             }
             DiagramSize::Pending => (None, previews.get(&start).cloned()),
-            DiagramSize::Failed(message) => {
-                (Some(self.diagram_error_label(&message, width)), previews.get(&start).cloned())
-            }
+            DiagramSize::Failed(error) => (
+                Some(self.diagram_error_label(&error.message, width)),
+                previews.get(&start).cloned(),
+            ),
         };
         let image = shown.and_then(|shown| match self.diagrams.size(&shown) {
             DiagramSize::Ready(_) => {
@@ -323,10 +398,11 @@ fn message_detail(message: &str) -> &str {
 pub enum Picture {
     Image(String),
     Diagram(String),
+    Formula(Formula),
 }
 
 impl<'ast> MdRender {
-    /// The collapsed image or diagram the selection exactly covers.
+    /// The collapsed image, diagram or formula the selection exactly covers.
     pub fn selected_picture(&self, root: &'ast AstNode<'ast>) -> Option<Picture> {
         let selection = self.buffer.current.selection;
         if selection.is_empty() || self.disable_images {
@@ -343,22 +419,28 @@ impl<'ast> MdRender {
                 NodeValue::Image(link) if !self.range_revealed_interior(selection) => {
                     Some(Picture::Image(link.url.clone()))
                 }
+                NodeValue::Math(_)
+                    if !self.range_revealed_interior(selection)
+                        && matches!(self.math_typeset(node), Some(Typeset::Ready(_))) =>
+                {
+                    Self::formula(node).map(Picture::Formula)
+                }
                 _ => None,
             }
         })
     }
 
     /// Whether the platform edit menu offers "Open": the selection is a
-    /// collapsed diagram.
+    /// collapsed diagram or a formula.
     pub fn selection_has_diagram(&mut self) -> bool {
-        let arena = comrak::Arena::new();
+        let arena = Arena::new();
         let root = self.reparse(&arena);
-        matches!(self.selected_picture(root), Some(Picture::Diagram(_)))
+        matches!(self.selected_picture(root), Some(Picture::Diagram(_) | Picture::Formula(_)))
     }
 
     /// Whether the platform edit menu offers "Copy Image".
     pub fn selection_has_picture(&mut self) -> bool {
-        let arena = comrak::Arena::new();
+        let arena = Arena::new();
         let root = self.reparse(&arena);
         self.selected_picture(root).is_some()
     }
@@ -367,11 +449,18 @@ impl<'ast> MdRender {
     pub fn copy_picture(&self, picture: Picture) {
         match picture {
             Picture::Diagram(source) => {
-                if let Some((image, _)) = self.diagrams.image(&source) {
+                if let Some(image) = self.diagrams.image(&source) {
                     self.ctx.copy_image(image);
                 }
             }
             Picture::Image(url) => self.embeds.copy_image(&url, &self.ctx),
+            Picture::Formula(formula) => {
+                let theme = self.ctx.get_lb_theme();
+                let (fg, bg) = (theme.neutral_fg(), theme.neutral_bg());
+                if let Some(image) = self.math.image(&formula, self.layout.row_height, fg, bg) {
+                    self.ctx.copy_image(image);
+                }
+            }
         }
     }
 }
@@ -407,11 +496,13 @@ impl<'ast> MdEdit {
         }
     }
 
-    /// A tap selects a collapsed diagram (and, on touch, pops the atom menu);
-    /// desktop right-click shows Copy Image / Copy / Edit.
+    /// A click selects a collapsed diagram (and, on touch, pops the atom
+    /// menu), and a cmd-click opens it, as any click does read-only; desktop
+    /// right-click shows the menu.
     pub fn handle_diagram_interactions(
         &mut self, root: &'ast AstNode<'ast>, ui: &egui::Ui, id: egui::Id, ops: &mut Vec<Operation>,
     ) {
+        let open = self.embed_tap_opens(ui);
         for node in root.descendants() {
             let NodeValue::CodeBlock(ncb) = &node.data.borrow().value else {
                 continue;
@@ -434,9 +525,12 @@ impl<'ast> MdEdit {
                 ui.scope_id().with(salt),
                 TouchTarget::Tap(select.clone()),
             );
-            if response.double_clicked() {
+            if open && response.hovered() {
+                crate::style::link_cursor(ui.ctx());
+            }
+            if response.clicked() && open {
                 ui.ctx()
-                    .open_diagram(self.renderer.diagram_source(node, ncb));
+                    .open_picture(Destination::Diagram(self.renderer.diagram_source(node, ncb)));
             } else if response.clicked() {
                 ui.memory_mut(|m| m.request_focus(id));
                 self.calc_operations(ui.ctx(), root, select, ops);
@@ -455,32 +549,34 @@ impl<'ast> MdEdit {
                 e.item(phosphor::IMAGE, "Copy Image", DiagramMenu::CopyImage);
                 e.item(phosphor::COPY, "Copy", DiagramMenu::Copy);
                 if editable {
-                    e.item(phosphor::PENCIL, "Edit", DiagramMenu::Edit);
+                    e.item(phosphor::PENCIL, "Edit Diagram", DiagramMenu::Edit);
                 }
             });
             match action {
                 Some(DiagramMenu::Open) => {
-                    ui.ctx()
-                        .open_diagram(self.renderer.diagram_source(node, ncb));
+                    ui.ctx().open_picture(Destination::Diagram(
+                        self.renderer.diagram_source(node, ncb),
+                    ));
                 }
                 Some(DiagramMenu::CopyImage) => {
                     let source = self.renderer.diagram_source(node, ncb);
                     self.renderer.copy_picture(Picture::Diagram(source));
                 }
                 Some(DiagramMenu::Copy) => ui.ctx().copy_text(self.renderer.buffer[range].into()),
-                Some(DiagramMenu::Edit) => {
-                    ui.memory_mut(|m| m.request_focus(id));
-                    let caret = self.diagram_edit_caret(node);
-                    self.calc_operations(
-                        ui.ctx(),
-                        root,
-                        Event::Select { region: caret.into() },
-                        ops,
-                    );
-                }
+                Some(DiagramMenu::Edit) => self.edit_diagram(root, node, ui, id, ops),
                 None => {}
             }
         }
+    }
+
+    /// Puts the caret in a diagram's source, revealing it.
+    fn edit_diagram(
+        &mut self, root: &'ast AstNode<'ast>, node: &'ast AstNode<'ast>, ui: &egui::Ui,
+        id: egui::Id, ops: &mut Vec<Operation>,
+    ) {
+        ui.memory_mut(|m| m.request_focus(id));
+        let caret = self.diagram_edit_caret(node);
+        self.calc_operations(ui.ctx(), root, Event::Select { region: caret.into() }, ops);
     }
 
     /// The end of a diagram's last source line: where Edit puts the caret.

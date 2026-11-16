@@ -6,6 +6,7 @@ import SwiftWorkspace
     import AppKit
 #else
     import UIKit
+    import UIKit.UIGestureRecognizerSubclass
 #endif
 
 @Observable class AppState {
@@ -15,6 +16,8 @@ import SwiftWorkspace
     var isLoggedIn: Bool = false
     var error: UIError? = nil
     var accountCreatedThisSession = false
+
+    @ObservationIgnored private var lastActivity = Date.distantPast
 
     private init() {
         checkIfLoggedIn()
@@ -32,6 +35,43 @@ import SwiftWorkspace
         ) { _ in
             AppState.lb.appForegrounded()
         }
+
+        #if os(macOS)
+            NSEvent.addLocalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown, .scrollWheel, .keyDown]) { [weak self] event in
+                self?.userActive()
+                return event
+            }
+        #else
+            NotificationCenter.default.addObserver(
+                forName: UIWindow.didBecomeKeyNotification,
+                object: nil,
+                queue: .main
+            ) { [weak self] notification in
+                self?.watch(notification.object as? UIWindow)
+            }
+            for case let scene as UIWindowScene in UIApplication.shared.connectedScenes {
+                scene.windows.forEach { watch($0) }
+            }
+        #endif
+    }
+
+    #if os(iOS)
+        private func watch(_ window: UIWindow?) {
+            guard let window, window.gestureRecognizers?.contains(where: { $0 is ActivityRecognizer }) != true else {
+                return
+            }
+
+            window.addGestureRecognizer(ActivityRecognizer { [weak self] in self?.userActive() })
+        }
+    #endif
+
+    private func userActive() {
+        guard Date().timeIntervalSince(lastActivity) >= 1 else {
+            return
+        }
+
+        lastActivity = Date()
+        AppState.lb.appForegrounded()
     }
 
     static let LB_LOC: String = {
@@ -154,3 +194,25 @@ enum UIError: Identifiable {
         }
     }
 }
+
+#if os(iOS)
+    final class ActivityRecognizer: UIGestureRecognizer {
+        private let onActivity: () -> Void
+
+        init(onActivity: @escaping () -> Void) {
+            self.onActivity = onActivity
+            super.init(target: nil, action: nil)
+            cancelsTouchesInView = false
+        }
+
+        override func touchesBegan(_: Set<UITouch>, with _: UIEvent) {
+            onActivity()
+            state = .failed
+        }
+
+        override func pressesBegan(_: Set<UIPress>, with _: UIPressesEvent) {
+            onActivity()
+            state = .failed
+        }
+    }
+#endif

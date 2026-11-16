@@ -1,6 +1,6 @@
 [package]
 name = "lb-rs"
-version = "26.11.4"
+version = "26.11.13"
 edition = "2021"
 description = "The rust library for interacting with your lockbook."
 repository = "https://github.com/lockbook/lockbook"
@@ -13,6 +13,10 @@ name = "lb_rs"
 crate-type = ["lib", "staticlib", "cdylib"]
 bench = false
 
+[features]
+# lets Config.seed seed new ids and keys, for tests that replay; never in a release build
+test-seed = []
+
 [dependencies]
 aes-gcm = "0.10.3"
 base64 = "0.13.0"
@@ -24,7 +28,7 @@ bytes = "1"
 chrono = "0.4"
 crossbeam = "0.8.1"
 db-rs-derive = "0.3.7"
-db-rs = "0.4.2"
+db-rs = "0.4.4"
 db-rs-old = { package = "db-rs", version = "=0.3.7" }
 flate2 = "1.0"
 futures = "0.3.30"
@@ -39,11 +43,12 @@ rand = "0.8.4"
 reqwest = { version = "0.11.1", default-features = false, features = [
     "json",
     "rustls-tls",
+    "socks",
     "stream",
 ] }
 serde = { version = "1.0", features = ["derive"] }
 serde_bytes = "0.11"
-serde_json = "1.0.44"
+serde_json = { version = "1.0.44", features = ["preserve_order"] }
 sha2 = "0.9.9"
 similar = { version = "2.6.0", features = ["unicode"] }
 time = "0.3.20"
@@ -91,6 +96,7 @@ tracing-perfetto-file = "=0.1.1"
 tracing-appender = "0.2"
 
 [dev-dependencies]
+async-trait = "0.1.68"
 criterion = { version = "0.5.1", features = ["async_tokio"] }
 itertools = "0.10.1"
 rand = "0.8.4"

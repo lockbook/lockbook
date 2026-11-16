@@ -5,11 +5,14 @@
 
 use egui::{Align, Frame, Id, Layout, Rect, Sense, Ui, UiBuilder, pos2, vec2};
 
-use crate::components::domain::chips;
+use crate::components::domain::import_card::ImportCard;
+use crate::components::domain::nudge_card::NudgeCard;
+use crate::components::domain::{chips, footer};
 use crate::components::{
     FixedPadContent, Space, Spacer, Theme, control_height, show_recents, show_shared,
-    show_sync_footer, show_tree, ui_width, with_h_pad_in,
+    show_sync_footer, show_tree, ui_width, with_h_pad, with_h_pad_in,
 };
+use workspace_rs::style::layout::PadContent;
 
 use super::ShellApp;
 use super::action::Action as A;
@@ -133,7 +136,19 @@ pub fn show(app: &mut ShellApp, ui: &mut Ui, t: &Theme, queue: &mut Vec<Action>)
                 .data_mut(|d| d.insert_temp(head_readout_id(), head));
         });
 
+    // The import card sits above the nudge card, both above the sync footer.
+    let import = app.import_job.as_ref().map(|j| j.view());
+    let nudge = app.nudges.as_ref().is_some_and(|n| n.showing());
+    let card_w = (ui_width(ui) - 2.0 * Space::Sm.pts()).max(0.0);
+    let import_h = import
+        .clone()
+        .map_or(0.0, |view| Space::Sm.pts() + ImportCard { view, t, queue }.measure(ui, card_w));
+    let nudge_h = match nudge {
+        true => Space::Sm.pts() + NudgeCard { t, queue }.measure(ui, card_w),
+        false => 0.0,
+    };
     egui::Panel::bottom("shell_sidebar_foot")
+        .exact_size(import_h + nudge_h + footer::measure(app))
         .resizable(false)
         .show_separator_line(false)
         .frame(
@@ -143,6 +158,15 @@ pub fn show(app: &mut ShellApp, ui: &mut Ui, t: &Theme, queue: &mut Vec<Action>)
         )
         .show(ui, |ui| {
             ui.set_min_width(ui_width(ui));
+            ui.spacing_mut().item_spacing = vec2(0.0, 0.0);
+            if let Some(view) = import {
+                ui.add(Spacer::new(Space::Sm));
+                with_h_pad(ui, Space::Sm, &mut ImportCard { view, t, queue });
+            }
+            if nudge {
+                ui.add(Spacer::new(Space::Sm));
+                with_h_pad(ui, Space::Sm, &mut NudgeCard { t, queue });
+            }
             show_sync_footer(app, ui, t, queue);
         });
 

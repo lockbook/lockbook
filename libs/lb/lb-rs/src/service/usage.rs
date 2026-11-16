@@ -1,4 +1,6 @@
 use crate::Lb;
+use crate::io::docs::LocalDocuments;
+use crate::io::server::Server;
 use crate::model::api::{FileUsage, GetUsageRequest};
 use crate::model::errors::LbResult;
 use crate::model::usage::get_usage;
@@ -17,7 +19,7 @@ pub struct UsageItemMetric {
     pub readable: String,
 }
 
-impl Lb {
+impl<S: Server, D: LocalDocuments> Lb<S, D> {
     /// fetches data footprint on server along with data cap information
     /// compares this to local changes to estimate net data increase
     ///
@@ -28,7 +30,7 @@ impl Lb {
     #[instrument(level = "debug", skip(self))]
     pub async fn get_usage(&self) -> LbResult<UsageMetrics> {
         let acc = self.get_account()?;
-        let usage = self.client.request(acc, GetUsageRequest {}).await?;
+        let usage = self.client.get_usage(acc, GetUsageRequest {}).await?;
         Ok(get_usage(usage))
     }
 }

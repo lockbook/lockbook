@@ -60,10 +60,6 @@ fn main() {
                         .handler(|bump| releaser::version::bump(bump.get())),
                     )
                 .subcommand(Command::name("github-release").handler(releaser::github::create_release))
-                .subcommand(Command::name("server")
-                    .subcommand(Command::name("deploy").handler(releaser::server::deploy))
-                    .subcommand(Command::name("build").handler(releaser::server::build))
-                )
                 .subcommand(Command::name("apple")
                     .subcommand(Command::name("all").handler(releaser::apple::release))
                     .subcommand(Command::name("cli").handler(releaser::apple::cli::release))
@@ -143,6 +139,10 @@ fn main() {
                 .subcommand(Command::name("android-format").handler(ci::format_android))
                 .subcommand(Command::name("assert-git-clean").handler(ci::assert_git_clean))
                 .subcommand(Command::name("assert-no-udeps").handler(ci::assert_no_udeps))
+                .subcommand(
+                    Command::name("assert-clients-without-server")
+                        .handler(ci::assert_clients_without_server),
+                )
         )
         .parse()
         .exit();

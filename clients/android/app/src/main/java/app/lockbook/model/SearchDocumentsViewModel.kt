@@ -70,21 +70,22 @@ class SearchDocumentsViewModel(
 
     companion object {
         private const val OVERVIEW_PREVIEW_COUNT = 3
+        private const val RECENT_PREVIEW_COUNT = 10
         private const val CONTENT_PREVIEW_SNIPPET_COUNT = 1
         private const val CONTENT_SNIPPET_CONTEXT_CHARS = 40
         private const val PROGRESS_SPINNER_DELAY_MS = 150L
     }
 
     init {
-        // creates the searchers in the background and loads the suggested docs
+        // creates the searchers in the background and loads the recent docs
         viewModelScope.launch(searchDispatcher) {
             try {
                 pathSearcher = pathSearcher ?: Lb.pathSearcher()
                 contentSearcher = contentSearcher ?: Lb.contentSearcher()
-                val suggestedResults = loadSuggestedResults()
+                val recentResults = loadRecentResults()
                 withContext(Dispatchers.Main) {
                     if (input.isBlank()) {
-                        renderInitialState(suggestedResults)
+                        renderInitialState(recentResults)
                     }
                 }
             } catch (_: CancellationException) {
@@ -186,9 +187,9 @@ class SearchDocumentsViewModel(
         viewModelScope.launch(searchDispatcher) {
             try {
                 if (input.isBlank()) {
-                    val suggestedResults = loadSuggestedResults()
+                    val recentResults = loadRecentResults()
                     withContext(Dispatchers.Main) {
-                        renderInitialState(suggestedResults)
+                        renderInitialState(recentResults)
                     }
                 } else {
                     val (pathResults, contentResults) = querySearch(input)
@@ -278,28 +279,25 @@ class SearchDocumentsViewModel(
         }
     }
 
-    private fun renderInitialState(suggestedResults: List<SearchedDocumentViewHolderInfo.DocumentNameViewHolderInfo>) {
+    private fun renderInitialState(recentResults: List<SearchedDocumentViewHolderInfo.DocumentNameViewHolderInfo>) {
         val rows = mutableListOf<SearchedDocumentViewHolderInfo>()
 
-        if (suggestedResults.isNotEmpty()) {
-            rows.add(SearchedDocumentViewHolderInfo.SectionHeaderViewHolderInfo("Suggested documents"))
-            rows.addAll(suggestedResults)
+        if (recentResults.isNotEmpty()) {
+            rows.add(SearchedDocumentViewHolderInfo.SectionHeaderViewHolderInfo("Recent documents"))
+            rows.addAll(recentResults)
         }
 
         fileResults.set(rows) { left, right -> left == right }
     }
 
-    private suspend fun loadSuggestedResults(): List<SearchedDocumentViewHolderInfo.DocumentNameViewHolderInfo> {
-        val snapshot = FileMetadataStore.awaitLoaded()
-        return Lb.suggestedDocs().mapNotNull { id ->
-            val file = snapshot.idsAndFiles[id] ?: return@mapNotNull null
-            val parent = snapshot.idsAndFiles[file.parent] ?: return@mapNotNull null
-            SearchedDocumentViewHolderInfo.DocumentNameViewHolderInfo(
-                file,
-                parent.name.makeSpannableString(),
-                file.name.makeSpannableString(),
-            )
-        }
+    private suspend fun loadRecentResults(): List<SearchedDocumentViewHolderInfo.DocumentNameViewHolderInfo> {
+        FileMetadataStore.awaitLoaded()
+        val pathSearcher = pathSearcher ?: Lb.pathSearcher().also { pathSearcher = it }
+        return pathSearcher
+            .query("")
+            .mapNotNull(::pathResultRow)
+            .filter { it.file.type == net.lockbook.File.FileType.Document }
+            .take(RECENT_PREVIEW_COUNT)
     }
 
     private fun pathResultRow(result: PathSearcherResult): SearchedDocumentViewHolderInfo.DocumentNameViewHolderInfo? {

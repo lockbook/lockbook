@@ -18,7 +18,7 @@ Fenced blocks with a language. Syntax highlighting uses TreeSitter in the target
 Inside a fence, code should behave more like a code editor on a best-effort basis: tab inserting spaces, a following line inheriting indent ([edits](edits.md)).
 
 ## Diagrams
-A closed ```` ```mermaid ```` fence draws as its diagram, the format GitHub, GitLab, and Obsidian render, so notes stay portable. Collapsed, the fence is one atom like an image ([rich-inlines](rich-inlines.md)): a tap selects it, Edit puts the caret in its source, and a backspace selects it before deleting it. With the caret inside, the source shows as code with the last render that worked below it, so the picture holds while you type; an error shows above that picture. An unclosed fence stays code, since it runs to the end of the note.
+A closed ```` ```mermaid ```` fence draws as its diagram, the format GitHub, GitLab, and Obsidian render, so notes stay portable. Collapsed, the fence is one atom like an image ([rich-inlines](rich-inlines.md)): a tap selects it, Edit Diagram puts the caret in its source, a cmd-click opens it in a tab, and a backspace selects it before deleting it. With the caret inside, the source shows as code with the last render that worked below it, so the picture holds while you type; an error shows above that picture, and the source is underlined where the error points, as a misspelling is. An unclosed fence stays code, since it runs to the end of the note.
 
 Diagrams render off the UI thread, measured and drawn with the app's own fonts and colored from the theme. Copy Image puts the picture on the clipboard, and Copy Rendered pastes it as an image.
 
@@ -30,7 +30,7 @@ Rows and columns are inserted, deleted, moved, and aligned from the toolbar or f
 The delimiter row has no place in the grid. A table shows as source only while the caret is on it: someone is typing a table by hand. Sorts and charts are cool territory, not a promise.
 
 ## Other
-**Front matter:** Obsidian-like table rendering is the product direction; a code-block stand-in is fine until then ([dialect](dialect.md)).
+**Front matter:** a grid at the top of the note, a row per property with the key in one column and the value in the other; the fences, colons, dashes, and quotes are hidden and are atoms for the caret. A list is a row of chips, `tags` in the accent; a plain `true` or `false` is a checkbox. Return starts a row or the next item, a comma ends an item, Tab moves key to value to the next row, a colon ends a key being typed, and a value that comes to need quotes gets them as it is typed. The toolbar's property button and ⌘; add a property; the row menu moves, removes, and changes a value's kind. A chevron in the gutter collapses the block to one wrapped row of `key value` pills in source order; a pill opens it with the caret on that row, and so does the caret arriving by any other way. Collapsed or open is the last choice anywhere, kept on the device, since no other reader needs it and nothing in the file changes. Every edit replaces one key, value, item, or line, so comments, order, quoting, and list style survive untouched. YAML the grid does not edit in place — comments, nested maps, multi-line scalars, and lines that fail to parse — shows as source rows in the same grid, so one bad line never costs the block ([dialect](dialect.md)).
 
 **HTML:** syntax-highlighted source, with GitHub's finite vocabulary in the target state.
 

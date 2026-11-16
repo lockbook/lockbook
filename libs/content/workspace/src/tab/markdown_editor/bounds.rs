@@ -1,3 +1,4 @@
+use crate::front_matter::FrontMatter;
 use crate::tab::markdown_editor::MdRender;
 use comrak::nodes::{LineColumn, Sourcepos};
 use lb_rs::model::text::offset_types::{Byte, Grapheme, RangeExt};
@@ -62,6 +63,9 @@ pub struct Bounds {
     pub images: Vec<(Grapheme, Grapheme)>,
     /// The fence of every diagram that can collapse to its picture.
     pub diagrams: Vec<(Grapheme, Grapheme)>,
+    /// Every formula, sorted; one wider than its row keeps its scroll by
+    /// its place here.
+    pub math: Vec<(Grapheme, Grapheme)>,
 
     /// Source range of each link, wikilink and image while source shows,
     /// sorted; empty when rendered. Each gets the click area its rendered
@@ -77,6 +81,8 @@ pub struct Bounds {
 
     /// Where each block drawn as code starts, in document order.
     pub code_blocks: Vec<Grapheme>,
+    /// The front matter block's rows, when the document opens with one.
+    pub front_matter: Option<FrontMatter<Grapheme>>,
 }
 
 /// Tag + hidden-contents ranges of one actively folded section. Both act
@@ -119,8 +125,10 @@ impl Default for Bounds {
             source_links: Vec::default(),
             source_prose: Vec::default(),
             diagrams: Vec::default(),
+            math: Vec::default(),
             tables: Vec::default(),
             code_blocks: Vec::default(),
+            front_matter: None,
         }
     }
 }

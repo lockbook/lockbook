@@ -1,7 +1,6 @@
 pub(crate) mod card;
 pub(crate) mod hover;
 
-use comrak::Arena;
 use comrak::nodes::{AstNode, NodeValue};
 use lb_rs::Uuid;
 use lb_rs::model::text::offset_types::{Grapheme, RangeExt as _};
@@ -11,7 +10,7 @@ use lb_rs::model::text::operation_types::Operation;
 use crate::file_cache::{FilesExt as _, ResolvedLink, split_fragment, wiki_fragment};
 use crate::link_preview::{self, LinkMeta, Preview, Status};
 use crate::show::DocType;
-use crate::style::{TypeRole, file_row_icon, phosphor, phosphor_font_id};
+use crate::style::{TypeRole, file_row_icon, phosphor};
 use crate::tab::markdown_editor::TouchTarget;
 use crate::tab::markdown_editor::fragment::slugify;
 use crate::tab::markdown_editor::input::{Event, Location, Region};
@@ -20,7 +19,7 @@ use crate::tab::markdown_editor::widget::utils::NodeValueExt as _;
 use crate::tab::markdown_editor::widget::utils::wrap_layout::{
     BG_ROW_GAP, CHIP_SIDE_PAD, Format, FragmentContent, Layout, StyleInfo, chip_of,
 };
-use crate::tab::markdown_editor::{MdEdit, MdRender};
+use crate::tab::markdown_editor::{Arena, MdEdit, MdRender};
 use crate::tab::markdown_editor::{Syntax, View};
 use crate::tab::{ContextMenuTarget, ExtendedOutput as _, LinkSheet};
 use crate::theme::palette_v2::{ThemeExt as _, readable_on};
@@ -38,7 +37,7 @@ impl<'ast> MdRender {
         let parent_text_format = self.text_format(parent);
         let theme = self.ctx.get_lb_theme();
         let color = match state {
-            LinkState::Normal => theme.fg().blue,
+            LinkState::Normal => theme.accent(),
             LinkState::Warning { .. } => theme.fg().yellow,
             LinkState::Broken { .. } => theme.fg().red,
             LinkState::Placeholder { .. } => theme.fg().cyan,
@@ -66,9 +65,9 @@ impl<'ast> MdRender {
     /// than an inline link. The trigger is positional so the source stays clean,
     /// portable markdown: a **bare autolink** (`https://x.com`, not `[label](url)`
     /// and not the delimited `<url>` form) that is **alone on its own line**
-    /// (within a paragraph, bounded by line breaks or the paragraph edges) and
-    /// **not inside a container block** (list item / quote / alert / table /
-    /// footnote).
+    /// (within a paragraph, bounded by line breaks or the paragraph edges),
+    /// in a quote or a list as in the note itself; a table cell holds no
+    /// paragraph, so never there.
     pub fn link_renders_as_card(&self, node: &'ast AstNode<'ast>) -> bool {
         let url = node_link_url(node);
         if url.is_empty() || !self.link_is_auto(node, &url) {
@@ -93,15 +92,6 @@ impl<'ast> MdRender {
             return false;
         }
 
-        // not inside a container block (Document itself doesn't count)
-        let mut ancestor = parent.parent();
-        while let Some(a) = ancestor {
-            let value = &a.data.borrow().value;
-            if !matches!(value, NodeValue::Document) && value.is_container_block() {
-                return false;
-            }
-            ancestor = a.parent();
-        }
         true
     }
 
@@ -223,6 +213,7 @@ impl<'ast> MdRender {
             source_range: node_range,
             chip: true,
             wrap: false,
+            caret_inside: false,
         });
         // `show_capsule_overlays` paints the icon over the lead
         let text = format!("{lead}{}", self.chip_title(node, lead, &chip.title, &fmt).0);
@@ -319,7 +310,8 @@ impl<'ast> MdRender {
             return (title.into(), false);
         };
         let em = self.row_height(block);
-        let room = (CHIP_MAX_EMS * em).min(self.width(block)) - 2.0 * em * CHIP_SIDE_PAD;
+        // no wider than its block either, which in a table cell is a column's widest
+        let room = CHIP_MAX.min(self.embed_room(block)) - 2.0 * em * CHIP_SIDE_PAD;
         let fits = |t: &str| self.text_advance(&format!("{lead}{t}"), fmt, em) <= room;
         if fits(title) {
             return (title.into(), false);
@@ -436,13 +428,9 @@ impl<'ast> MdRender {
                 let link_color = self
                     .text_format_link_pill(node.parent().unwrap(), chip.state.clone())
                     .color;
-                ui.painter().text(
-                    icon_rect.center(),
-                    egui::Align2::CENTER_CENTER,
-                    glyph,
-                    phosphor_font_id(size),
-                    link_color,
-                );
+                GlyphonLabel::icon(glyph, link_color, size)
+                    .build(ui.ctx())
+                    .paint_centered(ui.painter(), icon_rect.center());
             }
             if let Some(ChipIcon::Favicon(favicon_url)) = &chip.icon {
                 let url = node_link_url(node);
@@ -469,13 +457,10 @@ impl<'ast> MdRender {
                     self.embeds
                         .show(ui, favicon_url, icon_rect, egui::CornerRadius::same(3));
                 } else {
-                    ui.painter().text(
-                        icon_rect.center(),
-                        egui::Align2::CENTER_CENTER,
-                        phosphor::LINK,
-                        phosphor_font_id(size),
-                        self.ctx.get_lb_theme().neutral_fg_secondary(),
-                    );
+                    let ink = self.ctx.get_lb_theme().neutral_fg_secondary();
+                    GlyphonLabel::icon(phosphor::LINK, ink, size)
+                        .build(ui.ctx())
+                        .paint_centered(ui.painter(), icon_rect.center());
                 }
             }
             ui.set_clip_rect(row_clip);
@@ -490,7 +475,7 @@ impl<'ast> MdRender {
 
             if frag_start == 0 && !sel.is_empty() && sel.contains_range(&node_range, true, true) {
                 let theme = self.ctx.get_lb_theme();
-                let accent = theme.bg().get_color(theme.prefs().primary);
+                let accent = theme.accent_bg();
                 let tint =
                     egui::Color32::from_rgba_unmultiplied(accent.r(), accent.g(), accent.b(), 90);
                 // Merge fragments into one rect per row so the selection reads as
@@ -573,10 +558,11 @@ impl<'ast> MdRender {
             let shown = format!("[[{title}]]");
             return self.explain_unopenable(&shown, self.link_state_for_wikilink(title), ctx);
         };
-        let heading = wiki_fragment(title).1;
+        // the slug, as copying this link writes it
+        let heading = wiki_fragment(title).1.map(slugify);
         match self.link_resolver.wikilink_confirmation(title) {
-            Some(reason) => self.ask_to_open(file_id, heading, new_tab, reason, ctx),
-            None => ctx.open_link(file_id, heading.map(Into::into), new_tab),
+            Some(reason) => self.ask_to_open(file_id, heading.as_deref(), new_tab, reason, ctx),
+            None => ctx.open_link(file_id, heading, new_tab),
         }
     }
 
@@ -775,17 +761,27 @@ impl<'ast> MdRender {
     ) {
         let parent_base = ui.scope_id();
         for node in root.descendants() {
-            let (url, is_wikilink, is_image) = match &node.data.borrow().value {
-                NodeValue::WikiLink(nwl) => (nwl.url.clone(), true, false),
-                NodeValue::Link(nl) => (nl.url.clone(), false, false),
-                NodeValue::Image(nl) => (nl.url.clone(), false, true),
-                _ => continue,
-            };
+            if !matches!(
+                node.data.borrow().value,
+                NodeValue::WikiLink(_) | NodeValue::Link(_) | NodeValue::Image(_)
+            ) {
+                continue;
+            }
             let salt = match chips {
                 true => Self::link_capsule_id_salt(self.node_range(node)),
                 false => Self::link_interaction_id_salt(self.node_range(node)),
             };
             let id = parent_base.with(salt);
+            // not drawn this frame
+            if !self.interaction_responses.contains_key(&id) {
+                continue;
+            }
+            let (url, is_wikilink, is_image) = match &node.data.borrow().value {
+                NodeValue::WikiLink(nwl) => (nwl.url.clone(), true, false),
+                NodeValue::Link(nl) => (nl.url.clone(), false, false),
+                NodeValue::Image(nl) => (nl.url.clone(), false, true),
+                _ => unreachable!(),
+            };
 
             let open = Event::OpenLink { url: url.clone(), wikilink: is_wikilink };
             let tap = if self.readonly {
@@ -995,8 +991,8 @@ pub enum LinkMenuAction {
 
 /// The space a chip's icon is painted over, before its title.
 const ICON_SLOT: &str = "\u{2003}";
-/// Chips longer than this many ems are cut short.
-const CHIP_MAX_EMS: f32 = 24.0;
+/// Chips wider than this, in points, are cut short, wherever they are.
+const CHIP_MAX: f32 = 300.0;
 /// How far a chip's surface leans toward its link colour.
 const CHIP_WASH: f32 = 0.1;
 /// How far a cut chip's fade reaches back into its text, in ems.

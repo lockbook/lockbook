@@ -331,9 +331,13 @@ impl AppState {
 
         let Output { mut platform, viewport } = self.lb.frame();
 
-        // Shell already saved tabs if close_requested was set this frame.
+        // The shell queues saves on every frame a close is requested; the
+        // window closes once they're written.
         if self.close_requested {
-            std::process::exit(0);
+            if self.lb.app.saves_settled() {
+                std::process::exit(0);
+            }
+            self.window.request_redraw();
         }
 
         for command in &platform.commands {
@@ -389,6 +393,15 @@ impl AppState {
                 &self.window,
                 &mut actions,
             );
+            #[cfg(target_os = "linux")]
+            if vp.commands.iter().any(|c| {
+                matches!(
+                    c,
+                    egui::ViewportCommand::StartDrag | egui::ViewportCommand::BeginResize(_)
+                )
+            }) {
+                self.end_press_taken_by_window_manager();
+            }
         }
 
         if actions
@@ -484,6 +497,27 @@ impl AppState {
         true
     }
 
+    /// A window move or resize hands the held primary press to the window
+    /// manager (`_NET_WM_MOVERESIZE`), which keeps its release. End the press
+    /// in egui now, or egui holds the button down and swallows the next press.
+    /// winit does the same on Windows at `WM_EXITSIZEMOVE`.
+    #[cfg(target_os = "linux")]
+    fn end_press_taken_by_window_manager(&mut self) {
+        let ctx = &self.lb.renderer.context;
+        let (latest, modifiers) = ctx.input(|i| (i.pointer.latest_pos(), i.modifiers));
+        let Some(pos) = latest else {
+            return;
+        };
+        let input = self.egui_winit.egui_input_mut();
+        input.events.push(egui::Event::PointerButton {
+            pos,
+            button: egui::PointerButton::Primary,
+            pressed: false,
+            modifiers,
+        });
+        self.window.request_redraw();
+    }
+
     fn handle_paste(&mut self) {
         if self.handle_image_paste() {
             return;
@@ -529,6 +563,11 @@ fn init_app(window: Arc<Window>) -> WgpuLockbook<'static> {
 }
 
 fn init_with_renderer(mut renderer: RendererState<'static>) -> WgpuLockbook<'static> {
+    let app = ShellApp::default();
+    workspace_rs::font::choose(
+        app.settings.text_font.as_deref(),
+        app.settings.code_font.as_deref(),
+    );
     let mut fonts = egui::FontDefinitions::default();
     workspace_rs::register_fonts(&mut fonts);
     renderer.context.set_fonts(fonts);
@@ -552,7 +591,7 @@ fn init_with_renderer(mut renderer: RendererState<'static>) -> WgpuLockbook<'sta
         renderer,
         queued_events: Default::default(),
         double_queued_events: Default::default(),
-        app: ShellApp::default(),
+        app,
     };
 
     lb.frame();

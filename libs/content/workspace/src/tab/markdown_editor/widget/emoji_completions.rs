@@ -1,21 +1,20 @@
 use std::collections::HashSet;
 
-use egui::{Context, Id, Key, Modifiers, Pos2, Rect, Ui, Vec2};
+use egui::{Context, Ui};
 use lb_rs::model::text::buffer::Buffer;
 use lb_rs::model::text::offset_types::{Grapheme, RangeExt as _};
 use unicode_segmentation::UnicodeSegmentation as _;
 
-use crate::style::{FileRow, Space, ThemeExt as _};
 use crate::tab::markdown_editor::MdEdit;
-use crate::tab::markdown_editor::TouchTarget;
 use crate::tab::markdown_editor::bounds::{Paragraphs, RangesExt as _};
 use crate::tab::markdown_editor::input::{Event, Location, Region};
-use crate::tab::markdown_editor::widget::completion_popup_rect;
+use crate::tab::markdown_editor::widget::{
+    CompletionStep, completion_accepted, completion_dismissed, completion_step,
+};
 
 const MAX_RESULTS: usize = 5;
 /// The popup's width, narrower where the window is: room for
 /// `heavy_check_mark` and the shortcodes shorter than it, about 95% of use.
-const POPUP_WIDTH: f32 = 180.0;
 
 #[derive(Default)]
 pub struct EmojiCompletions {
@@ -100,7 +99,7 @@ impl EmojiCompletions {
         // Clamp selection in case results shrank (e.g. the user typed more characters).
         self.selected = self.selected.min(results.len() - 1);
 
-        if ctx.input(|i| i.key_pressed(Key::Escape)) {
+        if completion_dismissed(ctx) {
             self.suppressed = Some(query);
             return;
         }
@@ -109,41 +108,31 @@ impl EmojiCompletions {
             return;
         }
 
-        let up = ctx.input_mut(|i| {
-            i.consume_key(Modifiers::NONE, Key::ArrowUp) || i.consume_key(Modifiers::CTRL, Key::P)
-        });
-        if up && self.selected > 0 {
-            self.selected -= 1;
+        match completion_step(ctx) {
+            Some(CompletionStep::Up) => self.selected = self.selected.saturating_sub(1),
+            Some(CompletionStep::Down) => {
+                self.selected = (self.selected + 1).min(results.len().saturating_sub(1))
+            }
+            None => {}
         }
-        let down = ctx.input_mut(|i| {
-            i.consume_key(Modifiers::NONE, Key::ArrowDown) || i.consume_key(Modifiers::CTRL, Key::N)
-        });
-        if down && self.selected + 1 < results.len() {
-            self.selected += 1;
-        }
-
-        let accept = ctx.input_mut(|i| {
-            i.consume_key(Modifiers::NONE, Key::Enter) || i.consume_key(Modifiers::NONE, Key::Tab)
-        });
-        if accept {
-            let shortcode = matching_shortcode(results[self.selected], &query);
-            self.apply_completion(events, colon_offset, replace_end, shortcode);
+        if completion_accepted(ctx) {
+            self.apply_completion(events, colon_offset, replace_end, results[self.selected]);
         }
     }
 
-    /// Push a replacement event for the current query and reset popup state.
+    /// Replace the query with the emoji character and reset popup state.
     /// Shared between `handle_input` (Enter / Tab) and the click path
     /// in `show_emoji_completions`.
     pub fn apply_completion(
         &mut self, events: &mut Vec<Event>, colon_offset: Grapheme, replace_end: Grapheme,
-        shortcode: &str,
+        emoji: &emojis::Emoji,
     ) {
         events.push(Event::Replace {
             region: Region::BetweenLocations {
                 start: Location::Grapheme(colon_offset),
                 end: Location::Grapheme(replace_end),
             },
-            text: format!(":{}:", shortcode),
+            text: emoji.as_str().into(),
             advance_cursor: true,
         });
         self.selected = 0;
@@ -186,9 +175,7 @@ fn detect_query(buffer: &Buffer) -> Option<(Grapheme, Grapheme)> {
         let g = grapheme_at(buffer, i);
 
         if g == ":" {
-            // Don't trigger when ':' is phrase punctuation after a word, including
-            // a word wrapped in markdown: `**word**:`, `*word*:`, `` `code`: ``.
-            if colon_follows_word(buffer, i) {
+            if !colon_opens_shortcode(buffer, i) {
                 return None;
             }
             colon_idx = i;
@@ -233,8 +220,10 @@ fn is_markup_closer(c: char) -> bool {
     matches!(c, '*' | '_' | '~' | '`' | ')' | ']' | '"' | '\'')
 }
 
-/// True when `:` follows a word (possibly wrapped in emphasis/code/link markup).
-fn colon_follows_word(buffer: &Buffer, colon_idx: usize) -> bool {
+/// True when `:` starts a shortcode: past any markup closers, it sits at the start, after
+/// whitespace, an opener, another `:`, or an emoji. Prose punctuation (`?:`, `e.g.:`) and
+/// words (`word:`, `**word**:`) don't open one.
+fn colon_opens_shortcode(buffer: &Buffer, colon_idx: usize) -> bool {
     let mut k = colon_idx;
     while k > 0 {
         let Some(c) = grapheme_at(buffer, k - 1).chars().next() else {
@@ -244,9 +233,11 @@ fn colon_follows_word(buffer: &Buffer, colon_idx: usize) -> bool {
             k -= 1;
             continue;
         }
-        return c.is_alphanumeric();
+        return c.is_whitespace()
+            || matches!(c, ':' | '(' | '[' | '{' | '|' | '>')
+            || (!c.is_ascii() && !c.is_alphanumeric());
     }
-    false
+    true
 }
 
 fn query_from_range(buffer: &Buffer, range: (Grapheme, Grapheme)) -> Option<String> {
@@ -400,46 +391,20 @@ impl MdEdit {
             return;
         }
 
-        // Anchor the popup at the opening colon so it doesn't shift right as the user types.
-        let Some([cursor_top, cursor_bot]) = self.cursor_line(colon_offset) else {
-            return;
-        };
-
-        let t = ui.ctx().get_lb_theme();
-        let pad = Space::Xs.pts();
-        let row_h = FileRow::height_for(false);
-        let size = Vec2::new(POPUP_WIDTH, 2.0 * pad + row_h * results.len() as f32);
-        let popup_rect =
-            completion_popup_rect(cursor_top, cursor_bot, size, ui.ctx().content_rect());
-        self.renderer
-            .touch_targets
-            .push((popup_rect, TouchTarget::Popup));
-        self.renderer.draw_completion_popup(ui, popup_rect);
-
-        let mut clicked = None;
-        for (i, emoji) in results.iter().enumerate() {
-            let top = popup_rect.top() + pad + row_h * i as f32;
-            let rect = Rect::from_min_max(
-                Pos2::new(popup_rect.left() + pad, top),
-                Pos2::new(popup_rect.right() - pad, top + row_h),
-            );
-            let label = format!("{}  {}", emoji.as_str(), matching_shortcode(emoji, &query));
-            let resp = FileRow::new(&t, label)
-                .icon("")
-                .highlighted(i == self.emoji_completions.selected)
-                .paint_at_hit(ui, rect, rect, Id::unique("emoji_item").with(i));
-            if resp.clicked() {
-                clicked = Some(i);
-            }
-        }
-
+        let labels: Vec<String> = results
+            .iter()
+            .map(|emoji| format!("{}  {}", emoji.as_str(), matching_shortcode(emoji, &query)))
+            .collect();
+        let highlighted = Some(self.emoji_completions.selected);
+        // anchored at the opening colon, so it stays while typing
+        let clicked =
+            self.show_completion_rows(ui, colon_offset, &labels, highlighted, "emoji_item");
         if let Some(i) = clicked {
-            let shortcode = matching_shortcode(results[i], &query);
             self.emoji_completions.apply_completion(
                 &mut self.event.internal_events,
                 colon_offset,
                 replace_end,
-                shortcode,
+                results[i],
             );
         }
     }
@@ -458,7 +423,7 @@ mod tests {
     }
 
     #[test]
-    fn colon_after_word_does_not_trigger() {
+    fn colon_after_word_or_punctuation_does_not_trigger() {
         assert!(detect_query(&cursor_at_end("word:")).is_none());
         assert!(detect_query(&cursor_at_end("**word**:")).is_none());
         assert!(detect_query(&cursor_at_end("*word*:")).is_none());
@@ -467,14 +432,22 @@ mod tests {
         assert!(detect_query(&cursor_at_end("~~strike~~:")).is_none());
         assert!(detect_query(&cursor_at_end("[label]:")).is_none());
         assert!(detect_query(&cursor_at_end("http://")).is_none());
+        assert!(detect_query(&cursor_at_end("10pm-?:")).is_none());
+        assert!(detect_query(&cursor_at_end("e.g.:")).is_none());
     }
 
     #[test]
-    fn colon_after_space_or_start_does_trigger() {
+    fn colon_after_space_start_or_opener_does_trigger() {
         assert!(detect_query(&cursor_at_end(":")).is_some());
         assert!(detect_query(&cursor_at_end("word :")).is_some());
         assert!(detect_query(&cursor_at_end("**word** :")).is_some());
         assert!(detect_query(&cursor_at_end("word :smi")).is_some());
+        assert!(detect_query(&cursor_at_end(":+1::ta")).is_some());
+        assert!(detect_query(&cursor_at_end("🎉:fi")).is_some());
+        assert!(detect_query(&cursor_at_end("(:smi")).is_some());
+        assert!(detect_query(&cursor_at_end("**:fi")).is_some());
+        assert!(detect_query(&cursor_at_end("|:smi")).is_some());
+        assert!(detect_query(&cursor_at_end("line\n:smi")).is_some());
     }
 
     #[test]

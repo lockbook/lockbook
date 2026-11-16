@@ -5,7 +5,6 @@ pub mod github;
 pub mod linux;
 pub mod public_site;
 pub mod secrets;
-pub mod server;
 pub mod utils;
 pub mod version;
 pub mod windows;

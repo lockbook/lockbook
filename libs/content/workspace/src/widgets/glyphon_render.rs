@@ -6,13 +6,39 @@ use egui::Rect;
 use egui_wgpu_renderer::egui_wgpu::{self, Renderer, ScreenDescriptor};
 use egui_wgpu_renderer::wgpu::{self, Device, MultisampleState, Queue, TextureFormat};
 use glyphon::{
-    Buffer, Color, ColorMode, FontSystem, Resolution, SwashCache, TextArea, TextAtlas, TextBounds,
-    TextRenderer, Viewport, fontdb,
+    AttrsList, Buffer, Color, ColorMode, FontSystem, Resolution, SwashCache, TextArea, TextAtlas,
+    TextBounds, TextRenderer, Viewport, fontdb,
 };
 
 use super::glyphon_cache::GlyphonCache;
 
 pub fn register_font_system(ctx: &egui::Context) -> Arc<Mutex<FontSystem>> {
+    register(ctx, new_font_system)
+}
+
+/// Registers a [`fixed_font_system`].
+#[cfg(test)]
+pub fn register_fixed_font_system(ctx: &egui::Context) {
+    register(ctx, fixed_font_system);
+}
+
+/// A font system of [`crate::font::load_fixed`]'s fonts and the listed
+/// fallbacks, read once per process, so text a test lays out is the same
+/// whichever fallbacks other tests read.
+#[cfg(test)]
+pub fn fixed_font_system() -> FontSystem {
+    static FIXED: std::sync::OnceLock<fontdb::Database> = std::sync::OnceLock::new();
+    let fixed = FIXED.get_or_init(|| {
+        let mut db = fontdb::Database::new();
+        crate::font::load_fixed(&mut db);
+        #[cfg(not(any(target_vendor = "apple", windows)))]
+        crate::font::load_listed_fallbacks(&mut db);
+        db
+    });
+    font_system(|db| *db = fixed.clone())
+}
+
+fn register(ctx: &egui::Context, new: impl FnOnce() -> FontSystem) -> Arc<Mutex<FontSystem>> {
     // Idempotent: callers (workspace boot, test harness per-frame) may
     // invoke this repeatedly. Reusing the existing FontSystem +
     // GlyphonCache preserves the shaped-buffer cache across frames.
@@ -20,7 +46,7 @@ pub fn register_font_system(ctx: &egui::Context) -> Arc<Mutex<FontSystem>> {
         return font_system;
     }
 
-    let font_system = Arc::new(Mutex::new(new_font_system()));
+    let font_system = Arc::new(Mutex::new(new()));
     ctx.data_mut(|d| d.insert_temp(egui::Id::NULL, Arc::clone(&font_system)));
 
     let glyphon_cache = Arc::new(Mutex::new(GlyphonCache::new()));
@@ -29,10 +55,25 @@ pub fn register_font_system(ctx: &egui::Context) -> Arc<Mutex<FontSystem>> {
     font_system
 }
 
+/// Points the registered font system at the chosen families and drops the
+/// text shaped in the old ones.
+pub fn reload_font_system(ctx: &egui::Context) {
+    if let Some(font_system) = ctx.data(|d| d.get_temp::<Arc<Mutex<FontSystem>>>(egui::Id::NULL)) {
+        crate::font::refresh(font_system.lock().unwrap().db_mut());
+    }
+    if let Some(cache) = ctx.data(|d| d.get_temp::<Arc<Mutex<GlyphonCache>>>(egui::Id::NULL)) {
+        *cache.lock().unwrap() = GlyphonCache::new();
+    }
+}
+
 /// Bundled fonts, then the system's.
 pub fn new_font_system() -> FontSystem {
+    font_system(crate::font::load)
+}
+
+fn font_system(load: impl FnOnce(&mut fontdb::Database)) -> FontSystem {
     let mut db = fontdb::Database::new();
-    crate::font::load(&mut db);
+    load(&mut db);
     let fallback = crate::font::Fallback::default();
     FontSystem::new_with_locale_and_db_and_fallback("en-US".into(), db, fallback)
 }
@@ -126,6 +167,72 @@ impl TextBufferArea {
         let rect = rect * ppi;
         let clip_rect = clip_rect * ppi;
         TextBufferArea { buffer, rect, clip_rect, default_color }
+    }
+
+    /// A copy whose every color, spans included, carries `opacity` of its alpha.
+    pub fn faded(&self, opacity: f32, font_system: &mut FontSystem) -> Self {
+        let fade = |c: Color| Color::rgba(c.r(), c.g(), c.b(), (c.a() as f32 * opacity) as u8);
+        let mut buffer = self.buffer.read().unwrap().clone();
+        for line in &mut buffer.lines {
+            let old = line.attrs_list();
+            let mut faded = AttrsList::new(
+                &old.defaults()
+                    .color(fade(old.defaults().color_opt.unwrap_or(self.default_color))),
+            );
+            for (range, attrs) in old.spans_iter() {
+                let attrs = attrs.as_attrs();
+                let color = fade(attrs.color_opt.unwrap_or(self.default_color));
+                faded.add_span(range.clone(), &attrs.color(color));
+            }
+            line.set_attrs_list(faded);
+        }
+        buffer.shape_until_scroll(font_system, false);
+        Self {
+            buffer: Arc::new(RwLock::new(buffer)),
+            rect: self.rect,
+            clip_rect: self.clip_rect,
+            default_color: fade(self.default_color),
+        }
+    }
+}
+
+/// Text painted for print rather than the GPU, in paint order among the
+/// other shapes.
+pub struct PrintText(pub Vec<TextBufferArea>);
+
+/// Marks a context while a [`crate::tab::Presentation::Print`] tab draws in
+/// it: its text paints as [`PrintText`].
+#[derive(Clone, Copy)]
+pub struct Printing;
+
+/// Whether `ctx` is drawing a tab for print.
+pub fn printing(ctx: &egui::Context) -> bool {
+    ctx.data(|d| d.get_temp::<Printing>(egui::Id::NULL))
+        .is_some()
+}
+
+/// Paints `areas` clipped to `rect` at `painter`'s opacity: through
+/// glyphon, or as [`PrintText`] while printing.
+pub fn paint_text(painter: &egui::Painter, rect: Rect, mut areas: Vec<TextBufferArea>) {
+    let opacity = painter.opacity();
+    if opacity == 0.0 {
+        return;
+    }
+    if opacity < 1.0 {
+        let font_system = register_font_system(painter.ctx());
+        let mut font_system = font_system.lock().unwrap();
+        areas = areas
+            .iter()
+            .map(|area| area.faded(opacity, &mut font_system))
+            .collect();
+    }
+    if printing(painter.ctx()) {
+        painter.add(egui::PaintCallback { rect, callback: Arc::new(PrintText(areas)) });
+    } else {
+        painter.add(egui_wgpu::Callback::new_paint_callback(
+            rect,
+            GlyphonRendererCallback::new(areas),
+        ));
     }
 }
 

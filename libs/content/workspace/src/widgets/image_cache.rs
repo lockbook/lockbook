@@ -24,11 +24,9 @@ use image::codecs::gif::GifDecoder;
 use image::codecs::png::PngDecoder;
 use image::codecs::webp::WebPDecoder;
 use image::metadata::LoopCount;
-use image::{
-    AnimationDecoder as _, DynamicImage, Frames, ImageDecoder, ImageEncoder as _, ImageFormat,
-    ImageResult,
-};
+use image::{AnimationDecoder as _, DynamicImage, Frames, ImageDecoder, ImageFormat, ImageResult};
 use lb_rs::blocking::Lb;
+use lb_rs::model::file_metadata::DocumentHmac;
 use lb_rs::{Uuid, spawn};
 use resvg::tiny_skia::Pixmap;
 use resvg::usvg::{self, Transform};
@@ -89,6 +87,20 @@ struct Inner {
     shown_anyway: HashSet<(Uuid, ImageKey)>,
     /// Animations that are loaded and still playing; evicted with their texture.
     players: HashMap<ImageKey, Player>,
+    /// Each cached image's newest load; only it may install.
+    loads: HashMap<ImageKey, u64>,
+    next_load: u64,
+    /// The version of each file a cached image shows, once it shows it.
+    hmacs: HashMap<ImageKey, DocumentHmac>,
+}
+
+impl Inner {
+    /// Starts a load of `key`, superseding any before it.
+    fn begin_load(&mut self, key: &ImageKey) -> u64 {
+        self.next_load += 1;
+        self.loads.insert(key.clone(), self.next_load);
+        self.next_load
+    }
 }
 
 #[derive(Clone)]
@@ -194,7 +206,11 @@ impl ImageCache {
             };
             if keep_loading {
                 keep.push((key, state));
-            } else if let Some(id) = free_id {
+                continue;
+            }
+            inner.loads.remove(&key);
+            inner.hmacs.remove(&key);
+            if let Some(id) = free_id {
                 inner.players.remove(&key);
                 texture_manager.write().free(id);
             }
@@ -219,9 +235,33 @@ impl ImageCache {
         }
 
         let state: Arc<Mutex<ImageState>> = Default::default();
-        self.spawn_load(key, user_activity, state.clone());
+        let load = inner.begin_load(key);
+        self.spawn_load(key, user_activity, state.clone(), load);
         inner.current.insert(key.clone(), state.clone());
         state
+    }
+
+    /// File `id` may have been written: its image loads again if its version
+    /// changed, still showing what it showed until then.
+    pub fn reload(&self, id: Uuid) {
+        self.reload_where(|key| key == &ImageKey::File(id));
+    }
+
+    /// Any file may have been written: every file image reloads like [`Self::reload`].
+    pub fn reload_files(&self) {
+        self.reload_where(|key| matches!(key, ImageKey::File(_)));
+    }
+
+    fn reload_where(&self, written: impl Fn(&ImageKey) -> bool) {
+        let mut inner = self.inner.lock().unwrap();
+        let cached: Vec<_> = (inner.current.iter().chain(&inner.previous))
+            .filter(|(key, _)| written(key))
+            .map(|(key, state)| (key.clone(), state.clone()))
+            .collect();
+        for (key, state) in cached {
+            let load = inner.begin_load(&key);
+            self.spawn_load(&key, false, state, load);
+        }
     }
 
     /// The size of a texture this cache allocated.
@@ -370,7 +410,9 @@ impl ImageCache {
             .store(self.ws_seq.fetch_add(1, Ordering::Relaxed), Ordering::Relaxed);
     }
 
-    fn spawn_load(&self, key: &ImageKey, user_activity: bool, state: Arc<Mutex<ImageState>>) {
+    fn spawn_load(
+        &self, key: &ImageKey, user_activity: bool, state: Arc<Mutex<ImageState>>, load: u64,
+    ) {
         let key = key.clone();
         let client = self.client.clone();
         let core = self.core.clone();
@@ -384,6 +426,15 @@ impl ImageCache {
 
         spawn!({
             let span = tracing::trace_span!("ImageCache::load").entered();
+
+            // read before the bytes, so a write in between loads again later
+            let hmac = match &key {
+                ImageKey::File(id) => core.document_hmac(*id).ok().flatten(),
+                ImageKey::Web(_) => None,
+            };
+            if hmac.is_some() && loader.inner.lock().unwrap().hmacs.get(&key) == hmac.as_ref() {
+                return;
+            }
 
             let decode_closure = async_on_wasm!({
                 let (image_bytes, is_svg) = match &key {
@@ -426,7 +477,7 @@ impl ImageCache {
             #[cfg(not(target_arch = "wasm32"))]
             let result = decode_closure();
 
-            let playback = loader.install(&key, &state, result);
+            let playback = loader.install(&key, &state, load, hmac, result);
             // a player outlives its loader, so dropping the cache closes the channel
             drop((span, loader));
             if let Some(playback) = playback {
@@ -452,14 +503,13 @@ impl ImageCache {
     #[cfg(test)]
     pub fn load_bytes(&self, key: &ImageKey, bytes: Vec<u8>) {
         let state: Arc<Mutex<ImageState>> = Default::default();
-        self.inner
-            .lock()
-            .unwrap()
-            .current
-            .insert(key.clone(), state.clone());
+        let mut inner = self.inner.lock().unwrap();
+        inner.current.insert(key.clone(), state.clone());
+        let load = inner.begin_load(key);
+        drop(inner);
         let (key, loader) = (key.clone(), self.loader());
         std::thread::spawn(move || {
-            let playback = loader.install(&key, &state, decode(bytes));
+            let playback = loader.install(&key, &state, load, None, decode(bytes));
             drop(loader);
             if let Some(playback) = playback {
                 futures::executor::block_on(play(playback));
@@ -478,11 +528,21 @@ struct Loader {
 }
 
 impl Loader {
-    /// Shows a decoded image: its first frame becomes its texture. Returns
-    /// the rest of an animation, for [`play`] to feed the texture.
+    /// Shows a decoded image in place of what `key` showed: its first frame
+    /// becomes its texture. Returns the rest of an animation, for [`play`]
+    /// to feed the texture. A superseded or evicted load shows nothing.
     fn install(
-        &self, key: &ImageKey, state: &Mutex<ImageState>, result: Result<Decoded, String>,
+        &self, key: &ImageKey, state: &Mutex<ImageState>, load: u64, hmac: Option<DocumentHmac>,
+        result: Result<Decoded, String>,
     ) -> Option<Playback> {
+        let mut inner = self.inner.lock().unwrap();
+        if inner.loads.get(key) != Some(&load) {
+            return None;
+        }
+        match hmac.filter(|_| result.is_ok()) {
+            Some(hmac) => inner.hmacs.insert(key.clone(), hmac),
+            None => inner.hmacs.remove(key),
+        };
         let mut playback = None;
         let shown = result.map(|decoded| {
             let (image, rest) = match decoded {
@@ -501,19 +561,21 @@ impl Loader {
                 let (tx, frames) = mpsc::channel(1);
                 let starved = Arc::new(AtomicBool::new(false));
                 let player = Player { texture, frames, due: None, delay, starved: starved.clone() };
-                self.inner
-                    .lock()
-                    .unwrap()
-                    .players
-                    .insert(key.clone(), player);
+                inner.players.insert(key.clone(), player);
                 playback = Some(Playback { rest, tx, starved, ctx: self.ctx.clone() });
             }
             texture
         });
-        *state.lock().unwrap() = match shown {
+        let shown = match shown {
             Ok(texture) => ImageState::Loaded(texture),
             Err(err) => ImageState::Failed(err),
         };
+        if let ImageState::Loaded(old) = std::mem::replace(&mut *state.lock().unwrap(), shown) {
+            if inner.players.get(key).is_some_and(|p| p.texture == old) {
+                inner.players.remove(key);
+            }
+            self.ctx.tex_manager().write().free(old);
+        }
         self.seq
             .store(self.ws_seq.fetch_add(1, Ordering::Relaxed), Ordering::Relaxed);
         self.ctx.request_repaint();
@@ -723,6 +785,8 @@ fn rasterize_svg(
     pix_map.encode_png().map_err(|e| e.to_string())
 }
 
+/// `color_image` as a png, at the density its `source_size` gives it: a
+/// picture rasterized at twice its size in points pastes at that size.
 pub fn encode_png(color_image: &ColorImage) -> Result<Vec<u8>, String> {
     let pixels: Vec<u8> = color_image
         .pixels
@@ -730,15 +794,26 @@ pub fn encode_png(color_image: &ColorImage) -> Result<Vec<u8>, String> {
         .flat_map(|px| px.to_srgba_unmultiplied())
         .collect();
 
+    let (width, height) = (color_image.width() as u32, color_image.height() as u32);
     let mut png = Vec::new();
-    image::codecs::png::PngEncoder::new(&mut png)
-        .write_image(
-            &pixels,
-            color_image.width() as u32,
-            color_image.height() as u32,
-            image::ExtendedColorType::Rgba8,
-        )
+    let mut encoder = png::Encoder::new(&mut png, width, height);
+    encoder.set_color(png::ColorType::Rgba);
+    encoder.set_depth(png::BitDepth::Eight);
+    let scale = width as f32 / color_image.source_size.x;
+    if scale.is_finite() && scale > 0.0 && (scale - 1.0).abs() > 0.01 {
+        const POINTS_PER_METER: f32 = 72.0 / 0.0254;
+        let ppm = (scale * POINTS_PER_METER).round() as u32;
+        encoder.set_pixel_dims(Some(png::PixelDimensions {
+            xppu: ppm,
+            yppu: ppm,
+            unit: png::Unit::Meter,
+        }));
+    }
+    let mut writer = encoder.write_header().map_err(|e| e.to_string())?;
+    writer
+        .write_image_data(&pixels)
         .map_err(|e| e.to_string())?;
+    writer.finish().map_err(|e| e.to_string())?;
     Ok(png)
 }
 
@@ -775,7 +850,6 @@ mod tests {
     use std::time::{Duration, Instant};
 
     use egui::{Color32, ImageData, RawInput, TextureId};
-    use lb_rs::Uuid;
 
     use super::{ImageCache, ImageKey, bytes_look_like_svg, rasterize_svg};
     use crate::file_cache::FileCache;
@@ -798,6 +872,24 @@ mod tests {
         out
     }
 
+    /// A png reads back at the size in points it was encoded with.
+    #[test]
+    fn png_keeps_its_size_in_points() {
+        for (texels, points) in [([60, 30], [30.0, 15.0]), ([60, 30], [60.0, 30.0])] {
+            let mut image = egui::ColorImage::filled(texels, Color32::RED);
+            image.source_size = points.into();
+            let png = super::encode_png(&image).unwrap();
+            let decoder = png::Decoder::new(std::io::Cursor::new(png));
+            let reader = decoder.read_info().unwrap();
+            let ppm = reader
+                .info()
+                .pixel_dims
+                .map_or(72.0 / 0.0254, |d| d.xppu as f32);
+            let read = texels[0] as f32 * (72.0 / 0.0254) / ppm;
+            assert!((read - points[0]).abs() < 0.1, "{texels:?} at {points:?} read as {read}");
+        }
+    }
+
     /// A gif plays as encoded: each frame goes up once the delays before it
     /// have passed and not before, in order, for as many plays as its loop
     /// block asks, however late the frame clock ticks. A delay of 0 plays as
@@ -814,12 +906,11 @@ mod tests {
         ];
         for (repeat, plays, stops) in cases {
             let ctx = crate::tab::markdown_editor::test_egui_ctx();
-            let persistence =
-                WsPersistentStore::new(false, format!("/tmp/{}", Uuid::new_v4()).into(), true);
+            let persistence = WsPersistentStore::new(false, std::path::PathBuf::new(), false);
             let images = ImageCache::new(
                 ctx.clone(),
                 Default::default(),
-                crate::tab::markdown_editor::tests::harness::build_lb(),
+                crate::tab::markdown_editor::tests::harness::in_memory_core(),
                 Arc::new(RwLock::new(FileCache::empty())),
                 persistence,
             );

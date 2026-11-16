@@ -6,7 +6,7 @@ use crate::model::tree_like::TreeLike;
 use crate::service::events::Actor;
 use uuid::Uuid;
 
-impl Lb {
+impl<S, D> Lb<S, D> {
     #[instrument(level = "debug", skip(self), err(Debug))]
     pub async fn create_link_at_path(&self, path: &str, target_id: Uuid) -> LbResult<File> {
         let mut tx = self.begin_tx().await;
@@ -18,7 +18,7 @@ impl Lb {
 
         let root = db.root.as_ref().ok_or(LbErrKind::RootNonexistent)?;
 
-        let id = tree.create_link_at_path(path, target_id, root, &self.keychain)?;
+        let id = tree.create_link_at_path(path, target_id, root, &self.keychain, &self.entropy)?;
 
         let ui_file = tree.decrypt(&self.keychain, &id, &db.pub_key_lookup)?;
 
@@ -38,7 +38,7 @@ impl Lb {
 
         let root = db.root.as_ref().ok_or(LbErrKind::RootNonexistent)?;
 
-        let id = tree.create_at_path(path, root, &self.keychain)?;
+        let id = tree.create_at_path(path, root, &self.keychain, &self.entropy)?;
 
         let ui_file = tree.decrypt(&self.keychain, &id, &db.pub_key_lookup)?;
 
@@ -93,7 +93,13 @@ impl Lb {
 
         let mut tree = (&db.base_metadata).to_staged(&db.local_metadata).to_lazy();
         let paths = tree.list_paths(filter, &self.keychain)?;
+        let mut listed = Vec::new();
+        for (id, path) in paths {
+            if self.config.list_attachments || !tree.in_attachments(&id)? {
+                listed.push((id, path));
+            }
+        }
 
-        Ok(paths)
+        Ok(listed)
     }
 }

@@ -1,3 +1,5 @@
+use crate::io::docs::LocalDocuments;
+use crate::io::server::Server;
 pub mod content;
 pub mod path;
 
@@ -5,6 +7,7 @@ use std::collections::{HashMap, HashSet};
 use std::ops::Range;
 use uuid::Uuid;
 
+use crate::model::errors::LbResult;
 use crate::model::file::File;
 
 pub use content::ContentSearcher;
@@ -42,9 +45,35 @@ pub struct ContentMatch {
 
 use crate::Lb;
 
-impl Lb {
+const MAX_SEARCHED_FILES: usize = 100;
+
+impl<S: Server, D: LocalDocuments> Lb<S, D> {
     pub async fn path_searcher(&self) -> PathSearcher {
         PathSearcher::new(self).await
+    }
+
+    #[instrument(level = "debug", skip(self), err(Debug))]
+    pub async fn search_accepted(&self, id: Uuid) -> LbResult<()> {
+        let mut tx = self.begin_tx().await;
+        let db = tx.db();
+
+        let mut searched: Vec<Uuid> = db
+            .searched_files
+            .as_slice()
+            .iter()
+            .filter(|searched| **searched != id)
+            .copied()
+            .collect();
+        searched.push(id);
+        let dropped = searched.len().saturating_sub(MAX_SEARCHED_FILES);
+
+        db.searched_files.clear()?;
+        for id in &searched[dropped..] {
+            db.searched_files.push(*id)?;
+        }
+        tx.end();
+
+        Ok(())
     }
 }
 

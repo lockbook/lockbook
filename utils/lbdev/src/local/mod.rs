@@ -4,7 +4,7 @@ use std::{
     process::Command,
 };
 
-use cli_rs::cli_error::CliResult;
+use cli_rs::cli_error::{CliError, CliResult};
 
 use crate::{
     places::{
@@ -244,25 +244,65 @@ pub fn apple_run_macos() -> CliResult<()> {
 }
 
 pub fn apple_device_name_completor(prompt: &str) -> CliResult<Vec<String>> {
-    Ok(devices()?
+    Ok(apple_devices()?
         .into_iter()
-        .filter(|entry| entry.starts_with(prompt))
+        .map(|d| d.device_properties.name)
+        .filter(|name| name.starts_with(prompt))
         .collect())
 }
 
-pub fn get_device_id(name: &str) -> CliResult<String> {
-    Ok(devices_and_ids()?
-        .into_iter()
-        .find(|row| row.0 == name)
-        .unwrap()
-        .1)
+/// Resolves a device by exact name, UDID or CoreDevice id, else by a unique
+/// case-insensitive name substring where ’ and ' are the same.
+pub fn get_device_id(query: &str) -> CliResult<String> {
+    let devices = apple_devices()?;
+    let fold = |s: &str| s.replace('’', "'").to_lowercase();
+    let q = fold(query);
+
+    let exact: Vec<&Device> = devices
+        .iter()
+        .filter(|d| {
+            d.device_properties.name == query
+                || fold(&d.identifier) == q
+                || d.hardware_properties.udid.as_deref().map(fold) == Some(q.clone())
+        })
+        .collect();
+    let matches = if exact.is_empty() {
+        devices
+            .iter()
+            .filter(|d| fold(&d.device_properties.name).contains(&q))
+            .collect()
+    } else {
+        exact
+    };
+
+    let list = |ds: &[&Device]| {
+        ds.iter()
+            .map(|d| format!("  {}", d.device_properties.name))
+            .collect::<Vec<_>>()
+            .join("\n")
+    };
+    match matches.as_slice() {
+        [d] => Ok(d.identifier.clone()),
+        [] => {
+            let all: Vec<&Device> = devices.iter().collect();
+            let names = if all.is_empty() { "  (none)".to_string() } else { list(&all) };
+            Err(CliError {
+                msg: format!(
+                    "no connected device matches \"{query}\". Connected devices:\n{names}"
+                ),
+                status: 1,
+            })
+        }
+        some => Err(CliError {
+            msg: format!("\"{query}\" matches more than one device:\n{}", list(some)),
+            status: 1,
+        }),
+    }
 }
 
-fn devices() -> CliResult<Vec<String>> {
-    Ok(devices_and_ids()?.into_iter().map(|a| a.0).collect())
-}
-
-fn devices_and_ids() -> CliResult<Vec<(String, String)>> {
+/// Paired physical devices that aren't unavailable: "available (paired)" or
+/// "connected" (tunnel up).
+fn apple_devices() -> CliResult<Vec<Device>> {
     let json_path_str = "/tmp/devicectl_devices.json";
     let json_path = PathBuf::from(json_path_str);
 
@@ -273,24 +313,16 @@ fn devices_and_ids() -> CliResult<Vec<(String, String)>> {
             "devices",
             "--hide-default-columns",
             "--filter",
-            "State BEGINSWITH 'available'",
+            "Reality == 'physical' AND State != 'unavailable'",
             "-q",
             "-j",
             json_path_str,
         ])
         .assert_success()?;
 
-    // Read and parse JSON
     let json_str = fs::read_to_string(&json_path)?;
     let root: Root = serde_json::from_str(&json_str)?;
-
-    // Map to Vec<(name, identifier)>
-    Ok(root
-        .result
-        .devices
-        .into_iter()
-        .map(|d| (d.device_properties.name, d.identifier))
-        .collect())
+    Ok(root.result.devices)
 }
 
 use serde::Deserialize;
@@ -311,11 +343,19 @@ struct Device {
 
     #[serde(rename = "deviceProperties")]
     device_properties: DeviceProperties,
+
+    #[serde(rename = "hardwareProperties")]
+    hardware_properties: HardwareProperties,
 }
 
 #[derive(Debug, Deserialize)]
 struct DeviceProperties {
     name: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct HardwareProperties {
+    udid: Option<String>,
 }
 
 pub fn server() -> CliResult<()> {

@@ -3,7 +3,7 @@ use egui::{Pos2, Rect, Stroke, Ui, Vec2};
 use lb_rs::model::text::offset_types::{Grapheme, Graphemes, RangeIterExt as _};
 
 use crate::tab::markdown_editor::MdRender;
-use crate::tab::markdown_editor::widget::utils::consume_indent_columns_ceil;
+use crate::tab::markdown_editor::widget::utils::consume_indent_columns;
 use crate::tab::markdown_editor::widget::utils::wrap_layout::Format;
 
 use crate::theme::palette_v2::ThemeExt as _;
@@ -125,12 +125,15 @@ impl<'ast> MdRender {
         // line in Ls is a block quote containing Bs."
         let text = &self.buffer[node_line];
 
-        // Up to 3 columns of leading whitespace before `>`. Ceil so a tab
-        // a parent level left straddling the boundary is claimed here
-        // rather than leaking into content (comrak already decided this is
-        // a blockquote; we just attribute the bytes). Leading whitespace is
-        // ' ' or '\t' only (both ASCII), so grapheme count equals byte count.
-        let lead = consume_indent_columns_ceil(text, 3);
+        // Up to 3 columns of leading whitespace before `>`, counted from the
+        // ancestors' prefix end since tab stops are the line's; a tab past
+        // the third column makes the line lazy text, as in comrak. Leading
+        // whitespace is ' ' or '\t' only (both ASCII), so grapheme count
+        // equals byte count.
+        let start_col = self.buffer[(line.0, node_line.0)]
+            .chars()
+            .fold(0, |col, c| if c == '\t' { (col / 4 + 1) * 4 } else { col + 1 });
+        let lead = consume_indent_columns(text, start_col, 3);
         let after_lead = &text[lead..];
         if !after_lead.starts_with('>') {
             // "If a string of lines Ls constitute a block quote with contents Bs,

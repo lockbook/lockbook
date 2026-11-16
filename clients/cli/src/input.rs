@@ -1,5 +1,5 @@
 use std::fmt::{Debug, Display};
-use std::io::{self, Write};
+use std::io;
 use std::str::FromStr;
 
 use cli_rs::cli_error::{CliError, CliResult};
@@ -114,7 +114,6 @@ where
     <T as FromStr>::Err: Debug,
 {
     print!("{prompt}");
-    io::stdout().flush()?;
 
     let mut answer = String::new();
     io::stdin()

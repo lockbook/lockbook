@@ -193,6 +193,11 @@ import SwiftUI
             trackpadSwipe.delegate = self
             trackpadSwipe.addTarget(self, action: #selector(handleHistorySwipe(_:)))
             addGestureRecognizer(trackpadSwipe)
+
+            // here, above every subview, so the pointer never leaves between them
+            addGestureRecognizer(
+                UIHoverGestureRecognizer(target: mtkView, action: #selector(iOSMTK.handleHover(_:)))
+            )
         }
 
         @available(*, unavailable)

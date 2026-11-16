@@ -9,6 +9,7 @@ pub mod glyphon_render;
 pub mod glyphon_text_edit;
 pub mod icon_button;
 pub mod image_cache;
+pub mod math;
 pub mod progress_bar;
 pub mod separator;
 pub mod subscription;

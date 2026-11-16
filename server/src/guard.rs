@@ -14,6 +14,9 @@ pub struct ServerTx<'a> {
 impl<'a> ServerTx<'a> {
     pub fn begin(db: &'a mut ServerDb) -> Result<Self> {
         let tx = db.write_tx()?;
+        if let Some(bytes) = db.log_mut().take_incomplete_write() {
+            tracing::error!(bytes, "discarded an incomplete database write");
+        }
         Ok(Self { db, tx: Some(tx) })
     }
 

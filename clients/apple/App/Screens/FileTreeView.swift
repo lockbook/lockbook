@@ -57,10 +57,17 @@ struct FileTreeView: View {
             }
             .scrollPosition($scrollPosition)
             .onAppear {
-                scrollToOpenDoc()
+                if fileTreeModel.revealTarget != nil {
+                    scrollToRevealTarget()
+                } else {
+                    scrollToOpenDoc()
+                }
             }
             .onChange(of: workspaceOutput.openDoc) {
                 scrollToOpenDoc()
+            }
+            .onChange(of: fileTreeModel.revealTarget) {
+                scrollToRevealTarget()
             }
             .onScrollGeometryChange(for: ScrollGeometry.self, of: { $0 }) { _, newValue in
                 autoScroll.scroll = newValue
@@ -182,6 +189,22 @@ struct FileTreeView: View {
         #else
             "Notes, drawings, folders — create your first with New."
         #endif
+    }
+
+    private func scrollToRevealTarget() {
+        guard let id = fileTreeModel.revealTarget else { return }
+        fileTreeModel.revealTarget = nil
+        Task {
+            withAnimation {
+                scrollPosition.scrollTo(id: id, anchor: .center)
+            }
+            try? await Task.sleep(for: .seconds(1.5))
+            if fileTreeModel.locatedId == id {
+                withAnimation {
+                    fileTreeModel.locatedId = nil
+                }
+            }
+        }
     }
 
     private func scrollToOpenDoc() {

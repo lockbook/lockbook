@@ -7,10 +7,12 @@ final class FileProviderCore {
     let core: LbInitRes
     let root: UUID
     let cache: FileProviderCache
+    let bases: FileProviderBases
     let ipcDirectory: URL
 
-    init(domain: NSFileProviderDomain, cache: FileProviderCache) throws {
+    init(domain: NSFileProviderDomain, cache: FileProviderCache, bases: FileProviderBases) throws {
         self.cache = cache
+        self.bases = bases
         let fm = FileManager.default
         guard let group = fm.containerURL(forSecurityApplicationGroupIdentifier: "group.app.lockbook") else {
             throw NSFileProviderError(.notAuthenticated)
@@ -22,7 +24,7 @@ final class FileProviderCore {
             throw NSFileProviderError(.notAuthenticated)
         }
         self.root = root
-        let initialized = lb_init(location.path, "file-provider", BuildInfo.identity, true, false)
+        let initialized = lb_init(location.path, "file-provider", BuildInfo.identity, true, false, true)
         if initialized.err != nil {
             let error = Self.error(initialized.err!)
             lb_free_init(initialized)
@@ -64,9 +66,16 @@ final class FileProviderCore {
         let version = lb_document_version(core.lb, file.id)
         defer { lb_free_err(version.err) }
         try check(version.err)
+        var fixed = false
+        if folder {
+            let attachments = lb_attachments_of(core.lb, file.id)
+            defer { lb_free_err(attachments.err) }
+            try check(attachments.err)
+            fixed = attachments.is_attachments
+        }
         let item = FileProviderItem(id: identifier(id), parent: identifier(UUID(uuid: file.parent.bytes)),
                                 name: id == root ? "Lockbook" : String(cString: file.name), folder: folder,
-                                modified: file.lastmod, contentVersion: Self.data(version.version))
+                                modified: file.lastmod, contentVersion: Self.data(version.version), fixed: fixed)
         if !folder && !version.version.present { item.size = 0 }
         cache.update(item)
         if !folder && item.size == nil && loadSize {
@@ -118,25 +127,63 @@ final class FileProviderCore {
         return data
     }
 
-    @discardableResult
-    func write(_ id: NSFileProviderItemIdentifier, version: Data, data: Data) throws -> FileProviderItem {
+    func write(_ id: NSFileProviderItemIdentifier, version: Data, data: Data) throws -> (item: FileProviderItem, fetch: Bool) {
         guard version.count == 33 else { throw NSFileProviderError(.cannotSynchronize) }
         var expected = LbDocumentVersion()
         expected.present = version[0] != 0
         withUnsafeMutableBytes(of: &expected.hmac) { $0.copyBytes(from: version.dropFirst()) }
-        let uuid = try uuid(id)
-        let result = data.withUnsafeBytes {
-            lb_write_document_versioned(core.lb, LbUuid(bytes: uuid.uuid), expected,
-                                        $0.bindMemory(to: UInt8.self).baseAddress, UInt(data.count))
+        let lbId = LbUuid(bytes: try uuid(id).uuid)
+        if version.first != Self.unfetched {
+            let result = data.withUnsafeBytes {
+                lb_write_document_versioned(core.lb, lbId, expected,
+                                            $0.bindMemory(to: UInt8.self).baseAddress, UInt(data.count))
+            }
+            defer { lb_free_err(result.err) }
+            if let error = result.err, error.pointee.code != ReReadRequired { throw Self.error(error) }
+            if result.err == nil {
+                let updated = try item(id, loadSize: false)
+                if updated.contentVersion == Self.data(result.version) {
+                    updated.size = data.count
+                    cache.update(updated)
+                    remember(updated, data: data)
+                }
+                return (updated, false)
+            }
         }
-        defer { lb_free_err(result.err) }
-        try check(result.err)
-        let updated = try item(id, loadSize: false)
-        if updated.contentVersion == Self.data(result.version) {
-            updated.size = data.count
-            cache.update(updated)
+        if let base = bases.load(id.rawValue, version: version) {
+            let merged = base.withUnsafeBytes { base in
+                data.withUnsafeBytes {
+                    lb_write_document_from_base(core.lb, lbId, base.bindMemory(to: UInt8.self).baseAddress, UInt(base.count),
+                                                $0.bindMemory(to: UInt8.self).baseAddress, UInt(data.count))
+                }
+            }
+            defer { lb_free_err(merged.err) }
+            if let error = merged.err, error.pointee.code != ReReadRequired { throw Self.error(error) }
+            if merged.err == nil { return (try unfetched(id, onDisk: data), true) }
         }
-        return updated
+        let copy = data.withUnsafeBytes {
+            lb_save_copy_beside(core.lb, lbId, $0.bindMemory(to: UInt8.self).baseAddress, UInt(data.count))
+        }
+        defer { lb_free_file_res(copy) }
+        try check(copy.err)
+        return (try unfetched(id, onDisk: data), true)
+    }
+
+    static let unfetched: UInt8 = 2
+
+    static func isUnfetched(_ version: Data) -> Bool { version.first == unfetched }
+
+    private func unfetched(_ id: NSFileProviderItemIdentifier, onDisk data: Data) throws -> FileProviderItem {
+        let current = try item(id, loadSize: false)
+        current.contentVersion = Data([Self.unfetched]) + current.contentVersion.dropFirst()
+        current.size = data.count
+        remember(current, data: data)
+        return current
+    }
+
+    func remember(_ item: FileProviderItem, data: Data) {
+        guard !item.folder, lb_document_mergeable(item.filename) else { return }
+        bases.save(item.id, version: item.contentVersion, data: data)
     }
 
     func create(name: String, parent: NSFileProviderItemIdentifier, folder: Bool, data: Data?) throws -> FileProviderItem {
@@ -151,7 +198,7 @@ final class FileProviderCore {
         try check(result.err)
         let created = try item(result.file)
         if !folder, let data {
-            do { return try write(created.itemIdentifier, version: created.contentVersion, data: data) }
+            do { return try write(created.itemIdentifier, version: created.contentVersion, data: data).item }
             catch {
                 lb_free_err(lb_delete_file(core.lb, result.file.id))
                 throw error
@@ -173,6 +220,12 @@ final class FileProviderCore {
             return NSError(domain: NSFileProviderErrorDomain, code: NSFileProviderError.cannotSynchronize.rawValue,
                            userInfo: [NSLocalizedDescriptionKey: "This file changed in Lockbook. Copy your Finder edits to a new file to keep both versions."])
         case InsufficientPermission: return CocoaError(.fileWriteNoPermission)
+        // Finder offers neither on an attachments folder; this reaches a move made around it, such
+        // as mv in a terminal, the way ReReadRequired reaches a stale write: shown on the folder with
+        // lb's reason rather than retried in a loop.
+        case AttachmentsFolderFixed:
+            return NSError(domain: NSFileProviderErrorDomain, code: NSFileProviderError.cannotSynchronize.rawValue,
+                           userInfo: [NSLocalizedDescriptionKey: String(cString: error.pointee.msg)])
         case UsageIsOverDataCap, UsageIsOverFreeTierDataCap: return NSFileProviderError(.insufficientQuota)
         default: return NSError(domain: NSCocoaErrorDomain, code: NSFileWriteUnknownError,
                                 userInfo: [NSLocalizedDescriptionKey: String(cString: error.pointee.msg)])
@@ -212,5 +265,41 @@ final class FileProviderCache {
             entries[item.id] = Entry(modified: max(item.modified, previous?.modified ?? 0), version: item.contentVersion,
                                      date: item.contentModificationDate!, size: item.size)
         }
+    }
+}
+
+final class FileProviderBases {
+    private let directory: URL
+    private let kept = 4
+
+    init(domain: NSFileProviderDomain) {
+        let support = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+        directory = support.appendingPathComponent("bases", isDirectory: true)
+            .appendingPathComponent(domain.identifier.rawValue, isDirectory: true)
+    }
+
+    func save(_ id: String, version: Data, data: Data) {
+        let folder = directory.appendingPathComponent(id, isDirectory: true)
+        let fm = FileManager.default
+        try? fm.createDirectory(at: folder, withIntermediateDirectories: true)
+        try? data.write(to: folder.appendingPathComponent(Self.name(version)), options: .atomic)
+        guard let saved = try? fm.contentsOfDirectory(at: folder, includingPropertiesForKeys: [.contentModificationDateKey]),
+              saved.count > kept else { return }
+        let date = { (url: URL) in (try? url.resourceValues(forKeys: [.contentModificationDateKey]))?.contentModificationDate ?? .distantPast }
+        for old in saved.sorted(by: { date($0) > date($1) }).dropFirst(kept) {
+            try? fm.removeItem(at: old)
+        }
+    }
+
+    func load(_ id: String, version: Data) -> Data? {
+        try? Data(contentsOf: directory.appendingPathComponent(id, isDirectory: true).appendingPathComponent(Self.name(version)))
+    }
+
+    func forget(_ id: String) {
+        try? FileManager.default.removeItem(at: directory.appendingPathComponent(id, isDirectory: true))
+    }
+
+    private static func name(_ version: Data) -> String {
+        version.map { String(format: "%02x", $0) }.joined()
     }
 }

@@ -1,8 +1,8 @@
 use lb::blocking::Lb;
 
-use crate::Res;
+use cli_rs::cli_error::CliResult;
 
-pub fn account(lb: &Lb, username: String) -> Res<()> {
+pub fn account(lb: &Lb, username: String) -> CliResult<()> {
     println!("Validating {username}...");
 
     let validation_failures = lb.admin_validate_account(&username)?;
@@ -19,7 +19,7 @@ pub fn account(lb: &Lb, username: String) -> Res<()> {
     Ok(())
 }
 
-pub fn server(core: &Lb) -> Res<()> {
+pub fn server(core: &Lb) -> CliResult<()> {
     let validation_failures = core.admin_validate_server()?;
     println!("{validation_failures:#?}");
     Ok(())

@@ -12,7 +12,8 @@ use crate::file_cache::{
     FileCache, FilesExt as _, link_id, relative_path, split_fragment, strip_ext, web_link,
     wiki_fragment, wiki_title,
 };
-use crate::style::tree_metrics::{INDENT_BASE, INDENT_STEP};
+use crate::style::chrome::phosphor;
+use crate::style::tree_metrics::INDENT_BASE;
 use crate::style::{FileRow, Space, ThemeExt as _, TypeRole, file_row_icon, parent_crumbs};
 use crate::tab::image_viewer::is_supported_image_fmt;
 use crate::tab::markdown_editor::MdEdit;
@@ -37,7 +38,7 @@ pub enum CompletionMode {
     Link,
     /// `![alt text](path)` — image link, shows only image files.
     ImageLink,
-    /// `![[title]]` — wiki embed, shows only image files.
+    /// `![[title]]` — wiki embed, shows all files.
     WikiEmbed,
     /// `[display text](des...` — cursor in the destination; completes file
     /// paths while the display text is kept as-is.
@@ -72,6 +73,12 @@ pub struct LinkCompletions {
     open_origin: Option<String>,
     /// This note's headings, for `[[#`, with the text they were read from.
     own_headings: Option<(String, Arc<Vec<Heading>>)>,
+    /// Where the closed wikilink the caret was in last frame starts, its
+    /// query, and whether it was typed in: typing in one opens the popup,
+    /// moving the caret into one doesn't.
+    closed_wikilink: Option<(Grapheme, String, bool)>,
+    /// The last search named a note whose headings aren't read yet.
+    pub(crate) loading: bool,
 }
 
 impl LinkCompletions {
@@ -80,6 +87,8 @@ impl LinkCompletions {
         file_id: Uuid,
     ) {
         let note = &buffer.current.text;
+        let was_active = self.active;
+        let last_wikilink = self.closed_wikilink.take();
         self.active = false;
         self.search_term_range = None;
 
@@ -95,7 +104,18 @@ impl LinkCompletions {
         let dest = matches!(mode, CompletionMode::LinkDest | CompletionMode::ImageLinkDest);
         let qr = query_range(buffer, range, mode);
         let query = &buffer[qr];
-        if self.is_suppressed(buffer, query) {
+        let closed_wikilink = matches!(mode, CompletionMode::WikiLink | CompletionMode::WikiEmbed)
+            && buffer[range].ends_with("]]");
+        let typed = closed_wikilink
+            && last_wikilink.is_some_and(|(start, q, typed)| {
+                start == range.0 && (was_active || typed || q != query)
+            });
+        let suppressed = self.is_suppressed(buffer, query);
+        if closed_wikilink {
+            // Escape ends the typing
+            self.closed_wikilink = Some((range.0, query.to_string(), typed && !suppressed));
+        }
+        if suppressed {
             return;
         }
         // past a wikilink's `|` is its display text, which nothing completes
@@ -140,7 +160,7 @@ impl LinkCompletions {
             // being inside complete syntax is the destination context
             CompletionMode::LinkDest | CompletionMode::ImageLinkDest => false,
         };
-        if complete && !fresh {
+        if complete && !fresh && !typed {
             // cursor navigated into existing syntax
             return;
         }
@@ -150,7 +170,10 @@ impl LinkCompletions {
         // link rather than mid-edit).
         let cache = files.read().unwrap();
         let results = self.search(&cache, file_id, query, mode, note);
-        if results.is_empty() || (dest && results.iter().any(|r| r.insert == query)) {
+        // a caret parked in a link waits for nothing
+        let loading = self.loading && (typed || was_active);
+        let none = results.is_empty() && !loading;
+        if none || (dest && results.iter().any(|r| r.insert == query)) {
             return;
         }
 
@@ -183,15 +206,21 @@ impl LinkCompletions {
         let cache = files.read().unwrap();
         let results = self.search(&cache, file_id, &query, mode, &buffer.current.text);
         drop(cache);
-        if results.is_empty() {
-            return;
-        }
-        self.selected = self.selected.min(results.len() - 1);
-
         if ctx.input(|i| i.key_pressed(Key::Escape)) {
             self.suppressed = Some((buffer.current.seq, query));
             return;
         }
+        if results.is_empty() {
+            // the keys that would pick a row wait with the loading one
+            if editor_focused {
+                ctx.input_mut(|i| {
+                    i.consume_key(Modifiers::NONE, Key::Enter);
+                    i.consume_key(Modifiers::NONE, Key::Tab);
+                });
+            }
+            return;
+        }
+        self.selected = self.selected.min(results.len() - 1);
 
         if !editor_focused {
             return;
@@ -744,10 +773,7 @@ impl LinkCompletions {
         if self.candidates_for == key {
             return;
         }
-        let image = matches!(
-            mode,
-            CompletionMode::ImageLink | CompletionMode::ImageLinkDest | CompletionMode::WikiEmbed
-        );
+        let image = matches!(mode, CompletionMode::ImageLink | CompletionMode::ImageLinkDest);
         let scope = cache.scope_top(file_id);
         let from = cache.get_by_id(file_id).map_or(file_id, |f| f.parent);
         let from_path = cache.path(from);
@@ -790,8 +816,9 @@ impl LinkCompletions {
     fn search(
         &mut self, cache: &FileCache, file_id: Uuid, query: &str, mode: CompletionMode, note: &str,
     ) -> Vec<FileResult> {
+        self.loading = false;
         let heading_query = match mode {
-            CompletionMode::WikiLink => wiki_fragment(query),
+            CompletionMode::WikiLink | CompletionMode::WikiEmbed => wiki_fragment(query),
             CompletionMode::LinkDest => split_fragment(query),
             _ => (query, None),
         };
@@ -818,10 +845,7 @@ impl LinkCompletions {
         });
         ranked.truncate(MAX_RESULTS);
 
-        let image = matches!(
-            mode,
-            CompletionMode::ImageLink | CompletionMode::ImageLinkDest | CompletionMode::WikiEmbed
-        );
+        let image = matches!(mode, CompletionMode::ImageLink | CompletionMode::ImageLinkDest);
         let origin = self
             .open_origin
             .as_deref()
@@ -830,7 +854,13 @@ impl LinkCompletions {
             .into_iter()
             .filter_map(|(_, candidate)| {
                 let f = cache.get_by_id(candidate.id)?;
-                let name = if image { f.name.clone() } else { strip_ext(&f.name).to_string() };
+                let markdown = f.name.to_lowercase().ends_with(".md");
+                // an embed shows what it is, so only a note's name drops its extension
+                let name = match mode {
+                    CompletionMode::WikiEmbed if !markdown => f.name.clone(),
+                    _ if image => f.name.clone(),
+                    _ => strip_ext(&f.name).to_string(),
+                };
                 // a wikilink title, or a link destination: a relative path in
                 // the scope, the external URL out of it, never an absolute
                 // path; a title past the scope is unique in the reader's tree
@@ -847,7 +877,7 @@ impl LinkCompletions {
                     }
                 };
                 let (outside, path) = (candidate.outside, cache.path(f.id));
-                let headings = !image && f.name.to_lowercase().ends_with(".md");
+                let headings = !image && markdown;
                 Some(FileResult {
                     id: f.id,
                     name,
@@ -877,7 +907,7 @@ impl LinkCompletions {
         &mut self, cache: &FileCache, file_id: Uuid, file_part: &str, needle: &str,
         mode: CompletionMode, note: &str,
     ) -> Vec<FileResult> {
-        let wiki = mode == CompletionMode::WikiLink;
+        let wiki = matches!(mode, CompletionMode::WikiLink | CompletionMode::WikiEmbed);
         let markdown = |f: &File| f.name.to_lowercase().ends_with(".md");
         // the notes, each with how a link writes it
         let mut notes: Vec<(Uuid, String)> = vec![];
@@ -947,7 +977,9 @@ impl LinkCompletions {
                 true => self.own_headings(note),
                 false => {
                     cache.notes.want();
-                    cache.notes.headings(*id).unwrap_or_default()
+                    let headings = cache.notes.headings(*id);
+                    self.loading |= headings.is_none() && !cache.notes.is_ready();
+                    headings.unwrap_or_default()
                 }
             })
             .collect();
@@ -1004,17 +1036,6 @@ impl LinkCompletions {
     }
 }
 
-/// A faint dot in each step of a heading row's indent, as an editor marks
-/// whitespace, so its depth reads without a level label.
-fn paint_indent_dots(ui: &Ui, row: Rect, depth: usize, theme: &crate::style::Theme) {
-    let ink = theme.neutral_fg_secondary().gamma_multiply(0.45);
-    for step in 0..depth {
-        let x = row.left() + INDENT_BASE + (step as f32 + 0.5) * INDENT_STEP;
-        ui.painter()
-            .circle_filled(Pos2::new(x, row.center().y), 1.0, ink);
-    }
-}
-
 impl MdEdit {
     pub fn show_link_completions(&mut self, ui: &mut Ui) {
         if self.renderer.readonly || !self.link_completions.active {
@@ -1045,7 +1066,8 @@ impl MdEdit {
             .map(|f| f.name.clone())
             .unwrap_or_default();
         drop(cache);
-        if results.is_empty() {
+        let loading = self.link_completions.loading;
+        if results.is_empty() && !loading {
             return;
         }
 
@@ -1095,6 +1117,9 @@ impl MdEdit {
             }
             height += row_h(r);
         }
+        if loading {
+            height += FileRow::height_for(false);
+        }
         let size = Vec2::new(POPUP_WIDTH, height);
         let popup_rect =
             completion_popup_rect(cursor_top, cursor_bot, size, ui.ctx().content_rect());
@@ -1128,13 +1153,11 @@ impl MdEdit {
             let selected = i == self.link_completions.selected;
             let resp = if r.group.is_some() {
                 let depth = r.level.saturating_sub(top_level(r.group.as_deref())) as usize;
-                let resp = FileRow::new(&theme, &r.name)
+                FileRow::new(&theme, &r.name)
                     .icon("")
                     .depth(depth)
                     .highlighted(selected)
-                    .paint_at_hit(ui, rect, rect, id);
-                paint_indent_dots(ui, rect, depth, &theme);
-                resp
+                    .paint_at_hit(ui, rect, rect, id)
             } else {
                 let file = r.path.rsplit('/').next().unwrap_or(&r.name);
                 FileRow::new(&theme, &r.name)
@@ -1147,6 +1170,18 @@ impl MdEdit {
                 clicked = Some(i);
             }
             y += row_h(r);
+        }
+        if loading {
+            let rect = Rect::from_min_max(
+                Pos2::new(left, y),
+                Pos2::new(right, y + FileRow::height_for(false)),
+            );
+            FileRow::new(&theme, "Loading…")
+                .icon(phosphor::SPINNER_GAP)
+                .spinning(true)
+                .muted(true)
+                .interactive(false)
+                .paint_at_hit(ui, rect, rect, Id::unique("link_loading"));
         }
 
         if let Some(idx) = clicked {
@@ -1321,6 +1356,16 @@ mod tests {
             ],
             "a tie lists both notes' headings"
         );
+        assert_eq!(
+            rows("floo#", CompletionMode::WikiEmbed),
+            [row("Floor plan", "Kitchen", "Floor plan#Kitchen", 1)]
+        );
+        assert!(!rows("editing#", CompletionMode::WikiLink).is_empty());
+        assert_eq!(
+            rows("#op", CompletionMode::WikiEmbed),
+            [row("editing", "Open", "#Open", 3)],
+            "a note embeds a heading of its own"
+        );
         assert!(rows("Roadmap#", CompletionMode::WikiLink).is_empty(), "not read yet");
         assert!(rows("Nowhere#x", CompletionMode::WikiLink).is_empty());
     }
@@ -1378,9 +1423,10 @@ mod tests {
         );
     }
 
-    /// `![[` offers images, not drawings or notes, and writes a wiki embed.
+    /// `![[` offers every file, since notes, drawings and PDFs embed like
+    /// images do, and writes a wiki embed.
     #[test]
-    fn a_wiki_embed_offers_images() {
+    fn a_wiki_embed_offers_every_file() {
         use lb_rs::model::text::buffer::Buffer;
         use lb_rs::model::text::offset_types::Grapheme;
 
@@ -1399,7 +1445,10 @@ mod tests {
         );
         let editing = at(&files, "/notes/editing.md");
         let cache = cache(files);
-        assert_eq!(rows(&cache, editing, "ch", mode), ["/notes/chart.png"]);
+        assert_eq!(
+            rows(&cache, editing, "ch", mode),
+            ["/notes/chart.png", "/notes/chart sketch.svg", "/chart.md"]
+        );
         let mut events = vec![];
         LinkCompletions::default().apply_completion(
             &mut events,

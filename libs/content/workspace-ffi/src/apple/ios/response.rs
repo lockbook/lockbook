@@ -38,6 +38,8 @@ pub struct IOSResponse {
     pub mobile_toolbar_shown: bool,
     /// A popup is painted over the caret: the host's caret hides under it.
     pub caret_covered: bool,
+    /// A long press lifted something to drag: buzz.
+    pub lifted: bool,
 
     /// The editor's find or replace field has focus: keystrokes are its,
     /// and the document's selection UI hides.
@@ -70,6 +72,7 @@ impl From<crate::Response> for IOSResponse {
                     text_interaction_rect,
                     mobile_toolbar_shown,
                     caret_covered,
+                    lifted,
                     tabs_changed,
                     failure_messages: _,
                     selected_folder_changed,
@@ -125,6 +128,7 @@ impl From<crate::Response> for IOSResponse {
             selected_folder_changed,
             mobile_toolbar_shown,
             caret_covered,
+            lifted,
             chrome_text_focused: false,
             has_text_interaction_rect: text_interaction_rect.is_some(),
             text_interaction_rect: text_interaction_rect

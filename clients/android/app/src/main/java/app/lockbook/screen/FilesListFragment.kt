@@ -232,7 +232,9 @@ class FilesListFragment :
             fileTreeAdapter.setSelectedFileIds(
                 selectionModel.uiState.value.selectedIdsFor(FileSelectionSource.Files),
             )
-            binding.filesEmptyFolder.visibility = if (latestFiles.isEmpty()) View.VISIBLE else View.GONE
+            // The adapter outlives the view, so a diff can commit after onDestroyView.
+            val views = _binding ?: return@submitList
+            views.filesEmptyFolder.visibility = if (latestFiles.isEmpty()) View.VISIBLE else View.GONE
         }
     }
 

@@ -12,14 +12,16 @@
 //!   `show` returns so popup callbacks land on a later glyphon layer and
 //!   outside any scroll-area clip.
 
-use comrak::Arena;
+use comrak::nodes::AstNode;
 use egui::os::OperatingSystem;
 use egui::{
     Context, EventFilter, Id, ImeEvent, Key, Pos2, Rect, Sense, Ui, UiBuilder, ViewportCommand,
 };
 use lb_rs::model::text::buffer::{self, Buffer};
 use lb_rs::model::text::offset_types::{Grapheme, RangeExt as _, RangeIterExt as _};
+use lb_rs::model::text::operation_types::Operation;
 
+use crate::front_matter::{RowKind, Value};
 use crate::style::{ThemeExt as _, phosphor};
 use crate::tab::markdown_editor::ScrollTarget;
 use crate::tab::markdown_editor::Syntax;
@@ -27,11 +29,12 @@ use crate::tab::markdown_editor::bounds::{BoundExt as _, RangesExt as _};
 use crate::tab::{ContextMenuTarget, ExtendedOutput as _};
 
 use super::input::cursor::SELECTION_HANDLE_HEIGHT;
-use super::input::{Bound, Event, Location, Region};
+use super::input::{Bound, Event, FrontMatterAction, Location, Region};
 use super::widget::block::drag::{BlockBox, BlockDragAction, DragUnit, TouchReorder};
 use super::widget::block::leaf::diagram::Picture;
 use super::widget::inline::link::{LinkMenuAction, fill_link_menu};
-use super::{ImeMarked, MdEdit, MdRender};
+use super::widget::inline::tab_embed::EmbedClick;
+use super::{Arena, ImeMarked, MdEdit, MdRender};
 
 #[derive(Clone)]
 enum EditorMenuCmd {
@@ -41,6 +44,7 @@ enum EditorMenuCmd {
     UnlearnSpelling,
     Link(LinkMenuAction),
     HeadingLink,
+    FrontMatter(FrontMatterAction),
     Cut,
     Copy,
     CopyRendered,
@@ -58,7 +62,72 @@ pub struct PreRenderState {
     selection_shape: egui::layers::ShapeIdx,
 }
 
+/// Edits queued for a frame's input phase, applied: their response, and
+/// whether they held an undo or redo or a drop's move.
+#[derive(Default)]
+pub struct Applied {
+    pub resp: buffer::Response,
+    pub undo_redo: bool,
+    pub moved: bool,
+}
+
+/// How deep into the note a drag's edge-scroll zone reaches, in rows: the
+/// 57 pt that felt right on an iPhone, a 16 pt row and a 41 pt lift.
+const DRAG_SCROLL_ROWS: f32 = 3.5;
+
 impl MdEdit {
+    /// Applies the edits the last frame queued for this one: a let-go block
+    /// drag's move and the internal events. Their offsets are aimed at the
+    /// text on screen, so a reload applies them before it merges.
+    pub fn apply_queued(&mut self, ctx: &Context) {
+        let mut applied = std::mem::take(&mut self.applied);
+        let block = self.take_block_move();
+        if block.text_updated {
+            self.renderer.bump_text_seq();
+        }
+        applied.resp |= block;
+        if !self.event.internal_events.is_empty() {
+            let arena = Arena::new();
+            let root = self.renderer.reparse(&arena);
+            let mut ops = Vec::new();
+            self.calc_internal_events(ctx, root, &mut ops, &mut applied);
+            self.renderer.buffer.queue(ops, self.renderer.now());
+            let resp = self.renderer.buffer.update();
+            if resp.text_updated {
+                self.renderer.bump_text_seq();
+            }
+            applied.resp |= resp;
+        }
+        self.applied = applied;
+    }
+
+    /// A let-go block drag's move.
+    fn take_block_move(&mut self) -> buffer::Response {
+        if self.pending_block_move.is_some() {
+            self.in_progress_block_drag = None;
+        }
+        match self.pending_block_move.take() {
+            Some((drag, gap, _)) => match drag.unit {
+                DragUnit::Item => self.move_block(drag.section_range, gap.insert_offset),
+                DragUnit::Row | DragUnit::Column(_) => {
+                    self.move_table_part(drag, gap.insert_offset)
+                }
+            },
+            None => buffer::Response::default(),
+        }
+    }
+
+    fn calc_internal_events<'ast>(
+        &mut self, ctx: &Context, root: &'ast AstNode<'ast>, ops: &mut Vec<Operation>,
+        applied: &mut Applied,
+    ) {
+        for event in std::mem::take(&mut self.event.internal_events) {
+            applied.undo_redo |= matches!(event, Event::Undo | Event::Redo);
+            applied.moved |= matches!(event, Event::Move { .. });
+            applied.resp |= self.calc_operations(ctx, root, event, ops);
+        }
+    }
+
     /// Input phase: consume keyboard events, drain the internal event queue,
     /// and mutate the buffer. Called early — before any sibling widget's
     /// draw — so `consume_key` happens in priority order with other widgets
@@ -74,14 +143,12 @@ impl MdEdit {
         let focused = ctx.memory(|m| m.has_focus(id));
         let prior_entered_atom = self.renderer.entered_atom;
 
-        // Deferred block reorder
-        let move_resp = match self.pending_block_move.take() {
-            Some((drag, insert_offset)) => match drag.unit {
-                DragUnit::Item => self.move_block(drag.section_range, insert_offset),
-                DragUnit::Row | DragUnit::Column(_) => self.move_table_part(drag, insert_offset),
-            },
-            None => buffer::Response::default(),
-        };
+        // a drag let go last frame stops floating as its move applies
+        self.in_progress_image_drag = self
+            .in_progress_image_drag
+            .take()
+            .filter(|drag| !drag.dropped);
+        let move_resp = self.take_block_move();
 
         if focused {
             self.defer_input_after_ime(ctx);
@@ -110,6 +177,14 @@ impl MdEdit {
             &files,
             file_id,
         );
+        self.property_completions.update_active_state(
+            &self.renderer.buffer,
+            self.renderer.bounds.front_matter.as_ref(),
+            &files,
+            file_id,
+            self.renderer.bounds.text_seq,
+            self.renderer.touch_mode,
+        );
         if !self.renderer.readonly && self.renderer.kind == Syntax::Markdown {
             self.emoji_completions.handle_input(
                 ctx,
@@ -117,6 +192,8 @@ impl MdEdit {
                 focused,
                 &mut self.event.internal_events,
             );
+            self.property_completions
+                .handle_input(ctx, focused, &mut self.event.internal_events);
             self.link_completions.handle_input(
                 ctx,
                 &self.renderer.buffer,
@@ -138,17 +215,13 @@ impl MdEdit {
         // `calc_operations` instead of pushing to `ops`. Their `Response`
         // must be merged with the queued-op response so reparse & cache
         // invalidation fire when undo changes the text.
-        let mut direct_resp = buffer::Response::default();
         // Undo/redo restore the selection exactly, possibly into folded
         // contents (undoing an auto-unfold restores both the tag and the
         // triggering selection); the fold check below stands down for the
         // frame so undo isn't immediately re-undone.
-        let mut undo_redo = false;
-
-        for event in std::mem::take(&mut self.event.internal_events) {
-            undo_redo |= matches!(event, Event::Undo | Event::Redo);
-            direct_resp |= self.calc_operations(ctx, root, event, &mut ops);
-        }
+        let mut applied = std::mem::take(&mut self.applied);
+        self.calc_internal_events(ctx, root, &mut ops, &mut applied);
+        let Applied { resp: mut direct_resp, mut undo_redo, moved } = applied;
 
         if focused {
             let filter = EventFilter {
@@ -164,7 +237,9 @@ impl MdEdit {
                         continue;
                     }
                     // the keys before it land first
-                    self.renderer.buffer.queue(std::mem::take(&mut ops));
+                    self.renderer
+                        .buffer
+                        .queue(std::mem::take(&mut ops), self.renderer.now());
                     let resp = self.renderer.buffer.update();
                     if resp.text_updated {
                         self.renderer.bump_text_seq();
@@ -198,10 +273,15 @@ impl MdEdit {
             crate::style::context_menu::close(ctx);
         }
 
-        self.renderer.buffer.queue(ops);
+        self.renderer.buffer.queue(ops, self.renderer.now());
         let mut buf_resp = direct_resp;
         buf_resp |= self.renderer.buffer.update();
         buf_resp |= move_resp; // a deferred reorder reports its text/selection edit
+        // a drop puts the caret back where it was: the drag placed the view,
+        // so nothing scrolls to the caret
+        if moved {
+            buf_resp.selection_user_moved = false;
+        }
 
         if buf_resp.text_updated {
             self.renderer.bump_text_seq();
@@ -212,6 +292,7 @@ impl MdEdit {
         let edited = buf_resp.text_updated || buf_resp.selection_user_moved;
         buf_resp |= self.unfold_after_edit(&arena, edited, undo_redo);
         buf_resp |= self.rehome_table_caret(undo_redo);
+        buf_resp |= self.rehome_front_matter_caret(undo_redo);
 
         // An entered atom stays revealed only while the selection remains
         // within it; the range is re-resolved against the (possibly edited)
@@ -234,7 +315,8 @@ impl MdEdit {
         self.renderer.search_range = self
             .emoji_completions
             .search_term_range
-            .or(self.link_completions.search_term_range);
+            .or(self.link_completions.search_term_range)
+            .or(self.property_completions.search_term_range);
 
         if buf_resp.text_updated || buf_resp.selection_user_moved {
             self.cursor_last_interact = Some(ctx.input(|i| i.time));
@@ -243,8 +325,23 @@ impl MdEdit {
         self.renderer.caret_moved |= buf_resp.selection_user_moved;
         self.renderer
             .note_typing(buf_resp.text_updated, buf_resp.selection_user_moved);
+        self.carry_block_drag();
 
         buf_resp
+    }
+
+    /// A held block drag's ranges follow the edits since it was carried
+    /// last, a sync's or a key's; the drag ends if one touched what it holds.
+    fn carry_block_drag(&mut self) {
+        let Some(mut drag) = self.in_progress_block_drag else { return };
+        let buffer = &self.renderer.buffer;
+        // up to the held text, so an edit at the list's or table's start touches it
+        let mut parent = (drag.parent_start, drag.section_range.0);
+        let carried = buffer.transform_range(drag.seq, &mut drag.section_range)
+            && buffer.transform_range(drag.seq, &mut drag.grabbed)
+            && buffer.transform_range(drag.seq, &mut parent);
+        (drag.parent_start, drag.seq) = (parent.0, buffer.current.seq);
+        self.in_progress_block_drag = carried.then_some(drag);
     }
 
     /// Desktop IME composition: the preedit sits in the buffer as the marked
@@ -379,7 +476,7 @@ impl MdEdit {
         let undo_redo = matches!(event, Event::Undo | Event::Redo);
         let mut ops = Vec::new();
         let mut resp = self.calc_operations(&ctx, root, event, &mut ops);
-        self.renderer.buffer.queue(ops);
+        self.renderer.buffer.queue(ops, self.renderer.now());
         resp |= self.renderer.buffer.update();
         if resp.text_updated {
             self.renderer.bump_text_seq();
@@ -420,8 +517,23 @@ impl MdEdit {
     ) {
         let new_reveal_selection = (!self.renderer.readonly && ctx.memory(|m| m.has_focus(id)))
             .then_some(self.renderer.buffer.current.selection);
+        // a caret in the collapsed front matter opens it, and it stays open
+        let node = self
+            .renderer
+            .bounds
+            .front_matter
+            .as_ref()
+            .map(|fm| fm.node());
+        let opens = self.renderer.front_matter_collapsed
+            && new_reveal_selection
+                .zip(node)
+                .is_some_and(|(s, node)| node.start() <= s.start() && s.end() <= node.end());
+        if opens {
+            self.renderer.front_matter_collapsed = false;
+        }
         if self.renderer.reveal_selection != new_reveal_selection
             || prior_entered_atom != self.renderer.entered_atom
+            || opens
         {
             self.renderer.reveal_selection = new_reveal_selection;
             self.renderer.reveal_seq = self
@@ -437,6 +549,7 @@ impl MdEdit {
     /// selection / IME / scroll-to-cursor / text callback via
     /// [`MdEdit::post_render`].
     pub fn show(&mut self, ui: &mut Ui, rect: Rect, id: Id) {
+        self.renderer.follow_fonts();
         self.renderer.latch_wheel_axis(ui, rect);
         // The renderer lays out at `self.width`, not the passed rect — set it
         // here so a bare `MdEdit` renders the rect it's given. (At width 0
@@ -468,14 +581,18 @@ impl MdEdit {
         self.renderer.fragments.clear();
         self.renderer.block_boxes.clear();
         self.renderer.table_cell_boxes.clear();
+        self.renderer.unbreakable.clear();
+        self.renderer.print_heading_top = None;
         self.renderer.table_header_slots.clear();
         self.renderer.in_progress_block_drag = self.in_progress_block_drag;
         self.renderer.bounds.wrap_lines.clear();
         self.renderer.text_areas.clear();
         self.renderer.deco_lines.clear();
         self.renderer.misspelled.clear();
+        self.renderer.error_marks.clear();
         self.renderer.clear_row_scroll_frame();
         self.renderer.touch_targets.clear();
+        self.renderer.embed_bands.clear();
         let render_rect = Rect::from_min_size(rect.min, egui::Vec2::new(rect.width(), height));
         ui.scope_builder(UiBuilder::new().max_rect(render_rect), |ui| {
             // Clip the (possibly overflowing) layout to the field.
@@ -489,9 +606,12 @@ impl MdEdit {
         // Favicon + selection tint, over the opaque capsule pills.
         self.renderer.show_capsule_overlays(ui, root, rect, 0);
 
+        self.track_drag_travel(ui);
         self.handle_block_drag(ui);
+        self.handle_image_drag(ui, root);
         self.post_render(ui, rect, id, pre);
         self.draw_dragged_overlay(ui, root);
+        self.draw_image_drag(ui);
         if overflow > 0.0 {
             self.show_overflow_scrollbar(ui, rect, id, height);
         }
@@ -595,9 +715,12 @@ impl MdEdit {
             Some(BlockDragAction::Dragged(_)) => {}
             Some(BlockDragAction::Released(pointer)) => {
                 if let Some(drag) = self.in_progress_block_drag.take() {
-                    if let Some(gap) = self.renderer.drop_gap_for(&drag, pointer) {
-                        // deferred move (applied next frame in `handle_input`)
-                        self.pending_block_move = Some((drag, gap.insert_offset));
+                    let aim = self.block_drop_pointer(&drag, pointer);
+                    if let Some(gap) = self.renderer.drop_gap_for(&drag, aim) {
+                        // deferred move (applied next frame in `handle_input`),
+                        // floating where it lands until then
+                        self.pending_block_move = Some((drag, gap, pointer));
+                        self.in_progress_block_drag = Some(drag);
                         ui.ctx().request_repaint();
                     }
                 }
@@ -605,43 +728,53 @@ impl MdEdit {
             None => {}
         }
         if self.in_progress_block_drag.is_some() {
-            self.auto_scroll_to_drag_pointer(ui);
+            let sideways = self
+                .in_progress_block_drag
+                .is_some_and(|drag| matches!(drag.unit, DragUnit::Column(_)));
+            self.auto_scroll_to_drag_pointer(ui, sideways);
             ui.ctx().request_repaint();
         }
     }
 
-    /// Edge-scroll while a block drag is in flight: reveal the pointer
-    /// padded by `row_height` on each side. The pointer y is clamped to
-    /// the viewport so dragging past the toolbar / window edge still
-    /// scrolls at full rate.
-    fn auto_scroll_to_drag_pointer(&mut self, ui: &mut Ui) {
+    /// Edge-scroll while a drag is in flight. Each edge's zone reaches
+    /// [`DRAG_SCROLL_ROWS`] rows into the note past the host's title strip
+    /// ([`safe_area::top_reach`]), which the finger reaches over at the top.
+    /// The note scrolls toward an edge faster the deeper the finger goes, up
+    /// to a row per 60th of a second (master's top speed on a 60 Hz screen)
+    /// at the zone's far end. `sideways`, for a drag that drops along a
+    /// table's rows, a block wider than the note under the pointer scrolls
+    /// the same way.
+    ///
+    /// [`safe_area::top_reach`]: crate::safe_area::top_reach
+    pub(crate) fn auto_scroll_to_drag_pointer(&mut self, ui: &mut Ui, sideways: bool) {
         use crate::tab::markdown_editor::scroll_content::DocScrollContent;
-        use crate::widgets::affine_scroll::{Align, Reveal};
+        use crate::widgets::affine_scroll::Action;
 
         let Some(pointer) = self.drag_pointer(ui) else { return };
         let viewport = ui.clip_rect();
-        let viewport_y = (pointer.y - viewport.min.y).clamp(0.0, viewport.height());
-        let pad = self.renderer.layout.row_height;
+        let reach = crate::safe_area::top_reach(ui.ctx());
+        let row = self.renderer.layout.row_height;
+        let zone = reach + row * DRAG_SCROLL_ROWS;
+        if sideways {
+            self.renderer.reveal_along_row(pointer);
+        }
 
-        let arena = comrak::Arena::new();
+        let (top, bottom) = (viewport.top() - reach, viewport.bottom());
+        let y = pointer.y.clamp(top, bottom);
+        let up = (top + zone - y).max(0.0);
+        let down = (y - (bottom - zone)).max(0.0);
+        if up == down {
+            return;
+        }
+        let speed = row * 60.0 * ((down - up) / zone).clamp(-1.0, 1.0);
+        let dt = ui.input(|i| i.stable_dt);
+
+        let arena = Arena::new();
         let root = self.renderer.reparse(&arena);
         let content = DocScrollContent::for_frame(&self.renderer, root, viewport.height());
-        let Some(top) = self
-            .scroll_area
-            .state
-            .offset_at_viewport_y(&content, viewport_y - pad)
-        else {
-            return;
-        };
-        let Some(bottom) = self
-            .scroll_area
-            .state
-            .offset_at_viewport_y(&content, viewport_y + pad)
-        else {
-            return;
-        };
         self.scroll_area
-            .reveal(&content, Reveal { top, bottom }, Align::Nearest);
+            .state
+            .handle(&content, Action::ScrollByPixels(speed * dt));
     }
 
     /// Drop indicator + source cutout + floating card. Must run after
@@ -651,17 +784,19 @@ impl MdEdit {
         &mut self, ui: &mut Ui, root: &'a comrak::nodes::AstNode<'a>,
     ) {
         let Some(drag) = self.in_progress_block_drag else { return };
-        let Some(p) = self.drag_pointer(ui) else { return };
+        // let go, a touch leaves no pointer: it floats where it was let go
+        let released = self.pending_block_move.map(|(_, _, released)| released);
+        let Some(p) = released.or_else(|| self.drag_pointer(ui)) else { return };
         if let DragUnit::Column(column) = drag.unit {
             return self.draw_dragged_column(ui, root, drag, column, p);
         }
         let theme = self.renderer.ctx.get_lb_theme();
-        let primary = theme.bg().get_color(theme.prefs().primary);
         // a table's rows touch: nothing of one reaches past its rect
         let is_row = drag.unit == DragUnit::Row;
 
         // Drop-gap indicator: soft capsule with a hollow leading dot.
-        if let Some(gap) = self.renderer.drop_gap_for(&drag, p) {
+        let aim = self.block_drop_pointer(&drag, p);
+        if let Some(gap) = self.renderer.drop_gap_for(&drag, aim) {
             let (x0, x1) = self
                 .renderer
                 .block_boxes
@@ -674,24 +809,12 @@ impl MdEdit {
                 // Start in the gutter so the dot isn't hidden by markers.
                 let x0 = x0 - self.renderer.layout.indent;
                 let y = gap.at as f32;
-                let dot = 4.0;
-                let half = 1.25;
-                let painter = ui.painter();
-                painter.rect_filled(
-                    egui::Rect::from_min_max(Pos2::new(x0, y - 3.0), Pos2::new(x1, y + 3.0)),
-                    egui::CornerRadius::same(3),
-                    primary.gamma_multiply(0.18),
+                crate::style::paint_drop_line(
+                    ui.painter(),
+                    Pos2::new(x0, y),
+                    Pos2::new(x1, y),
+                    &theme,
                 );
-                painter.rect_filled(
-                    egui::Rect::from_min_max(
-                        Pos2::new(x0 + dot, y - half),
-                        Pos2::new(x1, y + half),
-                    ),
-                    egui::CornerRadius::same(1),
-                    primary,
-                );
-                painter.circle_filled(Pos2::new(x0 + dot, y), dot, primary);
-                painter.circle_filled(Pos2::new(x0 + dot, y), dot - 1.5, theme.neutral_bg());
             }
         }
 
@@ -715,9 +838,10 @@ impl MdEdit {
         // pointer regardless of mid-drag scroll.
         let offset = (p - src_rect.left_top()) - drag.grab_offset;
         let card = card_rect.translate(offset);
-        ui.painter()
-            .add(crate::style::overlay_shadow(&theme).as_shape(card, card_corner));
-        ui.painter().rect_filled(card, card_corner, fill);
+        let mut painter = ui.painter().clone();
+        painter.multiply_opacity(crate::style::DRAG_OPACITY);
+        painter.add(crate::style::overlay_shadow(&theme).as_shape(card, card_corner));
+        painter.rect_filled(card, card_corner, fill);
 
         // Re-draw the span translated.
         let section = drag.section_range;
@@ -770,13 +894,18 @@ impl MdEdit {
         let cell_box_len = self.renderer.table_cell_boxes.len();
         let header_slot_len = self.renderer.table_header_slots.len();
         self.renderer.painting_drag_float = true;
-        ui.push_id("md_block_drag_float", |ui| float(&mut self.renderer, ui));
+        ui.push_id("md_block_drag_float", |ui| {
+            ui.multiply_opacity(crate::style::DRAG_OPACITY);
+            float(&mut self.renderer, ui)
+        });
         self.renderer.painting_drag_float = false;
         // Favicons paint in a separate pass over `fragments`; the float's
         // capsules live in `fragments[frag_len..]`, so re-run that pass
         // scoped to them before they're truncated away.
+        let overlay_ui = &mut ui.new_child(UiBuilder::new());
+        overlay_ui.multiply_opacity(crate::style::DRAG_OPACITY);
         self.renderer
-            .show_capsule_overlays(ui, root, ui.clip_rect(), frag_len);
+            .show_capsule_overlays(overlay_ui, root, ui.clip_rect(), frag_len);
         let floating_text = std::mem::take(&mut self.renderer.text_areas);
         let floating_deco = std::mem::take(&mut self.renderer.deco_lines);
         self.renderer.fragments.truncate(frag_len);
@@ -784,15 +913,13 @@ impl MdEdit {
         self.renderer.table_cell_boxes.truncate(cell_box_len);
         self.renderer.table_header_slots.truncate(header_slot_len);
 
+        let mut painter = ui.painter().clone();
+        painter.multiply_opacity(crate::style::DRAG_OPACITY);
         if !floating_text.is_empty() {
-            ui.painter()
-                .add(egui_wgpu_renderer::egui_wgpu::Callback::new_paint_callback(
-                    ui.clip_rect(),
-                    crate::GlyphonRendererCallback::new(floating_text),
-                ));
+            crate::paint_text(&painter, ui.clip_rect(), floating_text);
         }
         for d in floating_deco {
-            d.paint(ui.painter());
+            d.paint(&painter);
         }
     }
 
@@ -808,11 +935,13 @@ impl MdEdit {
 
         ui.ctx().check_for_id_clash(id, rect, "");
         let prev_focused = ui.memory(|m| m.has_focus(id));
-        let response = ui.interact(
-            rect,
-            id,
-            if self.renderer.touch_mode { Sense::click() } else { Sense::click_and_drag() },
-        );
+        // an embedded editor leaves touches to its host, which hands them on
+        let sense = match (self.takes_focus, self.renderer.touch_mode) {
+            (false, true) => Sense::hover(),
+            (true, true) => Sense::click(),
+            (_, false) => Sense::click_and_drag(),
+        };
+        let response = ui.interact(rect, id, sense);
         // interact surrenders focus if anything was clicked, even a child —
         // restore if we thought we were focused at entry
         if prev_focused && !ui.memory(|m| m.has_focus(id)) {
@@ -824,6 +953,12 @@ impl MdEdit {
         }
 
         let response_properly_clicked = response.clicked_by(egui::PointerButton::Primary);
+        // a click nothing in it took is its host's, which selects the embed
+        if !self.takes_focus && response_properly_clicked {
+            if let Some(pos) = response.interact_pointer_pos() {
+                EmbedClick::hand_on(ui.ctx(), pos);
+            }
+        }
         if response.hovered() || response_properly_clicked {
             ui.output_mut(|o| o.cursor_icon = egui::CursorIcon::Text);
         }
@@ -834,6 +969,7 @@ impl MdEdit {
         self.renderer.handle_link_interactions(root, ui, false);
         self.renderer.handle_spoiler_interactions(root, ui);
         self.renderer.handle_fold_interactions(ui);
+        self.renderer.handle_front_matter_interactions(ui);
 
         let mut ops = Vec::new();
 
@@ -841,7 +977,9 @@ impl MdEdit {
         self.handle_image_interactions(root, ui, id, &mut ops);
         self.escape_diagram_source(root, ui, id, &mut ops);
         self.handle_diagram_interactions(root, ui, id, &mut ops);
+        self.handle_math_interactions(root, ui, id, &mut ops);
         self.handle_card_interactions(root, ui, id, &mut ops);
+        self.handle_tab_embed_interactions(root, ui, id, &mut ops);
         self.handle_link_capsule_interactions(root, ui, id, &mut ops);
         self.handle_link_menu_taps(root, ui, id, &mut ops);
 
@@ -874,6 +1012,10 @@ impl MdEdit {
                         let text = &self.renderer.buffer[word];
                         spelling.learned(text).then(|| text.to_string())
                     });
+                self.context_menu_front_matter_row = pos.and_then(|pos| {
+                    let offset = self.location_to_char_offset(Location::Pos(pos));
+                    self.renderer.bounds.front_matter.as_ref()?.row_at(offset)
+                });
             }
             let link_target = self.context_menu_link.clone();
             let heading = self.context_menu_heading.clone();
@@ -881,6 +1023,25 @@ impl MdEdit {
             let learned = self.context_menu_learned.clone();
             let (readonly, markdown) =
                 (self.renderer.readonly, self.renderer.kind == Syntax::Markdown);
+            // the row under the menu: whether it has a value, and what kind
+            let property = self
+                .context_menu_front_matter_row
+                .filter(|_| !readonly)
+                .and_then(|i| {
+                    let fm = self.renderer.bounds.front_matter.as_ref()?;
+                    let row = fm.rows.get(i)?;
+                    let kind = match &row.kind {
+                        RowKind::Property { value, .. } => Some(match value {
+                            Value::List { .. } => FrontMatterAction::MakeList(i),
+                            Value::Text { checked: Some(_), .. } => {
+                                FrontMatterAction::MakeCheckbox(i)
+                            }
+                            _ => FrontMatterAction::MakeText(i),
+                        }),
+                        _ => None,
+                    };
+                    Some((i, fm.rows.len(), kind))
+                });
             let t = ui.ctx().get_lb_theme();
             let chosen = crate::style::context_menu::show(&response, &t, |e| {
                 if let Some((_, _, suggestions)) = &spelling {
@@ -908,7 +1069,30 @@ impl MdEdit {
                     e.separator();
                 }
                 if heading.is_some() {
-                    e.item(phosphor::LINK, "Copy Heading Link", EditorMenuCmd::HeadingLink);
+                    e.item(phosphor::HASH, "Copy Heading Link", EditorMenuCmd::HeadingLink);
+                    e.separator();
+                }
+                if let Some((i, n, kind)) = property {
+                    use FrontMatterAction::*;
+                    let fm = EditorMenuCmd::FrontMatter;
+                    if i > 0 {
+                        e.item(phosphor::CARET_UP, "Move Up", fm(MoveUp(i)));
+                    }
+                    if i + 1 < n {
+                        e.item(phosphor::CARET_DOWN, "Move Down", fm(MoveDown(i)));
+                    }
+                    if let Some(kind) = kind {
+                        for (icon, label, make) in [
+                            (phosphor::TEXT_T, "Make Text", MakeText(i)),
+                            (phosphor::LIST_DASHES, "Make List", MakeList(i)),
+                            (phosphor::CHECK_SQUARE, "Make Checkbox", MakeCheckbox(i)),
+                        ] {
+                            if make != kind {
+                                e.item(icon, label, fm(make));
+                            }
+                        }
+                    }
+                    e.item_danger(phosphor::TRASH, "Remove Property", fm(Remove(i)));
                     e.separator();
                 }
                 if !readonly {
@@ -920,7 +1104,7 @@ impl MdEdit {
                     e.item(phosphor::CLIPBOARD_TEXT, "Paste", EditorMenuCmd::Paste);
                 }
                 if !readonly && markdown {
-                    e.item(phosphor::TABLE, "Paste as table", EditorMenuCmd::PasteTable);
+                    e.item(phosphor::TABLE, "Paste as Table", EditorMenuCmd::PasteTable);
                 }
             });
             let mut menu_events: Vec<Event> = Vec::new();
@@ -991,6 +1175,10 @@ impl MdEdit {
                             }
                         }
                     }
+                }
+                Some(EditorMenuCmd::FrontMatter(action)) => {
+                    self.event.internal_events.push(Event::FrontMatter(action));
+                    ui.ctx().request_repaint();
                 }
                 // an edit, which is the next input pass's to make
                 Some(EditorMenuCmd::Cut) => {
@@ -1165,7 +1353,7 @@ impl MdEdit {
             }
         }
 
-        self.renderer.buffer.queue(ops);
+        self.renderer.buffer.queue(ops, self.renderer.now());
         let pointer_resp = self.renderer.buffer.update();
         if pointer_resp.text_updated || pointer_resp.selection_user_moved {
             self.cursor_last_interact = Some(ui.ctx().input(|i| i.time));
@@ -1214,7 +1402,7 @@ impl MdEdit {
                 .in_progress_selection
                 .unwrap_or(self.renderer.buffer.current.selection);
             let theme = self.renderer.ctx.get_lb_theme();
-            let color = theme.bg().get_color(theme.prefs().primary);
+            let color = theme.accent_bg();
 
             // Fill the reserved slot so the highlight paints behind the
             // markers (drawn during block render); the cursor stays on top.
@@ -1244,9 +1432,9 @@ impl MdEdit {
             // Android Material You: `fg()` is colorPrimary in both modes.
             // `bright` is the washed primaryContainer in light.
             let caret = if ui.ctx().os() == OperatingSystem::Android {
-                theme.fg().get_color(theme.prefs().primary)
+                theme.accent()
             } else {
-                theme.bright.get_color(theme.prefs().primary)
+                theme.bright.get_color(theme.accent_hue)
             };
             if focused {
                 let blink = now - self.cursor_last_interact.unwrap_or(now);
@@ -1309,26 +1497,22 @@ impl MdEdit {
             // scrolls off-screen once the user passes one viewport-height.
             // `egui_wgpu` clamps the callback rect to the screen, and a
             // zero-area result silently drops the callback — no text paints.
-            ui.painter()
-                .add(egui_wgpu_renderer::egui_wgpu::Callback::new_paint_callback(
-                    ui.clip_rect(),
-                    crate::GlyphonRendererCallback::new(text_areas),
-                ));
+            crate::paint_text(ui.painter(), ui.clip_rect(), text_areas);
         }
 
-        // a scrolled block's rows fade out at an edge, text and all
-        for (rect, left, right) in std::mem::take(&mut self.renderer.edge_fades) {
-            crate::style::paint_fade(ui.painter(), rect, left, right, false);
-        }
         for shape in std::mem::take(&mut self.renderer.over_text) {
             ui.painter().add(shape);
-        }
-        for button in std::mem::take(&mut self.renderer.copy_buttons) {
-            button.paint(ui);
         }
         // strikethroughs and underlines painted on top of text
         for deco in std::mem::take(&mut self.renderer.deco_lines) {
             deco.paint(ui.painter());
+        }
+        // a scrolled block's rows fade out at an edge, rules and lines and all
+        for (rect, left, right) in std::mem::take(&mut self.renderer.edge_fades) {
+            crate::style::paint_fade(ui.painter(), rect, left, right, false);
+        }
+        for button in std::mem::take(&mut self.renderer.copy_buttons) {
+            button.paint(ui);
         }
 
         // A reorder selects the dragged section; its handles would clutter
@@ -1385,6 +1569,7 @@ impl MdEdit {
         self.show_emoji_completions(ui);
         self.show_link_completions(ui);
         self.show_language_completions(ui);
+        self.show_property_completions(ui);
     }
 
     /// Reset the buffer to empty state. Chat composers call this after

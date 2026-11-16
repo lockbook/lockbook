@@ -195,6 +195,33 @@ pub fn perform_titlebar_double_click(window: &impl HasWindowHandle) {
     }
 }
 
+/// An open panel that takes files and folders together, as Finder's own Open does.
+/// Call it off the UI thread: the panel runs modally on the main queue.
+pub fn pick_files_and_folders() -> Option<Vec<std::path::PathBuf>> {
+    use objc2_app_kit::{NSModalResponseOK, NSOpenPanel};
+    use objc2_foundation::MainThreadMarker;
+    dispatch2::run_on_main(|_| {
+        // SAFETY: `run_on_main` runs this on the main thread.
+        let mtm = unsafe { MainThreadMarker::new_unchecked() };
+        unsafe {
+            let panel = NSOpenPanel::openPanel(mtm);
+            panel.setCanChooseFiles(true);
+            panel.setCanChooseDirectories(true);
+            panel.setAllowsMultipleSelection(true);
+            if panel.runModal() != NSModalResponseOK {
+                return None;
+            }
+            let urls = panel.URLs();
+            Some(
+                urls.iter()
+                    .filter_map(|u| u.path())
+                    .map(|p| std::path::PathBuf::from(p.to_string()))
+                    .collect(),
+            )
+        }
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

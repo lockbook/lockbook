@@ -11,6 +11,7 @@ use crate::{
     LbExportAccountQRRes, LbExportAccountRes, LbFileListRes, LbFileRes, LbGetFileLinkUrlRes,
     LbIdListRes, LbInitRes, LbLastSyncedHuman, LbLastSyncedi64, LbNextNameRes, LbPathRes,
     LbPathSearcherResults, LbPathsRes, LbStatus, LbSubscriptionInfoRes, LbUsageMetricsRes,
+    LbUsernamesRes,
 };
 
 #[unsafe(no_mangle)]
@@ -135,10 +136,27 @@ pub extern "C" fn lb_free_paths_res(paths: LbPathsRes) {
 }
 
 #[unsafe(no_mangle)]
+pub extern "C" fn lb_free_usernames_res(res: LbUsernamesRes) {
+    if !res.err.is_null() {
+        lb_free_err(res.err);
+    }
+
+    if !res.usernames.is_null() {
+        let usernames = rvec(res.usernames, res.len);
+        for username in &usernames {
+            unsafe { drop(CString::from_raw(*username)) };
+        }
+
+        drop(usernames);
+    }
+}
+
+#[unsafe(no_mangle)]
 pub extern "C" fn lb_free_file(file: LbFile) {
     unsafe {
         drop(CString::from_raw(file.name));
         drop(CString::from_raw(file.lastmod_by));
+        drop(CString::from_raw(file.owner));
         let shares = rvec(file.shares.list, file.shares.count);
         for share in shares {
             drop(CString::from_raw(share.by));

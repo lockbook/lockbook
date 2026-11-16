@@ -9,15 +9,17 @@ use std::{
 };
 
 use crate::style::chrome::{Radius, STROKE_HAIRLINE, phosphor, pin_shadow};
+use crate::style::color::Theme;
 use crate::style::{
-    Space, ThemeExt as _, TypeRole, claim, control_height, icon_button_glyph, island,
+    Space, ThemeExt as _, TypeRole, claim, context_menu, control_height, icon_button_glyph, island,
     loading_indicator, message_indicator, overlay_scroll, phosphor_ui_font_id, place_at,
-    surface_motion, tip_text, with_overlay_scroll,
+    sense_click, surface_motion, tip_text, with_overlay_scroll,
 };
+use crate::tab::{Destination, Fragment, Place};
 use egui::{
     Align, Align2, Color32, ColorImage, Context, Event, Id, Image, ImageSource, Key, Layout,
-    Modifiers, Pos2, Rect, ScrollArea, Sense, Stroke, StrokeKind, TextureHandle, Ui, Vec2,
-    load::SizedTexture, pos2, vec2,
+    Modifiers, Pos2, Rect, Response, ScrollArea, Sense, Stroke, StrokeKind, TextureHandle, Ui,
+    Vec2, load::SizedTexture, pos2, vec2,
 };
 use hayro::{InterpreterSettings, Pdf, RenderSettings};
 use lb_rs::Uuid;
@@ -100,6 +102,10 @@ pub struct PdfViewer {
     pages_pending: bool,
     /// The page an embed shows.
     pub region: Option<usize>,
+    /// The file's external URL, which a page's copied link starts with.
+    pub link_url: Option<String>,
+    /// The page a right click, on the pages or a thumbnail, opened the menu on.
+    menu_page: Option<usize>,
 }
 
 struct SideBar {
@@ -205,6 +211,8 @@ impl PdfViewer {
             user_scrolled: false,
             pages_pending: false,
             region: None,
+            link_url: None,
+            menu_page: None,
         }
     }
 
@@ -479,6 +487,8 @@ impl PdfViewer {
         let sidebar_open = self.sidebar.as_ref().is_some_and(|s| s.is_visible);
         let (fit_width, fit_height) = (self.fit_width, self.fit_height);
         let mut clicked = None;
+        // a right click here isn't one on the page beneath
+        ui.interact(rect, Id::unique("pdf_toolbar").with(self.salt), sense_click());
         island::island(ui, rect, |ui| {
             let mut button = |ui: &mut Ui, icon, active, tip, cmd| {
                 let r = icon_button_glyph(
@@ -657,6 +667,9 @@ impl PdfViewer {
                 self.scroll_to = Some(i);
             }
         }
+        if resp.secondary_clicked() {
+            self.menu_page = resp.interact_pointer_pos().and_then(row_at);
+        }
         if !resp.is_pointer_button_down_on() {
             pressed = None;
         }
@@ -702,6 +715,8 @@ impl PdfViewer {
             let quiet = wheel == 0.0 && !dragging && fling == 0.0;
             overlay_scroll::scroller_bar(ui, id, rect, content_h, &mut offset, quiet);
         }
+
+        self.page_menu(&resp, &t);
 
         if let Some(sb) = &mut self.sidebar {
             sb.offset = offset;
@@ -811,6 +826,17 @@ impl PdfViewer {
                                 .push((idx, page_rect.intersect(viewport).area() as u32));
                         }
                     }
+                    // an embed's clicks are its note's
+                    if self.has_menu() {
+                        let pages = self.salt.with("pdf_pages");
+                        let pages =
+                            ui.interact(viewport.translate(draw_adjustment), pages, sense_click());
+                        if pages.secondary_clicked() {
+                            let at = pages.interact_pointer_pos().map(|p| p - draw_adjustment);
+                            self.menu_page = at.and_then(|p| self.page_at(p, view_width));
+                        }
+                        self.page_menu(&pages, &t);
+                    }
                     if !self.embedded {
                         self.handle_keys(ui);
                     }
@@ -845,6 +871,41 @@ impl PdfViewer {
                 ((), out.state.clamped_offset().y, out.id)
             });
         });
+    }
+
+    /// Whether a right click offers a page's link: a tab's, not an embed's.
+    fn has_menu(&self) -> bool {
+        !self.embedded && self.link_url.is_some()
+    }
+
+    /// The page at `pos` in the pages' content, laid out `view_width` wide.
+    fn page_at(&self, pos: Pos2, view_width: f32) -> Option<usize> {
+        self.page_bounds.iter().position(|page| {
+            let center = ((view_width - page.width()) / 2.).max(0.);
+            page.translate(vec2(center, 0.)).contains(pos)
+        })
+    }
+
+    /// The menu of [`Self::menu_page`] at `resp`, its host: the page's link.
+    /// A right click that lands on no page puts it away.
+    fn page_menu(&self, resp: &Response, t: &Theme) {
+        if !self.has_menu() {
+            return;
+        }
+        let Some(idx) = self.menu_page else {
+            if context_menu::is_open(resp) {
+                context_menu::close(&resp.ctx);
+            }
+            return;
+        };
+        let label = format!("Copy Link to Page {}", idx + 1);
+        if context_menu::show(resp, t, |m| m.item(phosphor::LINK, label, ())).is_none() {
+            return;
+        }
+        let place = Place::at(Destination::File(self.id), Some(Fragment::Page(idx)));
+        if let Some(url) = place.to_url_with(|_| self.link_url.clone()) {
+            resp.ctx.copy_text(url);
+        }
     }
 
     fn get_page(&mut self, idx: usize) -> Image<'_> {
@@ -910,7 +971,7 @@ impl PdfViewer {
             return;
         }
         // location in the old viewport
-        println!("zoom from {zoom_from:?}");
+        tracing::trace!("zoom from {zoom_from:?}");
         let old_viewport_location = match zoom_from {
             Some(mouse) => {
                 ((mouse - self.render_area.min) + self.current_viewport.min.to_vec2()).to_pos2()
@@ -919,12 +980,12 @@ impl PdfViewer {
             None if self.fit_width || self.fit_height => self.current_viewport.min,
             None => self.current_viewport.center(),
         };
-        println!("old_viewport {old_viewport_location:?}");
+        tracing::trace!("old_viewport {old_viewport_location:?}");
 
         // normalized point location in page space
         let normalized_page_space = old_viewport_location.to_vec2()
             / self.page_bounds.last().map(|r| r.max.to_vec2()).unwrap();
-        println!("normalized_page space {normalized_page_space:?}");
+        tracing::trace!("normalized_page space {normalized_page_space:?}");
 
         self.scale = new_scale;
         self.page_bounds.clear();
@@ -939,9 +1000,9 @@ impl PdfViewer {
         // calculate the new viewport
         let new_location =
             normalized_page_space * self.page_bounds.last().map(|r| r.max.to_vec2()).unwrap();
-        println!("new location {new_location:?}");
+        tracing::trace!("new location {new_location:?}");
         self.viewport_adjustment = Some(-1. * (new_location - old_viewport_location.to_vec2()));
-        println!("adjustment {:?}", self.viewport_adjustment);
+        tracing::trace!("adjustment {:?}", self.viewport_adjustment);
         self.ctx.request_repaint();
     }
 }

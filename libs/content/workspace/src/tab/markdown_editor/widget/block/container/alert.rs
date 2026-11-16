@@ -1,11 +1,12 @@
-use crate::style::{phosphor, phosphor_font_id};
+use crate::style::phosphor;
 use crate::tab::markdown_editor::widget::utils::wrap_layout::Format;
 use crate::theme::palette_v2::ThemeExt as _;
 use comrak::nodes::{AlertType, AstNode, NodeAlert};
-use egui::{Color32, Pos2, Rect, Stroke, Ui, Vec2};
+use egui::{Pos2, Rect, Stroke, Ui, Vec2};
 use lb_rs::model::text::offset_types::{Grapheme, Graphemes, RangeExt as _, RangeIterExt as _};
 
 use crate::tab::markdown_editor::MdRender;
+use crate::widgets::GlyphonLabel;
 
 impl<'ast> MdRender {
     pub fn text_format_alert(&self, parent: &AstNode<'_>, node_alert: &NodeAlert) -> Format {
@@ -186,16 +187,9 @@ impl<'ast> MdRender {
                     AlertType::Warning => phosphor::WARNING,
                     AlertType::Caution => phosphor::WARNING_OCTAGON,
                 };
-                let g = ui.painter().layout_no_wrap(
-                    glyph.into(),
-                    phosphor_font_id(icon_space.height() * 0.75),
-                    Color32::PLACEHOLDER,
-                );
-                ui.painter().galley(
-                    icon_space.center() - g.size() / 2.0,
-                    g,
-                    self.text_format(node).color,
-                );
+                GlyphonLabel::icon(glyph, self.text_format(node).color, icon_space.height() * 0.75)
+                    .build(ui.ctx())
+                    .paint_centered(ui.painter(), icon_space.center());
             }
 
             let (_type, title) = self.alert_type_title_ranges(node);

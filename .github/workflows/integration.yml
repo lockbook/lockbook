@@ -3,11 +3,13 @@ name: Integration
 on:
   pull_request:
     branches: [ master ]
+    types: [ opened, synchronize, reopened, ready_for_review ]
   workflow_call:
 
 jobs:
   Checks:
-    if: github.repository == 'lockbook/lockbook'
+    # a draft pull request waits until it is marked ready
+    if: github.repository == 'lockbook/lockbook' && (github.event_name != 'pull_request' || !github.event.pull_request.draft)
     runs-on: [self-hosted, ci]
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -32,6 +34,8 @@ jobs:
     - name: Server Logs
       if: always()
       run: nix-shell -p gtk3 pkg-config glib gobject-introspection gdk-pixbuf --command "\"$CARGO_TARGET_DIR/debug/lbdev\" ci server-logs"
+    - name: Check Clients Without Server
+      run: nix-shell -p gtk3 pkg-config glib gobject-introspection gdk-pixbuf --command "\"$CARGO_TARGET_DIR/debug/lbdev\" ci assert-clients-without-server"
     - name: Check Lock File
       run: nix-shell -p gtk3 pkg-config glib gobject-introspection gdk-pixbuf --command "\"$CARGO_TARGET_DIR/debug/lbdev\" ci assert-git-clean"
     - name: Install Nightly

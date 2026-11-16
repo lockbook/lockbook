@@ -868,16 +868,34 @@ fn gen_container_block_f(src: &mut ByteSource, f: &Features, depth: usize) -> Op
         }
         2 => {
             let n = 1 + src.draw(3);
+            // Numbered task items (`1. [ ]`, `10) [x]`) put a wider marker
+            // before the brackets than `- `.
+            let style = if b.ordered_list { src.bias(&[3, 2, 1]) } else { 0 };
+            let start = if style > 0 && b.ordered_nonstandard_start {
+                match src.bias(&[3, 1]) {
+                    0 => 1,
+                    _ => 9 + src.draw(2), // multi-digit by the 2nd item
+                }
+            } else {
+                1
+            };
             let mut out = String::new();
-            for _ in 0..n {
+            for i in 0..n {
+                let marker = match style {
+                    0 => "- ".to_string(),
+                    1 => format!("{}. ", start + i),
+                    _ => format!("{}) ", start + i),
+                };
                 let mark = if src.bias(&[1, 1]) == 0 { ' ' } else { 'x' };
                 let first_inline = gen_inline_tree_f(src, f, MAX_INLINE_DEPTH);
                 if inner_depth > 0 && src.bias(&[5, 1]) == 1 {
+                    // content column is the list marker's, short of the `]`
+                    let indent = encode_indent(marker.len(), f, src);
                     let inner = gen_block_seq_f(src, f, inner_depth);
-                    let body = indent_continuation(&inner, "  ");
-                    out.push_str(&format!("- [{mark}] {first_inline}\n\n  {body}\n"));
+                    let body = indent_continuation(&inner, &indent);
+                    out.push_str(&format!("{marker}[{mark}] {first_inline}\n\n{indent}{body}\n"));
                 } else {
-                    out.push_str(&format!("- [{mark}] {first_inline}\n"));
+                    out.push_str(&format!("{marker}[{mark}] {first_inline}\n"));
                 }
             }
             out
@@ -915,9 +933,7 @@ pub fn gen_doc(src: &mut ByteSource, features: &Features) -> String {
     }
     let mut out = String::new();
     if d.front_matter && src.bias(&[6, 1]) == 1 {
-        out.push_str("---\ntitle: ");
-        out.push_str(&gen_text_f(src, features));
-        out.push_str("\n---\n\n");
+        out.push_str(&gen_front_matter_f(src, features));
     }
     let max_depth = if features.blocks.nested_containers { MAX_BLOCK_DEPTH } else { 0 };
     out.push_str(&gen_block_seq_f(src, features, max_depth));
@@ -939,6 +955,56 @@ pub fn gen_doc_large(src: &mut ByteSource, target_bytes: usize) -> String {
         }
         out.push_str(&gen_doc(src, &Features::all()));
     }
+    out
+}
+
+/// A front matter block: one to four rows drawn from the shapes the grid
+/// edits in place (`key: value`, quoted, empty, a checkbox, a key being
+/// typed, lists and items being typed) and the ones it shows as source
+/// (comments, nested maps, bad lines).
+pub(crate) fn gen_front_matter_f(src: &mut ByteSource, f: &Features) -> String {
+    let mut out = String::from("---\n");
+    let n = 1 + src.draw(4);
+    for _ in 0..n {
+        let key = gen_word_f(src, f);
+        match src.bias(&[8, 3, 2, 2, 2, 1, 1, 1, 1, 1, 1, 2, 1, 1, 1, 1]) {
+            0 => out.push_str(&format!("{key}: {}\n", gen_text_f(src, f))),
+            1 => out.push_str(&format!("{key}: \"{}\"\n", gen_text_f(src, f))),
+            2 => out.push_str(&format!("{key}:\n")),
+            3 => out.push_str(&format!("{key}: \n")),
+            4 => out.push_str(&format!("{key}\n")),
+            5 => out.push_str(&format!("# {}\n", gen_text_f(src, f))),
+            6 => out.push('\n'),
+            7 => out.push_str(&format!(
+                "{key}:\n  - {}\n  - {}\n",
+                gen_word_f(src, f),
+                gen_word_f(src, f)
+            )),
+            8 => {
+                out.push_str(&format!("{key}: [{}, {}]\n", gen_word_f(src, f), gen_word_f(src, f)))
+            }
+            9 => out.push_str(&format!("{key}:\n  k: {}\n", gen_word_f(src, f))),
+            10 => out.push_str(&format!("{key}: \"{}\n", gen_word_f(src, f))),
+            11 => out.push_str(&format!("{key}: {}\n", ["true", "false"][src.draw(2)])),
+            12 => out.push_str(&format!(
+                "{key}: \"{}: {}\"\n",
+                gen_word_f(src, f),
+                gen_word_f(src, f)
+            )),
+            13 => out.push_str(&format!("{key}: '{}'\n", ["", "it''s"][src.draw(2)])),
+            14 => out.push_str(&format!(
+                "{key}:\n  - {}\n\n  - {}\n",
+                gen_word_f(src, f),
+                gen_word_f(src, f)
+            )),
+            _ => out.push_str(&format!(
+                "{key}: [{}{}]\n",
+                gen_word_f(src, f),
+                [", ", ","][src.draw(2)]
+            )),
+        }
+    }
+    out.push_str("---\n\n");
     out
 }
 

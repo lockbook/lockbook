@@ -1,4 +1,6 @@
 use crate::Lb;
+use crate::io::docs::LocalDocuments;
+use crate::io::server::Server;
 use crate::model::api::GetPublicKeyRequest;
 use crate::model::errors::{LbErr, LbErrKind, LbResult};
 use crate::model::file::{File, ShareMode};
@@ -22,7 +24,7 @@ pub struct SharingContact {
     pub total_file_count: u64,
 }
 
-impl Lb {
+impl<S: Server, D: LocalDocuments> Lb<S, D> {
     /// Ranked contacts for the signed-in account. This is a local, read-only query;
     /// callers should run it off their UI thread.
     /// Inheritance follows real metadata parents, never the local placement of a link.
@@ -110,7 +112,7 @@ impl Lb {
 
         let sharee = Owner(
             self.client
-                .request(account, GetPublicKeyRequest { username: username.clone() })
+                .get_public_key(account, GetPublicKeyRequest { username: username.clone() })
                 .await
                 .map_err(LbErr::from)?
                 .key,
@@ -124,7 +126,9 @@ impl Lb {
             .to_lazy();
         db.pub_key_lookup.insert(sharee, username)?;
 
-        tree.add_share(id, sharee, mode, &self.keychain)?;
+        let attachments = (self.attachments_folders && mode == ShareMode::Write)
+            .then(|| (self.entropy.id(), self.entropy.key()));
+        tree.add_share_and_attach(id, sharee, mode, attachments, &self.keychain)?;
 
         tx.end();
 
@@ -158,9 +162,12 @@ impl Lb {
         let db = tx.db();
 
         let mut tree = (&db.base_metadata).to_staged(&db.local_metadata).to_lazy();
-        let pending_roots = tree.pending_roots(&self.keychain)?.into_iter();
+        let mut pending_roots = tree.pending_roots(&self.keychain)?;
+        if !self.config.list_attachments {
+            pending_roots = Self::omit_attachments(&tree, pending_roots)?;
+        }
 
-        tree.decrypt_all(&self.keychain, pending_roots, &db.pub_key_lookup, false)
+        tree.decrypt_all(&self.keychain, pending_roots.into_iter(), &db.pub_key_lookup, false)
     }
 
     /// returns *all* the files associated with any pending shares (the share as well as it's
@@ -171,9 +178,12 @@ impl Lb {
         let db = tx.db();
 
         let mut tree = (&db.base_metadata).to_staged(&db.local_metadata).to_lazy();
-        let pending_files = tree.non_deleted_pending_files(&self.keychain)?.into_iter();
+        let mut pending_files = tree.non_deleted_pending_files(&self.keychain)?;
+        if !self.config.list_attachments {
+            pending_files = Self::omit_attachments(&tree, pending_files)?;
+        }
 
-        tree.decrypt_all(&self.keychain, pending_files, &db.pub_key_lookup, false)
+        tree.decrypt_all(&self.keychain, pending_files.into_iter(), &db.pub_key_lookup, false)
     }
 
     #[instrument(level = "debug", skip(self))]
@@ -244,7 +254,7 @@ impl Lb {
 
         match self
             .client
-            .request(account, GetPublicKeyRequest { username })
+            .get_public_key(account, GetPublicKeyRequest { username })
             .await
         {
             Ok(_) => Ok(true),

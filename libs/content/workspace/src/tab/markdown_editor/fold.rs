@@ -10,7 +10,6 @@
 //! it, you replace/delete/copy the content. This is accomplished in the logic
 //! that handles those operations.
 
-use comrak::Arena;
 use comrak::nodes::{AstNode, NodeHeading, NodeValue};
 use lb_rs::model::text::buffer;
 use lb_rs::model::text::offset_types::{Grapheme, IntoRangeExt as _, RangeExt as _};
@@ -24,7 +23,7 @@ use crate::tab::markdown_editor::input::{Advance, Bound, Increment, Region};
 use crate::tab::markdown_editor::widget::utils::wrap_layout::{
     FontFamily, Format, Layout, StyleInfo,
 };
-use crate::tab::markdown_editor::{Event, MdEdit, MdRender};
+use crate::tab::markdown_editor::{Arena, Event, MdEdit, MdRender};
 
 pub const FOLD_TAG: &str = "<!-- {\"fold\":true} -->";
 
@@ -80,21 +79,26 @@ impl<'ast> MdRender {
 
 impl MdRender {
     /// Ranges that reveal *folded contents* without unfolding: the
-    /// current find match and preview. The selection is deliberately
+    /// current find match and preview, and an embed's section, which opens
+    /// the folds around it. The selection is deliberately
     /// excluded — a selection endpoint landing in folded contents
     /// unfolds for real instead ([`Self::unfold_ops_for_selection`]).
     pub fn fold_reveal_ranges(&self) -> impl Iterator<Item = (Grapheme, Grapheme)> + '_ {
         self.find_current_match
             .into_iter()
             .chain(self.preview_match)
+            .chain(self.region_reveal)
     }
 
-    /// Returns true if `range` contains any fold-reveal range.
+    /// Returns true if `range` contains any fold-reveal range, or is the
+    /// section an embed shows, whose own fold opens too.
     pub fn range_contains_fold_revealed(
         &self, range: (Grapheme, Grapheme), allow_empty_range: bool, allow_empty_selection: bool,
     ) -> bool {
-        self.fold_reveal_ranges()
-            .any(|rr| range.contains_range(&rr, allow_empty_range, allow_empty_selection))
+        self.region_reveal == Some(range)
+            || self
+                .fold_reveal_ranges()
+                .any(|rr| range.contains_range(&rr, allow_empty_range, allow_empty_selection))
     }
 
     /// Returns true if a fold-reveal range force-reveals this fold's
@@ -132,6 +136,7 @@ impl<'ast> MdRender {
             source_range: node_range,
             chip: true,
             wrap: false,
+            caret_inside: false,
         });
         layout.push_override(node_range, FOLD_CHIP_TEXT, format);
         layout.style_close();
@@ -299,8 +304,8 @@ impl<'ast> MdEdit {
     /// Selections are snapped out of fold sections, but an edit can still
     /// leave one inside, e.g. indenting an item into a folded item; after
     /// an edit or a user move, unfold around it.
-    pub fn unfold_after_edit<'a>(
-        &mut self, arena: &'a Arena<'a>, edited: bool, undo_redo: bool,
+    pub fn unfold_after_edit(
+        &mut self, arena: &Arena, edited: bool, undo_redo: bool,
     ) -> buffer::Response {
         if edited && !undo_redo && !self.renderer.readonly && self.renderer.view == View::Rendered {
             self.unfold_at_selection(arena)
@@ -311,12 +316,12 @@ impl<'ast> MdEdit {
 
     /// Apply [`MdRender::unfold_ops_for_selection`], reparsing on
     /// change so this frame renders the unfolded state.
-    pub fn unfold_at_selection<'a>(&mut self, arena: &'a Arena<'a>) -> buffer::Response {
+    pub fn unfold_at_selection(&mut self, arena: &Arena) -> buffer::Response {
         let ops = self.renderer.unfold_ops_for_selection();
         if ops.is_empty() {
             return buffer::Response::default();
         }
-        self.renderer.buffer.queue(ops);
+        self.renderer.buffer.queue(ops, self.renderer.now());
         let response = self.renderer.buffer.update();
         self.renderer.bump_text_seq();
         self.renderer.reparse(arena);

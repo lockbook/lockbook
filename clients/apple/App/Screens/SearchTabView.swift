@@ -5,10 +5,15 @@
     struct SearchTabView: View {
         @Environment(HomeState.self) private var homeState
         @Environment(WorkspaceInputState.self) private var workspaceInput
+        @Environment(FilesModel.self) private var filesModel
 
         @Bindable var model: SearchModel
+        let fileTreeModel: FileTreeModel
+        let onLocate: (File) -> Void
         @FocusState private var fieldFocused: Bool
         @State private var scrollPosition = ScrollPosition()
+        @State private var menuSelection = SelectionModel()
+        @State private var deleteTarget: File? = nil
 
         var body: some View {
             VStack(spacing: 0) {
@@ -36,6 +41,9 @@
             }
             .onChange(of: model.input) { model.search() }
             .onChange(of: model.mode) { model.search() }
+            .onChange(of: filesModel.idsToFiles) { model.refresh() }
+            .selectionCommands(menuSelection)
+            .environment(fileTreeModel)
         }
 
         private func open(_ id: UUID, match: ContentSearcherMatch? = nil) {
@@ -140,6 +148,29 @@
                         VStack(spacing: 0) {
                             row(index, result)
                                 .background(selectionBackground(index))
+                                .contextMenu {
+                                    if let file = filesModel.idsToFiles[result.id] {
+                                        FileMenuItems(
+                                            file: file,
+                                            onLocate: { onLocate(file) },
+                                            onDelete: { deleteTarget = file }
+                                        )
+                                    }
+                                }
+                                .confirmationDialog(
+                                    removePrompt ?? "Delete \"\(deleteTarget?.name ?? "")\"? This cannot be undone.",
+                                    isPresented: Binding(
+                                        get: { deleteTarget?.id == result.id },
+                                        set: { if !$0 { deleteTarget = nil } }
+                                    ),
+                                    titleVisibility: .visible
+                                ) {
+                                    Button(removePrompt == nil ? "Delete" : "Remove", role: removePrompt == nil ? .destructive : nil) {
+                                        if let file = filesModel.idsToFiles[result.id] {
+                                            filesModel.deleteFiles([file], notifying: workspaceInput)
+                                        }
+                                    }
+                                }
 
                             Divider()
                         }
@@ -152,6 +183,10 @@
                 scrollToSelection(in: results)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
+        }
+
+        private var removePrompt: String? {
+            filesModel.removePrompt(deleteTarget.map { [$0] } ?? [])
         }
 
         private func selectionBackground(_ index: Int) -> Color {
@@ -403,9 +438,10 @@
 
     #Preview {
         NavigationStack {
-            SearchTabView(model: .preview)
+            SearchTabView(model: .preview, fileTreeModel: .preview, onLocate: { _ in })
         }
         .environment(HomeState())
         .environment(WorkspaceInputState.preview)
+        .environment(FilesModel.preview)
     }
 #endif

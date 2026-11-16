@@ -27,7 +27,6 @@ use lb_rs::model::chat::{Buffer, Message, ToolRecord};
 use lb_rs::model::file_metadata::DocumentHmac;
 use serde_json::json;
 
-use crate::GlyphonRendererCallback;
 use crate::file_cache::{FileCache, FilesExt};
 use crate::resolvers::FileCacheLinkResolver;
 use crate::tab::markdown_editor::{MdEdit, MdLabel};
@@ -1695,19 +1694,7 @@ mod tests {
     /// on the last — rather than forking as siblings of the invoking message.
     #[test]
     fn turn_rows_chain_instead_of_forking() {
-        use lb_rs::model::core_config::{ClientType, Config};
-        let core = lb_rs::blocking::Lb::init(Config {
-            writeable_path: format!("/tmp/{}", Uuid::new_v4()),
-            logs: false,
-            stdout_logs: false,
-            colored_logs: false,
-            background_work: false,
-            client_name: "tests".into(),
-            build_info: None,
-            client_type: ClientType::Unknown,
-            ..Default::default()
-        })
-        .unwrap();
+        let core = crate::test_utils::in_memory_core();
         let files = Arc::new(RwLock::new(FileCache::empty()));
         let mut chat = Chat::new(
             b"",
@@ -1749,19 +1736,7 @@ mod tests {
     /// mid-turn, which the retry guard would refuse.
     #[test]
     fn regenerate_reruns_from_turn_root() {
-        use lb_rs::model::core_config::{ClientType, Config};
-        let core = lb_rs::blocking::Lb::init(Config {
-            writeable_path: format!("/tmp/{}", Uuid::new_v4()),
-            logs: false,
-            stdout_logs: false,
-            colored_logs: false,
-            background_work: false,
-            client_name: "tests".into(),
-            build_info: None,
-            client_type: ClientType::Unknown,
-            ..Default::default()
-        })
-        .unwrap();
+        let core = crate::test_utils::in_memory_core();
         let files = Arc::new(RwLock::new(FileCache::empty()));
         let mut chat = Chat::new(
             b"",
@@ -1802,19 +1777,7 @@ mod tests {
     /// stays; config rows are untouched.
     #[test]
     fn delete_cascade_nukes_subtree_and_siblings() {
-        use lb_rs::model::core_config::{ClientType, Config};
-        let core = lb_rs::blocking::Lb::init(Config {
-            writeable_path: format!("/tmp/{}", Uuid::new_v4()),
-            logs: false,
-            stdout_logs: false,
-            colored_logs: false,
-            background_work: false,
-            client_name: "tests".into(),
-            build_info: None,
-            client_type: ClientType::Unknown,
-            ..Default::default()
-        })
-        .unwrap();
+        let core = crate::test_utils::in_memory_core();
         let files = Arc::new(RwLock::new(FileCache::empty()));
         let mut chat = Chat::new(
             b"",
@@ -1865,19 +1828,7 @@ mod tests {
     #[test]
     fn new_chat_uses_sticky_default() {
         use lb_rs::model::chat::ModelSelection;
-        use lb_rs::model::core_config::{ClientType, Config};
-        let core = lb_rs::blocking::Lb::init(Config {
-            writeable_path: format!("/tmp/{}", Uuid::new_v4()),
-            logs: false,
-            stdout_logs: false,
-            colored_logs: false,
-            background_work: false,
-            client_name: "tests".into(),
-            build_info: None,
-            client_type: ClientType::Unknown,
-            ..Default::default()
-        })
-        .unwrap();
+        let core = crate::test_utils::in_memory_core();
         let files = Arc::new(RwLock::new(FileCache::empty()));
         let mut chat = Chat::new(
             b"",
@@ -2063,19 +2014,7 @@ mod tests {
     /// without clobbering the model selection folded from the same log.
     #[test]
     fn scope_grants_fold_dedupe_and_revoke() {
-        use lb_rs::model::core_config::{ClientType, Config};
-        let core = lb_rs::blocking::Lb::init(Config {
-            writeable_path: format!("/tmp/{}", Uuid::new_v4()),
-            logs: false,
-            stdout_logs: false,
-            colored_logs: false,
-            background_work: false,
-            client_name: "tests".into(),
-            build_info: None,
-            client_type: ClientType::Unknown,
-            ..Default::default()
-        })
-        .unwrap();
+        let core = crate::test_utils::in_memory_core();
         let files = Arc::new(RwLock::new(FileCache::empty()));
         let mut chat = Chat::new(
             b"",

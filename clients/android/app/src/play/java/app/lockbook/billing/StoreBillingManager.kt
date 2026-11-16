@@ -65,12 +65,6 @@ class StoreBillingManager(
         billingClient.showInAppMessages(activity, inAppMessageParams) {}
     }
 
-    override fun onDestroy(owner: LifecycleOwner) {
-        if (billingClient.isReady) {
-            billingClient.endConnection()
-        }
-    }
-
     override fun onBillingServiceDisconnected() {
         billingClient.startConnection(this)
     }

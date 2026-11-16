@@ -1,6 +1,5 @@
 use std::cell::Cell;
 use std::fs;
-use std::io::{self, Write};
 use std::path::PathBuf;
 
 use cli_rs::cli_error::{CliError, CliResult};
@@ -23,7 +22,6 @@ pub async fn import(disk: PathBuf, parent: String) -> CliResult<()> {
         ImportStatus::StartingItem(disk_path) => {
             nth_file.set(nth_file.get() + 1);
             print!("({}/{}) importing: {}... ", nth_file.get(), total.get(), disk_path);
-            io::stdout().flush().unwrap();
         }
         ImportStatus::FinishedItem(_meta) => println!("done."),
     };

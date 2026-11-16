@@ -3,6 +3,7 @@ use std::{future::Future, path::PathBuf};
 use tokio::sync::broadcast::Receiver;
 use uuid::Uuid;
 
+use crate::io::network::Network;
 use crate::model::account::{Account, Username};
 use crate::model::api::{
     AccountFilter, AccountIdentifier, AccountInfo, AdminFileInfoResponse, AdminSetUserTierInfo,
@@ -14,10 +15,9 @@ use crate::model::errors::{LbResult, Warning};
 use crate::model::file::{File, ShareMode};
 use crate::model::file_metadata::{DocumentHmac, FileType};
 use crate::model::path_ops::Filter;
-use crate::service::activity::RankingWeights;
 
 use crate::service::events::Event;
-use crate::service::import_export::{ExportFileInfo, ImportStatus};
+use crate::service::import_export::{Existing, ExportFileInfo, ImportPlan, ImportStatus};
 use crate::service::usage::UsageMetrics;
 use crate::subscribers::status::Status;
 
@@ -61,6 +61,29 @@ impl Lb {
     pub fn init(config: Config) -> LbResult<Self> {
         let rt = Arc::new(Runtime::new().unwrap());
         let lb = rt.block_on(crate::Lb::init(config))?;
+        Ok(Self { rt, lb })
+    }
+
+    /// The blocking twin of [`crate::Lb::in_memory`].
+    #[cfg(target_family = "wasm")]
+    pub fn in_memory(config: Config, server: Network) -> LbResult<Self> {
+        let lb = futures::executor::block_on(crate::Lb::in_memory(
+            config,
+            server,
+            crate::io::docs::AsyncDocs::in_memory(),
+        ))?;
+        Ok(Self { lb })
+    }
+
+    /// The blocking twin of [`crate::Lb::in_memory`].
+    #[cfg(not(target_family = "wasm"))]
+    pub fn in_memory(config: Config, server: Network) -> LbResult<Self> {
+        let rt = Arc::new(Runtime::new().unwrap());
+        let lb = rt.block_on(crate::Lb::in_memory(
+            config,
+            server,
+            crate::io::docs::AsyncDocs::in_memory(),
+        ))?;
         Ok(Self { rt, lb })
     }
 
@@ -111,9 +134,15 @@ impl Lb {
     }
 
     pub fn safe_write(
-        &self, id: Uuid, old_hmac: Option<DocumentHmac>, content: Vec<u8>, origin: Option<Uuid>,
+        &self, id: Uuid, old_hmac: Option<DocumentHmac>, content: &[u8], origin: Option<Uuid>,
     ) -> LbResult<DocumentHmac> {
         self.block_on(self.lb.safe_write(id, old_hmac, content, origin))
+    }
+
+    pub fn write_from_base(
+        &self, id: Uuid, base: &[u8], ours: Vec<u8>, origin: Option<Uuid>,
+    ) -> LbResult<(Option<DocumentHmac>, bool)> {
+        self.block_on(self.lb.write_from_base(id, base, ours, origin))
     }
 
     pub fn document_hmac(&self, id: Uuid) -> LbResult<Option<DocumentHmac>> {
@@ -144,6 +173,18 @@ impl Lb {
 
     pub fn get_file_by_id(&self, id: Uuid) -> LbResult<File> {
         self.block_on(self.lb.get_file_by_id(id))
+    }
+
+    pub fn list_attachments(&self) -> LbResult<crate::service::file::Attachments> {
+        self.block_on(self.lb.list_attachments())
+    }
+
+    pub fn attachments_of(&self, folder: &Uuid) -> LbResult<Option<Uuid>> {
+        self.block_on(self.lb.attachments_of(folder))
+    }
+
+    pub fn get_attachments_folder(&self, document: &Uuid) -> LbResult<Option<File>> {
+        self.block_on(self.lb.get_attachments_folder(document))
     }
 
     pub fn delete_file(&self, id: &Uuid) -> LbResult<()> {
@@ -254,18 +295,6 @@ impl Lb {
         self.lb.get_timestamp_human_string(timestamp)
     }
 
-    pub fn suggested_docs(&self, settings: RankingWeights) -> LbResult<Vec<Uuid>> {
-        self.block_on(self.lb.suggested_docs(settings))
-    }
-
-    pub fn clear_suggested(&self) -> LbResult<()> {
-        self.block_on(self.lb.clear_suggested())
-    }
-
-    pub fn clear_suggested_id(&self, target_id: Uuid) -> LbResult<()> {
-        self.block_on(self.lb.clear_suggested_id(target_id))
-    }
-
     pub fn pin_file(&self, id: Uuid) -> LbResult<()> {
         self.block_on(self.lb.pin_file(id))
     }
@@ -289,6 +318,18 @@ impl Lb {
         self.block_on(self.lb.import_files(sources, dest, update_status))
     }
 
+    pub fn plan_import(
+        &self, sources: &[PathBuf], dest: Uuid, existing: Existing,
+    ) -> LbResult<ImportPlan> {
+        self.block_on(self.lb.plan_import(sources, dest, existing))
+    }
+
+    pub fn import_planned<F: Fn(ImportStatus)>(
+        &self, plan: &ImportPlan, update_status: &F,
+    ) -> LbResult<()> {
+        self.block_on(self.lb.import_planned(plan, update_status))
+    }
+
     pub fn export_files(
         &self, id: Uuid, dest: PathBuf, edit: bool,
         export_progress: &Option<Box<dyn Fn(ExportFileInfo)>>,
@@ -302,6 +343,10 @@ impl Lb {
 
     pub fn path_searcher(&self) -> crate::search::PathSearcher {
         self.block_on(self.lb.path_searcher())
+    }
+
+    pub fn search_accepted(&self, id: Uuid) -> LbResult<()> {
+        self.block_on(self.lb.search_accepted(id))
     }
 
     pub fn content_searcher(&self) -> crate::search::ContentSearcher {

@@ -1,3 +1,13 @@
+// Shadow std's print macros for every module below: a closed stdout (`lockbook list | head`) drops output quietly
+// instead of panicking, and the command still runs to its own result.
+macro_rules! print {
+    ($($arg:tt)*) => { $crate::print_out(format_args!($($arg)*)) };
+}
+macro_rules! println {
+    () => { print!("\n") };
+    ($($arg:tt)*) => { print!("{}\n", format_args!($($arg)*)) };
+}
+
 mod account;
 mod debug;
 mod edit;
@@ -26,6 +36,7 @@ use lb_rs::model::errors::LbErrKind;
 use lb_rs::model::path_ops::Filter;
 use lb_rs::service::events::{Event, SyncIncrement};
 use lb_rs::{Lb, Uuid};
+use tokio::sync::broadcast::error::RecvError;
 
 fn run() -> CliResult<()> {
     Command::name("lockbook")
@@ -177,7 +188,8 @@ fn run() -> CliResult<()> {
                 .input(Arg::str("target").description("lockbook file path or ID")
                     .completor(|prompt| input::file_completor(prompt, None)))
                 .input(Flag::bool("append").description("don't overwrite the specified lb file, append to it"))
-                .handler(|target, append| stream::stdin(target.get(), append.get()))
+                .input(Flag::<PathBuf>::new("base").description("a copy of the document as you read it, e.g. --base=read.md; changes made since then are merged with yours, or nothing is written if they can't be"))
+                .handler(|target, append, base| stream::stdin(target.get(), append.get(), base.value.clone()))
         )
         .subcommand(
             Command::name("rename").description("rename a file")
@@ -243,6 +255,18 @@ fn run() -> CliResult<()> {
         )
         .with_completions()
         .parse()
+}
+
+fn print_out(args: std::fmt::Arguments) {
+    use std::io::Write;
+
+    let mut stdout = std::io::stdout().lock();
+    if let Err(err) = stdout.write_fmt(args).and_then(|()| stdout.flush()) {
+        if err.kind() == std::io::ErrorKind::BrokenPipe {
+            return;
+        }
+        panic!("failed printing to stdout: {err}");
+    }
 }
 
 fn main() {
@@ -337,7 +361,14 @@ async fn sync() -> CliResult<()> {
         };
 
         loop {
-            let event = receiver.recv().await.unwrap();
+            let event = match receiver.recv().await {
+                Ok(event) => event,
+                Err(RecvError::Lagged(skipped)) => {
+                    println!("{skipped} progress updates skipped");
+                    continue;
+                }
+                Err(RecvError::Closed) => return,
+            };
             if let Event::Sync(sync_increment) = event {
                 match sync_increment {
                     SyncIncrement::SyncStarted => println!("Sync Started!"),

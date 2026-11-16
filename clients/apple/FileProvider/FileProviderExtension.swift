@@ -9,6 +9,7 @@ final class FileProviderExtension: NSObject, NSFileProviderReplicatedExtension {
     let snapshots = FileProviderSnapshots()
     private let queue = DispatchQueue(label: "app.lockbook.file-provider.notifications")
     private let cache = FileProviderCache()
+    private let bases: FileProviderBases
     private let coreLock = NSLock()
     private var sharedCore: FileProviderCore?
     private var changeSource: DispatchSourceRead?
@@ -18,6 +19,7 @@ final class FileProviderExtension: NSObject, NSFileProviderReplicatedExtension {
     required init(domain: NSFileProviderDomain) {
         self.domain = domain
         manager = NSFileProviderManager(for: domain)!
+        bases = FileProviderBases(domain: domain)
         super.init()
         queue.async { [weak self] in self?.observeChanges() }
         let syncTimer = DispatchSource.makeTimerSource(queue: DispatchQueue(label: "app.lockbook.file-provider.sync"))
@@ -103,7 +105,7 @@ final class FileProviderExtension: NSObject, NSFileProviderReplicatedExtension {
         // Only initialization is serialized; callbacks use the core concurrently.
         let core = try coreLock.withLock {
             if let sharedCore { return sharedCore }
-            let core = try FileProviderCore(domain: domain, cache: cache)
+            let core = try FileProviderCore(domain: domain, cache: cache, bases: bases)
             sharedCore = core
             return core
         }
@@ -141,9 +143,11 @@ final class FileProviderExtension: NSObject, NSFileProviderReplicatedExtension {
         perform({ core in
             let item = try core.item(identifier, loadSize: false)
             let data = try core.read(item)
-            if let version, version.contentVersion != item.contentVersion {
+            if let version, version.contentVersion != item.contentVersion,
+               !FileProviderCore.isUnfetched(version.contentVersion) {
                 throw NSFileProviderError(.versionNoLongerAvailable)
             }
+            core.remember(item, data: data)
             let url = try self.manager.temporaryDirectoryURL().appendingPathComponent(UUID().uuidString)
             try data.write(to: url)
             return (url, item)
@@ -196,10 +200,12 @@ final class FileProviderExtension: NSObject, NSFileProviderReplicatedExtension {
                }) {
                 throw NSError.fileProviderErrorForCollision(with: collision)
             }
+            var written: (item: FileProviderItem, fetch: Bool)?
             if changedFields.contains(.contents) {
                 guard let contents else { throw CocoaError(.fileReadUnknown) }
-                try core.write(item.itemIdentifier, version: baseVersion.contentVersion, data: Data(contentsOf: contents))
+                written = try core.write(item.itemIdentifier, version: baseVersion.contentVersion, data: Data(contentsOf: contents))
             }
+            let fetch = written?.fetch ?? false
             if changedFields.contains(.filename) {
                 let error = lb_rename_file(core.core.lb, uuid, item.filename)
                 defer { lb_free_err(error) }
@@ -212,16 +218,20 @@ final class FileProviderExtension: NSObject, NSFileProviderReplicatedExtension {
                 try core.check(error)
             }
             let updated = try core.item(item.itemIdentifier)
-            if changedFields.contains(.contentModificationDate) || changedFields.contains(.contents) {
-                core.cache.update(updated, date: item.contentModificationDate ?? nil)
+            if let written, fetch {
+                updated.contentVersion = written.item.contentVersion
+                updated.size = written.item.size
             }
-            return updated
+            if changedFields.contains(.contentModificationDate) || changedFields.contains(.contents) {
+                core.cache.update(updated, date: fetch ? nil : item.contentModificationDate ?? nil)
+            }
+            return (updated, fetch)
         }) {
             switch $0 {
-            case .success(let updated):
+            case .success(let (updated, fetch)):
                 self.signalChanges()
                 let supported: NSFileProviderItemFields = [.contents, .filename, .parentItemIdentifier, .contentModificationDate]
-                completionHandler(updated, changedFields.subtracting(supported), false, nil)
+                completionHandler(updated, changedFields.subtracting(supported), fetch, nil)
             case .failure(let error): completionHandler(nil, [], false, error)
             }
         }
@@ -237,6 +247,7 @@ final class FileProviderExtension: NSObject, NSFileProviderReplicatedExtension {
             let error = lb_delete_file(core.core.lb, LbUuid(bytes: try core.uuid(identifier).uuid))
             defer { lb_free_err(error) }
             if error?.pointee.code != FileNonexistent { try core.check(error) }
+            core.bases.forget(identifier.rawValue)
         }) {
             switch $0 {
             case .success: self.signalChanges(); completionHandler(nil)

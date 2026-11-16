@@ -1,5 +1,5 @@
-use crate::{get_dirty_ids, slices_equal_ignore_order, test_core_from};
-use lb_rs::Lb;
+use crate::{Lb, get_dirty_ids, slices_equal_ignore_order, test_core_from};
+use lb_rs::io::server::Server;
 use lb_rs::model::api::GetUpdatesRequestV2;
 use lb_rs::model::file_like::FileLike;
 use lb_rs::model::file_metadata::{FileType, Owner};
@@ -224,17 +224,16 @@ pub async fn server_work_paths(core: &Lb, expected_paths: &[&'static str]) {
     let db = tx.db();
 
     let account = db.account.as_ref().unwrap();
-    let remote_changes = core
-        .client
-        .request(
-            account,
-            GetUpdatesRequestV2 {
-                since_metadata_version: db.last_synced.as_ref().copied().unwrap_or_default() as u64,
-            },
-        )
-        .await
-        .unwrap()
-        .file_metadata;
+    let remote_changes = Server::get_updates_v2(
+        &core.client,
+        account,
+        GetUpdatesRequestV2 {
+            since_metadata_version: db.last_synced.as_ref().copied().unwrap_or_default() as u64,
+        },
+    )
+    .await
+    .unwrap()
+    .file_metadata;
     let mut remote = db
         .base_metadata
         .stage(remote_changes)

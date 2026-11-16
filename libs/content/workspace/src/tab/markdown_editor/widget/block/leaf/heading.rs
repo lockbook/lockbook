@@ -1,19 +1,22 @@
 use comrak::nodes::{AstNode, NodeValue};
-use egui::{Color32, Pos2, Rect, Stroke, Ui, Vec2};
+use egui::{Pos2, Rect, Stroke, Ui, Vec2};
 use lb_rs::model::text::offset_types::{
     Grapheme, IntoRangeExt as _, RangeExt as _, RangeIterExt as _,
 };
 
 use crate::style::chrome::HOVER_ANIM_SECS;
 use crate::style::{
-    FG_HOVER, FG_PRESS, Radius, ThemeExt as _, phosphor, phosphor_font_id, sense_click, tip_text,
+    FG_HOVER, FG_PRESS, Radius, ThemeExt as _, control_cursor, phosphor, sense_click, tip_text,
 };
 use crate::tab::markdown_editor::MdRender;
 use crate::tab::markdown_editor::TouchTarget;
 use crate::tab::markdown_editor::View;
 use crate::tab::markdown_editor::fragment;
 use crate::tab::markdown_editor::input::Event;
-use crate::tab::markdown_editor::widget::utils::wrap_layout::{Layout, WrapUnitLayout};
+use crate::tab::markdown_editor::widget::utils::wrap_layout::{
+    FragmentContent, Layout, WrapUnitLayout,
+};
+use crate::widgets::GlyphonLabel;
 
 /// How long a copied heading link shows its check.
 const COPIED_SECS: f32 = 1.5;
@@ -210,9 +213,19 @@ impl<'ast> MdRender {
         // todo: proper hit-testing (this ignores anything covering the space)
         let first_line = self.node_first_line(node);
         let row_height = self.node_line_row_height(node, first_line);
+        // beside the first line's text, which an image makes its row tall above
+        let text_top = self
+            .fragments
+            .iter()
+            .filter(|f| matches!(f.content, FragmentContent::Glyphs { .. }))
+            .filter(|f| first_line.contains_range(&f.source_range, true, true))
+            .map(|f| f.rect.top())
+            .reduce(f32::min);
+        let text_top_left =
+            Pos2::new(top_left.x, text_top.map_or(top_left.y, |top| top_left.y.max(top)));
 
         let (fold_button_size, fold_button_icon_size, fold_button_space) =
-            Self::fold_button_size_icon_size_space(top_left, row_height, self.layout.indent);
+            Self::fold_button_size_icon_size_space(text_top_left, row_height, self.layout.indent);
         let show_fold_button = self.interactive
             && (self.touch_mode
                 || hovered
@@ -246,9 +259,7 @@ impl<'ast> MdRender {
         &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, top_left: Pos2, trailing: Pos2,
     ) {
         let range = self.node_range(node);
-        let id = ui
-            .scope_id()
-            .with(("md_heading_link", range.start().0, range.end().0));
+        let id = ui.scope_id().with("md_heading_link");
         let size = self.layout.indent * 0.8;
         let space = Rect::from_center_size(
             Pos2::new(trailing.x + self.layout.inline_padding * 2.0 + size / 2.0, trailing.y),
@@ -268,6 +279,7 @@ impl<'ast> MdRender {
         }
 
         let resp = ui.interact(space, id, sense_click());
+        control_cursor(ui, space);
         let t = self.ctx.get_lb_theme();
         let hover =
             ui.ctx()
@@ -285,13 +297,9 @@ impl<'ast> MdRender {
                     .lerp_to_gamma(t.neutral_fg(), hover),
             )
         };
-        let galley = ui.painter().layout_no_wrap(
-            glyph.into(),
-            phosphor_font_id(size * 0.6),
-            Color32::PLACEHOLDER,
-        );
-        ui.painter()
-            .galley(space.center() - galley.size() / 2.0, galley, color);
+        GlyphonLabel::icon(glyph, color, size * 0.6)
+            .build(ui.ctx())
+            .paint_centered(ui.painter(), space.center());
         tip_text(ui.ctx(), &resp, if copied { "Copied" } else { "Copy Heading Link" });
         if copied {
             ui.ctx()
@@ -326,7 +334,7 @@ impl<'ast> MdRender {
                 let h = result.height;
                 self.show_wrap_layout(ui, top_left, &result);
                 self.show_block_line_prefixes(ui, node, line, top_left, row_height);
-                trailing = row_trailing(top_left, &result);
+                trailing = self.row_trailing(top_left, &result);
                 top_left.y += h;
                 top_left.y += self.layout.row_spacing;
             } else if reveal {
@@ -365,7 +373,7 @@ impl<'ast> MdRender {
         let height = result.height;
         self.show_wrap_layout(ui, top_left, &result);
         self.show_block_line_prefixes(ui, node, line, top_left, row_height);
-        let trailing = row_trailing(top_left, &result);
+        let trailing = self.row_trailing(top_left, &result);
 
         top_left.y += height;
         if level == 1 {
@@ -522,23 +530,38 @@ impl<'ast> MdRender {
         let (_size, icon_size, space) = size_icon_size_space;
         let folded = self.fold(node).is_some();
         let toggle = Event::ToggleFold { node: Some(self.node_range(node)) };
-        // A finger's target: the gutter around the button, the row's height.
-        let target =
-            Rect::from_min_max(space.min - Vec2::new(6.0, 4.0), space.max + Vec2::new(6.0, 4.0));
-        self.touch_targets
-            .push((target, TouchTarget::Tap(toggle.clone())));
+        self.push_gutter_target(space, &toggle);
 
         if !folded && self.foldable(node).is_none() {
             return;
         }
 
+        let id = ui.scope_id().with("md_fold_btn");
+        let marked = folded && !fold_reveal;
+        let tips = ["Show Contents", "Hide Contents"];
+        self.show_gutter_chevron(ui, id, (icon_size, space), toggle, folded, marked, tips);
+    }
+
+    /// A finger's target for a gutter control: around it, the row's height.
+    pub fn push_gutter_target(&mut self, space: Rect, toggle: &Event) {
+        let target =
+            Rect::from_min_max(space.min - Vec2::new(6.0, 4.0), space.max + Vec2::new(6.0, 4.0));
+        self.touch_targets
+            .push((target, TouchTarget::Tap(toggle.clone())));
+    }
+
+    /// A chevron in the gutter at `space` that sends `toggle` when clicked:
+    /// right while `folded`, else down, and in the accent while `marked`.
+    /// `tips` say what a click does while folded and while open.
+    #[allow(clippy::too_many_arguments)]
+    pub fn show_gutter_chevron(
+        &mut self, ui: &mut Ui, id: egui::Id, (icon_size, space): (f32, Rect), toggle: Event,
+        folded: bool, marked: bool, tips: [&str; 2],
+    ) {
         // Interact on the gutter rect — do not allocate in the parent ui
         // (off-screen neighbor rows would displace the mobile toolbar, #4892).
-        let range = self.node_range(node);
-        let id = ui
-            .scope_id()
-            .with(("md_fold_btn", range.start().0, range.end().0));
         let resp = ui.interact(space, id, sense_click());
+        control_cursor(ui, space);
 
         let t = self.ctx.get_lb_theme();
         let over = resp.hovered() || ui.ctx().rect_contains_pointer(ui.layer_id(), space);
@@ -552,7 +575,7 @@ impl<'ast> MdRender {
             0.0
         };
         if hover > 0.0 {
-            let amt = if folded && !fold_reveal { FG_PRESS * hover } else { FG_HOVER * hover };
+            let amt = if marked { FG_PRESS * hover } else { FG_HOVER * hover };
             ui.painter().rect_filled(
                 space,
                 Radius::Sm.corner(),
@@ -561,20 +584,16 @@ impl<'ast> MdRender {
         }
 
         let glyph = if folded { phosphor::CARET_RIGHT } else { phosphor::CARET_DOWN };
-        let color = if folded && !fold_reveal {
+        let color = if marked {
             t.accent()
         } else {
             t.neutral_fg_secondary()
                 .lerp_to_gamma(t.neutral_fg(), hover)
         };
-        let g = ui.painter().layout_no_wrap(
-            glyph.into(),
-            phosphor_font_id(icon_size),
-            Color32::PLACEHOLDER,
-        );
-        ui.painter()
-            .galley(space.center() - g.size() / 2.0, g, color);
-        tip_text(ui.ctx(), &resp, if folded { "Show Contents" } else { "Hide Contents" });
+        GlyphonLabel::icon(glyph, color, icon_size)
+            .build(ui.ctx())
+            .paint_centered(ui.painter(), space.center());
+        tip_text(ui.ctx(), &resp, if folded { tips[0] } else { tips[1] });
 
         if resp.clicked() {
             self.render_events.push(toggle);
@@ -585,15 +604,18 @@ impl<'ast> MdRender {
     pub fn heading_fold_reveal(&self, node: &'ast AstNode<'ast>) -> bool {
         self.range_contains_fold_revealed(self.heading_contents(node), false, true)
     }
-}
 
-/// The right end of a wrap unit's last row, at that row's middle.
-fn row_trailing(top_left: Pos2, layout: &WrapUnitLayout) -> Option<Pos2> {
-    let row = layout.rows.last()?;
-    let right = row
-        .fragments
-        .iter()
-        .map(|f| f.rect.right())
-        .fold(0.0_f32, f32::max);
-    Some(Pos2::new(top_left.x + right, top_left.y + row.y_top + (row.ascent + row.descent) / 2.0))
+    /// The right end of what a wrap unit's last row shows, before any spaces
+    /// trailing it, at that row's middle.
+    fn row_trailing(&self, top_left: Pos2, layout: &WrapUnitLayout) -> Option<Pos2> {
+        let row = layout.rows.last()?;
+        let right = row
+            .fragments
+            .iter()
+            .filter(|f| f.source_range.is_empty() || !self.buffer[f.source_range].trim().is_empty())
+            .map(|f| f.rect.right())
+            .fold(0.0_f32, f32::max);
+        let y = top_left.y + row.y_top + (row.ascent + row.descent) / 2.0;
+        Some(Pos2::new(top_left.x + right, y))
+    }
 }

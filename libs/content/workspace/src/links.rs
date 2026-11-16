@@ -42,7 +42,14 @@ pub struct NoteLink {
 pub struct NoteText {
     pub headings: Arc<Vec<Heading>>,
     pub links: Vec<NoteLink>,
+    /// The front matter's properties: each key with its value, or its
+    /// items. A scalar longer than [`PROPERTY_VALUE_BYTES`] is left out.
+    pub properties: Vec<(String, Vec<String>)>,
 }
+
+/// The longest scalar kept as a property value; a paragraph is not a
+/// completion.
+pub const PROPERTY_VALUE_BYTES: usize = 80;
 
 /// Plain text kept on either side of a link's own words.
 const CONTEXT_BYTES: usize = 160;
@@ -66,7 +73,42 @@ pub fn read_note(md: &str) -> NoteText {
         links.push(NoteLink { kind, dest, span, context, label, rewritable });
     }
     let headings = Arc::new(headings_in(root).into_iter().map(|(_, h)| h).collect());
-    NoteText { headings, links }
+    let properties = root
+        .first_child()
+        .and_then(|first| match &first.data.borrow().value {
+            NodeValue::FrontMatter(text) => Some(properties_in(text)),
+            _ => None,
+        })
+        .unwrap_or_default();
+    NoteText { headings, links, properties }
+}
+
+/// The properties of a front matter block, as the grid reads them.
+pub fn properties_in(block: &str) -> Vec<(String, Vec<String>)> {
+    use crate::front_matter::{Quotes, RowKind, Value, parse, unquote};
+    let Some(fm) = parse(block) else { return vec![] };
+    let meaning = |text: &(usize, usize), quotes: &Quotes| match quotes {
+        Some((open, close)) => unquote(&block[open.0..close.1]),
+        None => Some(block[text.0..text.1].to_string()),
+    };
+    fm.rows
+        .iter()
+        .filter_map(|row| {
+            let RowKind::Property { key, value, .. } = &row.kind else { return None };
+            let values = match value {
+                Value::Text { text, quotes, .. } if text.1 - text.0 <= PROPERTY_VALUE_BYTES => {
+                    meaning(text, quotes).into_iter().collect()
+                }
+                Value::List { items, .. } => items
+                    .iter()
+                    .filter(|i| i.text.0 < i.text.1)
+                    .filter_map(|i| meaning(&i.text, &i.quotes))
+                    .collect(),
+                _ => vec![],
+            };
+            Some((block[key.0..key.1].to_string(), values))
+        })
+        .collect()
 }
 
 /// A link node as written: its kind, destination, bytes, and where its

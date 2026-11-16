@@ -3,10 +3,11 @@
 use egui::{Context, RawInput, Rect, pos2, vec2};
 use lb_rs::Uuid;
 use lb_rs::blocking::Lb;
-use lb_rs::model::core_config::Config;
 use lb_rs::model::file_metadata::FileType;
 use web_time::{Duration, Instant};
 
+use crate::tab::ExtendedInput as _;
+use crate::tab::markdown_editor::input::Event;
 use crate::theme::palette_v2::{Mode, Theme, ThemeExt as _};
 use crate::workspace::Workspace;
 
@@ -14,28 +15,24 @@ pub struct TestWs {
     pub ws: Workspace,
     pub ctx: Context,
     pub size: egui::Vec2,
+    /// The cursor the last frame asked for.
+    pub cursor: egui::CursorIcon,
+    /// Editor input for the next frame.
+    pending: Vec<Event>,
 }
 
 pub fn test_lb() -> Lb {
-    let core = Lb::init(Config {
-        writeable_path: format!("/tmp/lb-ws-test/{}", Uuid::new_v4()),
-        logs: false,
-        stdout_logs: false,
-        colored_logs: false,
-        background_work: false,
-        client_name: "tests".into(),
-        build_info: None,
-        client_type: lb_rs::model::core_config::ClientType::Unknown,
-        ..Default::default()
-    })
-    .unwrap();
-    let url = std::env::var("API_URL").unwrap_or_else(|_| "http://localhost:8000".into());
+    let core = crate::test_utils::in_memory_core();
     let name = format!("ws{}", Uuid::new_v4().simple())
         .chars()
         .take(30)
         .collect::<String>();
-    core.create_account(&name, &url, false).unwrap();
+    core.create_account(&name, &api_url(), false).unwrap();
     core
+}
+
+fn api_url() -> String {
+    std::env::var("API_URL").unwrap_or_else(|_| "http://localhost:8000".into())
 }
 
 pub fn test_ctx() -> Context {
@@ -50,9 +47,28 @@ pub fn test_ctx() -> Context {
 
 impl TestWs {
     pub fn new() -> Self {
+        Self::on(&test_lb())
+    }
+
+    /// A workspace on `core`'s account.
+    pub fn on(core: &Lb) -> Self {
         let ctx = test_ctx();
-        let ws = Workspace::new(&test_lb(), &ctx, false, None);
-        Self { ws, ctx, size: vec2(800.0, 600.0) }
+        let ws = Workspace::new(core, &ctx, false, None);
+        Self { ws, ctx, size: vec2(800.0, 600.0), cursor: Default::default(), pending: vec![] }
+    }
+
+    /// Editor input, delivered with the next frame.
+    pub fn push(&mut self, event: Event) {
+        self.pending.push(event);
+    }
+
+    /// Another device on this workspace's account, synced.
+    pub fn other_device(&self) -> Lb {
+        let other = crate::test_utils::in_memory_core();
+        let key = self.ws.core.export_account_private_key().unwrap();
+        other.import_account(&key, Some(&api_url())).unwrap();
+        other.sync().unwrap();
+        other
     }
 
     /// A document at the root with `text`.
@@ -74,21 +90,46 @@ impl TestWs {
     }
 
     pub fn frame_with(&mut self, events: Vec<egui::Event>) -> crate::Response {
+        self.frame_at(None, events)
+    }
+
+    /// A frame `idle` seconds after the last, with `events`.
+    pub fn frame_after(&mut self, idle: f64, events: Vec<egui::Event>) -> crate::Response {
+        let time = self.ctx.input(|i| i.time) + idle;
+        self.frame_at(Some(time), events)
+    }
+
+    fn frame_at(&mut self, time: Option<f64>, events: Vec<egui::Event>) -> crate::Response {
         let input = RawInput {
             screen_rect: Some(Rect::from_min_size(pos2(0.0, 0.0), self.size)),
             events,
+            time,
             ..Default::default()
         };
         let mut out = None;
-        self.ctx
-            .run_pass(input, |ctx| {
-                ctx.root_ui(|ui| {
-                    egui::CentralPanel::default().show(ui, |ui| out = Some(self.ws.show(ui)))
-                });
-            })
-            .textures_delta
-            .clear();
+        let pending = std::mem::take(&mut self.pending);
+        let mut full = self.ctx.run_pass(input, |ctx| {
+            for event in &pending {
+                ctx.push_markdown_event(event.clone());
+            }
+            ctx.root_ui(|ui| {
+                egui::CentralPanel::default().show(ui, |ui| out = Some(self.ws.show(ui)))
+            });
+        });
+        full.textures_delta.clear();
+        self.cursor = full.platform_output.cursor_icon;
         out.unwrap()
+    }
+
+    /// Frames until no load or save of `id` is pending.
+    pub fn idle(&mut self, id: Uuid) {
+        let start = Instant::now();
+        self.frame();
+        while self.ws.tasks.busy(id) {
+            assert!(start.elapsed() < Duration::from_secs(10), "{id} never went idle");
+            std::thread::sleep(Duration::from_millis(2));
+            self.frame();
+        }
     }
 
     /// Frames until the current tab is settled.

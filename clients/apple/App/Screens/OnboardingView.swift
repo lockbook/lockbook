@@ -49,6 +49,7 @@ struct OnboardingView: View {
             .padding(.top, 35)
             .padding(.bottom)
             .padding(.horizontal)
+            .onboardingColumn()
         }
     }
 
@@ -62,6 +63,13 @@ struct OnboardingView: View {
         #else
             .padding(.leading)
         #endif
+    }
+}
+
+private extension View {
+    func onboardingColumn() -> some View {
+        frame(maxWidth: 540, maxHeight: 820)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 }
 
@@ -158,6 +166,7 @@ private struct OnboardingTwoView: View {
         .padding(.top, 35)
         .padding(.bottom)
         .padding(.horizontal, 25)
+        .onboardingColumn()
         .navigationDestination(isPresented: $createdAccount, destination: {
             OnboardingThreeView()
         })
@@ -238,6 +247,7 @@ private struct OnboardingThreeView: View {
                 .frame(minHeight: geometry.size.height)
             }
         }
+        .onboardingColumn()
         .navigationBarBackButtonHidden()
     }
 
@@ -339,6 +349,7 @@ private struct ImportAccountView: View {
         .padding(.top, 35)
         .padding(.bottom)
         .padding(.horizontal, 25)
+        .onboardingColumn()
         .navigationDestination(isPresented: $importedAccount, destination: {
             ImportAccountSyncView()
         })
@@ -483,6 +494,7 @@ struct ImportAccountSyncView: View {
         .padding(.top, 35)
         .padding(.bottom)
         .padding(.horizontal, 25)
+        .onboardingColumn()
         .navigationBarBackButtonHidden()
     }
 }

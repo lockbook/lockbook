@@ -9,6 +9,8 @@ use super::access_info::{EncryptedFolderAccessKey, UserAccessInfo, UserAccessMod
 use super::account::Account;
 use super::clock::get_time;
 use super::crypto::AESKey;
+use super::entropy::Entropy;
+use super::file_like::FileLike;
 use super::file_metadata::{DocumentHmac, FileType, Owner};
 use super::secret_filename::SecretFileName;
 use super::signed_meta::SignedMeta;
@@ -28,12 +30,35 @@ pub enum Meta {
         user_access_keys: Vec<UserAccessInfo>,
         folder_access_key: EncryptedFolderAccessKey,
     },
+    /// An attachments folder: V1's fields and the document it belongs to. Only attachments
+    /// folders are written as V2, so every other file stays readable by V1 clients.
+    V2 {
+        id: Uuid,
+        file_type: FileType,
+        parent: Uuid,
+        name: SecretFileName,
+        owner: Owner,
+        is_deleted: bool,
+        doc_size: Option<usize>,
+        doc_hmac: Option<DocumentHmac>,
+        user_access_keys: Vec<UserAccessInfo>,
+        folder_access_key: EncryptedFolderAccessKey,
+        attachments_of: AttachmentsOf,
+    },
+}
+
+/// The document an attachments folder belongs to, and the folder's key encrypted with that
+/// document's key, so whoever can read the document can decrypt the folder without its parent.
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+pub struct AttachmentsOf {
+    pub id: Uuid,
+    pub key: EncryptedFolderAccessKey,
 }
 
 impl Meta {
-    pub fn create_root(account: &Account) -> LbResult<Self> {
-        let id = Uuid::new_v4();
-        let key = symkey::generate_key();
+    pub fn create_root(account: &Account, entropy: &Entropy) -> LbResult<Self> {
+        let id = entropy.id();
+        let key = entropy.key();
         let pub_key = account.public_key();
 
         Ok(Meta::V1 {
@@ -74,45 +99,94 @@ impl Meta {
         })
     }
 
+    /// This new folder, as `attachments_of`'s attachments folder.
+    pub fn into_attachments(self, attachments_of: AttachmentsOf) -> Self {
+        match self {
+            Meta::V1 {
+                id,
+                file_type,
+                parent,
+                name,
+                owner,
+                is_deleted,
+                doc_size,
+                doc_hmac,
+                user_access_keys,
+                folder_access_key,
+            }
+            | Meta::V2 {
+                id,
+                file_type,
+                parent,
+                name,
+                owner,
+                is_deleted,
+                doc_size,
+                doc_hmac,
+                user_access_keys,
+                folder_access_key,
+                ..
+            } => Meta::V2 {
+                id,
+                file_type,
+                parent,
+                name,
+                owner,
+                is_deleted,
+                doc_size,
+                doc_hmac,
+                user_access_keys,
+                folder_access_key,
+                attachments_of,
+            },
+        }
+    }
+
     pub fn set_parent(&mut self, new_parent: Uuid) {
         match self {
-            Meta::V1 { parent, .. } => *parent = new_parent,
+            Meta::V1 { parent, .. } | Meta::V2 { parent, .. } => *parent = new_parent,
         }
     }
 
     pub fn set_name(&mut self, new_name: SecretFileName) {
         match self {
-            Meta::V1 { name, .. } => *name = new_name,
+            Meta::V1 { name, .. } | Meta::V2 { name, .. } => *name = new_name,
         }
     }
 
     pub fn set_owner(&mut self, new_owner: Owner) {
         match self {
-            Meta::V1 { owner, .. } => *owner = new_owner,
+            Meta::V1 { owner, .. } | Meta::V2 { owner, .. } => *owner = new_owner,
         }
     }
 
     pub fn set_deleted(&mut self, new_is_deleted: bool) {
         match self {
-            Meta::V1 { is_deleted, .. } => *is_deleted = new_is_deleted,
+            Meta::V1 { is_deleted, .. } | Meta::V2 { is_deleted, .. } => {
+                *is_deleted = new_is_deleted
+            }
         }
     }
 
     pub fn set_folder_access_keys(&mut self, new_keys: EncryptedFolderAccessKey) {
         match self {
-            Meta::V1 { folder_access_key, .. } => *folder_access_key = new_keys,
+            Meta::V1 { folder_access_key, .. } | Meta::V2 { folder_access_key, .. } => {
+                *folder_access_key = new_keys
+            }
         }
     }
 
     pub fn user_access_keys_mut(&mut self) -> &mut Vec<UserAccessInfo> {
         match self {
-            Meta::V1 { user_access_keys, .. } => user_access_keys,
+            Meta::V1 { user_access_keys, .. } | Meta::V2 { user_access_keys, .. } => {
+                user_access_keys
+            }
         }
     }
 
     pub fn set_hmac_and_size(&mut self, new_hmac: Option<DocumentHmac>, new_size: Option<usize>) {
         match self {
-            Meta::V1 { doc_hmac, doc_size, .. } => {
+            Meta::V1 { doc_hmac, doc_size, .. } | Meta::V2 { doc_hmac, doc_size, .. } => {
                 *doc_hmac = new_hmac;
                 *doc_size = new_size;
             }
@@ -121,20 +195,20 @@ impl Meta {
 
     pub fn set_type(&mut self, new_type: FileType) {
         match self {
-            Meta::V1 { file_type, .. } => *file_type = new_type,
+            Meta::V1 { file_type, .. } | Meta::V2 { file_type, .. } => *file_type = new_type,
         }
     }
 
     pub fn set_id(&mut self, new_id: Uuid) {
         match self {
-            Meta::V1 { id, .. } => *id = new_id,
+            Meta::V1 { id, .. } | Meta::V2 { id, .. } => *id = new_id,
         }
     }
 
     // todo move to FileLike when possible
     pub fn doc_size(&self) -> &Option<usize> {
         match self {
-            Meta::V1 { doc_size, .. } => doc_size,
+            Meta::V1 { doc_size, .. } | Meta::V2 { doc_size, .. } => doc_size,
         }
     }
 
@@ -147,48 +221,21 @@ impl Meta {
     }
 }
 
-// This is impl'd to avoid comparing encrypted values
+// Impl'd to avoid comparing encrypted values that are re-encrypted without changing. A V1 never
+// equals a V2. attachments_of is compared whole: its key is never re-encrypted, and a change to it
+// must never pass for no change.
 impl PartialEq for Meta {
     fn eq(&self, other: &Self) -> bool {
-        match (self, other) {
-            (
-                Meta::V1 {
-                    id,
-                    file_type,
-                    parent,
-                    name,
-                    owner,
-                    is_deleted,
-                    doc_hmac,
-                    user_access_keys,
-                    // todo: verify that ignoring this is intentional
-                    folder_access_key: _,
-                    doc_size,
-                },
-                Meta::V1 {
-                    id: other_id,
-                    file_type: other_file_type,
-                    parent: other_parent,
-                    name: other_name,
-                    owner: other_owner,
-                    is_deleted: other_is_deleted,
-                    doc_hmac: other_doc_hmac,
-                    user_access_keys: other_user_access_keys,
-                    // todo: verify that ignoring this is intentional
-                    folder_access_key: _other_folder_access_key,
-                    doc_size: other_doc_size,
-                },
-            ) => {
-                id == other_id
-                    && file_type == other_file_type
-                    && parent == other_parent
-                    && name == other_name
-                    && owner == other_owner
-                    && is_deleted == other_is_deleted
-                    && doc_hmac == other_doc_hmac
-                    && user_access_keys == other_user_access_keys
-                    && doc_size == other_doc_size
-            }
-        }
+        // todo: verify that ignoring folder_access_key is intentional
+        self.id() == other.id()
+            && self.file_type() == other.file_type()
+            && self.parent() == other.parent()
+            && self.secret_name() == other.secret_name()
+            && self.owner() == other.owner()
+            && self.explicitly_deleted() == other.explicitly_deleted()
+            && self.document_hmac() == other.document_hmac()
+            && self.user_access_keys() == other.user_access_keys()
+            && self.doc_size() == other.doc_size()
+            && self.attachments_of() == other.attachments_of()
     }
 }

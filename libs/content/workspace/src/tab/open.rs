@@ -65,6 +65,11 @@ pub fn region_key(dest: &Destination, fragment: Option<&Fragment>, width: f32) -
     Some(format!("{dest}|{}|{}", fragment.unwrap_or_default(), width.round() as i32))
 }
 
+/// Whether `bytes` are text the editor can show and save back.
+pub fn is_text(bytes: &[u8]) -> bool {
+    content_inspector::inspect(bytes).is_text()
+}
+
 impl TabResources {
     /// The height `fragment`'s region had at `width` when last measured
     /// settled, so a slot lays out right before its tab loads.
@@ -147,6 +152,12 @@ impl TabContent {
                     res.images.clone(),
                 )));
             }
+            Destination::Formula(formula) => {
+                return Ok(TabContent::Image(ImageViewer::formula(
+                    formula.clone(),
+                    res.images.clone(),
+                )));
+            }
         };
         if doc.is_none() && res.is_image(id) {
             return Ok(TabContent::Image(ImageViewer::new(id, res.images.clone())));
@@ -162,13 +173,10 @@ impl TabContent {
             .next_back()
             .unwrap_or_default()
             .to_owned();
-        let as_source = doc_type == DocType::SVG && res.persistence.get_source();
-        let is_text = (as_source
-            || matches!(
-                doc_type,
-                DocType::PlainText | DocType::Markdown | DocType::Code | DocType::Unknown
-            ))
-            && content_inspector::inspect(&doc.bytes).is_text();
+        let is_text = matches!(
+            doc_type,
+            DocType::PlainText | DocType::Markdown | DocType::Code | DocType::Unknown
+        ) && is_text(&doc.bytes);
         let text = is_text.then_some(doc_type == DocType::Markdown);
         if let Some(refusal) = res.guard.refusal(id, &doc.bytes, text) {
             tracing::warn!(%id, ?refusal, "refusing to open");
@@ -184,9 +192,10 @@ impl TabContent {
             DocType::PDF => {
                 let mut pdf = PdfViewer::new(id, bytes, &res.ctx);
                 pdf.salt = salt;
+                pdf.link_url = res.core.get_file_link_url(id).ok();
                 Ok(TabContent::Pdf(pdf))
             }
-            DocType::SVG if !as_source => Ok(TabContent::Svg(SVGEditor::new(
+            DocType::SVG => Ok(TabContent::Svg(SVGEditor::new(
                 &bytes,
                 &res.ctx,
                 Box::new(res.core.clone()),
@@ -245,7 +254,7 @@ impl TabContent {
     pub fn reload(&mut self, hmac: Option<DocumentHmac>, bytes: &[u8]) -> bool {
         match self {
             TabContent::Markdown(md) => {
-                md.apply_disk_version(String::from_utf8_lossy(bytes).into(), hmac);
+                md.reload(String::from_utf8_lossy(bytes).into(), hmac);
                 true
             }
             TabContent::Svg(svg) => {

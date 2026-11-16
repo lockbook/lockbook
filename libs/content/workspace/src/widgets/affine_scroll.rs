@@ -620,6 +620,12 @@ pub enum ScrollbarHit {
 
 const MIN_THUMB_PX: f32 = 12.0;
 
+/// How fast a coast slows: its speed falls by e every quarter second.
+pub const COAST_DECAY_PER_SEC: f32 = 4.0;
+/// Below this speed, in points a second, a coast stops: half a point a frame
+/// at 60 fps, too slow to see, and a touch then is a touch, not a stop.
+pub const COAST_STOP: f32 = 30.0;
+
 // ============================================================================
 // ScrollArea — the math-only widget core
 // ============================================================================
@@ -1162,7 +1168,7 @@ impl<Id: Clone + Eq + std::fmt::Debug> AffineScrollArea<Id> {
     }
 
     pub fn is_coasting(&self) -> bool {
-        self.state.velocity_precise.abs() > 1.0 || self.gesture_fling.is_some()
+        self.state.velocity_precise.abs() > COAST_STOP || self.gesture_fling.is_some()
     }
 
     /// Touch-scroll velocity (precise px/sec). y is vertical; x is
@@ -1290,7 +1296,7 @@ impl<Id: Clone + Eq + std::fmt::Debug> AffineScrollArea<Id> {
         let dt = ui.input(|i| i.stable_dt).max(0.0001);
         // Read before the kills below: a press on the drag-only body fires
         // `drag_started`, which zeroes velocity in `kill_momentum`.
-        let momentum_in_flight = self.state.velocity_precise.abs() > 1.0;
+        let momentum_in_flight = self.state.velocity_precise.abs() > COAST_STOP;
         if scrollable && self.touch_scroll && response.drag_started() {
             self.state.kill_momentum();
         }
@@ -1310,8 +1316,7 @@ impl<Id: Clone + Eq + std::fmt::Debug> AffineScrollArea<Id> {
             self.state
                 .handle(rows, Action::ScrollByPixels(precise_delta));
             self.state.record_drag_sample(precise_delta, dt);
-        } else if self.state.velocity_precise.abs() > 1.0 && !response.dragged() {
-            const DECAY_PER_SEC: f32 = 4.0;
+        } else if self.state.velocity_precise.abs() > COAST_STOP && !response.dragged() {
             let precise_step = self.state.velocity_precise * dt;
             let before = self.state.offset(rows);
             self.state
@@ -1320,7 +1325,7 @@ impl<Id: Clone + Eq + std::fmt::Debug> AffineScrollArea<Id> {
             if before == after {
                 self.state.velocity_precise = 0.0;
             } else {
-                self.state.velocity_precise *= (-DECAY_PER_SEC * dt).exp();
+                self.state.velocity_precise *= (-COAST_DECAY_PER_SEC * dt).exp();
             }
             ui.ctx().request_repaint();
         } else {

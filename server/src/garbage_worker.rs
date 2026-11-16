@@ -49,15 +49,15 @@ where
         for ((id, hmac), time) in files {
             if get_time().0 - time > 1000 * 60 * 5 {
                 cleaned += 1;
-                if let Err(e) = self.document_service.delete::<()>(id, hmac).await {
+                if let Err(e) = self.document_service.delete(*id, *hmac).await {
                     error!(
                         "failed to garbage collect {:?} {e:?}",
-                        self.document_service.get_path(id, hmac)
+                        self.document_service.get_path(*id, *hmac)
                     );
                 } else {
                     remove.push((*id, *hmac));
                 }
-                debug!("garbage collected: {:?}", self.document_service.get_path(id, hmac));
+                debug!("garbage collected: {:?}", self.document_service.get_path(*id, *hmac));
             } else {
                 skipped += 1;
             }

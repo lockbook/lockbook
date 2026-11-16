@@ -54,7 +54,7 @@ struct PinnedDocumentsProvider: TimelineProvider {
                 return
             }
 
-            let core = lb_init(directory.path, "widgets", BuildInfo.identity, true, false)
+            let core = lb_init_read_only(directory.path, "widgets", BuildInfo.identity, true)
             defer { lb_free_init(core) }
 
             guard core.err == nil else {
@@ -190,7 +190,6 @@ struct PinnedDocumentsWidgetView: View {
 struct LockbookWidgets: WidgetBundle {
     var body: some Widget {
         PinnedDocumentsWidget()
-        FolderActionsWidget()
     }
 }
 
