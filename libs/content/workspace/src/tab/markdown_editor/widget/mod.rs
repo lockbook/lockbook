@@ -140,7 +140,7 @@ impl<'ast> MdRender {
                 if matches!(value, NodeValue::Link(_) | NodeValue::Image(_)) {
                     let parent = node.parent().unwrap();
                     let follows = match node.next_sibling() {
-                        Some(next) => Some(self.sourcepos_to_range(next.data.borrow().sourcepos).0),
+                        Some(next) => Some(self.inline_start_past_break(next)),
                         None if matches!(parent.data.borrow().value, NodeValue::Paragraph) => {
                             Some(self.node_range(parent).1)
                         }
@@ -160,6 +160,39 @@ impl<'ast> MdRender {
         // Cache the result before returning
         self.set_cached_node_range(node, range);
         range
+    }
+
+    /// Where an inline after a line break inside the inline before it starts.
+    /// comrak keeps that break's line and counts on through the block's text,
+    /// so a column past the line's end runs onto the next lines, each past
+    /// its container prefix (a quote's `> `).
+    fn inline_start_past_break(&self, node: &'ast AstNode<'ast>) -> Grapheme {
+        let start = node.data.borrow().sourcepos.start;
+        let block = node.ancestors().find(|n| n.data.borrow().value.block());
+        let lines = &self.bounds.source_lines;
+        let mut i = start.line.saturating_sub(1);
+        let mut column = start.column.saturating_sub(1);
+        while let (Some(&line), Some(&next), Some(block)) = (lines.get(i), lines.get(i + 1), block)
+        {
+            // past the line's end and its separator (`\n`, `\r\n` or `\r`)
+            let len = (self.offset_to_byte(line.end()) - self.offset_to_byte(line.start())).0;
+            if column <= len {
+                break;
+            }
+            let content = self.node_line(block, next).start();
+            let prefix = (self.offset_to_byte(content) - self.offset_to_byte(next.start())).0;
+            let separator = (self.offset_to_byte(next.start()) - self.offset_to_byte(line.end())).0;
+            column = column - len - separator + prefix;
+            i += 1;
+        }
+        match lines.get(i) {
+            // comrak's byte can land inside a cluster, as `)` with a combining mark after it
+            Some(line) => {
+                let byte = self.offset_to_byte(line.start()) + column;
+                self.buffer.current.segs.byte_to_char_ceil(byte)
+            }
+            None => self.sourcepos_to_range(node.data.borrow().sourcepos).0,
+        }
     }
 
     /// Creates a UI that assigns ids using the node's start.
