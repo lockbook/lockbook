@@ -407,6 +407,34 @@ fn a_quoted_image_whose_link_spans_a_line_is_whole() {
 }
 
 #[test]
+fn the_text_after_a_quoted_link_spanning_a_line_draws_once() {
+    for (md, tail) in [
+        (format!("> ![b]({IMAGE}\n> ) c\n"), "b c"),
+        (format!("> ![b]({IMAGE}\n> ) c *d* e\n"), "b c d e"),
+        ("> [b](x\n> ) c\n".to_string(), "b c"),
+        ("> > [b](x\n> > ) c\n".to_string(), "b c"),
+        (">\t[b](x\n>\t) c\n".to_string(), "b c"),
+        ("> [b](x\n>\t) c\n".to_string(), "b c"),
+        ("> [b](x\n> \"t\"\n> ) c\n".to_string(), "b c"),
+    ] {
+        let ws = editor(&md);
+        let r = &ws.editor.edit.renderer;
+        let mut drawn: Vec<_> = r
+            .fragments
+            .iter()
+            .filter(|f| matches!(f.content, FragmentContent::Glyphs { .. }))
+            .map(|f| f.source_range)
+            .collect();
+        drawn.sort();
+        for pair in drawn.windows(2) {
+            assert!(pair[0].1 <= pair[1].0, "{md:?} draws {pair:?} over each other");
+        }
+        let text: String = drawn.iter().map(|&range| &r.buffer[range]).collect();
+        assert!(text.ends_with(tail), "{md:?} draws {text:?}");
+    }
+}
+
+#[test]
 fn a_quoted_image_whose_link_spans_crlf_lines_is_whole() {
     let ws = editor(&format!("> ![b]({IMAGE}\r\n> ) c\r\n"));
     let mut fragments = ws.editor.edit.renderer.fragments.iter();
