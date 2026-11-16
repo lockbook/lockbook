@@ -40,6 +40,7 @@ use std::sync::mpsc;
 use std::sync::{Arc, Mutex};
 
 use egui::{Area, CentralPanel, Frame, Id, Order, Panel};
+use egui_wgpu_renderer::frame_phase;
 use lb::Uuid;
 use lb::service::events::{self, Event};
 use workspace_rs::file_cache::FilesExt;
@@ -311,6 +312,7 @@ impl ShellApp {
     }
 
     pub fn ui(&mut self, ctx: &egui::Context) {
+        frame_phase(ctx, "shell: session, events and keys");
         components::install(ctx);
         // F2 = space overlay (rename is context menu, so no conflict).
         handle_toggle_shortcut(ctx);
@@ -433,11 +435,13 @@ impl ShellApp {
             Session::Ready(_) => {}
         }
 
+        frame_phase(ctx, "shell: modals");
         settings::end_hidden_theme_preview(self, ctx, &mut queue);
         if self.modal.is_some() {
             sheets::show_modals(self, ctx, &t, &mut queue);
         }
 
+        frame_phase(ctx, "shell: sidebar");
         let show_side = self.product_open() && self.sidebar_open && !self.defaults_zen();
 
         // One SidePanel: slide its contents (right edge glued to visible width).
@@ -486,6 +490,7 @@ impl ShellApp {
             sidebar::paint_split_line(ctx, &t, titlebar::HEADER_H);
         }
 
+        frame_phase(ctx, "shell: workspace");
         ctx.root_ui(|root| {
             CentralPanel::default()
                 .frame(Frame::new().fill(t.neutral_bg()).inner_margin(0.0))
@@ -504,8 +509,10 @@ impl ShellApp {
                 });
         });
 
+        frame_phase(ctx, "shell: titlebar");
         titlebar::show(self, ctx, &t, &mut queue);
 
+        frame_phase(ctx, "shell: actions");
         for a in queue {
             apply::apply(self, ctx, a);
         }
@@ -515,6 +522,7 @@ impl ShellApp {
         // Do **not** call `core.status()` every frame.
 
         // After apply so same-frame failures (rename, share, …) paint this pass.
+        frame_phase(ctx, "shell: toasts");
         self.toasts.show(ctx, &t);
     }
 
