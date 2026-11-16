@@ -310,9 +310,8 @@ impl Session {
 /// `after` is `before` with the image at `image` moved to `to`: cut with
 /// the markers of each style it leaves empty, as the editor parses
 /// `before`, and pasted at `to`. A drop strictly inside that cut moves
-/// nothing. A cut that opens a table row written without a leading pipe
-/// may leave the row that pipe, so that the rest of the row keeps its
-/// cells.
+/// nothing. A table is compared by its cells, since a cut out of a row may
+/// rewrite the pipes and padding around them so the row keeps its cells.
 fn drop_moved(
     before: &str, after: &str, image: (Grapheme, Grapheme), to: Grapheme,
 ) -> Result<(), String> {
@@ -320,31 +319,78 @@ fn drop_moved(
     let byte = |i: usize| g[..i].concat().len();
     let text = g[image.0.0..image.1.0].concat();
     let bytes = byte(image.0.0)..byte(image.1.0);
-    let parsed = super::interleave::images(before)
+    let cut = super::interleave::images(before)
         .into_iter()
-        .find(|i| i.range == bytes);
-    let row = parsed.as_ref().and_then(|i| i.row);
-    let cut = parsed.and_then(|i| i.emptied).unwrap_or(bytes);
-    let (to, cut) = (byte(to.0), (cut.start, cut.end));
-    if cut.0 < to && to < cut.1 {
+        .find(|i| i.range == bytes)
+        .and_then(|i| i.emptied)
+        .unwrap_or(bytes);
+    let to = byte(to.0);
+    if cut.start < to && to < cut.end {
         if after != before {
             return Err(format!("{text:?} dropped onto itself moved: {after:?}"));
         }
         return Ok(());
     }
-    let opens_row = row.is_some_and(|s| s <= cut.0 && before[s..cut.0].trim().is_empty());
-    let left = if opens_row { vec!["", "|"] } else { vec![""] };
-    let expected = |left: &str| {
-        if to <= cut.0 {
-            [&before[..to], &text, &before[to..cut.0], left, &before[cut.1..]].concat()
-        } else {
-            [&before[..cut.0], left, &before[cut.1..to], &text, &before[to..]].concat()
-        }
-    };
-    if !left.into_iter().any(|left| after == expected(left)) {
+    // the image pasted, then cut from where it was
+    let pasted = [&before[..to], &text, &before[to..]].concat();
+    let cut = if to <= cut.start { cut.start + text.len()..cut.end + text.len() } else { cut };
+    if shape(after, 0..0) != shape(&pasted, cut) {
         return Err(format!("{text:?} dropped at byte {to} isn't there: {after:?}"));
     }
     Ok(())
+}
+
+/// A note's text outside its tables, and inside them each cell's text.
+#[derive(Debug, PartialEq)]
+enum Shape {
+    Text(String),
+    Table {
+        alignments: Vec<comrak::nodes::TableAlignment>,
+        /// Each cell's text, trimmed.
+        rows: Vec<Vec<String>>,
+        /// What the table's lines have outside its cells, but for pipes,
+        /// delimiters and spaces: the text of a cell beyond the header's.
+        rest: String,
+    },
+}
+
+/// The [`Shape`] of `md` without the bytes in `cut`.
+fn shape(md: &str, cut: Range<usize>) -> Vec<Shape> {
+    let text = |r: Range<usize>| -> String {
+        md[r.clone()]
+            .char_indices()
+            .filter(|(i, _)| !cut.contains(&(r.start + i)))
+            .map(|(_, c)| c)
+            .collect()
+    };
+    let mut shape = Vec::new();
+    let mut at = 0;
+    for table in super::interleave::tables(md) {
+        shape.push(Shape::Text(text(at..table.lines.start)));
+        let cells: Vec<Range<usize>> = table.rows.iter().flatten().flatten().cloned().collect();
+        let lines = table.lines.clone();
+        let rest = md[lines.clone()]
+            .char_indices()
+            .map(|(i, c)| (lines.start + i, c))
+            .filter(|(i, c)| {
+                !cut.contains(i) && !cells.iter().any(|r| r.contains(i)) && !"|-: \t".contains(*c)
+            })
+            .map(|(_, c)| c)
+            .collect();
+        let rows = table
+            .rows
+            .into_iter()
+            .map(|row| {
+                row.into_iter()
+                    .map(|cell| cell.map_or(String::new(), |r| text(r).trim().to_string()))
+                    .collect()
+            })
+            .collect();
+        shape.push(Shape::Table { alignments: table.alignments, rows, rest });
+        at = table.lines.end;
+    }
+    shape.push(Shape::Text(text(at..md.len())));
+    shape
 }
 
 /// A byte offset in `text` where `marker` can go: outside any marker, and
@@ -664,12 +710,19 @@ fn drop_moved_cases() {
     // an image opening a row without a leading pipe may leave the row one
     let pipeless = "p\n\n ![a](a.png) | b\n --- | --- \n";
     drop(pipeless, (4, 15), 1, "p![a](a.png)\n\n | | b\n --- | --- \n").unwrap();
-    drop(pipeless, (4, 15), 1, "p![a](a.png)\n\n  | b\n --- | --- \n").unwrap();
-    drop(pipeless, (4, 15), 1, "p![a](a.png)\n\n || b\n --- | --- \n").unwrap_err();
-    // a row that has its own pipe is left none
+    // but not cells shifted left, the cut cell gone
+    drop(pipeless, (4, 15), 1, "p![a](a.png)\n\n  | b\n --- | --- \n").unwrap_err();
+    // a row's cells are compared, not the pipes and padding around them
     let piped = "p\n\n| ![a](a.png) | b |\n| --- | --- |\n";
     drop(piped, (5, 16), 1, "p![a](a.png)\n\n|  | b |\n| --- | --- |\n").unwrap();
+    drop(piped, (5, 16), 1, "p![a](a.png)\n\n||b\n| --- | --- |\n").unwrap();
+    // nor a cell added past the header's, its text beyond the table's columns
     drop(piped, (5, 16), 1, "p![a](a.png)\n\n| | | b |\n| --- | --- |\n").unwrap_err();
+    // nor a cell's text changed
+    drop(piped, (5, 16), 1, "p![a](a.png)\n\n|  | c |\n| --- | --- |\n").unwrap_err();
+    // a row's last cell left without a trailing pipe may be given one
+    let open = "p\n\n| b | ![a](a.png) \n| --- | --- \n";
+    drop(open, (9, 20), 1, "p![a](a.png)\n\n| b |  |\n| --- | --- \n").unwrap();
 }
 
 /// What the editor writes for a drop out of a table row written without a
@@ -694,7 +747,7 @@ fn drop_moved_out_of_a_pipeless_row() {
 /// What the editor writes for a drop out of the last cell of a table row
 /// written without a trailing pipe, which the image fills, passes the drop
 /// check: the shapes `gen_table` makes with a leading pipe only, and with
-/// neither.
+/// neither, and a row without pipes or padding.
 #[test]
 fn drop_moved_out_of_a_rows_last_cell_without_a_trailing_pipe() {
     use super::super::super::input::Event;
@@ -704,6 +757,7 @@ fn drop_moved_out_of_a_rows_last_cell_without_a_trailing_pipe() {
         format!("para\n\n| a | {image} \n| --- | --- \n"),
         format!("para\n\n| a | _{image}_ \n| --- | --- \n"),
         format!("para\n\n a | {image} \n --- | --- \n"),
+        format!("para\n\n{image}|b\n---|---\n"),
     ] {
         let mut ws = TestEditor::new(&before);
         ws.enter_frame();

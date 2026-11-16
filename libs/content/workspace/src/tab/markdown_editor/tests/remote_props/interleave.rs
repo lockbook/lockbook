@@ -698,8 +698,6 @@ pub(super) struct Image {
     /// Whether it opens a table row written without a leading pipe: only
     /// indentation is between the row's start and the image.
     opens_row: bool,
-    /// Where its table row starts, if it is in one.
-    pub(super) row: Option<usize>,
     /// The bytes of the outermost of the styles around it that hold nothing
     /// else, if any.
     pub(super) emptied: Option<std::ops::Range<usize>>,
@@ -722,9 +720,9 @@ pub(super) fn images(md: &str) -> Vec<Image> {
             let range = bytes(n);
             let row = n
                 .ancestors()
-                .find(|a| matches!(a.data.borrow().value, NodeValue::TableRow(_)))
-                .map(|row| bytes(row).start);
-            let opens_row = row.is_some_and(|start| {
+                .find(|a| matches!(a.data.borrow().value, NodeValue::TableRow(_)));
+            let opens_row = row.is_some_and(|row| {
+                let start = bytes(row).start;
                 start <= range.start && md[start..range.start].trim().is_empty()
             });
             let mut filled = n;
@@ -747,7 +745,54 @@ pub(super) fn images(md: &str) -> Vec<Image> {
                 filled = style;
             }
             let emptied = (!std::ptr::eq(filled, n)).then(|| bytes(filled));
-            Image { range, opens_row, row, emptied }
+            Image { range, opens_row, emptied }
+        })
+        .collect()
+}
+
+/// A table in a note as the editor parses it.
+pub(super) struct Table {
+    /// Its lines, whole.
+    pub(super) lines: std::ops::Range<usize>,
+    /// Its columns' alignments.
+    pub(super) alignments: Vec<comrak::nodes::TableAlignment>,
+    /// Each row's cells: the bytes from the first of a cell's contents to
+    /// the last, or none for a cell the row is short of.
+    pub(super) rows: Vec<Vec<Option<std::ops::Range<usize>>>>,
+}
+
+/// The tables in `md` as the editor parses it.
+pub(super) fn tables(md: &str) -> Vec<Table> {
+    let mut ws = TestEditor::with_lb(lb(), md);
+    let arena = super::super::super::Arena::new();
+    let r = &mut ws.editor.edit.renderer;
+    let root = r.reparse(&arena);
+    let segs = &r.buffer.current.segs;
+    let bytes = |n| {
+        let (a, b) = segs.range_to_byte(r.node_range(n));
+        a.0..b.0
+    };
+    root.descendants()
+        .filter_map(|n| {
+            let NodeValue::Table(table) = &n.data.borrow().value else { return None };
+            let alignments = table.alignments.clone();
+            let range = bytes(n);
+            let start = md[..range.start].rfind('\n').map_or(0, |i| i + 1);
+            let end = md[range.end..]
+                .find('\n')
+                .map_or(md.len(), |i| range.end + i);
+            let rows = n
+                .children()
+                .map(|row| {
+                    row.children()
+                        .map(|cell| {
+                            let (first, last) = (cell.first_child()?, cell.last_child()?);
+                            Some(bytes(first).start..bytes(last).end)
+                        })
+                        .collect()
+                })
+                .collect();
+            Some(Table { lines: start..end, alignments, rows })
         })
         .collect()
 }
