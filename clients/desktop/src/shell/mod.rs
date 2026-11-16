@@ -99,6 +99,8 @@ pub struct ShellApp {
     /// Derived Shared lists; same epoch rule.
     pub shared_cache: SharedCache,
     theme_applied: bool,
+    /// The option settings shows in place of its saved one while it's hovered.
+    pub preview: Option<crate::settings::Look>,
     /// Debounced per-file sync dots (Files tree only).
     pub sync_dots: sync_dots::SyncDots,
     /// Footer stable message + spin-after-tap.
@@ -176,6 +178,7 @@ impl Default for ShellApp {
             recents_cache: RecentsCache::default(),
             shared_cache: SharedCache::default(),
             theme_applied: false,
+            preview: None,
             sync_dots: sync_dots::SyncDots::default(),
             sync_footer: footer::SyncFooterState::default(),
             session_stress: std::env::var_os("LOCKBOOK_SESSION_STRESS").map(|_| SessionStress {
@@ -433,7 +436,6 @@ impl ShellApp {
             Session::Ready(_) => {}
         }
 
-        settings::end_hidden_theme_preview(self, ctx, &mut queue);
         if self.modal.is_some() {
             sheets::show_modals(self, ctx, &t, &mut queue);
         }
@@ -509,6 +511,7 @@ impl ShellApp {
         for a in queue {
             apply::apply(self, ctx, a);
         }
+        settings::end_hidden_preview(self, ctx);
 
         self.session_stress_tick(ctx);
 
@@ -601,16 +604,39 @@ impl ShellApp {
             return;
         }
         self.theme_applied = true;
-        set_mode_preference(ctx, self.settings.theme_mode);
-        self.show_saved_theme(ctx);
+        self.show_appearance(ctx);
     }
 
-    /// Installs the saved family and accent.
-    fn show_saved_theme(&self, ctx: &egui::Context) {
-        set_theme_family(ctx, self.settings.theme_family);
-        if let Some(accent) = self.settings.theme_accent {
+    /// Installs the saved appearance, with [`Self::preview`] in place of the
+    /// option it replaces. Saves nothing; fonts are read off the UI thread.
+    pub(crate) fn show_appearance(&self, ctx: &egui::Context) {
+        use crate::settings::Look;
+        let s = &self.settings;
+        let mut mode = s.theme_mode;
+        let mut family = s.theme_family;
+        let mut accent = s.theme_accent;
+        let mut text = s.text_font.as_deref();
+        let mut code = s.code_font.as_deref();
+        let mut width = None;
+        match &self.preview {
+            None => {}
+            Some(Look::Mode(m)) => mode = *m,
+            Some(Look::Family(f)) => (family, accent) = (*f, None),
+            Some(Look::Accent(a)) => accent = Some(*a),
+            Some(Look::TextFont(f)) => text = f.as_deref(),
+            Some(Look::CodeFont(f)) => code = f.as_deref(),
+            Some(Look::ColumnWidth(w)) => width = Some(*w),
+        }
+        set_mode_preference(ctx, mode);
+        set_theme_family(ctx, family);
+        if let Some(accent) = accent {
             set_theme_accent(ctx, accent);
         }
+        workspace_rs::font::choose(text, code);
+        if let Some(r) = self.session.ready() {
+            r.workspace.cfg.preview_column_width(width);
+        }
+        ctx.request_repaint();
     }
 
     fn drain_events(&mut self) {

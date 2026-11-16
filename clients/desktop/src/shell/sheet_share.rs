@@ -246,7 +246,10 @@ pub(crate) fn show_share(
                 );
                 ui.add(Spacer::new(Space::Xs));
                 let labels = ["Can edit", "Can view"];
-                if crate::components::segmented(ui, t, &labels, &mut mode_buf).changed() {
+                if crate::components::segmented(ui, t, &labels, &mut mode_buf)
+                    .response
+                    .changed()
+                {
                     queue.push(A::ShareMode(mode_buf));
                 }
 

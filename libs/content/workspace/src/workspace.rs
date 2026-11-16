@@ -2092,6 +2092,8 @@ pub struct WsPersistentStore {
     pub path: PathBuf,
     pub data: Arc<RwLock<WsPresistentData>>,
     enabled: bool,
+    /// The text width settings shows while one is hovered; never saved.
+    column_width_preview: Arc<RwLock<Option<f32>>>,
 }
 
 /// Content for `dest`, or why it failed to open.
@@ -2281,10 +2283,16 @@ impl WsPersistentStore {
                 path,
                 data: Arc::new(RwLock::new(serde_json::from_reader(f).unwrap_or(default))),
                 enabled,
+                column_width_preview: Default::default(),
             },
             Err(err) => {
                 error!("Could not open ws presistance file: {:#?}", err);
-                WsPersistentStore { path, data: Arc::new(RwLock::new(default)), enabled }
+                WsPersistentStore {
+                    path,
+                    data: Arc::new(RwLock::new(default)),
+                    enabled,
+                    column_width_preview: Default::default(),
+                }
             }
         };
 
@@ -2477,6 +2485,20 @@ impl WsPersistentStore {
 
     pub fn get_column_width(&self) -> f32 {
         self.data.read().unwrap().column_width
+    }
+
+    /// The text column's width as drawn: the previewed one, else the saved one.
+    pub fn shown_column_width(&self) -> f32 {
+        self.column_width_preview
+            .read()
+            .unwrap()
+            .unwrap_or_else(|| self.get_column_width())
+    }
+
+    /// Draws the text column `column_width` wide without saving it; `None`
+    /// draws the saved width.
+    pub fn preview_column_width(&self, column_width: Option<f32>) {
+        *self.column_width_preview.write().unwrap() = column_width;
     }
 
     pub fn set_column_width(&mut self, column_width: f32) {
@@ -2902,5 +2924,26 @@ mod close_tests {
             t.ws.save_all_tabs();
             t.frame();
         }
+    }
+}
+
+#[cfg(test)]
+mod column_width_preview_tests {
+    use super::WsPersistentStore;
+
+    /// Editors hold clones of the store, so a preview set on one shows in
+    /// all of them, and the saved width stays as it was.
+    #[test]
+    fn a_previewed_width_shows_in_clones_without_saving() {
+        let mut cfg = WsPersistentStore::new(false, std::path::PathBuf::new(), false);
+        cfg.set_column_width(600.0);
+        let editor = cfg.clone();
+
+        cfg.preview_column_width(Some(1200.0));
+        assert_eq!(editor.shown_column_width(), 1200.0);
+        assert_eq!(editor.get_column_width(), 600.0);
+
+        cfg.preview_column_width(None);
+        assert_eq!(editor.shown_column_width(), 600.0);
     }
 }

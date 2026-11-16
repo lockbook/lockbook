@@ -202,7 +202,7 @@ fn create_form_body(app: &mut ShellApp, ui: &mut egui::Ui, t: &Theme, queue: &mu
     ui.add(Spacer::new(Space::Md));
 
     sheet_band_centered(ui, crate::components::segmented_h(), |ui| {
-        if segmented(ui, t, &labels, &mut kind_i).changed() {
+        if segmented(ui, t, &labels, &mut kind_i).response.changed() {
             queue.push(A::CreateSetKind(CreateKind::from_index(kind_i)));
         }
     });

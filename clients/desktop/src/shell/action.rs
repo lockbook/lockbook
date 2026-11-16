@@ -428,8 +428,9 @@ pub enum Action {
     ConfirmCancelSub,
     SetThemeMode(crate::components::ModePreference),
     SetThemeFamily(crate::components::ThemeFamily),
-    /// Shows a family without saving it; `None` shows the saved theme again.
-    PreviewThemeFamily(Option<crate::components::ThemeFamily>),
+    /// Shows the saved appearance with one option replaced, without saving
+    /// it; `None` shows the saved appearance again.
+    Preview(Option<crate::settings::Look>),
     SetThemeAccent(workspace_rs::theme::palette_v2::Palette),
     /// An installed family for notes' text; `None` is the platform's.
     SetTextFont(Option<String>),
@@ -571,7 +572,7 @@ impl Action {
             Self::ConfirmCancelSub => "ConfirmCancelSub",
             Self::SetThemeMode(_) => "SetThemeMode",
             Self::SetThemeFamily(_) => "SetThemeFamily",
-            Self::PreviewThemeFamily(_) => "PreviewThemeFamily",
+            Self::Preview(_) => "Preview",
             Self::SetThemeAccent(_) => "SetThemeAccent",
             Self::SetTextFont(_) => "SetTextFont",
             Self::SetCodeFont(_) => "SetCodeFont",

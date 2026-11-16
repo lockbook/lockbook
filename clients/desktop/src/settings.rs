@@ -23,6 +23,18 @@ pub struct Settings {
     path: String,
 }
 
+/// One appearance option, as settings shows it while it's hovered.
+#[derive(Clone, Debug, PartialEq)]
+pub enum Look {
+    Mode(ModePreference),
+    Family(ThemeFamily),
+    Accent(Palette),
+    TextFont(Option<String>),
+    CodeFont(Option<String>),
+    /// The text column's widest point; saved in `workspace.cfg`, not here.
+    ColumnWidth(f32),
+}
+
 impl Settings {
     pub fn write_zen_mode(&mut self, new_value: bool) -> io::Result<()> {
         if self.zen_mode == new_value {

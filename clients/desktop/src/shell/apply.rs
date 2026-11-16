@@ -28,7 +28,7 @@ use super::action::{
 use super::ops::{is_pinned, note_files_changed, refresh_pinned};
 use super::prefs::AccountPanel;
 use super::session::Ready;
-use crate::components::{set_mode_preference, set_theme_accent, set_theme_family};
+
 use tracing::instrument;
 
 #[instrument(level = "trace", skip_all, fields(action = action.name()))]
@@ -680,36 +680,31 @@ pub fn apply(app: &mut ShellApp, ctx: &Context, action: A) {
             app.account_panel = AccountPanel::CancelSub;
             app.phrase_cache = None;
         }
+        // A pick saves the option and ends any preview.
         A::SetThemeMode(pref) => {
             app.settings.theme_mode = pref;
-            set_mode_preference(ctx, pref);
-            let _ = app.settings.to_file();
+            show_saved(app, ctx);
         }
         A::SetThemeFamily(fam) => {
             app.settings.theme_family = fam;
             app.settings.theme_accent = None;
-            set_theme_family(ctx, fam);
-            let _ = app.settings.to_file();
-        }
-        A::PreviewThemeFamily(fam) => {
-            match fam {
-                Some(fam) => set_theme_family(ctx, fam),
-                None => app.show_saved_theme(ctx),
-            }
-            ctx.request_repaint();
+            show_saved(app, ctx);
         }
         A::SetThemeAccent(accent) => {
             app.settings.theme_accent = Some(accent);
-            set_theme_accent(ctx, accent);
-            let _ = app.settings.to_file();
+            show_saved(app, ctx);
         }
         A::SetTextFont(family) => {
             app.settings.text_font = family;
-            apply_fonts(app, ctx);
+            show_saved(app, ctx);
         }
         A::SetCodeFont(family) => {
             app.settings.code_font = family;
-            apply_fonts(app, ctx);
+            show_saved(app, ctx);
+        }
+        A::Preview(look) => {
+            app.preview = look;
+            app.show_appearance(ctx);
         }
         // Workspace prefs: single store on `workspace.cfg`.
         A::SetPrefUpdateLinks(v) => {
@@ -731,6 +726,8 @@ pub fn apply(app: &mut ShellApp, ctx: &Context, action: A) {
             if let Some(r) = app.session.ready_mut() {
                 r.workspace.cfg.set_column_width(v);
             }
+            app.preview = None;
+            app.show_appearance(ctx);
         }
         A::SetPrefOpenInNewTab(v) => {
             if let Some(r) = app.session.ready_mut() {
@@ -1840,9 +1837,9 @@ mod import_dest_tests {
     }
 }
 
-fn apply_fonts(app: &mut ShellApp, ctx: &Context) {
-    let settings = &app.settings;
-    workspace_rs::font::choose(settings.text_font.as_deref(), settings.code_font.as_deref());
-    ctx.request_repaint();
-    let _ = settings.to_file();
+/// Saves the appearance settings hold and shows them, ending any preview.
+fn show_saved(app: &mut ShellApp, ctx: &Context) {
+    app.preview = None;
+    app.show_appearance(ctx);
+    let _ = app.settings.to_file();
 }

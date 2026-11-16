@@ -1219,7 +1219,7 @@ impl Editor {
         let touch_mode = matches!(ctx.os(), OperatingSystem::Android | OperatingSystem::IOS);
         let mut layout = if touch_mode { MdLayout::mobile() } else { MdLayout::desktop() };
         if !touch_mode {
-            layout.max_width = persistence.get_column_width();
+            layout.max_width = persistence.shown_column_width();
         }
 
         let client: HttpClient = Default::default();
@@ -1710,7 +1710,7 @@ impl Editor {
         // Desktop follows the text width setting; touch keeps its own cap, and
         // print is as wide as the paper.
         if !self.edit.renderer.touch_mode && !self.edit.renderer.print {
-            self.edit.renderer.layout.max_width = self.persistence.get_column_width();
+            self.edit.renderer.layout.max_width = self.persistence.shown_column_width();
         }
         let height = ui.available_size().y.round();
         let width = ui
