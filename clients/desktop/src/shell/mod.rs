@@ -52,6 +52,8 @@ use crate::components::{
 use crate::settings::Settings;
 
 use action::Action as A;
+use lb::io::network::Network;
+use lb::io::server::Server;
 use prefs::AccountPanel;
 use session::{Ready as ReadyState, Session};
 use toasts::ToastHost;
@@ -75,9 +77,12 @@ pub enum AccountQrCache {
     Err(String),
 }
 
+/// Runs on the core as the window closes.
+pub type OnExit<S> = Box<dyn FnOnce(&lb::blocking::Lb<S>)>;
+
 /// Full-window product shell.
-pub struct ShellApp {
-    pub session: Session,
+pub struct ShellApp<S = Network> {
+    pub session: Session<S>,
     pub sidebar_open: bool,
     pub pane: SidebarPane,
     pub modal: Option<Modal>,
@@ -106,6 +111,10 @@ pub struct ShellApp {
     /// `LOCKBOOK_SESSION_STRESS=1` — auto logout when Ready, re-import when
     /// SignedOut (needs `LOCKBOOK_STRESS_KEY`). Dev-only crash harness.
     session_stress: Option<SessionStress>,
+    /// Makes the core each session starts on.
+    core_init: session::CoreInit<S>,
+    /// Runs on the core as the window closes, once every edit is saved.
+    pub on_exit: Option<OnExit<S>>,
     /// Transient errors / short notices (import, rename, workspace failures).
     pub toasts: ToastHost,
     /// In-flight system file/folder picker (import / export).
@@ -113,7 +122,7 @@ pub struct ShellApp {
     /// In-flight PDF export, once its destination is picked.
     pub(crate) pdf_export_rx: Option<mpsc::Receiver<Result<(), String>>>,
     /// Auto-import worker (paste / complete key). Failures do not surface.
-    pub(crate) onboard_auto_rx: Option<mpsc::Receiver<apply_onboard::AutoOnboard>>,
+    pub(crate) onboard_auto_rx: Option<mpsc::Receiver<apply_onboard::AutoOnboard<S>>>,
     /// After a successful create, show the account-key backup sheet.
     pub(crate) onboard_backup_pending: bool,
     /// The file a link from outside the app names, until it opens.
@@ -158,6 +167,13 @@ pub struct SharedCache {
 
 impl Default for ShellApp {
     fn default() -> Self {
+        Self::new(session::init_network())
+    }
+}
+
+impl<S: Server> ShellApp<S> {
+    /// A shell whose sessions start on cores `core_init` makes.
+    pub fn new(core_init: session::CoreInit<S>) -> Self {
         let settings = Settings::load();
         let sidebar_open = !settings.zen_mode;
         Self {
@@ -195,11 +211,13 @@ impl Default for ShellApp {
             nudges: None,
             import_job: None,
             import_after_upgrade: None,
+            core_init,
+            on_exit: None,
         }
     }
 }
 
-impl ShellApp {
+impl<S: Server> ShellApp<S> {
     /// Queues `action` from the host, applied next frame.
     pub fn push(&mut self, action: A) {
         self.queue.push(action);
@@ -303,6 +321,13 @@ impl ShellApp {
         }
     }
 
+    /// Runs [Self::on_exit], once every edit is saved.
+    pub fn exiting(&mut self) {
+        if let (Some(on_exit), Some(ready)) = (self.on_exit.take(), self.session.ready()) {
+            on_exit(&ready.workspace.core);
+        }
+    }
+
     /// Every edit is on disk, so the window may close.
     pub fn saves_settled(&self) -> bool {
         self.session
@@ -317,7 +342,7 @@ impl ShellApp {
         self.apply_theme_once(ctx);
 
         if matches!(&self.session, Session::Error(s) if s == "not started") {
-            self.session = Session::start(ctx);
+            self.session = Session::start(ctx, self.core_init.clone());
         }
         if let Some(fail) = self.session.poll(ctx) {
             // Manual sign-in failed; restore the form with the error.
@@ -903,7 +928,7 @@ impl ShellApp {
 }
 
 /// Expand ancestors so `id` is reachable in the Files tree.
-pub(crate) fn reveal_in_tree(r: &mut ReadyState, id: Uuid) {
+pub(crate) fn reveal_in_tree<S: Server>(r: &mut ReadyState<S>, id: Uuid) {
     let files = r.workspace.files.read().unwrap();
     let mut cur = files.get_by_id(id).map(|f| f.parent);
     while let Some(p) = cur {
@@ -915,7 +940,7 @@ pub(crate) fn reveal_in_tree(r: &mut ReadyState, id: Uuid) {
 }
 
 /// Expand ancestors and scroll the Files tree just enough to show `id`.
-pub(crate) fn reveal_and_scroll(r: &mut ReadyState, id: Uuid) {
+pub(crate) fn reveal_and_scroll<S: Server>(r: &mut ReadyState<S>, id: Uuid) {
     reveal_in_tree(r, id);
     r.request_tree_scroll(id);
 }

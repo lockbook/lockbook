@@ -13,17 +13,21 @@ use winit::window::{Icon, Window, WindowId};
 use workspace_rs::tab::{ClipContent, ExtendedInput, ExtendedOutput as _};
 
 use crate::{Output, ShellApp, WgpuLockbook};
+use lb::io::network::Network;
+use lb::io::server::Server;
 
-struct App {
-    state: Option<AppState>,
+struct App<S = Network> {
+    state: Option<AppState<S>>,
+    /// The shell, until the window it draws in exists.
+    shell: Option<ShellApp<S>>,
     proxy: EventLoopProxy<UserEvent>,
     /// Links that arrived before the window, opened once it exists.
     links: Vec<String>,
 }
 
-struct AppState {
+struct AppState<S = Network> {
     window: Arc<Window>,
-    lb: WgpuLockbook<'static>,
+    lb: WgpuLockbook<'static, S>,
     egui_winit: egui_winit::State,
     clipboard: arboard::Clipboard,
     /// The last gif copied, keyed by a hash of the pixels it put on the clipboard
@@ -39,7 +43,7 @@ struct AppState {
     ime_rect: Option<egui::Rect>,
 }
 
-impl ApplicationHandler<UserEvent> for App {
+impl<S: Server> ApplicationHandler<UserEvent> for App<S> {
     fn resumed(&mut self, event_loop: &ActiveEventLoop) {
         if self.state.is_some() {
             return;
@@ -87,7 +91,8 @@ impl ApplicationHandler<UserEvent> for App {
             crate::shell::macos_window::pin_traffic_lights(window.as_ref());
         }
 
-        let mut lb = init_app(Arc::clone(&window));
+        let shell = self.shell.take().expect("the shell is made once");
+        let mut lb = init_app(Arc::clone(&window), shell);
 
         let proxy = self.proxy.clone();
         lb.renderer
@@ -279,7 +284,7 @@ impl ApplicationHandler<UserEvent> for App {
     }
 }
 
-impl AppState {
+impl<S: Server> AppState<S> {
     fn render(&mut self, _event_loop: &ActiveEventLoop) {
         let size = self.window.inner_size();
         if size.width > 0 && size.height > 0 {
@@ -335,6 +340,7 @@ impl AppState {
         // window closes once they're written.
         if self.close_requested {
             if self.lb.app.saves_settled() {
+                self.lb.app.exiting();
                 std::process::exit(0);
             }
             self.window.request_redraw();
@@ -551,7 +557,7 @@ fn is_paste_shortcut(modifiers: winit::keyboard::ModifiersState, event: &WindowE
     }
 }
 
-fn init_app(window: Arc<Window>) -> WgpuLockbook<'static> {
+fn init_app<S: Server>(window: Arc<Window>, app: ShellApp<S>) -> WgpuLockbook<'static, S> {
     // Safety: window is kept alive in Arc for lifetime of app
     let renderer = unsafe {
         RendererState::from_surface(
@@ -559,11 +565,12 @@ fn init_app(window: Arc<Window>) -> WgpuLockbook<'static> {
         )
     };
 
-    init_with_renderer(renderer)
+    init_with_renderer(renderer, app)
 }
 
-fn init_with_renderer(mut renderer: RendererState<'static>) -> WgpuLockbook<'static> {
-    let app = ShellApp::default();
+fn init_with_renderer<S: Server>(
+    mut renderer: RendererState<'static>, app: ShellApp<S>,
+) -> WgpuLockbook<'static, S> {
     workspace_rs::font::choose(
         app.settings.text_font.as_deref(),
         app.settings.code_font.as_deref(),
@@ -748,6 +755,12 @@ pub fn run() {
             return;
         }
     }
+    open(ShellApp::default(), link.into_iter().collect(), true);
+}
+
+/// Opens a window on `shell`, then the `links`. With `inbox`, it also takes links later launches
+/// hand over.
+fn open<S: Server>(shell: ShellApp<S>, links: Vec<String>, inbox: bool) {
     env_logger::init();
 
     let config = lb::model::core_config::Config::ui_config("egui");
@@ -781,12 +794,13 @@ pub fn run() {
     let event_loop = builder.build().expect("failed to create event loop");
     event_loop.set_control_flow(ControlFlow::Wait);
 
-    let proxy = event_loop.create_proxy();
-    crate::link_inbox::listen(move |url| {
-        let _ = proxy.send_event(UserEvent::OpenLink(url));
-    });
-    let links = link.into_iter().collect();
-    let mut app = App { state: None, proxy: event_loop.create_proxy(), links };
+    if inbox {
+        let proxy = event_loop.create_proxy();
+        crate::link_inbox::listen(move |url| {
+            let _ = proxy.send_event(UserEvent::OpenLink(url));
+        });
+    }
+    let mut app = App { state: None, shell: Some(shell), proxy: event_loop.create_proxy(), links };
     event_loop.run_app(&mut app).expect("event loop failed");
 }
 

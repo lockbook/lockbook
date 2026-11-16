@@ -38,6 +38,7 @@ use super::action::{Action, Modal, SettingsCat};
 pub use crate::components::domain::settings_plate::{
     plate_origin_for_screen, plate_size_for_screen,
 };
+use lb::io::server::Server;
 
 const RAIL_W: f32 = 188.0;
 
@@ -92,14 +93,18 @@ fn header_band_h() -> f32 {
 }
 
 /// A theme preview lives only while the theme picker is on screen.
-pub fn end_hidden_theme_preview(app: &ShellApp, ctx: &egui::Context, queue: &mut Vec<Action>) {
+pub fn end_hidden_theme_preview<S: Server>(
+    app: &ShellApp<S>, ctx: &egui::Context, queue: &mut Vec<Action>,
+) {
     let app_page = matches!(app.modal, Some(Modal::Settings { cat: SettingsCat::App }));
     if !app_page && theme_family(ctx) != app.settings.theme_family {
         queue.push(A::PreviewThemeFamily(None));
     }
 }
 
-pub fn show(app: &mut ShellApp, ctx: &egui::Context, t: &Theme, queue: &mut Vec<Action>) {
+pub fn show<S: Server>(
+    app: &mut ShellApp<S>, ctx: &egui::Context, t: &Theme, queue: &mut Vec<Action>,
+) {
     let cat = match &app.modal {
         Some(Modal::Settings { cat }) => *cat,
         _ => return,
@@ -329,7 +334,7 @@ pub fn show(app: &mut ShellApp, ctx: &egui::Context, t: &Theme, queue: &mut Vec<
 }
 
 /// Theme and window prefs.
-fn page_app(app: &mut ShellApp, ui: &mut Ui, t: &Theme, queue: &mut Vec<Action>) {
+fn page_app<S: Server>(app: &mut ShellApp<S>, ui: &mut Ui, t: &Theme, queue: &mut Vec<Action>) {
     section_label(ui, t, "Appearance");
     form_group(ui, t, |ui| {
         let mut mode = match app.settings.theme_mode {
@@ -556,7 +561,7 @@ fn chosen_font(family: &str) -> crate::components::atoms::picker::OptionFont {
 }
 
 /// Note-adjacent prefs — workspace.cfg only.
-fn page_editor(app: &mut ShellApp, ui: &mut Ui, t: &Theme, queue: &mut Vec<Action>) {
+fn page_editor<S: Server>(app: &mut ShellApp<S>, ui: &mut Ui, t: &Theme, queue: &mut Vec<Action>) {
     section_label(ui, t, "Links");
     form_group(ui, t, |ui| {
         let mut previews = app
@@ -609,7 +614,7 @@ fn page_editor(app: &mut ShellApp, ui: &mut Ui, t: &Theme, queue: &mut Vec<Actio
 /// The text column's widest points: Narrow, Medium, Wide.
 const COLUMN_WIDTHS: [f32; 3] = [600.0, 900.0, 1200.0];
 
-fn page_debug(app: &ShellApp, ui: &mut Ui, t: &Theme, queue: &mut Vec<Action>) {
+fn page_debug<S: Server>(app: &ShellApp<S>, ui: &mut Ui, t: &Theme, queue: &mut Vec<Action>) {
     // Integrity + panics load off-thread; Copy works without revealing the dump.
     let cache = app
         .debug_info
@@ -721,7 +726,7 @@ struct DebugSnapshot {
     data_dir: String,
 }
 
-fn debug_snapshot(app: &ShellApp) -> DebugSnapshot {
+fn debug_snapshot<S: Server>(app: &ShellApp<S>) -> DebugSnapshot {
     let Some(r) = app.session.ready() else {
         return DebugSnapshot {
             username: "—".into(), server: "—".into(), data_dir: "—".into()

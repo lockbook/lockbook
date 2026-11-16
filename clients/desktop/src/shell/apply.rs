@@ -29,10 +29,11 @@ use super::ops::{is_pinned, note_files_changed, refresh_pinned};
 use super::prefs::AccountPanel;
 use super::session::Ready;
 use crate::components::{set_mode_preference, set_theme_accent, set_theme_family};
+use lb::io::server::Server;
 use tracing::instrument;
 
 #[instrument(level = "trace", skip_all, fields(action = action.name()))]
-pub fn apply(app: &mut ShellApp, ctx: &Context, action: A) {
+pub fn apply<S: Server>(app: &mut ShellApp<S>, ctx: &Context, action: A) {
     let _sample = lb::service::perf::Sample::new();
     match action {
         A::SelectPane(p) => {
@@ -940,7 +941,7 @@ pub fn apply(app: &mut ShellApp, ctx: &Context, action: A) {
     }
 }
 
-fn nav_history(app: &mut ShellApp, back: bool) {
+fn nav_history<S: Server>(app: &mut ShellApp<S>, back: bool) {
     if let Some(r) = app.session.ready_mut() {
         if back {
             if r.workspace.can_back() {
@@ -957,7 +958,7 @@ fn nav_history(app: &mut ShellApp, back: bool) {
 }
 
 /// After closing tabs: selection follows workspace current file, or clears.
-fn sync_selection_after_tab_close(r: &mut Ready) {
+fn sync_selection_after_tab_close<S: Server>(r: &mut Ready<S>) {
     if let Some(id) = r.workspace.current_tab_id() {
         r.select_only(id);
     } else {
@@ -967,19 +968,19 @@ fn sync_selection_after_tab_close(r: &mut Ready) {
 }
 
 /// Document → (parent, name) for the Alongside plate. Folders yield None.
-fn file_alongside(r: &Ready, id: Uuid) -> Option<(Uuid, String)> {
+fn file_alongside<S: Server>(r: &Ready<S>, id: Uuid) -> Option<(Uuid, String)> {
     let files = r.workspace.files.read().unwrap();
     let f = files.get_by_id(id)?;
     if f.is_folder() { None } else { Some((f.parent, f.name.clone())) }
 }
 
 /// Open document tab → (parent, name). Tree `cursor` is not read.
-fn open_doc_alongside(r: &Ready) -> Option<(Uuid, String)> {
+fn open_doc_alongside<S: Server>(r: &Ready<S>) -> Option<(Uuid, String)> {
     file_alongside(r, r.workspace.current_tab_id()?)
 }
 
 /// Import dest follows the highlighted folder so drop/import land where you are.
-fn dest_folder_for_import(r: &Ready) -> Uuid {
+fn dest_folder_for_import<S: Server>(r: &Ready<S>) -> Uuid {
     let files = r.workspace.files.read().unwrap();
     let root = files.root().id;
     let cursor = r.cursor.and_then(|id| {
@@ -1034,8 +1035,8 @@ fn create_sheet_plan(
     CreateSheetPlan { loc, parent, alongside, chosen }
 }
 
-fn open_create_sheet(
-    app: &mut ShellApp, ctx: &Context, folder: Option<Uuid>, alongside_file: Option<Uuid>,
+fn open_create_sheet<S: Server>(
+    app: &mut ShellApp<S>, ctx: &Context, folder: Option<Uuid>, alongside_file: Option<Uuid>,
     prefer_folder: bool,
 ) {
     let Some(r) = app.session.ready() else {
@@ -1112,7 +1113,7 @@ pub(crate) fn rename_validate_name(full: &str) -> Result<(), String> {
     Ok(())
 }
 
-fn create_name_taken(r: &Ready, parent: Uuid, full: &str) -> bool {
+fn create_name_taken<S: Server>(r: &Ready<S>, parent: Uuid, full: &str) -> bool {
     r.workspace
         .files
         .read()
@@ -1123,7 +1124,7 @@ fn create_name_taken(r: &Ready, parent: Uuid, full: &str) -> bool {
 }
 
 /// Another sibling under the same parent already has `full` (case-sensitive, core path rules).
-pub(crate) fn rename_name_taken(r: &Ready, id: Uuid, full: &str) -> bool {
+pub(crate) fn rename_name_taken<S: Server>(r: &Ready<S>, id: Uuid, full: &str) -> bool {
     let files = r.workspace.files.read().unwrap();
     let Some(f) = files.get_by_id(id) else {
         return false;
@@ -1135,8 +1136,8 @@ pub(crate) fn rename_name_taken(r: &Ready, id: Uuid, full: &str) -> bool {
 }
 
 /// Live check for the rename sheet (error copy + whether primary is enabled).
-pub(crate) fn rename_live_status(
-    app: &ShellApp, id: Uuid, stem: &str, ext: Option<&str>,
+pub(crate) fn rename_live_status<S: Server>(
+    app: &ShellApp<S>, id: Uuid, stem: &str, ext: Option<&str>,
 ) -> RenameLive {
     let full = rename_join_name(stem, ext);
     if let Err(msg) = rename_validate_name(&full) {
@@ -1160,7 +1161,9 @@ pub(crate) struct RenameLive {
 
 /// Suggested create name: local calendar date, numbered until no file
 /// under `parent` has it, via [`lb::model::filename::NameComponents`].
-fn suggested_create_name(app: &ShellApp, parent: Option<Uuid>, kind: CreateKind) -> String {
+fn suggested_create_name<S: Server>(
+    app: &ShellApp<S>, parent: Option<Uuid>, kind: CreateKind,
+) -> String {
     let date = chrono::Local::now().format("%Y-%m-%d").to_string();
     let ext = kind.ext().unwrap_or("");
     let desired = format!("{date}{ext}");
@@ -1176,7 +1179,7 @@ fn suggested_create_name(app: &ShellApp, parent: Option<Uuid>, kind: CreateKind)
 }
 
 #[instrument(level = "trace", skip_all)]
-fn confirm_create(app: &mut ShellApp) {
+fn confirm_create<S: Server>(app: &mut ShellApp<S>) {
     let (name, kind, parent) = match &app.modal {
         Some(Modal::Create { name, kind, parent, .. }) => (name.trim().to_owned(), *kind, *parent),
         _ => return,
@@ -1235,7 +1238,7 @@ fn confirm_create(app: &mut ShellApp) {
 /// Open documents. Folders in `ids` are skipped except a sole folder (toggle expand).
 /// Multi open without `new_tab`: first reuses tab path, rest open as new tabs.
 #[instrument(level = "trace", skip_all)]
-fn open_documents(app: &mut ShellApp, ids: &[Uuid], new_tab: bool) {
+fn open_documents<S: Server>(app: &mut ShellApp<S>, ids: &[Uuid], new_tab: bool) {
     let Some(r) = app.session.ready_mut() else {
         return;
     };
@@ -1291,7 +1294,7 @@ fn open_documents(app: &mut ShellApp, ids: &[Uuid], new_tab: bool) {
     super::reveal_and_scroll(r, last);
 }
 
-fn toggle_pins(app: &mut ShellApp, ids: &[Uuid]) {
+fn toggle_pins<S: Server>(app: &mut ShellApp<S>, ids: &[Uuid]) {
     if let Some(r) = app.session.ready_mut() {
         let docs: Vec<Uuid> = {
             let files = r.workspace.files.read().unwrap();
@@ -1311,7 +1314,7 @@ fn toggle_pins(app: &mut ShellApp, ids: &[Uuid]) {
 }
 
 #[instrument(level = "trace", skip_all)]
-fn duplicate_files(app: &mut ShellApp, ids: &[Uuid]) {
+fn duplicate_files<S: Server>(app: &mut ShellApp<S>, ids: &[Uuid]) {
     let mut created = Vec::new();
     if let Some(r) = app.session.ready_mut() {
         for id in ids {
@@ -1339,7 +1342,7 @@ fn duplicate_files(app: &mut ShellApp, ids: &[Uuid]) {
     }
 }
 
-fn expand_or_collapse(app: &mut ShellApp, id: Uuid, expand: bool) {
+fn expand_or_collapse<S: Server>(app: &mut ShellApp<S>, id: Uuid, expand: bool) {
     let Some(r) = app.session.ready_mut() else {
         return;
     };
@@ -1396,11 +1399,11 @@ pub(crate) struct LinkSynced {
 
 /// Opens the place the incoming link names once the account is ready and
 /// the file it's in, if any, is known here.
-pub(crate) fn poll_incoming_link(app: &mut ShellApp, ctx: &Context) {
+pub(crate) fn poll_incoming_link<S: Server>(app: &mut ShellApp<S>, ctx: &Context) {
     let Some(r) = app.session.ready_mut() else {
         return;
     };
-    let known = |r: &Ready, place: &Place| {
+    let known = |r: &Ready<S>, place: &Place| {
         place
             .dest
             .backing_file()
@@ -1436,7 +1439,9 @@ pub(crate) fn poll_incoming_link(app: &mut ShellApp, ctx: &Context) {
     }
 }
 
-fn sync_for_link(r: &Ready, ctx: &Context, place: Place) -> mpsc::Receiver<LinkSynced> {
+fn sync_for_link<S: Server>(
+    r: &Ready<S>, ctx: &Context, place: Place,
+) -> mpsc::Receiver<LinkSynced> {
     let (tx, rx) = mpsc::channel();
     let (core, files, ctx) = (r.workspace.core.clone(), r.workspace.files.clone(), ctx.clone());
     thread::spawn(move || {
@@ -1453,7 +1458,7 @@ fn sync_for_link(r: &Ready, ctx: &Context, place: Place) -> mpsc::Receiver<LinkS
 
 /// Opens `place`. A note link also selects and reveals the note in the tree;
 /// a folder link only selects and reveals the folder.
-fn open_incoming_link(r: &mut Ready, place: Place) {
+fn open_incoming_link<S: Server>(r: &mut Ready<S>, place: Place) {
     let Destination::File(id) = place.dest else {
         r.workspace.open_place(place, true, false);
         return;
@@ -1473,7 +1478,7 @@ fn open_incoming_link(r: &mut Ready, place: Place) {
 }
 
 /// Poll a finished system picker. Cancel (`None`) is a no-op.
-pub(crate) fn poll_native_dialog(app: &mut ShellApp, ctx: &Context) {
+pub(crate) fn poll_native_dialog<S: Server>(app: &mut ShellApp<S>, ctx: &Context) {
     let Some(rx) = &app.native_dialog_rx else {
         return;
     };
@@ -1502,8 +1507,9 @@ pub(crate) fn poll_native_dialog(app: &mut ShellApp, ctx: &Context) {
     }
 }
 
-fn spawn_native_dialog(
-    app: &mut ShellApp, ctx: &Context, work: impl FnOnce() -> NativeDialogResult + Send + 'static,
+fn spawn_native_dialog<S: Server>(
+    app: &mut ShellApp<S>, ctx: &Context,
+    work: impl FnOnce() -> NativeDialogResult + Send + 'static,
 ) {
     if app.native_dialog_rx.is_some() {
         return;
@@ -1520,7 +1526,7 @@ fn spawn_native_dialog(
     });
 }
 
-fn export_files(app: &mut ShellApp, ctx: &Context, ids: &[Uuid]) {
+fn export_files<S: Server>(app: &mut ShellApp<S>, ctx: &Context, ids: &[Uuid]) {
     if ids.is_empty() {
         return;
     }
@@ -1543,7 +1549,7 @@ fn export_files(app: &mut ShellApp, ctx: &Context, ids: &[Uuid]) {
 }
 
 /// Asks where to save note `id` as a PDF, with any edits its open tab hasn't saved yet.
-fn export_pdf(app: &mut ShellApp, ctx: &Context, id: Uuid) {
+fn export_pdf<S: Server>(app: &mut ShellApp<S>, ctx: &Context, id: Uuid) {
     if app.pdf_export_rx.is_some() {
         return;
     }
@@ -1583,7 +1589,9 @@ fn export_pdf(app: &mut ShellApp, ctx: &Context, id: Uuid) {
 }
 
 /// Draws note `id` as a PDF and writes it to `dest`, off the UI thread.
-fn write_pdf(app: &mut ShellApp, ctx: &Context, id: Uuid, text: Option<String>, dest: PathBuf) {
+fn write_pdf<S: Server>(
+    app: &mut ShellApp<S>, ctx: &Context, id: Uuid, text: Option<String>, dest: PathBuf,
+) {
     let Some(r) = app.session.ready() else {
         return;
     };
@@ -1600,7 +1608,7 @@ fn write_pdf(app: &mut ShellApp, ctx: &Context, id: Uuid, text: Option<String>, 
     });
 }
 
-pub(crate) fn poll_pdf_export(app: &mut ShellApp) {
+pub(crate) fn poll_pdf_export<S: Server>(app: &mut ShellApp<S>) {
     let Some(rx) = &app.pdf_export_rx else {
         return;
     };
@@ -1619,7 +1627,7 @@ pub(crate) fn poll_pdf_export(app: &mut ShellApp) {
     }
 }
 
-fn finish_export(app: &mut ShellApp, files: Vec<File>, dest: PathBuf) {
+fn finish_export<S: Server>(app: &mut ShellApp<S>, files: Vec<File>, dest: PathBuf) {
     let Some(r) = app.session.ready() else {
         return;
     };
@@ -1647,7 +1655,7 @@ fn finish_export(app: &mut ShellApp, files: Vec<File>, dest: PathBuf) {
     }
 }
 
-fn import_pick(app: &mut ShellApp, ctx: &Context) {
+fn import_pick<S: Server>(app: &mut ShellApp<S>, ctx: &Context) {
     // Off-thread: blocking NSOpenPanel inside the egui/wgpu frame crashes/quits
     // on cancel (spurious window-close). Same pattern as the old linux client.
     #[cfg(target_os = "macos")]
@@ -1659,7 +1667,7 @@ fn import_pick(app: &mut ShellApp, ctx: &Context) {
 
 /// Open the Import folder-picker sheet. Seeds `dest` from tree selection
 /// (folder, or parent of a selected file), then the open tab, then home.
-fn open_import_parent_sheet(app: &mut ShellApp, ctx: &Context, paths: Vec<PathBuf>) {
+fn open_import_parent_sheet<S: Server>(app: &mut ShellApp<S>, ctx: &Context, paths: Vec<PathBuf>) {
     let dest = app.session.ready().map(dest_folder_for_import);
     ctx.data_mut(|d| {
         d.remove::<std::collections::HashSet<Uuid>>(egui::Id::unique((
@@ -1674,7 +1682,7 @@ fn open_import_parent_sheet(app: &mut ShellApp, ctx: &Context, paths: Vec<PathBu
 }
 
 /// Plan the open import again off the UI thread.
-fn replan_import(app: &mut ShellApp, ctx: &Context) {
+fn replan_import<S: Server>(app: &mut ShellApp<S>, ctx: &Context) {
     let Some((core, status)) = app
         .session
         .ready()
@@ -1694,7 +1702,7 @@ fn replan_import(app: &mut ShellApp, ctx: &Context) {
 }
 
 /// A finished plan for the open sheet, or a held import the account now has room for.
-pub(crate) fn import_event(app: &ShellApp) -> Option<A> {
+pub(crate) fn import_event<S: Server>(app: &ShellApp<S>) -> Option<A> {
     if let Some(Modal::ImportParent { planning: Some(rx), .. }) = &app.modal {
         return rx.try_recv().ok().map(A::ImportPlanned);
     }
@@ -1710,7 +1718,9 @@ pub(crate) fn import_event(app: &ShellApp) -> Option<A> {
     (cap > *waiting_on && app.modal.is_none()).then_some(A::ImportResume)
 }
 
-fn import_plan(app: &mut ShellApp, ctx: &Context, plan: workspace_rs::import::ImportPlan) {
+fn import_plan<S: Server>(
+    app: &mut ShellApp<S>, ctx: &Context, plan: workspace_rs::import::ImportPlan,
+) {
     let Some(r) = app.session.ready_mut() else {
         return;
     };
@@ -1719,7 +1729,7 @@ fn import_plan(app: &mut ShellApp, ctx: &Context, plan: workspace_rs::import::Im
     app.import_job = Some(workspace_rs::import::ImportJob::start(core, plan, status, ctx.clone()));
 }
 
-fn request_sync(app: &mut ShellApp, ctx: &Context) {
+fn request_sync<S: Server>(app: &mut ShellApp<S>, ctx: &Context) {
     if let Some(r) = app.session.ready_mut() {
         r.syncing = true;
         r.status_msg = "Syncing…".into();
@@ -1731,7 +1741,7 @@ fn request_sync(app: &mut ShellApp, ctx: &Context) {
         });
     }
 }
-fn persist_zen(app: &mut ShellApp) {
+fn persist_zen<S: Server>(app: &mut ShellApp<S>) {
     // Disk: zen = sidebar collapsed at next launch.
     let _ = app.settings.write_zen_mode(!app.sidebar_open);
 }
@@ -1840,7 +1850,7 @@ mod import_dest_tests {
     }
 }
 
-fn apply_fonts(app: &mut ShellApp, ctx: &Context) {
+fn apply_fonts<S: Server>(app: &mut ShellApp<S>, ctx: &Context) {
     let settings = &app.settings;
     workspace_rs::font::choose(settings.text_font.as_deref(), settings.code_font.as_deref());
     ctx.request_repaint();

@@ -42,6 +42,7 @@ use crate::components::{
 use crate::shell::ShellApp;
 use crate::shell::action::Action;
 use crate::shell::ops::{ids_are_saved_shares, is_pinned};
+use lb::io::server::Server;
 
 /// Dwell before expanding a collapsed folder under a drag.
 const DROP_EXPAND_SECS: f64 = 0.6;
@@ -521,7 +522,9 @@ pub(crate) enum FileCmd {
     DeclineShare,
 }
 
-pub fn show_tree(app: &mut ShellApp, ui: &mut Ui, t: &Theme, queue: &mut Vec<Action>) {
+pub fn show_tree<S: Server>(
+    app: &mut ShellApp<S>, ui: &mut Ui, t: &Theme, queue: &mut Vec<Action>,
+) {
     if let Some(ready) = app.session.ready() {
         let pins = ready.pinned.clone();
         let files = ready.workspace.files.read().unwrap();
@@ -765,8 +768,8 @@ pub use folder::{
 pub use recents::show_recents;
 pub use shared::show_shared;
 
-fn paint_row(
-    app: &mut ShellApp, ui: &mut Ui, t: &Theme, queue: &mut Vec<Action>, row: FlatRow,
+fn paint_row<S: Server>(
+    app: &mut ShellApp<S>, ui: &mut Ui, t: &Theme, queue: &mut Vec<Action>, row: FlatRow,
     paint_rect: Rect, hit_rect: Rect, elevated: bool, content_inset: f32,
 ) {
     let Some(ready) = app.session.ready() else {

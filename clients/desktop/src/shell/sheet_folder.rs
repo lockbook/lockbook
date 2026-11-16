@@ -10,8 +10,9 @@ use crate::components::{
 use super::ShellApp;
 use super::action::Action as A;
 use super::action::Action;
+use lb::io::server::Server;
 
-pub(crate) fn folder_path_slash(app: &ShellApp, id: Option<Uuid>) -> String {
+pub(crate) fn folder_path_slash<S: Server>(app: &ShellApp<S>, id: Option<Uuid>) -> String {
     app.session
         .ready()
         .map(|r| {
@@ -36,8 +37,8 @@ pub(crate) fn folder_path_slash(app: &ShellApp, id: Option<Uuid>) -> String {
 /// 2. Else prose on line 1, path on line 2 at full sheet width; middle-ellipsis
 ///    only when the path alone exceeds that width. Size shares line 2 when it
 ///    fits after the path; otherwise path keeps the full width.
-pub(crate) fn move_summary_line(
-    ui: &mut egui::Ui, t: &Theme, app: &ShellApp, ids: &[Uuid], dest: Option<Uuid>,
+pub(crate) fn move_summary_line<S: Server>(
+    ui: &mut egui::Ui, t: &Theme, app: &ShellApp<S>, ids: &[Uuid], dest: Option<Uuid>,
 ) {
     use workspace_rs::widgets::GlyphonLabel;
 
@@ -158,7 +159,7 @@ pub(crate) fn move_summary_line(
 }
 
 /// Single display name when one root is moving; else `None` + total cascade count.
-fn move_cascade_stats(app: &ShellApp, ids: &[Uuid]) -> (Option<String>, usize, u64) {
+fn move_cascade_stats<S: Server>(app: &ShellApp<S>, ids: &[Uuid]) -> (Option<String>, usize, u64) {
     let Some(ready) = app.session.ready() else {
         return (None, ids.len().max(1), 0);
     };
@@ -290,8 +291,8 @@ pub(crate) fn fit_slash_path(
     with_leaf(&leaf)
 }
 
-pub(crate) fn show_move(
-    app: &ShellApp, ctx: &egui::Context, t: &Theme, queue: &mut Vec<Action>, ids: &[Uuid],
+pub(crate) fn show_move<S: Server>(
+    app: &ShellApp<S>, ctx: &egui::Context, t: &Theme, queue: &mut Vec<Action>, ids: &[Uuid],
     dest: Option<Uuid>, _unused: bool,
 ) {
     // Identity lives in the summary under the tree (create/delete style), not a
@@ -316,9 +317,9 @@ pub(crate) fn show_move(
     );
 }
 
-pub(crate) fn show_accept_share(
-    app: &ShellApp, ctx: &egui::Context, t: &Theme, queue: &mut Vec<Action>, id: Uuid, name: &str,
-    dest: Option<Uuid>,
+pub(crate) fn show_accept_share<S: Server>(
+    app: &ShellApp<S>, ctx: &egui::Context, t: &Theme, queue: &mut Vec<Action>, id: Uuid,
+    name: &str, dest: Option<Uuid>,
 ) {
     // Identity only in the commit summary (Move-style) — no subject under title.
     folder_picker_sheet(
@@ -400,8 +401,8 @@ fn paint_decline_summary(ui: &mut egui::Ui, t: &Theme, name: &str) {
     );
 }
 
-pub(crate) fn show_import_parent(
-    app: &ShellApp, ctx: &egui::Context, t: &Theme, queue: &mut Vec<Action>,
+pub(crate) fn show_import_parent<S: Server>(
+    app: &ShellApp<S>, ctx: &egui::Context, t: &Theme, queue: &mut Vec<Action>,
     paths: &[std::path::PathBuf], dest: Option<Uuid>,
     plan: Option<&workspace_rs::import::ImportPlan>, planning: bool,
 ) {
@@ -443,8 +444,8 @@ enum FolderPickKind {
     ImportParent,
 }
 
-fn folder_picker_sheet(
-    app: &ShellApp, ctx: &egui::Context, t: &Theme, queue: &mut Vec<Action>, salt: &str,
+fn folder_picker_sheet<S: Server>(
+    app: &ShellApp<S>, ctx: &egui::Context, t: &Theme, queue: &mut Vec<Action>, salt: &str,
     action: &str, subject: &str, hint: &str, primary: &str, dest: Option<Uuid>, exclude: &[Uuid],
     kind: FolderPickKind, plan: Option<&workspace_rs::import::ImportPlan>, planning: bool,
 ) {
@@ -575,8 +576,8 @@ fn folder_picker_sheet(
 }
 
 /// **subject** {verb} **/path/**. — Accept / Import commit line (move has its own).
-fn dest_action_summary(
-    ui: &mut egui::Ui, t: &Theme, app: &ShellApp, subject: &str, verb: &str, dest: Option<Uuid>,
+fn dest_action_summary<S: Server>(
+    ui: &mut egui::Ui, t: &Theme, app: &ShellApp<S>, subject: &str, verb: &str, dest: Option<Uuid>,
 ) {
     use workspace_rs::widgets::GlyphonLabel;
 
@@ -603,8 +604,8 @@ fn dest_action_summary(
 
 /// What an import will do: what comes in and where, then what's skipped, then
 /// how it sits against the account's cap with ways to make it fit.
-fn import_plan_block(
-    ui: &mut egui::Ui, t: &Theme, app: &ShellApp, queue: &mut Vec<Action>,
+fn import_plan_block<S: Server>(
+    ui: &mut egui::Ui, t: &Theme, app: &ShellApp<S>, queue: &mut Vec<Action>,
     plan: &workspace_rs::import::ImportPlan,
 ) {
     use crate::components::domain::import_card::count;

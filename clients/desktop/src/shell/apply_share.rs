@@ -6,6 +6,7 @@ use egui::Context;
 
 use super::ShellApp;
 use super::action::{Modal, ShareLookup, ShareStaged};
+use lb::io::server::Server;
 use lb::model::file::ShareMode;
 
 fn share_split_tokens(q: &str) -> (Vec<String>, String) {
@@ -40,7 +41,7 @@ fn share_split_tokens(q: &str) -> (Vec<String>, String) {
 }
 
 /// Local roster only (in-memory cache — never `block_on` / network).
-fn share_local_known(app: &ShellApp, q: &str) -> bool {
+fn share_local_known<S: Server>(app: &ShellApp<S>, q: &str) -> bool {
     let q = q.trim();
     if q.is_empty() {
         return false;
@@ -57,7 +58,9 @@ fn share_local_known(app: &ShellApp, q: &str) -> bool {
 /// match the current suggestion cannot jump to a longer sibling (e.g. `alice`
 /// stays preferred over `alicesmith` as you type `a…e`). Falls out of the rule;
 /// no post-hoc sticky.
-pub(crate) fn share_shortest_prefix_match(app: &ShellApp, query: &str) -> Option<String> {
+pub(crate) fn share_shortest_prefix_match<S: Server>(
+    app: &ShellApp<S>, query: &str,
+) -> Option<String> {
     let names = &app.session.ready()?.known_usernames;
     shortest_prefix_match(query, names.iter().map(|s| s.as_str()))
 }
@@ -82,7 +85,7 @@ pub(crate) fn share_verify_inflight_key() -> egui::Id {
 }
 
 /// Apply finished network checks (call from paint / apply each frame).
-pub(crate) fn share_poll_network(app: &mut ShellApp, ctx: &Context) {
+pub(crate) fn share_poll_network<S: Server>(app: &mut ShellApp<S>, ctx: &Context) {
     let done: Vec<ShareNetDone> = ctx
         .data_mut(|d| d.remove_temp::<Vec<ShareNetDone>>(share_verify_done_key()))
         .unwrap_or_default();
@@ -115,8 +118,8 @@ pub(crate) fn share_poll_network(app: &mut ShellApp, ctx: &Context) {
     }
 }
 
-pub(crate) fn spawn_username_exists(
-    ctx: &Context, core: lb::blocking::Lb, name: String,
+pub(crate) fn spawn_username_exists<S: Server>(
+    ctx: &Context, core: lb::blocking::Lb<S>, name: String,
     finish: impl FnOnce(&Context, String, Result<bool, String>) + Send + 'static,
 ) {
     let ctx = ctx.clone();
@@ -127,7 +130,9 @@ pub(crate) fn spawn_username_exists(
     });
 }
 
-fn share_spawn_network(ctx: &Context, core: lb::blocking::Lb, name: String, for_stage: bool) {
+fn share_spawn_network<S: Server>(
+    ctx: &Context, core: lb::blocking::Lb<S>, name: String, for_stage: bool,
+) {
     spawn_username_exists(ctx, core, name, move |ctx, name, result| {
         let lookup = match result {
             Ok(true) => ShareLookup::Found,
@@ -178,7 +183,7 @@ fn shortest_prefix_match<'a>(query: &str, names: impl Iterator<Item = &'a str>) 
 
 /// Stage a username (dedupe by case-insensitive name). Local hit → Found;
 /// else Checking + background network (never block the UI thread).
-fn share_stage_push(app: &mut ShellApp, ctx: &Context, name: String) {
+fn share_stage_push<S: Server>(app: &mut ShellApp<S>, ctx: &Context, name: String) {
     let name = name.trim().to_owned();
     if name.is_empty() {
         return;
@@ -208,7 +213,7 @@ fn share_stage_push(app: &mut ShellApp, ctx: &Context, name: String) {
     }
 }
 
-pub(crate) fn share_query(app: &mut ShellApp, ctx: &Context) {
+pub(crate) fn share_query<S: Server>(app: &mut ShellApp<S>, ctx: &Context) {
     let q = match &app.modal {
         Some(Modal::Share { query, .. }) => query.clone(),
         _ => return,
@@ -243,7 +248,7 @@ pub(crate) fn share_query(app: &mut ShellApp, ctx: &Context) {
 }
 
 /// ⏎ in the username field: move the current token into the stage (comma-like).
-pub(crate) fn share_stage_field(app: &mut ShellApp, ctx: &Context) {
+pub(crate) fn share_stage_field<S: Server>(app: &mut ShellApp<S>, ctx: &Context) {
     let user = match &app.modal {
         Some(Modal::Share { query, .. }) => {
             let t = query.trim().to_owned();
@@ -276,7 +281,7 @@ pub(crate) fn share_stage_field(app: &mut ShellApp, ctx: &Context) {
 }
 
 /// Debounced field verify. Local hits are free; network runs on a worker thread.
-pub(crate) fn share_verify(app: &mut ShellApp, ctx: &Context) {
+pub(crate) fn share_verify<S: Server>(app: &mut ShellApp<S>, ctx: &Context) {
     share_poll_network(app, ctx);
     let q = match &app.modal {
         Some(Modal::Share { query, lookup_for, lookup, .. }) => {
@@ -327,7 +332,7 @@ pub(crate) fn share_verify(app: &mut ShellApp, ctx: &Context) {
     share_spawn_network(ctx, core, q, false);
 }
 
-pub(crate) fn share_invite(app: &mut ShellApp, ctx: &Context) {
+pub(crate) fn share_invite<S: Server>(app: &mut ShellApp<S>, ctx: &Context) {
     // Flush a trailing field token into the stage first.
     let field_user = match &app.modal {
         Some(Modal::Share { query, .. }) => {
@@ -443,7 +448,7 @@ pub(crate) fn share_invite(app: &mut ShellApp, ctx: &Context) {
     ctx.data_mut(|d| d.insert_temp(egui::Id::unique("shell_share_need_focus"), true));
 }
 
-pub(crate) fn share_remove(app: &mut ShellApp, user: &str) {
+pub(crate) fn share_remove<S: Server>(app: &mut ShellApp<S>, user: &str) {
     let Some(Modal::Share { id, .. }) = &app.modal else {
         return;
     };

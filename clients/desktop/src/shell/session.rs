@@ -26,25 +26,27 @@ use lb::Uuid;
 use lb::blocking::Lb;
 use lb::model::api::SubscriptionInfo;
 use lb::model::core_config::Config;
-use lb::model::errors::LbErrKind;
+use lb::model::errors::{LbErrKind, LbResult};
 use lb::subscribers::status::Status;
 use workspace_rs::file_cache::FileCache;
 use workspace_rs::workspace::Workspace;
 
 use super::action::OnboardMode;
+use lb::io::network::Network;
+use lb::io::server::Server;
 
-pub enum CoreLoad {
+pub enum CoreLoad<S = Network> {
     Ready {
-        core: Lb,
+        core: Lb<S>,
         files: FileCache,
         sub_info: Option<SubscriptionInfo>,
     },
     SignedOut {
-        core: Lb,
+        core: Lb<S>,
     },
     /// Create/import/sync failed — keep `core` for retry (may already hold keys).
     OnboardFailed {
-        core: Lb,
+        core: Lb<S>,
         fail: OnboardFail,
     },
     Failed(String),
@@ -80,8 +82,8 @@ pub fn read_load_status(status: &LoadStatus) -> String {
         .unwrap_or_else(|| "Loading…".into())
 }
 
-pub struct Ready {
-    pub workspace: Workspace,
+pub struct Ready<S = Network> {
+    pub workspace: Workspace<S>,
     pub expanded: HashSet<Uuid>,
     /// Tree / list selection (highlight, multi-select, context-menu targets).
     /// Import dest uses it (folder, or parent of a selected file), then the
@@ -109,10 +111,10 @@ pub struct Ready {
     pub known_usernames: Vec<String>,
 }
 
-impl Ready {
+impl<S: Server> Ready<S> {
     #[tracing::instrument(name = "Ready::new", level = "trace", skip_all)]
     pub fn new(
-        core: Lb, files: FileCache, ctx: &Context, sub_info: Option<SubscriptionInfo>,
+        core: Lb<S>, files: FileCache, ctx: &Context, sub_info: Option<SubscriptionInfo>,
     ) -> Self {
         let file_cache = Arc::new(RwLock::new(files));
         let root = file_cache.read().unwrap().root.id;
@@ -250,22 +252,20 @@ pub enum LoadKind {
     Onboard,
 }
 
-pub enum Session {
-    Loading { kind: LoadKind, status: LoadStatus, rx: Receiver<CoreLoad> },
+pub enum Session<S = Network> {
+    Loading { kind: LoadKind, status: LoadStatus, rx: Receiver<CoreLoad<S>> },
     Error(String),
-    SignedOut { core: Lb },
-    Ready(Box<Ready>),
+    SignedOut { core: Lb<S> },
+    Ready(Box<Ready<S>>),
 }
 
-impl Session {
-    /// Cold launch: init core, open account if present. No network sync.
-    pub fn start(ctx: &Context) -> Self {
+impl<S: Server> Session<S> {
+    /// Cold launch: init core with `init`, open account if present. No network sync.
+    pub fn start(ctx: &Context, init: CoreInit<S>) -> Self {
         let (tx, rx) = mpsc::channel();
         let ctx = ctx.clone();
         thread::spawn(move || {
-            let cfg =
-                Config { lock_budget: lb::service::budget::ENFORCED, ..Config::ui_config("egui") };
-            let core = match Lb::init(cfg) {
+            let core = match init() {
                 Ok(c) => c,
                 Err(e) => {
                     let _ = tx.send(CoreLoad::Failed(format!("{e:?}")));
@@ -327,21 +327,21 @@ impl Session {
         }
     }
 
-    pub fn ready(&self) -> Option<&Ready> {
+    pub fn ready(&self) -> Option<&Ready<S>> {
         match self {
             Session::Ready(r) => Some(r),
             _ => None,
         }
     }
 
-    pub fn ready_mut(&mut self) -> Option<&mut Ready> {
+    pub fn ready_mut(&mut self) -> Option<&mut Ready<S>> {
         match self {
             Session::Ready(r) => Some(r),
             _ => None,
         }
     }
 
-    pub fn signed_out_core(&self) -> Option<&Lb> {
+    pub fn signed_out_core(&self) -> Option<&Lb<S>> {
         match self {
             Session::SignedOut { core } => Some(core),
             _ => None,
@@ -349,7 +349,17 @@ impl Session {
     }
 }
 
-pub(crate) fn prepare_ready(core: Lb, files: FileCache) -> CoreLoad {
+/// Makes the core a session starts on, off the UI thread.
+pub type CoreInit<S> = Arc<dyn Fn() -> LbResult<Lb<S>> + Send + Sync>;
+
+/// The core on the user's data directory and the network.
+pub fn init_network() -> CoreInit<Network> {
+    Arc::new(|| {
+        Lb::init(Config { lock_budget: lb::service::budget::ENFORCED, ..Config::ui_config("egui") })
+    })
+}
+
+pub(crate) fn prepare_ready<S: Server>(core: Lb<S>, files: FileCache) -> CoreLoad<S> {
     let sub_info = core.get_subscription_info().ok().flatten();
     CoreLoad::Ready { core, files, sub_info }
 }

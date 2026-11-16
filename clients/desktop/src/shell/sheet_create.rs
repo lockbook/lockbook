@@ -13,6 +13,7 @@ use crate::components::{
 use super::ShellApp;
 use super::action::Action as A;
 use super::action::{Action, CreateKind, CreateLoc, Modal};
+use lb::io::server::Server;
 
 /// Wide enough for location plates (username · Alongside {note} · Choose…).
 const CREATE_SHEET_W: f32 = 480.0;
@@ -43,8 +44,8 @@ fn create_footer_band_h() -> f32 {
 /// inner height once. Later frames draw into a fixed slot:
 /// `body (exact residual) · Space::Md · footer (control_height)`.
 /// Form and Choose… swap only the body; plate size stays put.
-pub(crate) fn show_create(
-    app: &mut ShellApp, ctx: &egui::Context, t: &Theme, queue: &mut Vec<Action>,
+pub(crate) fn show_create<S: Server>(
+    app: &mut ShellApp<S>, ctx: &egui::Context, t: &Theme, queue: &mut Vec<Action>,
 ) {
     let layer = egui::LayerId::new(Order::Foreground, Id::unique("shell_create"));
     if sheet_dim(ctx, Id::unique("shell_create_dim"), layer) {
@@ -172,7 +173,9 @@ pub(crate) fn show_create(
 }
 
 /// Create form body (no footer). Top-aligned inside a fixed body slot when locked.
-fn create_form_body(app: &mut ShellApp, ui: &mut egui::Ui, t: &Theme, queue: &mut Vec<Action>) {
+fn create_form_body<S: Server>(
+    app: &mut ShellApp<S>, ui: &mut egui::Ui, t: &Theme, queue: &mut Vec<Action>,
+) {
     let (kind, parent, loc, alongside, chosen, error) = match &app.modal {
         Some(Modal::Create { kind, parent, loc, alongside, chosen, error, .. }) => {
             (*kind, *parent, *loc, alongside.clone(), *chosen, error.clone())
@@ -374,7 +377,9 @@ fn create_form_body(app: &mut ShellApp, ui: &mut egui::Ui, t: &Theme, queue: &mu
     }
 }
 
-fn create_form_footer(app: &ShellApp, ui: &mut egui::Ui, t: &Theme, queue: &mut Vec<Action>) {
+fn create_form_footer<S: Server>(
+    app: &ShellApp<S>, ui: &mut egui::Ui, t: &Theme, queue: &mut Vec<Action>,
+) {
     let name_ok = match &app.modal {
         Some(Modal::Create { name, .. }) => !name.trim().is_empty(),
         _ => false,
@@ -570,8 +575,8 @@ fn create_loc_plate(ui: &mut egui::Ui, t: &Theme, plate: &CreateLocPlate) -> egu
 }
 
 /// Location wizard body: title + hint + tree filling the rest of the body slot.
-fn create_location_body(
-    app: &ShellApp, ui: &mut egui::Ui, t: &Theme, queue: &mut Vec<Action>, parent: Option<Uuid>,
+fn create_location_body<S: Server>(
+    app: &ShellApp<S>, ui: &mut egui::Ui, t: &Theme, queue: &mut Vec<Action>, parent: Option<Uuid>,
     loc: CreateLoc, alongside: Option<&(Uuid, String)>,
     expanded: &mut std::collections::HashSet<Uuid>,
 ) {
@@ -646,8 +651,8 @@ fn create_location_footer(ui: &mut egui::Ui, t: &Theme, queue: &mut Vec<Action>)
 }
 
 /// Folder path with leading + trailing `/` (`/notes/`, `/` for root).
-fn create_summary_line(
-    ui: &mut egui::Ui, t: &Theme, app: &ShellApp, kind: CreateKind, name: &str,
+fn create_summary_line<S: Server>(
+    ui: &mut egui::Ui, t: &Theme, app: &ShellApp<S>, kind: CreateKind, name: &str,
     parent: Option<Uuid>,
 ) {
     use workspace_rs::widgets::GlyphonLabel;

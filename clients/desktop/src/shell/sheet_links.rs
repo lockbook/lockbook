@@ -10,10 +10,11 @@ use crate::components::{Space, Spacer, Theme, TypeRole, display_file_name};
 
 use super::ShellApp;
 use super::action::Action;
+use lb::io::server::Server;
 
 /// Under a sheet's summary: nothing when `change` touches no links.
-pub(crate) fn show_link_plan(
-    app: &ShellApp, ui: &mut egui::Ui, t: &Theme, queue: &mut Vec<Action>, change: &Change,
+pub(crate) fn show_link_plan<S: Server>(
+    app: &ShellApp<S>, ui: &mut egui::Ui, t: &Theme, queue: &mut Vec<Action>, change: &Change,
 ) {
     let Some(r) = app.session.ready() else { return };
     let plan = r.workspace.link_plan(change);
@@ -55,8 +56,8 @@ fn checking(ui: &mut egui::Ui, t: &Theme) {
 /// Under a share's summary: the links inside what's shared that won't open
 /// for the people it's shared with, and a switch to share the files they
 /// reach too.
-pub(crate) fn show_share_check(
-    app: &ShellApp, ui: &mut egui::Ui, t: &Theme, id: Uuid, people: &[String],
+pub(crate) fn show_share_check<S: Server>(
+    app: &ShellApp<S>, ui: &mut egui::Ui, t: &Theme, id: Uuid, people: &[String],
 ) {
     let Some(r) = app.session.ready() else { return };
     let with = people.first().cloned().unwrap_or_default();

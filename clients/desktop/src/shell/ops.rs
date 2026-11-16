@@ -5,20 +5,21 @@ use lb::model::file::File;
 use workspace_rs::file_cache::FilesExt;
 
 use super::session::Ready;
+use lb::io::server::Server;
 
 /// Invalidate Recents/Shared after workspace already wrote `files`.
 #[tracing::instrument(level = "trace", skip_all)]
-pub fn note_files_changed(r: &mut Ready) {
+pub fn note_files_changed<S: Server>(r: &mut Ready<S>) {
     r.files_epoch = r.files_epoch.wrapping_add(1);
     refresh_pinned(r);
     r.refresh_status();
 }
 
-pub fn refresh_pinned(r: &mut Ready) {
+pub fn refresh_pinned<S: Server>(r: &mut Ready<S>) {
     r.pinned = r.workspace.core.list_pinned().unwrap_or_default();
 }
 
-pub fn is_pinned(r: &Ready, id: Uuid) -> bool {
+pub fn is_pinned<S: Server>(r: &Ready<S>, id: Uuid) -> bool {
     r.pinned.contains(&id)
 }
 
