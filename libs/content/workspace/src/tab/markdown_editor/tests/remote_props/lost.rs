@@ -254,49 +254,7 @@ impl Session {
         let Some((image, to)) = dropped.filter(|&(image, to)| image.0 > to || to > image.1) else {
             return Ok(());
         };
-        let after = self.note.text();
-        let g: Vec<&str> = before.graphemes(true).collect();
-        let (start, end, to) = (image.0.0, image.1.0, to.0);
-        let text = g[start..end].concat();
-        // the cut takes the image and the markers of each style it leaves
-        // empty, as many on either side of it
-        let lost = || format!("{text:?} dropped at {to} isn't there: {after:?}");
-        let Some(cut) = g.len().checked_sub(after.graphemes(true).count()) else {
-            return Err(lost());
-        };
-        if after == before {
-            // a drop between those markers moves nothing
-            let near = if to < start { &g[to..start] } else { &g[end..to] };
-            let far = if to < start {
-                g.get(end..end + near.len())
-            } else {
-                start.checked_sub(near.len()).map(|s| &g[s..start])
-            };
-            let mirrored = far.is_some_and(|far| far.iter().eq(near.iter().rev()));
-            if !mirrored
-                || !near
-                    .iter()
-                    .all(|m| ["_", "*", "~", "=", "^", "|"].contains(m))
-            {
-                return Err(lost());
-            }
-            log("the drop lands among the markers it would empty".into());
-            return Ok(());
-        }
-        let side = cut / 2;
-        let outside = if to > end { end + side <= to } else { to + side <= start };
-        if cut % 2 == 1 || !outside || side > start || end + side > g.len() {
-            return Err(lost());
-        }
-        let cut = (start - side, end + side);
-        let moved = if to > end {
-            [&g[..cut.0], &g[cut.1..to], &[text.as_str()], &g[to..]].concat()
-        } else {
-            [&g[..to], &[text.as_str()], &g[to..cut.0], &g[cut.1..]].concat()
-        };
-        if moved.concat() != after {
-            return Err(lost());
-        }
+        drop_moved(&before, self.note.text(), image, to)?;
         log("the drop moved the image".into());
         Ok(())
     }
@@ -347,6 +305,36 @@ impl Session {
         }
         Ok(())
     }
+}
+
+/// `after` is `before` with the image at `image` moved to `to`: cut with
+/// the markers of each style it leaves empty, as the editor parses
+/// `before`, and pasted at `to`. A drop strictly inside that cut moves
+/// nothing.
+fn drop_moved(
+    before: &str, after: &str, image: (Grapheme, Grapheme), to: Grapheme,
+) -> Result<(), String> {
+    let g: Vec<&str> = before.graphemes(true).collect();
+    let byte = |i: usize| g[..i].concat().len();
+    let text = g[image.0.0..image.1.0].concat();
+    let bytes = byte(image.0.0)..byte(image.1.0);
+    let cut = super::interleave::images(before)
+        .into_iter()
+        .find(|i| i.range == bytes)
+        .and_then(|i| i.emptied)
+        .unwrap_or(bytes);
+    let (to, cut) = (byte(to.0), (cut.start, cut.end));
+    let expected = if cut.0 < to && to < cut.1 {
+        before.to_string()
+    } else if to <= cut.0 {
+        [&before[..to], &text, &before[to..cut.0], &before[cut.1..]].concat()
+    } else {
+        [&before[..cut.0], &before[cut.1..to], &text, &before[to..]].concat()
+    };
+    if after != expected {
+        return Err(format!("{text:?} dropped at byte {to} isn't there: {after:?}"));
+    }
+    Ok(())
 }
 
 /// A byte offset in `text` where `marker` can go: outside any marker, and
@@ -632,4 +620,35 @@ fn inserted_at(base: &str, remote: &str, marker: &str) -> Option<(usize, usize)>
         .iter()
         .find(|op| !matches!(op, DiffOp::Equal { .. }) && op.new_range().contains(&at))
         .map(|op| (op.old_range().start, op.old_range().end))
+}
+
+/// A drop takes the image with the markers of the styles it empties, and
+/// nothing else.
+#[test]
+fn drop_moved_cases() {
+    let drop = |before: &str, image: (usize, usize), to: usize, after: &str| {
+        drop_moved(before, after, (Grapheme(image.0), Grapheme(image.1)), Grapheme(to))
+    };
+    // a plain image moves alone
+    let plain = "x![a](a.png)y\n\nc\n";
+    drop(plain, (1, 12), 16, "xy\n\nc![a](a.png)\n").unwrap();
+    // and takes nothing on either side of it
+    drop(plain, (1, 12), 16, "\n\nc![a](a.png)\n").unwrap_err();
+    // two images swapped leave the same text
+    let twin = "![a](a.png)![a](a.png)";
+    drop(twin, (0, 11), 22, twin).unwrap();
+    drop(twin, (0, 11), 22, "![a](a.png)").unwrap_err();
+    // a style the image fills goes with it
+    let struck = "~~![a](a.png)~~\n\nc\n";
+    drop(struck, (2, 13), 18, "\n\nc![a](a.png)\n").unwrap();
+    drop(struck, (2, 13), 18, "~~~~\n\nc![a](a.png)\n").unwrap_err();
+    // a style with anything else in it keeps its markers
+    let filled = "**b![a](a.png)**\n\nc\n";
+    drop(filled, (3, 14), 19, "**b**\n\nc![a](a.png)\n").unwrap();
+    drop(filled, (3, 14), 19, "b\n\nc![a](a.png)\n").unwrap_err();
+    // a drop between the markers and the image moves nothing
+    let line = "~~![a](a.png)~~ d\n";
+    drop(line, (2, 13), 1, line).unwrap();
+    // and one at their outer edge moves the image there, unstyled
+    drop(line, (2, 13), 15, "![a](a.png) d\n").unwrap();
 }
