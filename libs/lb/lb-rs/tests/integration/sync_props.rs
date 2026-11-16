@@ -17,6 +17,7 @@ use lb_rs::model::file::{File, ShareMode};
 use lb_rs::model::file_metadata::FileType;
 use lb_rs::model::filename::DocumentType;
 use test_utils::byte_source::ByteSource;
+use test_utils::faulty::{Faulty, Lost, Target};
 use test_utils::gate::{DocOp, Gate, GatedDocuments, GatedServer, Point};
 use test_utils::lockbook_server_lib::ServerState;
 use test_utils::lockbook_server_lib::billing::Nop;
@@ -29,7 +30,8 @@ type TestServer = ServerState<Nop, Nop, Nop, GatedDocuments<InMemDocuments>>;
 /// The server as devices reach it.
 type Client = GatedServer<TestServer>;
 type Docs = GatedDocuments<AsyncDocs>;
-type Lb = lb_rs::Lb<Client, Docs>;
+/// A device, whose requests a step may drop.
+type Lb = lb_rs::Lb<Faulty<Client>, Docs>;
 
 mod starts;
 
@@ -86,6 +88,16 @@ fn the_server_stays_valid() {
     run(WRITE_SHARES, 2000, the_server_stays_valid_check);
 }
 
+#[test]
+fn a_lost_request_loses_nothing() {
+    run(SOLO, 2000, a_lost_request_loses_nothing_check);
+    let [pushes, uploads] = ANSWERS_LOST.get();
+    assert!(
+        pushes > 0 && uploads > 0,
+        "lost {pushes} metadata push answers and {uploads} upload answers"
+    );
+}
+
 // ---------------------------------------------------------------------------------------------
 // tiers
 // ---------------------------------------------------------------------------------------------
@@ -100,6 +112,9 @@ struct Tier {
     overlap: bool,
     starts: &'static [Start],
 }
+
+/// One device alone, so a sync that fails partway changes nothing another device sees.
+const SOLO: Tier = Tier { accounts: 1, devices: 1, overlap: false, starts: &[Start::Empty] };
 
 /// Several accounts with two devices each, each device syncing when it likes, sharing with one
 /// another.
@@ -238,6 +253,20 @@ enum Step {
     Release {
         device: usize,
     },
+    /// `device` syncs, and its `request` is lost where `lost` says.
+    Lose {
+        device: usize,
+        request: Request,
+        lost: Lost,
+    },
+}
+
+/// Which request of a sync a [`Step::Lose`] drops: the `n`th sent one at a time, or the upload
+/// of the device's `D`th document by path.
+#[derive(Clone, Copy, Debug, PartialEq)]
+enum Request {
+    Nth(usize),
+    Upload(usize),
 }
 
 /// Where in a sync a hold may land. `D` names a document: the device's `D`th by path in a step,
@@ -318,7 +347,7 @@ fn steps(case: Case, bytes: &[u8]) -> Vec<Step> {
                 _ => Step::Release { device: held[src.draw(held.len())].0 },
             };
             match step {
-                Step::Hold { device, .. } | Step::Sync { device } => {
+                Step::Hold { device, .. } | Step::Sync { device } | Step::Lose { device, .. } => {
                     held.retain(|&h| h != (device, Activity::Sync))
                 }
                 Step::SyncAll { .. } => held.retain(|&(_, a)| a != Activity::Sync),
@@ -343,7 +372,7 @@ fn step(case: Case, src: &mut ByteSource, device: usize) -> Step {
     let tier = case.tier;
     let shares = if tier.accounts > 1 { 2 } else { 0 };
     let writes = 3 * case.mix.writes();
-    match src.bias(&[3, 1, 3, 2, writes, 2, 2, 1, shares, shares, shares, shares]) {
+    match src.bias(&[3, 1, 3, 2, writes, 2, 2, 1, shares, shares, shares, shares, 2]) {
         0 => Step::Sync { device },
         1 => Step::SyncAll { device },
         2 => Step::CreateDocument { device, parent: src.draw(8), name: src.bias(&NAME_WEIGHTS) },
@@ -365,7 +394,15 @@ fn step(case: Case, src: &mut ByteSource, device: usize) -> Step {
         },
         9 => Step::Accept { device, pending: src.draw(8), name: src.bias(&NAME_WEIGHTS) },
         10 => Step::Reject { device, pending: src.draw(8) },
-        _ => Step::Unshare { device, file: src.draw(8), from: src.draw(4) },
+        11 => Step::Unshare { device, file: src.draw(8), from: src.draw(4) },
+        _ => Step::Lose {
+            device,
+            request: match src.draw(2) {
+                0 => Request::Nth(src.draw(5)),
+                _ => Request::Upload(src.draw(8)),
+            },
+            lost: if src.draw(2) == 0 { Lost::Request } else { Lost::Answer },
+        },
     }
 }
 
@@ -385,8 +422,14 @@ impl Step {
             | Step::Reject { device, .. }
             | Step::Unshare { device, .. }
             | Step::Hold { device, .. }
-            | Step::Release { device } => device,
+            | Step::Release { device }
+            | Step::Lose { device, .. } => device,
         }
+    }
+
+    /// Whether this step syncs its device, besides holding or releasing a sync.
+    fn syncs(&self) -> bool {
+        matches!(self, Step::Sync { .. } | Step::SyncAll { .. } | Step::Lose { .. })
     }
 
     /// This step, taken without waiting on anything.
@@ -415,7 +458,8 @@ impl Step {
             | Step::Reject { device, .. }
             | Step::Unshare { device, .. }
             | Step::Hold { device, .. }
-            | Step::Release { device } => *device = on,
+            | Step::Release { device }
+            | Step::Lose { device, .. } => *device = on,
         }
         step
     }
@@ -555,7 +599,7 @@ impl World {
             let local = Local::new(&pause);
             let docs = |docs: &Docs| GatedDocuments::new(docs.docs.copy().unwrap(), local.clone());
             let device = device
-                .copy_in_memory(config, client.clone(), docs)
+                .copy_in_memory(config, Faulty::new(client.clone()), docs)
                 .await
                 .unwrap();
             devices.push(local.of(device));
@@ -626,7 +670,7 @@ impl World {
         let device = &self.devices[on];
         // a sync waits for the one in flight on its device, and a held save for the last
         match *step {
-            Step::Hold { .. } | Step::Sync { .. } => {
+            Step::Hold { .. } | Step::Sync { .. } | Step::Lose { .. } => {
                 self.release(Some(on), Some(Activity::Sync)).await
             }
             Step::SyncAll { .. } => self.release(None, Some(Activity::Sync)).await,
@@ -658,6 +702,30 @@ impl World {
             }
             Step::Release { .. } => true,
             Step::Sync { .. } => device.sync().await.is_ok(),
+            Step::Lose { request, lost, .. } => {
+                let target = match request {
+                    Request::Nth(n) => Target::Nth(n),
+                    Request::Upload(file) => {
+                        match pick(device, reach, file, Kind::Document).await {
+                            Some(id) => Target::Upload(id),
+                            None => return device.sync().await.is_ok(),
+                        }
+                    }
+                };
+                device.client.fail(target, lost);
+                let synced = device.sync().await.is_ok();
+                let pushed = match device.client.heal() {
+                    Some("upsert_file_metadata_v2") => Some(0),
+                    Some("change_doc_v2") => Some(1),
+                    _ => None,
+                };
+                if let (Some(pushed), Lost::Answer) = (pushed, lost) {
+                    let mut answers = ANSWERS_LOST.get();
+                    answers[pushed] += 1;
+                    ANSWERS_LOST.set(answers);
+                }
+                synced
+            }
             Step::SyncAll { .. } => {
                 let mut all = true;
                 for device in &self.devices {
@@ -1045,7 +1113,7 @@ fn name(seed: u64, n: usize) -> String {
 async fn device(client: &Client, pause: &Pause, seed: u64, n: usize) -> Lb {
     let local = Local::new(pause);
     let docs = GatedDocuments::new(AsyncDocs::in_memory(), local.clone());
-    local.of(Lb::in_memory(config(seed, n), client.clone(), docs)
+    local.of(Lb::in_memory(config(seed, n), Faulty::new(client.clone()), docs)
         .await
         .unwrap())
 }
@@ -1186,6 +1254,9 @@ fn run(tier: Tier, seeds: u64, check: Check) {
 thread_local! {
     /// How many steps this thread has taken while a sync was held.
     static PAUSES: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+    /// How many answers this thread's steps have lost after the server applied them: to metadata
+    /// pushes, and to uploads.
+    static ANSWERS_LOST: std::cell::Cell<[usize; 2]> = const { std::cell::Cell::new([0; 2]) };
     /// How many lines this thread's saves have appended.
     static LANDED: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
 }
@@ -1239,8 +1310,9 @@ fn syncing_alone_changes_nothing_check(case: Case, bytes: &[u8]) -> Result<(), S
                     return Err(format!("step {n}: device {other} changed something"));
                 }
             }
-            if matches!(step, Step::Sync { .. } | Step::SyncAll { .. }) {
-                if !accepted {
+            if step.syncs() {
+                // a lost request fails the sync, which still leaves the device as it was
+                if !accepted && !matches!(step, Step::Lose { .. }) {
                     return Err(format!("step {n}: sync failed"));
                 }
                 let after = tree(&world.devices[0]).await;
@@ -1278,13 +1350,8 @@ fn disjoint_changes_equal_sequential_check(case: Case, bytes: &[u8]) -> Result<(
             let first = device / per_account * per_account;
             for step in steps.iter().filter(|s| {
                 s.device() == device
-                    && !matches!(
-                        s,
-                        Step::Sync { .. }
-                            | Step::SyncAll { .. }
-                            | Step::Hold { .. }
-                            | Step::Release { .. }
-                    )
+                    && !s.syncs()
+                    && !matches!(s, Step::Hold { .. } | Step::Release { .. })
             }) {
                 sequential
                     .take(&step.unheld(), first, Reach::Own(device))
@@ -1346,13 +1413,8 @@ fn a_refused_step_changes_nothing_check(case: Case, bytes: &[u8]) -> Result<(), 
             let accepted = world.take(step, on, Reach::Shared).await;
             let after = listing(&world.devices[on], false).await;
             if !accepted
-                && !matches!(
-                    step,
-                    Step::Sync { .. }
-                        | Step::SyncAll { .. }
-                        | Step::Hold { .. }
-                        | Step::Release { .. }
-                )
+                && !step.syncs()
+                && !matches!(step, Step::Hold { .. } | Step::Release { .. })
                 && after != before
             {
                 return Err(format!(
@@ -1502,5 +1564,36 @@ fn the_server_stays_valid_check(case: Case, bytes: &[u8]) -> Result<(), String> 
         world.take_all(&steps(case, bytes)).await;
         world.settle().await?;
         world.validate_server().await
+    })
+}
+
+/// A device whose syncs lose requests, on the way to the server or back, ends where the same
+/// steps leave it when every request arrives.
+fn a_lost_request_loses_nothing_check(case: Case, bytes: &[u8]) -> Result<(), String> {
+    block_on(async {
+        let steps = steps(case, bytes);
+        let lossy = World::new(case, bytes).await;
+        lossy.take_all(&steps).await;
+        lossy.settle().await?;
+
+        let reliable = World::new(case, bytes).await;
+        for step in &steps {
+            let step = match *step {
+                Step::Lose { device, .. } => Step::Sync { device },
+                ref step => step.clone(),
+            };
+            reliable.take(&step, step.device(), Reach::Shared).await;
+        }
+        reliable.settle().await?;
+
+        let ended = tree(&lossy.devices[0]).await;
+        let expected = tree(&reliable.devices[0]).await;
+        if ended != expected {
+            return Err(format!(
+                "with lost requests the device shows\n{ended:#?}\nbut without, \
+                 \n{expected:#?}"
+            ));
+        }
+        Ok(())
     })
 }
