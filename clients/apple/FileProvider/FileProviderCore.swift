@@ -24,7 +24,7 @@ final class FileProviderCore {
             throw NSFileProviderError(.notAuthenticated)
         }
         self.root = root
-        let initialized = lb_init(location.path, "file-provider", BuildInfo.identity, true, false)
+        let initialized = lb_init(location.path, "file-provider", BuildInfo.identity, true, false, true)
         if initialized.err != nil {
             let error = Self.error(initialized.err!)
             lb_free_init(initialized)
@@ -66,9 +66,16 @@ final class FileProviderCore {
         let version = lb_document_version(core.lb, file.id)
         defer { lb_free_err(version.err) }
         try check(version.err)
+        var fixed = false
+        if folder {
+            let attachments = lb_attachments_of(core.lb, file.id)
+            defer { lb_free_err(attachments.err) }
+            try check(attachments.err)
+            fixed = attachments.is_attachments
+        }
         let item = FileProviderItem(id: identifier(id), parent: identifier(UUID(uuid: file.parent.bytes)),
                                 name: id == root ? "Lockbook" : String(cString: file.name), folder: folder,
-                                modified: file.lastmod, contentVersion: Self.data(version.version))
+                                modified: file.lastmod, contentVersion: Self.data(version.version), fixed: fixed)
         if !folder && !version.version.present { item.size = 0 }
         cache.update(item)
         if !folder && item.size == nil && loadSize {
@@ -213,6 +220,12 @@ final class FileProviderCore {
             return NSError(domain: NSFileProviderErrorDomain, code: NSFileProviderError.cannotSynchronize.rawValue,
                            userInfo: [NSLocalizedDescriptionKey: "This file changed in Lockbook. Copy your Finder edits to a new file to keep both versions."])
         case InsufficientPermission: return CocoaError(.fileWriteNoPermission)
+        // Finder offers neither on an attachments folder; this reaches a move made around it, such
+        // as mv in a terminal, the way ReReadRequired reaches a stale write: shown on the folder with
+        // lb's reason rather than retried in a loop.
+        case AttachmentsFolderFixed:
+            return NSError(domain: NSFileProviderErrorDomain, code: NSFileProviderError.cannotSynchronize.rawValue,
+                           userInfo: [NSLocalizedDescriptionKey: String(cString: error.pointee.msg)])
         case UsageIsOverDataCap, UsageIsOverFreeTierDataCap: return NSFileProviderError(.insufficientQuota)
         default: return NSError(domain: NSCocoaErrorDomain, code: NSFileWriteUnknownError,
                                 userInfo: [NSLocalizedDescriptionKey: String(cString: error.pointee.msg)])

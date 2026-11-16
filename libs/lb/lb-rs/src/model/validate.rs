@@ -7,6 +7,7 @@ use crate::model::lazy::LazyTree;
 use crate::model::staged::StagedTreeLike;
 use crate::model::tree_like::TreeLike;
 use std::collections::{HashMap, HashSet};
+use uuid::Uuid;
 
 use super::errors::{LbErrKind, LbResult};
 
@@ -66,6 +67,7 @@ where
         self.assert_no_duplicate_links()?;
         self.assert_no_broken_links()?;
         self.assert_no_owned_links()?;
+        self.assert_valid_attachments()?;
 
         // authorization check
         self.assert_changes_authorized(owner)?;
@@ -78,6 +80,7 @@ where
     pub fn assert_all_files_decryptable(&mut self, owner: Owner) -> LbResult<()> {
         for file in self.ids().into_iter().filter_map(|id| self.maybe_find(&id)) {
             if self.maybe_find_parent(file).is_none()
+                && self.maybe_find_attached(file).is_none()
                 && !file.explicitly_deleted()
                 && !file
                     .user_access_keys()
@@ -159,6 +162,7 @@ where
                     None => {
                         if !current_file.user_access_keys().is_empty()
                             || current_file.explicitly_deleted()
+                            || self.maybe_find_attached(current_file).is_some()
                         {
                             break;
                         } else {
@@ -259,6 +263,56 @@ where
         Ok(())
     }
 
+    /// An attachments folder is a folder, made for a document, beside it while both live, and the
+    /// only one of that document's that isn't deleted. Only files this change touches are judged,
+    /// as a partial view of the tree can't judge the rest.
+    pub fn assert_valid_attachments(&mut self) -> LbResult<()> {
+        let mut folders: HashMap<Uuid, Vec<Uuid>> = HashMap::new();
+        for id in self.ids() {
+            if let Some(of) = self.find(&id)?.attachments_of() {
+                folders.entry(of.id).or_default().push(id);
+            }
+        }
+        for id in self.tree.staged().ids() {
+            let file = self.find(&id)?;
+            let mut judged = Vec::new();
+            if let Some(of) = file.attachments_of() {
+                let new = self.tree.base().maybe_find(&id).is_none();
+                if new
+                    && (!file.is_folder()
+                        || !self.maybe_find(&of.id).is_some_and(|doc| doc.is_document()))
+                {
+                    Err(LbErrKind::Validation(ValidationFailure::InvalidAttachmentsFolder(id)))?;
+                }
+                judged.push((id, of.id));
+            }
+            for &folder in folders.get(&id).into_iter().flatten() {
+                judged.push((folder, id));
+            }
+            for (folder, document) in judged {
+                if self.maybe_find(&document).is_none()
+                    || self.calculate_deleted(&folder)?
+                    || self.calculate_deleted(&document)?
+                {
+                    continue;
+                }
+                if self.find(&folder)?.parent() != self.find(&document)?.parent() {
+                    Err(LbErrKind::Validation(ValidationFailure::MisplacedAttachmentsFolder(
+                        folder,
+                    )))?;
+                }
+                for &other in &folders[&document] {
+                    if other != folder && !self.calculate_deleted(&other)? {
+                        Err(LbErrKind::Validation(
+                            ValidationFailure::DuplicateAttachmentsFolder { document },
+                        ))?;
+                    }
+                }
+            }
+        }
+        Ok(())
+    }
+
     pub fn assert_no_root_changes(&mut self) -> LbResult<()> {
         for id in self.tree.staged().ids() {
             // already root
@@ -331,6 +385,18 @@ where
 
         let base = self.tree.base().to_lazy();
         for file_diff in self.diffs()? {
+            // making a folder a document's attachments folder takes write access to the document,
+            // as to the folder's parent
+            if file_diff.old.is_none() {
+                if let Some(of) = file_diff.new.attachments_of() {
+                    if !new_files.contains(&of.id)
+                        && (base.maybe_find(&of.id).is_none()
+                            || base.access_mode(owner, &of.id)? < Some(UserAccessMode::Write))
+                    {
+                        Err(LbErrKind::InsufficientPermission)?;
+                    }
+                }
+            }
             // a share to the file's owner or to the sharer is refused when it's made
             for key in file_diff.new.user_access_keys() {
                 let to_self = key.encrypted_for == file_diff.new.owner().0
@@ -416,6 +482,12 @@ where
                                 }
                             }
                         }
+                    }
+                    Diff::AttachmentsOf => {
+                        // a folder belongs to a document from its creation, and to no other
+                        Err(LbErrKind::Validation(ValidationFailure::InvalidAttachmentsFolder(
+                            *file_diff.id(),
+                        )))?;
                     }
                     Diff::Hmac => {
                         // check self access

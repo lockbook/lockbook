@@ -141,9 +141,43 @@ impl<S: Server, D: LocalDocuments> Lb<S, D> {
     }
 
     pub(crate) async fn push_local_changes(&self) -> LbResult<()> {
+        self.create_shared_attachments().await?;
         self.push_meta().await?;
         self.push_docs().await?;
 
+        Ok(())
+    }
+
+    /// Makes the attachments folders this device's owner makes for documents others write by a
+    /// share of their own, for documents shared that way before this device made them.
+    async fn create_shared_attachments(&self) -> LbResult<()> {
+        if !self.attachments_folders {
+            return Ok(());
+        }
+        let me = Owner(self.keychain.get_pk()?);
+        let mut tx = self.begin_tx().await;
+        let db = tx.db();
+        let mut tree = (&db.base_metadata)
+            .to_staged(&mut db.local_metadata)
+            .to_lazy();
+        let mut ids = tree.ids();
+        ids.sort();
+        let mut created = false;
+        for id in ids {
+            if tree.wants_shared_attachments(&id, me)? {
+                tree.create_attachments(
+                    self.entropy.id(),
+                    self.entropy.key(),
+                    &id,
+                    &self.keychain,
+                )?;
+                created = true;
+            }
+        }
+        tx.end();
+        if created {
+            self.events.meta_changed(Actor::Sync);
+        }
         Ok(())
     }
 
@@ -172,14 +206,34 @@ impl<S: Server, D: LocalDocuments> Lb<S, D> {
         let mut local = db.base_metadata.stage(&db.local_metadata).to_lazy();
         let base_ids = local.tree.base.ids();
 
-        // files the server stopped listing, and this device's files under them it never had
+        // files the server stopped listing, and this device's files under them, or in their
+        // attachments folders, it never had
         let mut prunable_ids: HashSet<Uuid> = base_ids
             .into_iter()
             .filter(|id| !server_ids.contains(id))
             .collect();
+        let mut attached: HashMap<Uuid, Vec<Uuid>> = HashMap::new();
+        for id in local.ids() {
+            if let Some(of) = local.find(&id)?.attachments_of() {
+                attached.entry(of.id).or_default().push(id);
+            }
+        }
         let mut to_visit: Vec<Uuid> = prunable_ids.iter().copied().collect();
         while let Some(id) = to_visit.pop() {
+            let mut under = Vec::new();
             for child in local.children(&id)? {
+                // an attachments folder goes where its document goes, not where its parent was:
+                // while the server has the document, the folder lands beside it in the merge
+                let follows_document = local
+                    .find(&child)?
+                    .attachments_of()
+                    .is_some_and(|of| server_ids.contains(&of.id));
+                if !follows_document {
+                    under.push(child);
+                }
+            }
+            under.extend(attached.get(&id).into_iter().flatten().copied());
+            for child in under {
                 if !server_ids.contains(&child) && prunable_ids.insert(child) {
                     to_visit.push(child);
                 }
@@ -256,6 +310,7 @@ impl<S: Server, D: LocalDocuments> Lb<S, D> {
         for id in remote.tree.staged.ids() {
             let meta = remote.find(&id)?;
             if remote.maybe_find_parent(meta).is_some()
+                || remote.maybe_find_attached(meta).is_some()
                 || meta.explicitly_deleted()
                 || meta
                     .user_access_keys()
@@ -431,6 +486,9 @@ impl<S: Server, D: LocalDocuments> Lb<S, D> {
             let mut files_to_unmove: HashSet<Uuid> = HashSet::new();
             let mut files_to_unshare: HashSet<Uuid> = HashSet::new();
             let mut links_to_delete: HashSet<Uuid> = HashSet::new();
+            // this device's new attachments folder for a document the server already gave one: it
+            // isn't created and its files go in the server's
+            let mut attachments_to_fold: HashMap<Uuid, Uuid> = HashMap::new();
             let mut rename_increments: HashMap<Uuid, usize> = HashMap::new();
             // Id and key share one lifetime: the merge, including construction retries.
             // A new key per attempt encrypts with the key cached by the failed attempt.
@@ -446,22 +504,34 @@ impl<S: Server, D: LocalDocuments> Lb<S, D> {
                     // creations
                     let mut deletion_creations = HashSet::new();
                     for id in db.local_metadata.ids() {
-                        if remote.maybe_find(&id).is_none() && !links_to_delete.contains(&id) {
+                        if remote.maybe_find(&id).is_none()
+                            && !links_to_delete.contains(&id)
+                            && !attachments_to_fold.contains_key(&id)
+                        {
                             deletion_creations.insert(id);
                         }
                     }
                     for id in parents_first(&local, &deletion_creations)? {
                         let local_file = local.find(&id)?.clone();
+                        let parent =
+                            created_parent(&remote_with_moves, &local_file, &attachments_to_fold);
                         remote_with_moves
                             .create_unvalidated(
                                 id,
                                 symkey::generate_key(),
-                                local_file.parent(),
+                                &parent,
                                 &local.name(&id, &self.keychain)?,
                                 local_file.file_type(),
                                 &self.keychain,
                             )
                             .map_err(orphaned_creation(id))?;
+                        if let Some(of) = local_file.attachments_of() {
+                            remote_with_moves.attach_unvalidated(
+                                &id,
+                                of.clone(),
+                                &self.keychain,
+                            )?;
+                        }
                     }
 
                     // moves (creations happen first in case a file is moved into a new folder);
@@ -483,23 +553,15 @@ impl<S: Server, D: LocalDocuments> Lb<S, D> {
                                 let from = remote.find(&id)?.parent();
                                 let may_move_from = remote.maybe_find(from).is_some()
                                     && remote.access_mode(me, from)? >= Some(UserAccessMode::Write);
+                                let to = folded(&attachments_to_fold, local_file.parent());
                                 if !may_move_from
-                                    || !may_write_in(
-                                        &local,
-                                        &remote_with_moves,
-                                        me,
-                                        local_file.parent(),
-                                    )?
+                                    || !may_write_in(&local, &remote_with_moves, me, &to)?
                                 {
                                     refused_moves.insert(id);
                                     continue;
                                 }
                                 // move
-                                remote_with_moves.move_unvalidated(
-                                    &id,
-                                    local_file.parent(),
-                                    &self.keychain,
-                                )?;
+                                remote_with_moves.move_unvalidated(&id, &to, &self.keychain)?;
                             }
                         }
                     }
@@ -535,7 +597,11 @@ impl<S: Server, D: LocalDocuments> Lb<S, D> {
                                 &local,
                                 &remote_with_moves,
                                 me,
-                                local.find(&id)?.parent(),
+                                &created_parent(
+                                    &remote_with_moves,
+                                    local.find(&id)?,
+                                    &attachments_to_fold,
+                                ),
                             )?
                         {
                             creations.insert(id);
@@ -543,16 +609,20 @@ impl<S: Server, D: LocalDocuments> Lb<S, D> {
                     }
                     for id in parents_first(&local, &creations)? {
                         let local_file = local.find(&id)?.clone();
+                        let parent = created_parent(&merge, &local_file, &attachments_to_fold);
                         merge
                             .create_unvalidated(
                                 id,
                                 local.decrypt_key(&id, &self.keychain)?,
-                                local_file.parent(),
+                                &parent,
                                 &local.name(&id, &self.keychain)?,
                                 local_file.file_type(),
                                 &self.keychain,
                             )
                             .map_err(orphaned_creation(id))?;
+                        if let Some(of) = local_file.attachments_of() {
+                            merge.attach_unvalidated(&id, of.clone(), &self.keychain)?;
+                        }
                     }
 
                     // deletes
@@ -610,7 +680,7 @@ impl<S: Server, D: LocalDocuments> Lb<S, D> {
                                 && !files_to_unmove.contains(&id)
                                 && !refused_moves.contains(&id)
                             {
-                                let parent = *local_file.parent();
+                                let parent = folded(&attachments_to_fold, local_file.parent());
                                 merge.move_unvalidated(&id, &parent, &self.keychain)?;
                             }
                         }
@@ -622,7 +692,7 @@ impl<S: Server, D: LocalDocuments> Lb<S, D> {
                         ..
                     }) = merge.assert_no_cycles()
                     {
-                        unmove_cycle(&db.local_metadata, &ids, &mut files_to_unmove)?;
+                        unmove_cycle(&local, &db.local_metadata, &ids, &mut files_to_unmove)?;
                         continue 'merge_construction;
                     }
 
@@ -831,6 +901,31 @@ impl<S: Server, D: LocalDocuments> Lb<S, D> {
                         }
                     }
 
+                    // repair: each attachments folder goes beside its document, keeping its name;
+                    // documents in id order so every device repairs a tree the same way
+                    let mut attached = Vec::new();
+                    for id in merge.ids() {
+                        if let Some(of) = merge.find(&id)?.attachments_of() {
+                            attached.push((of.id, id));
+                        }
+                    }
+                    attached.sort();
+                    for (document, folder) in attached {
+                        if merge.maybe_find(&document).is_none()
+                            || merge.calculate_deleted(&document)?
+                            || merge.calculate_deleted(&folder)?
+                        {
+                            continue;
+                        }
+                        let parent = *merge.find(&document)?.parent();
+                        let folder_parent = *merge.find(&folder)?.parent();
+                        if may_write_in(&local, &remote_with_moves, me, &parent)?
+                            && may_write_in(&local, &remote_with_moves, me, &folder_parent)?
+                        {
+                            merge.place_attachments_folder(&document, &folder, &self.keychain)?;
+                        }
+                    }
+
                     merge
                 };
 
@@ -866,7 +961,12 @@ impl<S: Server, D: LocalDocuments> Lb<S, D> {
                         LbErrKind::Validation(ref vf) => match vf {
                             // merge changeset has resolvable validation errors and needs modification
                             ValidationFailure::Cycle(ids) => {
-                                unmove_cycle(&db.local_metadata, ids, &mut files_to_unmove)?;
+                                unmove_cycle(
+                                    &local,
+                                    &db.local_metadata,
+                                    ids,
+                                    &mut files_to_unmove,
+                                )?;
                             }
                             ValidationFailure::PathConflict(ids) => {
                                 // pick one local id and generate a non-conflicting filename
@@ -983,6 +1083,37 @@ impl<S: Server, D: LocalDocuments> Lb<S, D> {
                                     .into());
                                 }
                             }
+                            ValidationFailure::DuplicateAttachmentsFolder { document } => {
+                                // the server's folder stays; this device's new one is folded into
+                                // it
+                                let mut existing = None;
+                                let mut new = None;
+                                for id in merge.ids() {
+                                    let file = merge.find(&id)?;
+                                    if file.attachments_of().map(|of| of.id) != Some(*document)
+                                        || merge.calculate_deleted(&id)?
+                                    {
+                                        continue;
+                                    }
+                                    if remote.maybe_find(&id).is_some() {
+                                        existing = Some(id);
+                                    } else {
+                                        new = Some(id);
+                                    }
+                                }
+                                let progress = match (existing, new) {
+                                    (Some(existing), Some(new)) => {
+                                        attachments_to_fold.insert(new, existing).is_none()
+                                    }
+                                    _ => false,
+                                };
+                                if !progress {
+                                    return Err(LbErrKind::Unexpected(format!(
+                                        "sync failed to resolve duplicate attachments folders: document: {document:?}"
+                                    ))
+                                    .into());
+                                }
+                            }
                             // merge changeset has unexpected validation errors
                             ValidationFailure::Orphan(_)
                             | ValidationFailure::NonFolderWithChildren(_)
@@ -990,7 +1121,9 @@ impl<S: Server, D: LocalDocuments> Lb<S, D> {
                             | ValidationFailure::FileNameTooLong(_)
                             | ValidationFailure::DeletedFileUpdated(_)
                             | ValidationFailure::NonDecryptableFileName(_)
-                            | ValidationFailure::SelfShare(_) => {
+                            | ValidationFailure::SelfShare(_)
+                            | ValidationFailure::InvalidAttachmentsFolder(_)
+                            | ValidationFailure::MisplacedAttachmentsFolder(_) => {
                                 validate_result?;
                             }
                         },
@@ -1544,9 +1677,7 @@ fn local_access<L: TreeLike, R: TreeLike<F = L::F>>(
     local: &LazyTree<L>, remote: &LazyTree<R>, me: Owner, id: &Uuid,
 ) -> LbResult<Option<UserAccessMode>> {
     let mut mode = local.access_mode(me, id)?;
-    let mut ids = local.ancestors(id)?;
-    ids.insert(*id);
-    for id in ids {
+    for id in local.access_sources(id)? {
         let file = local.find(&id)?;
         if file.is_root() {
             continue;
@@ -1566,10 +1697,8 @@ fn local_access<L: TreeLike, R: TreeLike<F = L::F>>(
 fn server_access<L: TreeLike, R: TreeLike<F = L::F>>(
     local: &LazyTree<L>, remote: &LazyTree<R>, me: Owner, id: &Uuid,
 ) -> LbResult<Option<UserAccessMode>> {
-    let mut ids = remote.ancestors(id)?;
-    ids.insert(*id);
     let mut mode = None;
-    for id in ids {
+    for id in remote.access_sources(id)? {
         let declined = local.maybe_find(&id).is_some_and(|file| {
             file.user_access_keys()
                 .iter()
@@ -1605,13 +1734,21 @@ where
 }
 
 /// Undoes this device's moves that form a cycle, or fails when none of them is this device's.
-fn unmove_cycle<T: TreeLike>(
-    local_changes: &T, ids: &HashSet<Uuid>, files_to_unmove: &mut HashSet<Uuid>,
+/// An attachments folder in the cycle is there because of its document's place, so its
+/// document's move is undone too; otherwise repair would move the folder back into the cycle.
+fn unmove_cycle<L: TreeLike, T: TreeLike>(
+    local: &L, local_changes: &T, ids: &HashSet<Uuid>, files_to_unmove: &mut HashSet<Uuid>,
 ) -> LbResult<()> {
     let mut progress = false;
     for &id in ids {
-        if local_changes.maybe_find(&id).is_some() && files_to_unmove.insert(id) {
-            progress = true;
+        let mut moved = vec![id];
+        if let Some(of) = local.maybe_find(&id).and_then(|f| f.attachments_of()) {
+            moved.push(of.id);
+        }
+        for id in moved {
+            if local_changes.maybe_find(&id).is_some() && files_to_unmove.insert(id) {
+                progress = true;
+            }
         }
     }
     if !progress {
@@ -1640,6 +1777,23 @@ fn parents_first<T: TreeLike>(tree: &LazyTree<T>, ids: &HashSet<Uuid>) -> LbResu
         );
     }
     Ok(order)
+}
+
+/// Where a file this device created goes in `tree`: an attachments folder beside its document,
+/// when `tree` has it, since a folder's place follows its document's; anything else in its own
+/// parent, [folded].
+fn created_parent<T: TreeLike<F = SignedMeta>>(
+    tree: &LazyTree<T>, file: &SignedMeta, attachments_to_fold: &HashMap<Uuid, Uuid>,
+) -> Uuid {
+    match tree.maybe_find_attached(file) {
+        Some(document) => *document.parent(),
+        None => folded(attachments_to_fold, file.parent()),
+    }
+}
+
+/// Where a file in `parent` goes: `parent`, unless it's a folded attachments folder.
+fn folded(attachments_to_fold: &HashMap<Uuid, Uuid>, parent: &Uuid) -> Uuid {
+    *attachments_to_fold.get(parent).unwrap_or(parent)
 }
 
 /// A creation whose parent is in neither the tree nor the creations before it.

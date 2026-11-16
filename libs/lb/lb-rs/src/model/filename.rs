@@ -150,6 +150,26 @@ impl NameComponents {
     }
 }
 
+/// The `n`th name for the attachments folder of a document named `document_name`: `plan.md`'s
+/// is `plan-attachments`, then `plan-attachments 2`, numbered as sync numbers a name that's taken.
+/// The document's name is cut short, at a character, where the folder's would be too long.
+pub fn attachments_folder_name(document_name: &str, n: usize) -> String {
+    let stem = match document_name.rsplit_once('.') {
+        Some((stem, extension)) if !stem.is_empty() && is_extension(extension) => stem,
+        _ => document_name,
+    };
+    let suffix = NameComponents::folder(ATTACHMENTS_SUFFIX).numbered(n);
+    let mut end = stem
+        .len()
+        .min(MAX_FILENAME_LENGTH.saturating_sub(suffix.len()));
+    while !stem.is_char_boundary(end) {
+        end -= 1;
+    }
+    format!("{}{suffix}", &stem[..end])
+}
+
+const ATTACHMENTS_SUFFIX: &str = "-attachments";
+
 fn is_extension(text: &str) -> bool {
     text.chars().any(char::is_alphabetic) && !text.chars().any(char::is_whitespace)
 }

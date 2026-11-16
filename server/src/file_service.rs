@@ -9,17 +9,21 @@ use crate::guard::ServerTx;
 use crate::schema::ServerV6;
 
 use crate::{RequestContext, ServerState};
+use db_rs::views::hashmap::DbHashMap;
 use lb_rs::model::api::{UpsertError, *};
 use lb_rs::model::clock::get_time;
 use lb_rs::model::errors::{LbErrKind, LbResult};
 use lb_rs::model::file_like::FileLike;
 use lb_rs::model::file_metadata::{Diff, Owner};
+use lb_rs::model::meta::Meta;
 use lb_rs::model::server_meta::{IntoServerMeta, ServerMeta};
 use lb_rs::model::server_tree::ServerTree;
+use lb_rs::model::signed_meta::SignedMeta;
 use lb_rs::model::tree_like::TreeLike;
 use std::collections::{HashMap, HashSet};
 use std::hash::Hash;
 use tracing::{debug, error, warn};
+use uuid::Uuid;
 
 impl<S, A, G, D> ServerState<S, A, G, D>
 where
@@ -33,6 +37,9 @@ where
     ) -> Result<(), ServerError<UpsertError>> {
         let req_owner = Owner(context.public_key);
         let UpsertRequestV2 { updates } = context.request;
+        if !self.config.features.meta_v2 && updates.iter().any(|update| writes_v2(&update.new)) {
+            return Err(ClientError(UpsertError::DiffMalformed));
+        }
 
         let mut prior_deleted = HashSet::new();
         let mut current_deleted = HashSet::new();
@@ -132,6 +139,10 @@ where
                 for user_access_info in meta.user_access_keys() {
                     db.shared_files
                         .remove(&Owner(user_access_info.encrypted_for), id)?;
+                }
+                // the document's recipients stop being sent a deleted attachments folder
+                if let Some(of) = meta.attachments_of() {
+                    db.file_children.remove(&of.id, id)?;
                 }
             }
         }
@@ -440,7 +451,7 @@ where
         let mut tx = ServerTx::begin(&mut guard)?;
         let db = &mut *tx;
 
-        let mut tree = ServerTree::new(
+        let tree = ServerTree::new(
             owner,
             &mut db.owned_files,
             &mut db.shared_files,
@@ -463,15 +474,7 @@ where
                 }
             }
         }
-        let mut expanded = HashSet::new();
-        while let Some(id) = reached.pop() {
-            if expanded.insert(id) {
-                for child in tree.children(&id)? {
-                    result_ids.insert(child);
-                    reached.push(child);
-                }
-            }
-        }
+        result_ids.extend(tree.tree.reachable(reached));
 
         Ok(GetUpdatesResponseV2 {
             as_of_metadata_version: self.clock.now().0 as u64,
@@ -522,7 +525,7 @@ where
             .to_lazy();
 
             let metas_to_delete = {
-                let mut metas_to_delete = tree.descendants(&context.request.id)?;
+                let mut metas_to_delete = tree.tree.reachable([context.request.id]);
                 metas_to_delete.insert(context.request.id);
                 metas_to_delete
             };
@@ -566,7 +569,8 @@ where
                     }
                 }
 
-                // maintain index: file_children
+                // maintain index: file_children; a deleted attachments folder is no longer
+                // listed under its document
                 let parent = *meta.parent();
                 if !db.file_children.remove(meta.parent(), &id)? {
                     error!(
@@ -574,6 +578,9 @@ where
                         ?parent,
                         "attempted to disappear a file, the parent didn't have it as a child"
                     );
+                }
+                if let Some(of) = meta.attachments_of() {
+                    db.file_children.remove(&of.id, &id)?;
                 }
             }
 
@@ -813,27 +820,7 @@ where
             .map(|(key, value)| (*key, value.clone()))
             .collect::<HashMap<_, _>>()
         {
-            // check for implicit deletion (can't use server tree which depends on index)
-            let mut deleted = false;
-            let mut ancestor = meta.clone();
-            loop {
-                if ancestor.explicitly_deleted() {
-                    deleted = true;
-                    break;
-                }
-                if ancestor.is_root() {
-                    break;
-                }
-                match db.metas.get(ancestor.parent()) {
-                    Some(parent) => ancestor = parent.clone(),
-                    None => {
-                        error!("missing parent for file {:?}", ancestor.parent());
-                        deleted = true;
-                        break;
-                    }
-                }
-            }
-            if deleted {
+            if deleted(&db.metas, &meta) {
                 continue;
             }
 
@@ -865,7 +852,9 @@ where
         {
             for child_id in child_ids {
                 if let Some(meta) = db.metas.get(&child_id) {
-                    if meta.parent() != &parent_id {
+                    if meta.parent() != &parent_id
+                        && meta.attachments_of().map(|of| of.id) != Some(parent_id)
+                    {
                         insert(
                             &mut result.files_mapped_as_parent_to_non_children,
                             parent_id,
@@ -895,6 +884,16 @@ where
                 }
             } else {
                 result.files_unmapped_as_parent.insert(*meta.parent());
+            }
+            // a live attachments folder is listed under its document too, a deleted one isn't
+            if let Some(document) = meta.attachments_of().map(|of| of.id) {
+                let listed = db
+                    .file_children
+                    .get(&document)
+                    .is_some_and(|ids| ids.contains(&id));
+                if listed == deleted(&db.metas, &meta) {
+                    insert(&mut result.files_unmapped_as_parent_to_children, document, id);
+                }
             }
         }
 
@@ -1006,28 +1005,7 @@ where
                     .map(|(key, value)| (*key, value.clone()))
                     .collect::<HashMap<_, _>>()
                 {
-                    // check for implicit deletion (can't use server tree which depends on index)
-                    let mut deleted = false;
-                    let mut ancestor = file.clone();
-                    loop {
-                        if ancestor.explicitly_deleted() {
-                            deleted = true;
-                            break;
-                        }
-                        if ancestor.is_root() {
-                            break;
-                        }
-                        match db.metas.get(ancestor.parent()) {
-                            Some(parent) => ancestor = parent.clone(),
-                            None => {
-                                error!("missing parent for file {:?}", ancestor.parent());
-                                deleted = true;
-                                break;
-                            }
-                        }
-                    }
-
-                    if !deleted {
+                    if !deleted(&db.metas, &file) {
                         for user_access_key in file.user_access_keys() {
                             if !user_access_key.deleted
                                 && user_access_key.encrypted_for != user_access_key.encrypted_by
@@ -1057,6 +1035,14 @@ where
                     .collect::<HashMap<_, _>>()
                 {
                     db.file_children.insert(*file.parent(), id)?;
+                    if let Some(of) = file.attachments_of() {
+                        if !deleted(&db.metas, &file) {
+                            if db.file_children.get(&of.id).is_none() {
+                                db.file_children.create_key(of.id)?;
+                            }
+                            db.file_children.insert(of.id, id)?;
+                        }
+                    }
                 }
             }
         }
@@ -1065,6 +1051,40 @@ where
     }
 }
 
+/// Whether a file is deleted, from the metadata alone, for checking and rebuilding the indexes a
+/// server tree depends on.
+fn deleted(metas: &DbHashMap<Uuid, ServerMeta>, file: &ServerMeta) -> bool {
+    let mut visited = HashSet::new();
+    let mut to_visit = vec![file];
+    while let Some(file) = to_visit.pop() {
+        if !visited.insert(*file.id()) {
+            continue;
+        }
+        if file.explicitly_deleted() {
+            return true;
+        }
+        if !file.is_root() {
+            match metas.get(file.parent()) {
+                Some(parent) => to_visit.push(parent),
+                None => {
+                    error!("missing parent for file {:?}", file.parent());
+                    return true;
+                }
+            }
+        }
+        if let Some(document) = file.attachments_of().and_then(|of| metas.get(&of.id)) {
+            to_visit.push(document);
+        }
+    }
+    false
+}
+
 fn insert<K: Hash + Eq, V: Hash + Eq>(map: &mut HashMap<K, HashSet<V>>, k: K, v: V) {
     map.entry(k).or_default().insert(v);
+}
+
+/// Whether a client is writing metadata V2, which a server accepts only once its `meta_v2` feature
+/// is on.
+pub(crate) fn writes_v2(file: &SignedMeta) -> bool {
+    matches!(file.timestamped_value.value, Meta::V2 { .. })
 }

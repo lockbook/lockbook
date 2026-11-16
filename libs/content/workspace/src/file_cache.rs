@@ -1,5 +1,5 @@
 use std::cmp::Ordering;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::fmt::{self, Debug, Formatter};
 use std::iter;
 use std::sync::{Arc, OnceLock, RwLock};
@@ -33,6 +33,7 @@ pub enum Reach {
 }
 
 type UuidMap<V> = HashMap<Uuid, V, UuidIdentityHasherBuilder>;
+type UuidSet = HashSet<Uuid, UuidIdentityHasherBuilder>;
 
 fn uuid_map<V>() -> UuidMap<V> {
     HashMap::with_hasher(UuidIdentityHasherBuilder)
@@ -48,6 +49,12 @@ pub struct FileCache {
     /// `(parent, is_document, name)`. `(parent, name)` is unique.
     rows: Vec<File>,
     by_id: UuidMap<u32>,
+    /// Attachments folders and their contents: rows that links and plans reach, but that nothing
+    /// lists, as lb leaves them out of its own listings.
+    hidden: UuidSet,
+    /// Each note's attachments folder, by what the folder is for (lb's `attachments_of`), not
+    /// its name or place: what [`FilesExt::locate_link`] reads a link against when its path fails.
+    attachments: UuidMap<Uuid>,
     pub shared_roots: Vec<File>,
     pub size_bytes_recursive: UuidMap<u64>,
     pub last_modified_recursive: UuidMap<u64>,
@@ -100,6 +107,8 @@ impl FileCache {
             shared_roots: vec![],
             rows: vec![root],
             by_id: [(root_id, 0)].into_iter().collect(),
+            hidden: Default::default(),
+            attachments: Default::default(),
             notes: Default::default(),
             titles: Default::default(),
             generation: 0,
@@ -110,11 +119,29 @@ impl FileCache {
     pub fn from_owned_and_shared(
         root: File, owned: impl IntoIterator<Item = File>, shared: impl IntoIterator<Item = File>,
     ) -> Self {
-        Self::from_rows(root, owned.into_iter().chain(shared), Vec::new())
+        Self::from_rows(root, owned.into_iter().chain(shared), Vec::new(), Default::default())
+    }
+
+    /// This cache with `hidden`, attachments folders and what's in them, left out of listings.
+    pub fn with_hidden(mut self, hidden: impl IntoIterator<Item = Uuid>) -> Self {
+        self.hidden = hidden.into_iter().collect();
+        self.titles = Default::default();
+        self
+    }
+
+    /// This cache with each `(note, folder)`: the note's attachments folder.
+    pub fn with_attachments(mut self, folders: impl IntoIterator<Item = (Uuid, Uuid)>) -> Self {
+        self.attachments = folders.into_iter().collect();
+        self
+    }
+
+    /// Whether `id` is an attachments folder or in one: reached by links, listed nowhere.
+    pub fn is_hidden(&self, id: Uuid) -> bool {
+        self.hidden.contains(&id)
     }
 
     fn from_rows(
-        root: File, files: impl IntoIterator<Item = File>, shared_roots: Vec<File>,
+        root: File, files: impl IntoIterator<Item = File>, shared_roots: Vec<File>, hidden: UuidSet,
     ) -> Self {
         let mut rows: Vec<File> = files.into_iter().collect();
         if !rows.iter().any(|f| f.id == root.id) {
@@ -127,6 +154,8 @@ impl FileCache {
             root,
             rows,
             by_id,
+            hidden,
+            attachments: Default::default(),
             shared_roots,
             size_bytes_recursive: uuid_map(),
             last_modified_recursive: uuid_map(),
@@ -143,8 +172,20 @@ impl FileCache {
         let files = lb.list_metadatas()?;
         let shared = lb.get_pending_share_files()?;
         let shared_roots = lb.get_pending_shares()?;
-        tracing::Span::current().record("n_files", files.len() + shared.len());
-        let mut cache = Self::from_rows(root, files.into_iter().chain(shared), shared_roots);
+        let attachments = lb.list_attachments()?;
+        let folders = attachments.folders;
+        let attachments = attachments.files;
+        let hidden: UuidSet = attachments.iter().map(|f| f.id).collect();
+        tracing::Span::current().record("n_files", files.len() + shared.len() + attachments.len());
+        // lb lists attachments only when configured to; here they're always rows, and hidden
+        let listed: Vec<File> = files
+            .into_iter()
+            .chain(shared)
+            .filter(|f| !hidden.contains(&f.id))
+            .collect();
+        let mut cache =
+            Self::from_rows(root, listed.into_iter().chain(attachments), shared_roots, hidden)
+                .with_attachments(folders);
         cache.fill_recursive();
         Ok(cache)
     }
@@ -182,9 +223,10 @@ impl FileCache {
             .unwrap_or_else(|| self.get_by_id(id).map(|f| f.last_modified).unwrap_or(0))
     }
 
-    /// Iterates all known files: the user's own tree plus pending shares.
+    /// Iterates all listed files: the user's own tree plus pending shares, without attachments
+    /// folders and their contents.
     pub fn all_files(&self) -> impl Iterator<Item = &File> {
-        self.rows.iter()
+        self.rows.iter().filter(|f| !self.hidden.contains(&f.id))
     }
 
     /// `(file, path)` pairs for the path searcher used by link completions.
@@ -196,6 +238,9 @@ impl FileCache {
     }
 
     pub fn insert_created_file(&mut self, file: File) {
+        if self.hidden.contains(&file.parent) {
+            self.hidden.insert(file.id);
+        }
         let file_id = file.id;
         let file_size = file.size_bytes;
         let file_modified = file.last_modified;
@@ -314,7 +359,9 @@ impl FileCache {
             self.root.clone(),
             rows.chain(created).collect::<Vec<_>>(),
             self.shared_roots.clone(),
+            self.hidden.clone(),
         );
+        after.attachments = self.attachments.clone();
         after.size_bytes_recursive = self.size_bytes_recursive.clone();
         after.last_modified_recursive = self.last_modified_recursive.clone();
         after
@@ -363,8 +410,20 @@ impl Debug for FileCache {
 pub trait FilesExt {
     fn root(&self) -> &File;
     fn get_by_id(&self, id: Uuid) -> Option<&File>;
+    /// The listed files whose parent is `id`.
     fn children(&self, id: Uuid) -> Vec<&File>;
     fn iter_files(&self) -> impl Iterator<Item = &File>;
+
+    /// `note`'s attachments folder, found by what it's for, whatever its name or place.
+    fn attachments_folder(&self, _note: Uuid) -> Option<Uuid> {
+        None
+    }
+
+    /// Every file whose parent is `id`, attachments folders and their contents included: what
+    /// paths walk and plans move, delete and rename along.
+    fn contents(&self, id: Uuid) -> Vec<&File> {
+        self.children(id)
+    }
 
     /// The documents a wikilink title's last segment names ([`title_matches`]).
     fn named(&self, title: &str) -> Vec<&File> {
@@ -375,7 +434,7 @@ pub trait FilesExt {
 
     fn siblings(&self, id: Uuid) -> Vec<&File> {
         let parent = self.get_by_id(id).unwrap().parent;
-        self.children(parent)
+        self.contents(parent)
             .into_iter()
             .filter(|f| f.id != id)
             .collect()
@@ -383,7 +442,7 @@ pub trait FilesExt {
 
     fn descendents(&self, id: Uuid) -> Vec<&File> {
         let mut descendents = vec![];
-        for child in self.children(id) {
+        for child in self.contents(id) {
             descendents.extend(self.descendents(child.id));
             descendents.push(child);
         }
@@ -446,7 +505,7 @@ pub trait FilesExt {
         let mut current = self.root().id;
         for component in components {
             current = self
-                .children(current)
+                .contents(current)
                 .into_iter()
                 .find(|f| f.name == component)?
                 .id;
@@ -492,7 +551,7 @@ pub trait FilesExt {
                 }
                 name => {
                     current = self
-                        .children(current)
+                        .contents(current)
                         .into_iter()
                         .find(|f| f.name == name)?
                         .id;
@@ -512,18 +571,49 @@ pub trait FilesExt {
     ///   scope ([`Self::scope_top`]); failing that, anywhere in the reader's
     ///   tree as [`Reach::Reader`].
     ///
+    /// A relative path that reaches nothing that way is read against the
+    /// note's attachments folder ([`Self::locate_in_attachments`]).
+    ///
     /// A `#heading` fragment rides along without changing what resolves, and
     /// one alone is the note itself. Only documents resolve; folders are
     /// treated as broken. None for anything else, web URLs included.
     fn locate_link(&self, url: &str, note: Uuid) -> Option<(Uuid, Reach)> {
         let scope = self.scope_top(note);
-        self.locate_link_in(url, note, scope).or_else(|| {
-            let extent = self.tree_root(note);
-            if extent == scope {
-                return None;
-            }
-            let (id, _) = self.locate_link_in(url, note, extent)?;
-            Some((id, Reach::Reader))
+        self.locate_link_in(url, note, scope)
+            .or_else(|| {
+                let extent = self.tree_root(note);
+                if extent == scope {
+                    return None;
+                }
+                let (id, _) = self.locate_link_in(url, note, extent)?;
+                Some((id, Reach::Reader))
+            })
+            .or_else(|| Some((self.locate_in_attachments(url, note)?, Reach::Scope)))
+    }
+
+    /// A relative link in `note` read against its attachments folder F, which
+    /// holds the note's images. F keeps the name it was made with, but the
+    /// note's text can still name another: a second device's folder for the
+    /// note is folded into F, F is numbered where it lands beside a file of
+    /// its name, and a reader can have their own file of F's name beside the
+    /// note. For each segment of the path in order, the rest of the path after
+    /// it is walked from F; the first that reaches a document wins. So
+    /// `plan-attachments/a.png` and `old-name/sub/a.png` both find `a.png` and
+    /// `sub/a.png` in F. The walk never leaves F: a `..` above it fails.
+    fn locate_in_attachments(&self, url: &str, note: Uuid) -> Option<Uuid> {
+        let folder = self.attachments_folder(note)?;
+        let (url, _) = split_fragment(url);
+        if url.is_empty() || url.starts_with('/') || link_id(url).is_some() || web_link(url) {
+            return None;
+        }
+        let decoded = decode(url)
+            .map(|c| c.into_owned())
+            .unwrap_or_else(|_| url.to_string());
+        let segments: Vec<&str> = decoded.split('/').collect();
+        (1..segments.len()).find_map(|after| {
+            let rest = segments[after..].join("/");
+            let file = self.walk_in_scope(folder, folder, &rest)?;
+            file.is_document().then_some(file.id)
         })
     }
 
@@ -964,6 +1054,16 @@ impl FilesExt for FileCache {
     }
 
     fn children(&self, id: Uuid) -> Vec<&File> {
+        let mut children = self.contents(id);
+        children.retain(|f| !self.hidden.contains(&f.id));
+        children
+    }
+
+    fn attachments_folder(&self, note: Uuid) -> Option<Uuid> {
+        self.attachments.get(&note).copied()
+    }
+
+    fn contents(&self, id: Uuid) -> Vec<&File> {
         let start = self.rows.partition_point(|f| f.parent < id);
         let end = self.rows.partition_point(|f| f.parent <= id);
         self.rows[start..end]
@@ -983,7 +1083,7 @@ impl FilesExt for FileCache {
                 .rows
                 .iter()
                 .enumerate()
-                .filter(|(_, f)| f.is_document())
+                .filter(|(_, f)| f.is_document() && !self.hidden.contains(&f.id))
             {
                 let name = f.name.to_ascii_lowercase();
                 if wiki_title(&name) != name {
@@ -1277,6 +1377,137 @@ pub(crate) mod tests {
             file(folder, root, "notes", FileType::Folder),
             file(doc, folder, "meeting.md", FileType::Document),
         ]
+    }
+
+    #[test]
+    fn attachments_resolve_but_arent_listed() {
+        let [root, notes, plan, folder, image] = [(); 5].map(|_| Uuid::new_v4());
+        let cache = FileCache::from_owned_and_shared(
+            file(root, root, "root", FileType::Folder),
+            [
+                file(root, root, "root", FileType::Folder),
+                file(notes, root, "notes", FileType::Folder),
+                file(plan, notes, "plan.md", FileType::Document),
+                file(folder, notes, "plan-attachments", FileType::Folder),
+                file(image, folder, "image.png", FileType::Document),
+            ],
+            [],
+        )
+        .with_hidden([folder, image]);
+
+        // listed nowhere
+        assert_eq!(
+            cache
+                .children(notes)
+                .iter()
+                .map(|f| f.id)
+                .collect::<Vec<_>>(),
+            [plan]
+        );
+        assert!(cache.all_files().all(|f| f.id != folder && f.id != image));
+        assert!(cache.named("image.png").is_empty());
+
+        // reached by links and paths, and carried by plans
+        assert_eq!(
+            cache.resolve_link("plan-attachments/image.png", plan),
+            Some(ResolvedLink::File(image))
+        );
+        assert_eq!(
+            cache
+                .by_path("/notes/plan-attachments/image.png")
+                .unwrap()
+                .id,
+            image
+        );
+        assert_eq!(cache.descendents(notes).len(), 3);
+        let renamed = cache.after(&Change::Rename { id: folder, name: "next-attachments".into() });
+        assert!(renamed.is_hidden(folder) && renamed.children(notes).len() == 1);
+        assert_eq!(
+            renamed.link_destination(image, plan).as_deref(),
+            Some("next-attachments/image.png")
+        );
+    }
+
+    /// A cache of `paths` where the note at `note` has the folder at `folder`
+    /// as its attachments folder.
+    fn attached(paths: &[&str], note: &str, folder: &str) -> (FileCache, Uuid) {
+        use crate::test_utils::files::{at, cache, tree};
+        let c = cache(tree("alice", paths));
+        let (note, folder) = (at(&c, note), at(&c, folder));
+        (c.with_attachments([(note, folder)]), note)
+    }
+
+    #[test]
+    fn a_stale_folder_name_reaches_the_notes_attachments() {
+        use crate::test_utils::files::at;
+        let (c, note) = attached(
+            &[
+                "/notes/trip.md",
+                "/notes/trip-attachments/a.png",
+                "/notes/trip-attachments/sub/b.png",
+            ],
+            "/notes/trip.md",
+            "/notes/trip-attachments/",
+        );
+        let a = at(&c, "/notes/trip-attachments/a.png");
+        let b = at(&c, "/notes/trip-attachments/sub/b.png");
+
+        assert_eq!(c.locate_link("plan-attachments/a.png", note), Some((a, Reach::Scope)));
+        assert_eq!(c.locate_link("old-name/sub/b.png", note), Some((b, Reach::Scope)));
+        assert_eq!(c.locate_link("./plan-attachments/a.png#top", note), Some((a, Reach::Scope)));
+    }
+
+    #[test]
+    fn a_real_file_at_the_links_path_wins() {
+        use crate::test_utils::files::at;
+        let (c, note) = attached(
+            &["/notes/trip.md", "/notes/plan-attachments/a.png", "/notes/trip-attachments/a.png"],
+            "/notes/trip.md",
+            "/notes/trip-attachments/",
+        );
+        let real = at(&c, "/notes/plan-attachments/a.png");
+
+        assert_eq!(c.locate_link("plan-attachments/a.png", note), Some((real, Reach::Scope)));
+    }
+
+    #[test]
+    fn reading_a_link_against_the_folder_never_leaves_it() {
+        use crate::test_utils::files::at;
+        let (c, note) = attached(
+            &["/notes/trip.md", "/notes/secret.md", "/notes/trip-attachments/a.png"],
+            "/notes/trip.md",
+            "/notes/trip-attachments/",
+        );
+        let a = at(&c, "/notes/trip-attachments/a.png");
+
+        assert_eq!(c.locate_link("old/../secret.md", note), None);
+        assert_eq!(c.locate_link("old/x/../../secret.md", note), None);
+        assert_eq!(c.locate_link("old/../../notes/secret.md", note), None);
+        // `..` that stays inside the folder is fine
+        assert_eq!(c.locate_link("old/sub/../a.png", note), Some((a, Reach::Scope)));
+    }
+
+    #[test]
+    fn a_reader_of_a_note_shared_alone_finds_its_images_under_another_name() {
+        use crate::test_utils::files::{at, cache, tree};
+        // bob's tree: alice's note beside the link he accepted it by, its folder beside it under
+        // a name the note's text doesn't use, as after another device's folder was folded into it
+        let mut files = tree("bob", &["/inbox/plan.md", "/inbox/trip-attachments/a.png"]);
+        let c = cache(files.clone());
+        let (note, folder) = (at(&c, "/inbox/plan.md"), at(&c, "/inbox/trip-attachments/"));
+        for f in files.iter_mut().filter(|f| f.id == note) {
+            f.owner = "alice".into();
+            f.shares.push(lb_rs::model::file::Share {
+                mode: ShareMode::Read,
+                shared_by: "alice".into(),
+                shared_with: "bob".into(),
+            });
+        }
+        let c = cache(files).with_attachments([(note, folder)]);
+        let a = at(&c, "/inbox/trip-attachments/a.png");
+
+        assert_eq!(c.locate_link("plan-attachments/a.png", note), Some((a, Reach::Scope)));
+        assert_eq!(c.resolve_link("plan-attachments/a.png", note), Some(ResolvedLink::File(a)));
     }
 
     #[test]

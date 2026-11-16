@@ -79,6 +79,10 @@ pub struct FeatureFlags {
     pub new_accounts: bool,
     pub new_account_rate_limit: bool,
     pub bandwidth_controls: bool,
+    /// Accept metadata V2, which only attachments folders are written as. Set in code, not read
+    /// from the environment: off in production until the change that turns creation on, on in the
+    /// in-process server tests use.
+    pub meta_v2: bool,
 }
 
 impl FeatureFlags {
@@ -96,6 +100,7 @@ impl FeatureFlags {
                 .unwrap_or_else(|_| "true".to_string())
                 .parse()
                 .unwrap(),
+            meta_v2: false,
         }
     }
 }

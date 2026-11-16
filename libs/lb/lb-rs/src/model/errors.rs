@@ -144,6 +144,9 @@ impl Display for LbErrKind {
             LbErrKind::ReReadRequired => {
                 write!(f, "This document changed since you last read it, please re-read it!")
             }
+            LbErrKind::AttachmentsFolderFixed => {
+                write!(f, "An attachments folder moves only with its document and keeps its name")
+            }
             LbErrKind::Validation(validation_failure) => match validation_failure {
                 ValidationFailure::Cycle(_) => write!(f, "Cannot move a folder into itself"),
                 ValidationFailure::NonFolderWithChildren(_) => {
@@ -349,6 +352,8 @@ pub enum LbErrKind {
     UsernamePublicKeyMismatch,
     UsernameTaken,
     ReReadRequired,
+    /// An attachments folder moves only with its document and keeps its name
+    AttachmentsFolderFixed,
     Diff(DiffError),
 
     /// Errors that describe invalid modifications to trees. See [ValidationFailure] for more info

@@ -1,7 +1,7 @@
 //! Byte-stream properties of sync: devices on accounts take random steps against one in-memory
 //! server, and each property holds at the widest tier whose steps it survives, from every start.
 
-use std::collections::{BTreeMap, HashSet};
+use std::collections::{BTreeMap, HashMap, HashSet};
 use std::fmt::Write;
 use std::sync::{Arc, Mutex, OnceLock};
 use std::time::{Duration, Instant};
@@ -14,8 +14,9 @@ use lb_rs::model::account::Account;
 use lb_rs::model::api::{AdminValidateServer, AdminValidateServerRequest};
 use lb_rs::model::errors::LbErrKind;
 use lb_rs::model::file::{File, ShareMode};
+use lb_rs::model::file_like::FileLike;
 use lb_rs::model::file_metadata::FileType;
-use lb_rs::model::filename::DocumentType;
+use lb_rs::model::filename::{DocumentType, attachments_folder_name};
 use test_utils::byte_source::ByteSource;
 use test_utils::gate::{DocOp, Gate, GatedDocuments, GatedServer, Point};
 use test_utils::lockbook_server_lib::ServerState;
@@ -86,6 +87,38 @@ fn the_server_stays_valid() {
     run(WRITE_SHARES, 2000, the_server_stays_valid_check);
 }
 
+#[test]
+fn with_creation_off_no_device_writes_v2() {
+    run(CREATION_OFF, 2000, with_creation_off_no_device_writes_v2_check);
+    assert!(REFUSED.get() > 0, "no device refused an attachments folder");
+}
+
+#[test]
+fn each_attachments_folder_sits_beside_its_document() {
+    run(ATTACHMENTS, 2000, each_attachments_folder_sits_beside_its_document_check);
+}
+
+#[test]
+fn whoever_reads_a_document_reads_its_attachments() {
+    run(ATTACHMENTS, 1000, whoever_reads_a_document_reads_its_attachments_check);
+}
+
+#[test]
+fn attachments_are_never_lost() {
+    run(ATTACHMENTS, 2000, attachments_are_never_lost_check);
+    assert!(ATTACHED.get() > 0, "no attachment was added");
+}
+
+#[test]
+fn a_mixed_fleet_converges() {
+    run(ATTACHMENTS, 2000, a_mixed_fleet_converges_check);
+}
+
+#[test]
+fn an_attachments_folder_moves_only_with_its_document() {
+    run(ATTACHMENTS, 2000, an_attachments_folder_moves_only_with_its_document_check);
+}
+
 // ---------------------------------------------------------------------------------------------
 // tiers
 // ---------------------------------------------------------------------------------------------
@@ -98,13 +131,24 @@ struct Tier {
     devices: usize,
     /// Whether a step may run while a sync waits on the server.
     overlap: bool,
+    /// Whether devices may create attachments folders, each by its seed, and the server accepts
+    /// metadata V2. Without it no device creates them and the server refuses V2.
+    attachments: bool,
+    /// Whether steps try attachments folders, even where no device creates them.
+    tries: bool,
     starts: &'static [Start],
 }
 
 /// Several accounts with two devices each, each device syncing when it likes, sharing with one
 /// another.
-const SHARES: Tier =
-    Tier { accounts: 3, devices: 2, overlap: false, starts: &[Start::Empty, Start::Shared] };
+const SHARES: Tier = Tier {
+    accounts: 3,
+    devices: 2,
+    overlap: false,
+    attachments: false,
+    tries: false,
+    starts: &[Start::Empty, Start::Shared],
+};
 
 /// [`SHARES`] with steps taken while a sync waits on the server.
 const OVERLAP: Tier = Tier { overlap: true, ..SHARES };
@@ -113,6 +157,14 @@ const OVERLAP: Tier = Tier { overlap: true, ..SHARES };
 /// trip folder friends write to.
 const WRITE_SHARES: Tier =
     Tier { starts: &[Start::Empty, Start::Shared, Start::WriteShared, Start::Vacation], ..OVERLAP };
+
+/// [`WRITE_SHARES`] with a fleet whose devices each create attachments folders or not, as the
+/// seed chooses, beside a server that accepts them.
+const ATTACHMENTS: Tier = Tier { attachments: true, tries: true, ..WRITE_SHARES };
+
+/// [`WRITE_SHARES`] with devices trying attachments folders, none of which creates them, beside a
+/// server that refuses V2.
+const CREATION_OFF: Tier = Tier { tries: true, ..WRITE_SHARES };
 
 impl Tier {
     fn all_devices(self) -> usize {
@@ -227,6 +279,67 @@ enum Step {
         device: usize,
         file: usize,
         from: usize,
+    },
+    /// Refused on a device whose switch is off.
+    CreateAttachments {
+        device: usize,
+        document: usize,
+    },
+    /// A new document in the attachments folder of `document`, as pasting an image makes.
+    Attach {
+        device: usize,
+        document: usize,
+        name: usize,
+    },
+    /// Moves `document`'s attachments folder by itself, which every device refuses.
+    MoveAttachments {
+        device: usize,
+        document: usize,
+        parent: usize,
+    },
+    /// Renames `document`'s attachments folder by itself, which every device refuses.
+    RenameAttachments {
+        device: usize,
+        document: usize,
+        name: usize,
+    },
+    /// Shares alone a document that has an attachments folder.
+    ShareNote {
+        device: usize,
+        document: usize,
+        to: usize,
+        write: bool,
+    },
+    /// Revokes a share of a document that has an attachments folder.
+    RevokeNote {
+        device: usize,
+        document: usize,
+        from: usize,
+    },
+    /// Adds a document to the attachments folder of another account's document, creating the
+    /// folder first if it has none, as a writer pasting an image into a shared note does.
+    AttachToShared {
+        device: usize,
+        document: usize,
+        name: usize,
+    },
+    /// Deletes a document's attachments folder and creates a new one in its place.
+    ReplaceAttachments {
+        device: usize,
+        document: usize,
+    },
+    /// Creates an ordinary folder beside a document, named as the document's attachments folder
+    /// would be.
+    Squat {
+        device: usize,
+        document: usize,
+    },
+    /// Moves a document that has an attachments folder into a folder under another share, or
+    /// under none.
+    MoveAcross {
+        device: usize,
+        document: usize,
+        parent: usize,
     },
     /// `device` starts a sync and holds it at its `at`th point of `place`, until a
     /// [`Step::Release`] or the device's next sync or hold lets it go on.
@@ -343,7 +456,18 @@ fn step(case: Case, src: &mut ByteSource, device: usize) -> Step {
     let tier = case.tier;
     let shares = if tier.accounts > 1 { 2 } else { 0 };
     let writes = 3 * case.mix.writes();
-    match src.bias(&[3, 1, 3, 2, writes, 2, 2, 1, shares, shares, shares, shares]) {
+    // attachments steps draw only at tiers that try them, so the others draw what they did
+    // before them; the steps after those aim at what attachments folders make rare
+    let tries = if tier.tries { 1 } else { 0 };
+    let aimed = if tier.attachments { 1 } else { 0 };
+    let shared = aimed * shares / 2;
+    #[rustfmt::skip]
+    let weights = [
+        3, 1, 3, 2, writes, 2, 2, 1, shares, shares, shares, shares,
+        2 * tries, 3 * tries, tries, tries,
+        shared, shared, shared, aimed, aimed, shared,
+    ];
+    match src.bias(&weights) {
         0 => Step::Sync { device },
         1 => Step::SyncAll { device },
         2 => Step::CreateDocument { device, parent: src.draw(8), name: src.bias(&NAME_WEIGHTS) },
@@ -365,7 +489,24 @@ fn step(case: Case, src: &mut ByteSource, device: usize) -> Step {
         },
         9 => Step::Accept { device, pending: src.draw(8), name: src.bias(&NAME_WEIGHTS) },
         10 => Step::Reject { device, pending: src.draw(8) },
-        _ => Step::Unshare { device, file: src.draw(8), from: src.draw(4) },
+        11 => Step::Unshare { device, file: src.draw(8), from: src.draw(4) },
+        12 => Step::CreateAttachments { device, document: src.draw(8) },
+        13 => Step::Attach { device, document: src.draw(8), name: src.bias(&NAME_WEIGHTS) },
+        14 => Step::MoveAttachments { device, document: src.draw(8), parent: src.draw(8) },
+        15 => {
+            Step::RenameAttachments { device, document: src.draw(8), name: src.bias(&NAME_WEIGHTS) }
+        }
+        16 => Step::ShareNote {
+            device,
+            document: src.draw(8),
+            to: src.draw(tier.accounts),
+            write: src.draw(2) == 1,
+        },
+        17 => Step::RevokeNote { device, document: src.draw(8), from: src.draw(4) },
+        18 => Step::AttachToShared { device, document: src.draw(8), name: src.bias(&NAME_WEIGHTS) },
+        19 => Step::ReplaceAttachments { device, document: src.draw(8) },
+        20 => Step::Squat { device, document: src.draw(8) },
+        _ => Step::MoveAcross { device, document: src.draw(8), parent: src.draw(8) },
     }
 }
 
@@ -384,6 +525,16 @@ impl Step {
             | Step::Accept { device, .. }
             | Step::Reject { device, .. }
             | Step::Unshare { device, .. }
+            | Step::CreateAttachments { device, .. }
+            | Step::Attach { device, .. }
+            | Step::MoveAttachments { device, .. }
+            | Step::RenameAttachments { device, .. }
+            | Step::ShareNote { device, .. }
+            | Step::RevokeNote { device, .. }
+            | Step::AttachToShared { device, .. }
+            | Step::ReplaceAttachments { device, .. }
+            | Step::Squat { device, .. }
+            | Step::MoveAcross { device, .. }
             | Step::Hold { device, .. }
             | Step::Release { device } => device,
         }
@@ -414,6 +565,16 @@ impl Step {
             | Step::Accept { device, .. }
             | Step::Reject { device, .. }
             | Step::Unshare { device, .. }
+            | Step::CreateAttachments { device, .. }
+            | Step::Attach { device, .. }
+            | Step::MoveAttachments { device, .. }
+            | Step::RenameAttachments { device, .. }
+            | Step::ShareNote { device, .. }
+            | Step::RevokeNote { device, .. }
+            | Step::AttachToShared { device, .. }
+            | Step::ReplaceAttachments { device, .. }
+            | Step::Squat { device, .. }
+            | Step::MoveAcross { device, .. }
             | Step::Hold { device, .. }
             | Step::Release { device } => *device = on,
         }
@@ -463,6 +624,32 @@ struct World {
     /// When set, each write appends a line naming its content, as an editor saves, and the lines
     /// that land are noted here.
     marks: Option<Marks>,
+    /// Each document a [`Step::Attach`] added.
+    attached: Mutex<Vec<Attached>>,
+    /// Files a step deleted or moved, so whatever was in them may be gone from where it was.
+    deleted: Mutex<HashSet<Uuid>>,
+    moved: Mutex<HashSet<Uuid>>,
+}
+
+/// A document a step added to a note's attachments folder.
+#[derive(Clone, Copy)]
+struct Attached {
+    file: Uuid,
+    note: Uuid,
+    folder: Uuid,
+    device: usize,
+}
+
+/// What the server stores of a file, which a property reads to find attachments folders, since
+/// a device never shows which document a folder belongs to.
+struct Stored {
+    parent: Uuid,
+    document: bool,
+    /// On a link, its target, which devices list in its place.
+    link: Option<Uuid>,
+    deleted: bool,
+    /// On an attachments folder, its document.
+    of: Option<Uuid>,
 }
 
 /// A line a save appended to a note on a device.
@@ -494,7 +681,9 @@ struct Held {
 impl World {
     /// A copy of `case`'s start, whose devices draw new ids from `bytes`.
     async fn new(case: Case, bytes: &[u8]) -> Self {
-        starts::built(case.tier, case.start).copy(seed(bytes)).await
+        (starts::built(case.tier, case.start))
+            .copy(seed(bytes), case.tier.attachments)
+            .await
     }
 
     /// `tier`'s accounts with nothing in them, every id drawn from `seed`.
@@ -536,28 +725,33 @@ impl World {
             per_account: tier.devices,
             held: Default::default(),
             marks: None,
+            attached: Default::default(),
+            deleted: Default::default(),
+            moved: Default::default(),
         }
     }
 
     /// A world holding what this one holds, sharing nothing with it, whose devices draw new ids
-    /// from `seed`.
-    async fn copy(&self, seed: u64) -> Self {
+    /// from `seed` and, with `attachments`, each create attachments folders or not by it.
+    async fn copy(&self, seed: u64, attachments: bool) -> Self {
         let pause = Pause::default();
         let documents = self.server.document_service.docs.copy();
-        let server = self
+        let mut server = self
             .server
             .copy_with(GatedDocuments::new(documents, pause.clone()))
             .await;
+        server.config.features.meta_v2 = attachments;
         let client = GatedServer::new(server.clone(), pause.clone());
         let mut devices = Vec::new();
         for (n, device) in self.devices.iter().enumerate() {
             let config = config(seed, n + 1);
             let local = Local::new(&pause);
             let docs = |docs: &Docs| GatedDocuments::new(docs.docs.copy().unwrap(), local.clone());
-            let device = device
+            let mut device = device
                 .copy_in_memory(config, client.clone(), docs)
                 .await
                 .unwrap();
+            device.attachments_folders = creates_attachments(seed, n + 1, attachments);
             devices.push(local.of(device));
         }
         Self {
@@ -570,6 +764,9 @@ impl World {
             per_account: self.per_account,
             held: Default::default(),
             marks: None,
+            attached: Default::default(),
+            deleted: Default::default(),
+            moved: Default::default(),
         }
     }
 
@@ -721,13 +918,69 @@ impl World {
                     return false;
                 };
                 let parent = pick(device, reach, parent, Kind::Folder).await.unwrap();
-                device.move_file(&file, &parent).await.is_ok()
+                let moved = device.move_file(&file, &parent).await.is_ok();
+                if moved {
+                    self.moved.lock().unwrap().insert(file);
+                }
+                moved
             }
             Step::Delete { file, .. } => {
                 let Some(file) = pick(device, reach, file, Kind::Any).await else {
                     return false;
                 };
-                device.delete(&file).await.is_ok()
+                let deleted = device.delete(&file).await.is_ok();
+                if deleted {
+                    self.deleted.lock().unwrap().insert(file);
+                }
+                deleted
+            }
+            Step::CreateAttachments { document, .. } => {
+                let Some(document) = pick(device, reach, document, Kind::Document).await else {
+                    return false;
+                };
+                match device.create_attachments_folder(&document).await {
+                    Ok(_) => true,
+                    Err(err) => {
+                        // a device that doesn't create them refuses before anything else can fail
+                        if !device.attachments_folders {
+                            assert_eq!(err.kind, LbErrKind::InsufficientPermission);
+                            REFUSED.set(REFUSED.get() + 1);
+                        }
+                        false
+                    }
+                }
+            }
+            Step::Attach { document, name, .. } => {
+                let Some((note, folder)) = attachments(device, reach, document).await else {
+                    return false;
+                };
+                let Ok(file) = device
+                    .create_file(&reach.name(name), &folder.id, FileType::Document)
+                    .await
+                else {
+                    return false;
+                };
+                ATTACHED.set(ATTACHED.get() + 1);
+                let attached = Attached { file: file.id, note, folder: folder.id, device: on };
+                self.attached.lock().unwrap().push(attached);
+                true
+            }
+            Step::MoveAttachments { document, parent, .. } => {
+                let Some((_, folder)) = attachments(device, reach, document).await else {
+                    return false;
+                };
+                let parent = pick(device, reach, parent, Kind::Folder).await.unwrap();
+                // a move to where it is changes nothing, refused or not
+                parent != folder.parent && device.move_file(&folder.id, &parent).await.is_ok()
+            }
+            Step::RenameAttachments { document, name, .. } => {
+                let Some((_, folder)) = attachments(device, reach, document).await else {
+                    return false;
+                };
+                device
+                    .rename_file(&folder.id, &reach.name(name))
+                    .await
+                    .is_ok()
             }
             Step::Share { file, to, write, .. } => {
                 let Some(file) = pick(device, reach, file, Kind::Any).await else {
@@ -761,6 +1014,100 @@ impl World {
                 let shares = device.get_file_by_id(file).await.unwrap().shares;
                 let sharee = &shares[from % shares.len()].shared_with;
                 device.unshare_file(file, sharee).await.is_ok()
+            }
+            Step::ShareNote { document, to, write, .. } => {
+                let notes = notes(device, reach).await;
+                let Some(note) = nth(notes.iter().filter(|n| n.folder.is_some()), document) else {
+                    return false;
+                };
+                let mode = if write { ShareMode::Write } else { ShareMode::Read };
+                (device.share_file(note.file.id, &self.names[to % self.names.len()], mode))
+                    .await
+                    .is_ok()
+            }
+            Step::RevokeNote { document, from, .. } => {
+                let notes = notes(device, reach).await;
+                let shared = notes.iter().filter(|n| !n.file.shares.is_empty());
+                let Some(note) = nth(shared, document) else {
+                    return false;
+                };
+                let shares = &note.file.shares;
+                let sharee = &shares[from % shares.len()].shared_with;
+                device.unshare_file(note.file.id, sharee).await.is_ok()
+            }
+            Step::AttachToShared { document, name, .. } => {
+                let me = self.me(on);
+                let notes = notes(device, reach).await;
+                let Some(note) = nth(notes.iter().filter(|n| n.file.owner != me), document) else {
+                    return false;
+                };
+                let folder = match &note.folder {
+                    Some(folder) => folder.clone(),
+                    None => match device.create_attachments_folder(&note.file.id).await {
+                        Ok(folder) => folder,
+                        Err(_) => return false,
+                    },
+                };
+                let Ok(file) = device
+                    .create_file(&reach.name(name), &folder.id, FileType::Document)
+                    .await
+                else {
+                    return false;
+                };
+                ATTACHED.set(ATTACHED.get() + 1);
+                let attached =
+                    Attached { file: file.id, note: note.file.id, folder: folder.id, device: on };
+                self.attached.lock().unwrap().push(attached);
+                true
+            }
+            Step::ReplaceAttachments { document, .. } => {
+                let Some((note, folder)) = attachments(device, reach, document).await else {
+                    return false;
+                };
+                if device.delete(&folder.id).await.is_err() {
+                    return false;
+                }
+                self.deleted.lock().unwrap().insert(folder.id);
+                device.create_attachments_folder(&note).await.is_ok()
+            }
+            Step::Squat { document, .. } => {
+                let notes = notes(device, reach).await;
+                let Some(note) = nth(notes.iter(), document) else {
+                    return false;
+                };
+                let name = attachments_folder_name(&note.file.name, 0);
+                (device.create_file(&name, &note.file.parent, FileType::Folder))
+                    .await
+                    .is_ok()
+            }
+            Step::MoveAcross { document, parent, .. } => {
+                let listed: HashMap<Uuid, File> = (device.list_metadatas().await.unwrap())
+                    .into_iter()
+                    .map(|f| (f.id, f))
+                    .collect();
+                let notes = notes(device, reach).await;
+                let Some(note) = nth(notes.iter().filter(|n| n.folder.is_some()), document) else {
+                    return false;
+                };
+                let from = share_root(&listed, note.file.parent);
+                let mut parents = Vec::new();
+                for file in listed.values() {
+                    let fits = file.is_folder()
+                        && (file.is_root() || reach.reaches(&file.name))
+                        && share_root(&listed, file.id) != from;
+                    if fits {
+                        parents.push((device.get_path_by_id(file.id).await.unwrap(), file.id));
+                    }
+                }
+                parents.sort();
+                let Some((_, parent)) = parents.get(parent % parents.len().max(1)) else {
+                    return false;
+                };
+                let moved = device.move_file(&note.file.id, parent).await.is_ok();
+                if moved {
+                    self.moved.lock().unwrap().insert(note.file.id);
+                }
+                moved
             }
         }
     }
@@ -1027,13 +1374,21 @@ fn seed(bytes: &[u8]) -> u64 {
         .fold(0xcbf29ce484222325, |hash, &byte| (hash ^ byte as u64).wrapping_mul(0x100000001b3))
 }
 
-/// The config of the `n`th device a world seeded with `seed` makes.
+/// The config of the `n`th device a world seeded with `seed` makes. Every device lists attachments
+/// folders, so every property sees them.
 fn config(seed: u64, n: usize) -> lb_rs::model::core_config::Config {
     // splitmix64, so neighboring devices draw unrelated ids
     let mut z = seed.wrapping_add((n as u64 + 1).wrapping_mul(0x9e3779b97f4a7c15));
     z = (z ^ (z >> 30)).wrapping_mul(0xbf58476d1ce4e5b9);
     z = (z ^ (z >> 27)).wrapping_mul(0x94d049bb133111eb);
-    lb_rs::model::core_config::Config { seed: Some(z ^ (z >> 31)), ..test_config() }
+    let z = z ^ (z >> 31);
+    lb_rs::model::core_config::Config { seed: Some(z), list_attachments: true, ..test_config() }
+}
+
+/// Does the `n`th device a world seeded with `seed` make create attachments folders? Only with
+/// `attachments`, and then as the seed chooses.
+fn creates_attachments(seed: u64, n: usize, attachments: bool) -> bool {
+    attachments && config(seed, n).seed.unwrap() >> 63 == 1
 }
 
 /// The `n`th username a world seeded with `seed` gives out.
@@ -1041,7 +1396,7 @@ fn name(seed: u64, n: usize) -> String {
     format!("u{:x}", config(seed, n).seed.unwrap())
 }
 
-/// The `n`th device a world seeded with `seed` makes.
+/// The `n`th device a world seeded with `seed` makes, which creates no attachments folders.
 async fn device(client: &Client, pause: &Pause, seed: u64, n: usize) -> Lb {
     let local = Local::new(pause);
     let docs = GatedDocuments::new(AsyncDocs::in_memory(), local.clone());
@@ -1141,6 +1496,56 @@ async fn pick(device: &Lb, reach: Reach, index: usize, kind: Kind) -> Option<Uui
         .map(|(_, id)| *id)
 }
 
+/// The `index`th document within `reach` that has an attachments folder on this device, and the
+/// folder.
+async fn attachments(device: &Lb, reach: Reach, index: usize) -> Option<(Uuid, File)> {
+    let document = pick(device, reach, index, Kind::Document).await?;
+    let folder = device.get_attachments_folder(&document).await.ok()??;
+    Some((document, folder))
+}
+
+/// A document within reach and its attachments folder, if it has one.
+struct Note {
+    file: File,
+    folder: Option<File>,
+}
+
+/// The documents within `reach`, by path, each with its attachments folder.
+async fn notes(device: &Lb, reach: Reach) -> Vec<Note> {
+    let mut notes = Vec::new();
+    for file in device.list_metadatas().await.unwrap() {
+        if file.is_document() && reach.reaches(&file.name) {
+            let path = device.get_path_by_id(file.id).await.unwrap();
+            let folder = device.get_attachments_folder(&file.id).await.ok().flatten();
+            notes.push((path, Note { file, folder }));
+        }
+    }
+    notes.sort_by(|a, b| a.0.cmp(&b.0));
+    notes.into_iter().map(|(_, note)| note).collect()
+}
+
+/// The `index`th of `items`, wrapping.
+fn nth<T>(items: impl Iterator<Item = T>, index: usize) -> Option<T> {
+    let items: Vec<_> = items.collect();
+    let n = items.len();
+    items.into_iter().nth(index % n.max(1))
+}
+
+/// The nearest folder at or above `id` that is shared, as a device lists it.
+fn share_root(listed: &HashMap<Uuid, File>, mut id: Uuid) -> Option<Uuid> {
+    for _ in 0..listed.len() {
+        let file = listed.get(&id)?;
+        if !file.shares.is_empty() {
+            return Some(id);
+        }
+        if file.is_root() {
+            return None;
+        }
+        id = file.parent;
+    }
+    None
+}
+
 /// The `index`th share waiting for this device's account, by name.
 async fn pick_pending(device: &Lb, index: usize) -> Option<Uuid> {
     let mut pending: Vec<_> = device
@@ -1188,6 +1593,11 @@ thread_local! {
     static PAUSES: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
     /// How many lines this thread's saves have appended.
     static LANDED: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+    /// How many documents this thread's steps have added to attachments folders.
+    static ATTACHED: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+    /// How many attachments folders this thread's steps tried and were refused because the
+    /// device's switch is off.
+    static REFUSED: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
 }
 
 fn run_case(case: Case, deadline: Option<Instant>, seeds: u64, check: Check) {
@@ -1502,5 +1912,382 @@ fn the_server_stays_valid_check(case: Case, bytes: &[u8]) -> Result<(), String> 
         world.take_all(&steps(case, bytes)).await;
         world.settle().await?;
         world.validate_server().await
+    })
+}
+
+// ---------------------------------------------------------------------------------------------
+// attachments folders
+// ---------------------------------------------------------------------------------------------
+
+impl World {
+    /// Every file the server stores, deleted ones included.
+    async fn stored(&self) -> HashMap<Uuid, Stored> {
+        let db = self.server.index_db.lock().await;
+        db.schema
+            .metas
+            .iter()
+            .map(|(id, meta)| {
+                let stored = Stored {
+                    parent: *meta.parent(),
+                    document: meta.is_document(),
+                    link: match meta.file_type() {
+                        FileType::Link { target } => Some(target),
+                        _ => None,
+                    },
+                    deleted: meta.explicitly_deleted(),
+                    of: meta.attachments_of().map(|of| of.id),
+                };
+                (*id, stored)
+            })
+            .collect()
+    }
+
+    /// Device `on`'s account name.
+    fn me(&self, on: usize) -> &str {
+        &self.names[on / self.per_account]
+    }
+}
+
+/// `id` and the folders above it, nearest first, as the server stores them.
+fn above(stored: &HashMap<Uuid, Stored>, id: Uuid) -> Vec<Uuid> {
+    let mut chain = vec![id];
+    while let Some(file) = stored.get(chain.last().unwrap()) {
+        if file.parent == *chain.last().unwrap() || chain.contains(&file.parent) {
+            break;
+        }
+        chain.push(file.parent);
+    }
+    chain
+}
+
+/// Whether the server stores `id` and neither it nor a folder above it is deleted. An attachments
+/// folder is deleted with its document, as a folder's contents are with it: neither is marked.
+fn live(stored: &HashMap<Uuid, Stored>, id: Uuid) -> bool {
+    live_within(stored, id, stored.len())
+}
+
+/// [`live`], following at most `hops` attachments folders to their documents.
+fn live_within(stored: &HashMap<Uuid, Stored>, id: Uuid, hops: usize) -> bool {
+    stored.contains_key(&id)
+        && above(stored, id).iter().all(|id| {
+            stored.get(id).is_some_and(|file| {
+                !file.deleted
+                    && file
+                        .of
+                        .is_none_or(|doc| hops > 0 && live_within(stored, doc, hops - 1))
+            })
+        })
+}
+
+/// The live attachments folders the server stores for `document`.
+fn folders_of(stored: &HashMap<Uuid, Stored>, document: Uuid) -> Vec<Uuid> {
+    let mut folders: Vec<_> = (stored.iter())
+        .filter(|(id, file)| file.of == Some(document) && live(stored, **id))
+        .map(|(id, _)| *id)
+        .collect();
+    folders.sort();
+    folders
+}
+
+/// The live files under `folder`, as the server stores them.
+fn inside(stored: &HashMap<Uuid, Stored>, folder: Uuid) -> Vec<Uuid> {
+    let mut inside: Vec<_> = (stored.keys())
+        .filter(|id| **id != folder && above(stored, **id).contains(&folder) && live(stored, **id))
+        .copied()
+        .collect();
+    inside.sort();
+    inside
+}
+
+/// With creation off on every device, no device writes metadata V2: a server that refuses it
+/// takes every push, and neither it nor any device stores V2.
+fn with_creation_off_no_device_writes_v2_check(case: Case, bytes: &[u8]) -> Result<(), String> {
+    block_on(async {
+        let world = World::new(case, bytes).await;
+        world.take_all(&steps(case, bytes)).await;
+        world.settle().await?;
+        if let Some((id, _)) = world.stored().await.iter().find(|(_, f)| f.of.is_some()) {
+            return Err(format!("the server stores {id} as V2"));
+        }
+        for (i, device) in world.devices.iter().enumerate() {
+            let db = device.db.read().await;
+            let metas = (db.schema.base_metadata.iter().map(|(_, meta)| meta))
+                .chain(db.schema.local_metadata.iter().map(|(_, meta)| meta));
+            if let Some(meta) = metas
+                .into_iter()
+                .find(|meta| meta.attachments_of().is_some())
+            {
+                return Err(format!("device {i} stores {} as V2", meta.id()));
+            }
+        }
+        Ok(())
+    })
+}
+
+/// Once every device has synced, each live attachments folder belongs to a live document, is
+/// that document's only live one, and has the document's parent. Throughout, a folder keeps the
+/// name it was made with, but for a number added where it met a file of that name.
+fn each_attachments_folder_sits_beside_its_document_check(
+    case: Case, bytes: &[u8],
+) -> Result<(), String> {
+    block_on(async {
+        let world = World::new(case, bytes).await;
+        let mut names = HashMap::new();
+        for step in steps(case, bytes) {
+            world.take(&step, step.device(), Reach::Shared).await;
+            world.watch().await;
+            keeps_its_name(&world.devices[step.device()], &mut names).await?;
+        }
+        world.settle().await?;
+        for device in &world.devices {
+            keeps_its_name(device, &mut names).await?;
+        }
+        let stored = world.stored().await;
+        let mut folders: Vec<_> = (stored.iter())
+            .filter_map(|(id, file)| Some((*id, file.of?)))
+            .filter(|(id, _)| live(&stored, *id))
+            .collect();
+        folders.sort();
+        for (folder, document) in folders {
+            let Some(doc) = stored.get(&document).filter(|_| live(&stored, document)) else {
+                return Err(format!("folder {folder} is live but its document {document} isn't"));
+            };
+            if !doc.document {
+                return Err(format!(
+                    "folder {folder} belongs to {document}, which isn't a document"
+                ));
+            }
+            let all = folders_of(&stored, document);
+            if all.len() > 1 {
+                return Err(format!("document {document} has live attachments folders {all:?}"));
+            }
+            if stored[&folder].parent != doc.parent {
+                return Err(format!(
+                    "folder {folder} is in {} but its document {document} is in {}",
+                    stored[&folder].parent, doc.parent
+                ));
+            }
+        }
+        Ok(())
+    })
+}
+
+/// Fails if `device` shows an attachments folder under a name other than the one `names` first
+/// recorded for it, numbering aside, and records the folders it hasn't seen.
+async fn keeps_its_name(device: &Lb, names: &mut HashMap<Uuid, String>) -> Result<(), String> {
+    fn unnumbered(name: &str) -> &str {
+        match name.rsplit_once(' ') {
+            Some((rest, n)) if n.parse::<usize>().is_ok() => unnumbered(rest),
+            _ => name,
+        }
+    }
+    let Ok(attachments) = device.list_attachments().await else { return Ok(()) };
+    for folder in attachments.folders.into_values() {
+        let Ok(file) = device.get_file_by_id(folder).await else { continue };
+        let first = names.entry(folder).or_insert_with(|| file.name.clone());
+        if unnumbered(first) != unnumbered(&file.name) {
+            return Err(format!("folder {folder}, made as {first:?}, is now {:?}", file.name));
+        }
+    }
+    Ok(())
+}
+
+/// Once every device has synced, an account that reads a document reads its attachments folder
+/// and everything in it (a link as its target, for the account that owns it), and writes them when it writes the document. Nothing else reaches an
+/// account through a folder: everything it lists is its own, shared with it, or in the folder of
+/// a document it lists, and it writes what it lists only by owning it, a write share on it or
+/// above it, or writing the document whose folder holds it.
+fn whoever_reads_a_document_reads_its_attachments_check(
+    case: Case, bytes: &[u8],
+) -> Result<(), String> {
+    block_on(async {
+        let world = World::new(case, bytes).await;
+        world.take_all(&steps(case, bytes)).await;
+        world.settle().await?;
+        let stored = world.stored().await;
+        let mut probes = Vec::new();
+        for on in (0..world.devices.len()).step_by(world.per_account) {
+            let device = &world.devices[on];
+            let me = world.me(on).to_string();
+            let listed: BTreeMap<_, _> = (device.list_metadatas().await.unwrap())
+                .into_iter()
+                .map(|file| (file.id, file))
+                .collect();
+
+            // what a document's readers and writers reach
+            for (id, file) in &listed {
+                if !file.is_document() {
+                    continue;
+                }
+                let writes = world.writes(on, *id).await;
+                for folder in folders_of(&stored, *id) {
+                    for x in std::iter::once(folder).chain(inside(&stored, folder)) {
+                        // only a link's owner, the document's, follows it
+                        if stored[&x].link.is_some() && file.owner != me {
+                            continue;
+                        }
+                        let shown = stored[&x].link.unwrap_or(x);
+                        if !listed.contains_key(&shown) {
+                            return Err(format!(
+                                "device {on} reads document {id} but doesn't list {x} in its \
+                                 attachments folder {folder}"
+                            ));
+                        }
+                        if !stored[&x].document {
+                            continue;
+                        }
+                        if read(device, x).await == "gone" {
+                            return Err(format!(
+                                "device {on} reads document {id} but not {x} in its folder"
+                            ));
+                        }
+                        let others = writes || world.writes(on, x).await;
+                        probes.push((on, x, others));
+                    }
+                }
+            }
+
+            // what an account reaches only by a folder
+            for (id, file) in &listed {
+                let mut at = Some(file);
+                let mut granted = false;
+                while let Some(file) = at {
+                    let attached = stored.get(&file.id).and_then(|f| f.of);
+                    if file.owner == me
+                        || file.shares.iter().any(|share| share.shared_with == me)
+                        || attached.is_some_and(|doc| listed.contains_key(&doc))
+                    {
+                        granted = true;
+                        break;
+                    }
+                    at = listed.get(&file.parent).filter(|_| !file.is_root());
+                }
+                if !granted {
+                    return Err(format!(
+                        "device {on} lists {id} without owning it, a share to it, or reading a \
+                         document whose folder holds it"
+                    ));
+                }
+            }
+        }
+
+        // writes, last, since they change what the check reads
+        for (on, x, writes) in probes {
+            let device = &world.devices[on];
+            let mut content = device.read_document(x, false).await.unwrap();
+            content.extend_from_slice(b"!");
+            let wrote = device.write_document(x, &content).await.is_ok();
+            match (writes, wrote) {
+                (true, false) => {
+                    return Err(format!("device {on} writes {x}'s document but can't write {x}"));
+                }
+                (false, true) => {
+                    return Err(format!("device {on} wrote {x} without write access to it"));
+                }
+                _ => {}
+            }
+        }
+        world.settle().await
+    })
+}
+
+/// Once every device has synced, a document a step added to a note's attachments folder is in the
+/// note's live attachments folder, through concurrent creates, moves, renames and deletes, unless
+/// a step deleted it or a folder it was in, moved it, or the note was deleted, or the adding
+/// device could no longer write the note by the end.
+fn attachments_are_never_lost_check(case: Case, bytes: &[u8]) -> Result<(), String> {
+    block_on(async {
+        let world = World::new(case, bytes).await;
+        world.take_all(&steps(case, bytes)).await;
+        world.settle().await?;
+        let stored = world.stored().await;
+        let deleted = world.deleted.lock().unwrap().clone();
+        let moved = world.moved.lock().unwrap().clone();
+        let attached = world.attached.lock().unwrap().clone();
+        for Attached { file, note, folder, device } in attached {
+            if !live(&stored, note) || moved.contains(&file) || deleted.contains(&folder) {
+                continue;
+            }
+            if above(&stored, file).iter().any(|id| deleted.contains(id)) {
+                continue;
+            }
+            if !stored.contains_key(&file) {
+                if !world.writes(device, note).await {
+                    continue;
+                }
+                return Err(format!(
+                    "{file}, added on device {device} to note {note}'s folder {folder}, never \
+                     reached the server"
+                ));
+            }
+            if !live(&stored, file) {
+                return Err(format!(
+                    "{file}, added on device {device} to note {note}'s folder {folder}, is deleted"
+                ));
+            }
+            let parent = stored[&file].parent;
+            if stored.get(&parent).and_then(|p| p.of) != Some(note) || !live(&stored, parent) {
+                return Err(format!(
+                    "{file}, added on device {device} to note {note}'s folder {folder}, is in \
+                     {parent}, not its note's live folder {:?}",
+                    folders_of(&stored, note)
+                ));
+            }
+        }
+        Ok(())
+    })
+}
+
+/// A fleet where some devices create attachments folders and some don't settles without a
+/// device failing to sync or the server refusing a push; then each account's devices show the
+/// same files, another sync changes nothing, and the server's consistency check finds nothing.
+fn a_mixed_fleet_converges_check(case: Case, bytes: &[u8]) -> Result<(), String> {
+    block_on(async {
+        let world = World::new(case, bytes).await;
+        world.take_all(&steps(case, bytes)).await;
+        world.settle().await?;
+        for account in 0..case.tier.accounts {
+            let devices = world.account_devices(account);
+            let first = tree(&devices[0]).await;
+            for (i, device) in devices.iter().enumerate().skip(1) {
+                let other = tree(device).await;
+                if other != first {
+                    return Err(format!(
+                        "account {account} device {i} shows\n{other:#?}\nbut device 0 \
+                         shows\n{first:#?}"
+                    ));
+                }
+            }
+        }
+        for (i, device) in world.devices.iter().enumerate() {
+            let before = tree(device).await;
+            device
+                .sync()
+                .await
+                .map_err(|err| format!("device {i}: {err:?}"))?;
+            if tree(device).await != before || !device.local_changes().await.is_empty() {
+                return Err(format!("device {i} changed on a sync after settling"));
+            }
+        }
+        world.validate_server().await
+    })
+}
+
+/// Every device refuses to move or rename an attachments folder by itself.
+fn an_attachments_folder_moves_only_with_its_document_check(
+    case: Case, bytes: &[u8],
+) -> Result<(), String> {
+    block_on(async {
+        let world = World::new(case, bytes).await;
+        for (n, step) in steps(case, bytes).iter().enumerate() {
+            let accepted = world.take(step, step.device(), Reach::Shared).await;
+            if accepted
+                && matches!(step, Step::MoveAttachments { .. } | Step::RenameAttachments { .. })
+            {
+                return Err(format!("step {n}: device {} took {step:?}", step.device()));
+            }
+            world.watch().await;
+        }
+        Ok(())
     })
 }

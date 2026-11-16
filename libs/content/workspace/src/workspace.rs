@@ -1977,6 +1977,8 @@ impl Workspace {
             Change::Share { .. } | Change::Create { .. } => None,
         };
         let Some(made) = made else { return };
+        // a note's attachments folder moved with it
+        let made = self.with_attachments(made);
         // planned against the tree before the change, which the cache still is
         let plan = self.link_plan(&made);
         if update_links {
@@ -1986,6 +1988,26 @@ impl Workspace {
         let mut files = self.files.write().unwrap();
         let after = files.after(&made);
         files.replace(after);
+    }
+
+    /// `made` with its notes' attachments folders, which a move takes along. A rename leaves
+    /// them be: a folder keeps the name it was made with, which its note's text names.
+    fn with_attachments(&mut self, made: Change) -> Change {
+        let Change::Move { mut ids, to } = made else { return made };
+        let mut folders = vec![];
+        for id in &ids {
+            match self.core.get_attachments_folder(id) {
+                Ok(folder) => folders.extend(folder),
+                Err(LbErr { kind, .. }) => {
+                    warn!(?id, "failed to find an attachments folder: {:?}", kind);
+                    self.out
+                        .failure_messages
+                        .push(format!("Couldn't update links to attachments: {kind}"));
+                }
+            }
+        }
+        ids.extend(folders.into_iter().map(|f| f.id));
+        Change::Move { ids, to }
     }
 
     /// Shares `id` with each of `users`, and if `share_linked`, also the

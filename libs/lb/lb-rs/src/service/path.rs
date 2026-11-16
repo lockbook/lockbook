@@ -93,7 +93,13 @@ impl<S, D> Lb<S, D> {
 
         let mut tree = (&db.base_metadata).to_staged(&db.local_metadata).to_lazy();
         let paths = tree.list_paths(filter, &self.keychain)?;
+        let mut listed = Vec::new();
+        for (id, path) in paths {
+            if self.config.list_attachments || !tree.in_attachments(&id)? {
+                listed.push((id, path));
+            }
+        }
 
-        Ok(paths)
+        Ok(listed)
     }
 }

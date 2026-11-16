@@ -126,7 +126,9 @@ impl<S: Server, D: LocalDocuments> Lb<S, D> {
             .to_lazy();
         db.pub_key_lookup.insert(sharee, username)?;
 
-        tree.add_share(id, sharee, mode, &self.keychain)?;
+        let attachments = (self.attachments_folders && mode == ShareMode::Write)
+            .then(|| (self.entropy.id(), self.entropy.key()));
+        tree.add_share_and_attach(id, sharee, mode, attachments, &self.keychain)?;
 
         tx.end();
 
@@ -160,9 +162,12 @@ impl<S: Server, D: LocalDocuments> Lb<S, D> {
         let db = tx.db();
 
         let mut tree = (&db.base_metadata).to_staged(&db.local_metadata).to_lazy();
-        let pending_roots = tree.pending_roots(&self.keychain)?.into_iter();
+        let mut pending_roots = tree.pending_roots(&self.keychain)?;
+        if !self.config.list_attachments {
+            pending_roots = Self::omit_attachments(&tree, pending_roots)?;
+        }
 
-        tree.decrypt_all(&self.keychain, pending_roots, &db.pub_key_lookup, false)
+        tree.decrypt_all(&self.keychain, pending_roots.into_iter(), &db.pub_key_lookup, false)
     }
 
     /// returns *all* the files associated with any pending shares (the share as well as it's
@@ -173,9 +178,12 @@ impl<S: Server, D: LocalDocuments> Lb<S, D> {
         let db = tx.db();
 
         let mut tree = (&db.base_metadata).to_staged(&db.local_metadata).to_lazy();
-        let pending_files = tree.non_deleted_pending_files(&self.keychain)?.into_iter();
+        let mut pending_files = tree.non_deleted_pending_files(&self.keychain)?;
+        if !self.config.list_attachments {
+            pending_files = Self::omit_attachments(&tree, pending_files)?;
+        }
 
-        tree.decrypt_all(&self.keychain, pending_files, &db.pub_key_lookup, false)
+        tree.decrypt_all(&self.keychain, pending_files.into_iter(), &db.pub_key_lookup, false)
     }
 
     #[instrument(level = "debug", skip(self))]
