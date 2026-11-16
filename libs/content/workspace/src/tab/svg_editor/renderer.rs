@@ -12,8 +12,10 @@ use lyon::tessellation::{
 use rayon::prelude::*;
 use resvg::usvg::ImageKind;
 
+use super::coordinates::CanvasView;
+use super::coordinates::DocumentRect;
+use super::element::BoundedElement;
 use super::util::devc_to_point;
-use super::view::CanvasView;
 use crate::theme::palette::ThemePalette;
 
 const STROKE_WIDTH: AttributeIndex = 0;
@@ -55,6 +57,7 @@ pub struct Renderer {
 struct MeshShape {
     shape: Mesh,
     zoom: f32,
+    bounds: egui::Rect,
 }
 
 impl Renderer {
@@ -68,6 +71,7 @@ impl Renderer {
 
     pub fn render_svg(
         &mut self, ui: &mut egui::Ui, view: CanvasView<'_>, painter: &mut egui::Painter,
+        opacity: impl Fn(Uuid, f32) -> f32,
     ) -> DiffState {
         let buffer = view.document();
         let coordinates = view.coordinates();
@@ -111,12 +115,18 @@ impl Renderer {
                 {
                     return None;
                 }
-                Some((*id, tessellate_path(path, id, dark_mode, &buffer.weak_path_pressures, zoom)))
+                let mesh = tessellate_path(path, id, dark_mode, &buffer.weak_path_pressures, zoom)
+                    .map(|shape| MeshShape {
+                        shape,
+                        zoom,
+                        bounds: path_paint_bounds(path, id, &buffer.weak_path_pressures),
+                    });
+                Some((*id, mesh))
             })
             .collect();
         for (id, mesh) in paths {
-            if let Some(shape) = mesh {
-                self.mesh_cache.insert(id, MeshShape { shape, zoom });
+            if let Some(mesh) = mesh {
+                self.mesh_cache.insert(id, mesh);
             } else {
                 self.mesh_cache.remove(&id);
             }
@@ -134,13 +144,25 @@ impl Renderer {
             }
         }
 
-        painter.extend(buffer.elements.iter().rev().filter_map(|(id, _)| {
-            let shape = coordinates.screen_mesh(&self.mesh_cache.get(id)?.shape);
-            if !painter.clip_rect().intersects(shape.calc_bounds())
-                || shape.vertices.is_empty()
-                || shape.indices.is_empty()
+        painter.extend(buffer.elements.iter().rev().filter_map(|(id, element)| {
+            let mesh = self.mesh_cache.get(id)?;
+            let bounds = coordinates
+                .screen_rect(DocumentRect(mesh.bounds))
+                .into_inner();
+            // Keep a screen pixel of slack at the viewport edge. Reject before
+            // allocating or projecting vertices for invisible meshes.
+            if (bounds.is_finite() && !painter.clip_rect().expand(1.0).intersects(bounds))
+                || mesh.shape.vertices.is_empty()
+                || mesh.shape.indices.is_empty()
             {
                 return None;
+            }
+            let mut shape = coordinates.screen_mesh(&mesh.shape);
+            let opacity = opacity(*id, element.opacity());
+            if opacity != 1.0 {
+                for vertex in &mut shape.vertices {
+                    vertex.color = vertex.color.linear_multiply(opacity);
+                }
             }
             Some(egui::Shape::mesh(shape))
         }));
@@ -151,17 +173,17 @@ impl Renderer {
 
     fn alloc_image_mesh(&mut self, id: Uuid, img: &Image, ui: &egui::Ui) {
         let (ImageKind::JPEG(bytes) | ImageKind::PNG(bytes)) = &img.data else { return };
-        if !self.tex_cache.contains_key(&id) {
+        if let std::collections::hash_map::Entry::Vacant(entry) = self.tex_cache.entry(id) {
             let Ok(image) = image::load_from_memory(bytes) else { return };
             let pixels = egui::ColorImage::from_rgba_unmultiplied(
                 [image.width() as usize, image.height() as usize],
                 &image.to_rgba8(),
             );
-            self.tex_cache.insert(
-                id,
-                ui.ctx()
-                    .load_texture(format!("canvas_img_{id}"), pixels, Default::default()),
-            );
+            entry.insert(ui.ctx().load_texture(
+                format!("canvas_img_{id}"),
+                pixels,
+                Default::default(),
+            ));
         }
         let mut mesh = Mesh::with_texture(self.tex_cache[&id].id());
         mesh.add_rect_with_uv(
@@ -170,11 +192,25 @@ impl Renderer {
                 egui::vec2(img.view_box.width(), img.view_box.height()),
             ),
             egui::Rect::from_min_max(egui::Pos2::ZERO, egui::pos2(1.0, 1.0)),
-            egui::Color32::WHITE.linear_multiply(img.opacity),
+            egui::Color32::WHITE,
         );
         self.mesh_cache
-            .insert(id, MeshShape { shape: mesh, zoom: 1.0 });
+            .insert(id, MeshShape { shape: mesh, zoom: 1.0, bounds: img.bounding_box() });
     }
+}
+
+// The renderer uses round caps/joins, so half the widest stroke is enough
+// padding around the path's geometric bounds. Cache this alongside the mesh;
+// panning and zooming then only need to transform four corners per element.
+fn path_paint_bounds(path: &Path, id: &Uuid, pressures: &WeakPathPressures) -> egui::Rect {
+    let max_pressure = pressures
+        .get(id)
+        .map(|forces| forces.iter().copied().fold(0.0_f32, f32::max))
+        .unwrap_or(0.0);
+    let radius = path.stroke.map_or(0.0, |stroke| {
+        (stroke.width * path.stroke_scale()).abs() * (1.0 + max_pressure) * 0.5
+    });
+    path.bounding_box().expand(radius)
 }
 
 fn tessellate_path(
@@ -184,8 +220,7 @@ fn tessellate_path(
     if path.data.is_empty() {
         return None;
     }
-    let color = ThemePalette::resolve_dynamic_color(stroke.color, dark_mode)
-        .linear_multiply(stroke.opacity);
+    let color = ThemePalette::resolve_dynamic_color(stroke.color, dark_mode);
     let mut builder = lyon::path::BuilderWithAttributes::new(1);
     let mut started = false;
     for i in 0..path.data.len_segments() {
@@ -230,4 +265,30 @@ fn tessellate_path(
         )
         .ok()?;
     Some(Mesh { indices: mesh.indices, vertices: mesh.vertices, texture_id: Default::default() })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use lb_rs::model::svg::buffer::Buffer;
+    use resvg::usvg::Transform;
+
+    #[test]
+    fn paint_bounds_include_thick_strokes_crossing_the_viewport_edge() {
+        let mut buffer = Buffer::new(
+            "<svg xmlns='http://www.w3.org/2000/svg'><path fill='none' stroke='black' \
+             stroke-width='6' d='M-2 10 L-2 90'/></svg>",
+        );
+        let id = *buffer.elements.keys().next().unwrap();
+        buffer.elements[&id].transform(Transform::from_scale(2.0, 2.0));
+        buffer.weak_path_pressures.insert(id, vec![1.0]);
+        let EditableElement::Path(path) = &buffer.elements[&id] else { unreachable!() };
+        let bounds = path_paint_bounds(path, &id, &buffer.weak_path_pressures);
+        let mesh = tessellate_path(path, &id, false, &buffer.weak_path_pressures, 1.0).unwrap();
+        let viewport = egui::Rect::from_min_max(egui::Pos2::ZERO, egui::pos2(100.0, 200.0));
+
+        assert!(!path.bounding_box().intersects(viewport));
+        assert!(bounds.intersects(viewport));
+        assert!(bounds.expand(0.001).contains_rect(mesh.calc_bounds()));
+    }
 }

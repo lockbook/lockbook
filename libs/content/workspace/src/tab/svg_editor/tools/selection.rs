@@ -1,5 +1,5 @@
 use core::f32;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use bezier_rs::Subpath;
 use egui::UiBuilder;
@@ -41,10 +41,15 @@ pub struct Selection {
     pub layout: Layout,
     show_selection_popover: bool,
     pub selection_stroke_snashot: HashMap<Uuid, Stroke>,
-    selection_opacity_snapshot: HashMap<Uuid, f32>,
+    opacity_preview: Option<OpacityPreview>,
     pub properties: Option<ElementEditableProperties>,
     selection_container: Option<egui::Rect>,
     selection_handles: Option<SelectionHandles>,
+}
+
+struct OpacityPreview {
+    opacity: f32,
+    elements: HashSet<Uuid>,
 }
 
 #[derive(Clone, Debug)]
@@ -561,6 +566,9 @@ impl InputControllerTool for Selection {
     fn show_hover_point(&self, _: &mut egui::Ui, _: CanvasPointer, _: &mut ToolContext<'_>) {}
 
     fn show_tool_ui(&mut self, ui: &mut egui::Ui, selection_ctx: &mut ToolContext) {
+        if !self.show_selection_popover {
+            self.cancel_opacity_preview();
+        }
         ui.scope_builder(
             UiBuilder::new().layer_id(egui::LayerId {
                 order: egui::Order::Background,
@@ -650,7 +658,7 @@ impl Selection {
         }
         if self.current_op != SelectionOperation::Translation
             && self.selection_stroke_snashot.is_empty()
-            && self.selection_opacity_snapshot.is_empty()
+            && self.opacity_preview.is_none()
         {
             for el in self.selected_elements.iter() {
                 let child = match selection_ctx.view().screen_bounds(el.id) {
@@ -890,12 +898,14 @@ impl Selection {
     }
 
     fn clear_selection_els(&mut self) {
+        self.cancel_opacity_preview();
         self.selected_elements.clear();
         self.show_selection_popover = false;
         self.properties = None;
     }
 
     fn new_selection_els(&mut self, new_slection_els: Vec<SelectedElement>) {
+        self.cancel_opacity_preview();
         self.selected_elements = new_slection_els;
         self.properties = None;
     }
@@ -948,78 +958,89 @@ impl Selection {
         &mut self, ui: &mut egui::Ui, selection_ctx: &mut ToolContext,
         common_properties: &mut CommonEditableProperties,
     ) -> bool {
-        let mut buffer_changed = false;
-
         show_section_header(ui, "opacity");
         ui.add_space(10.0);
 
-        let slider_res =
+        if let Some(preview) = &self.opacity_preview {
+            common_properties.opacity = preview.opacity;
+        }
+        let response =
             show_opacity_slider(ui, &mut common_properties.opacity, &DynamicColor::default());
 
-        if slider_res.drag_started() || slider_res.clicked() {
-            self.begin_opacity_edit(selection_ctx);
+        if !ui.is_enabled()
+            || ui.input(|input| !input.focused || input.key_pressed(egui::Key::Escape))
+        {
+            self.cancel_opacity_preview();
+            ui.ctx().stop_dragging();
+            ui.ctx().request_repaint();
+            return false;
         }
-        if slider_res.dragged() || slider_res.clicked() {
-            buffer_changed |= self.apply_opacity(selection_ctx, common_properties.opacity);
+        if response.drag_started() || response.dragged() {
+            self.preview_opacity_edit(common_properties.opacity);
+            if response.drag_started() || response.changed() {
+                ui.ctx().request_repaint();
+            }
         }
-        if slider_res.drag_stopped() || slider_res.clicked() {
-            self.commit_opacity_edit(selection_ctx);
+        if response.drag_stopped() {
+            if self.opacity_preview.take().is_some() {
+                self.set_opacity(selection_ctx, common_properties.opacity);
+                return true;
+            }
+        } else if response.changed() && !response.dragged() {
+            // Clicking the rail and keyboard adjustments commit immediately.
+            self.set_opacity(selection_ctx, common_properties.opacity);
+            return true;
         }
-
-        buffer_changed
+        if !response.dragged() && !response.drag_started() {
+            self.cancel_opacity_preview();
+        }
+        false
     }
 
-    fn begin_opacity_edit(&mut self, selection_ctx: &mut ToolContext) {
-        self.selection_opacity_snapshot = self
+    fn preview_opacity_edit(&mut self, opacity: f32) {
+        let preview = self.opacity_preview.get_or_insert_with(|| OpacityPreview {
+            opacity,
+            elements: self.selected_elements.iter().map(|el| el.id).collect(),
+        });
+        preview.opacity = opacity;
+    }
+
+    pub fn preview_opacity(&self, id: Uuid) -> Option<f32> {
+        self.opacity_preview
+            .as_ref()
+            .filter(|preview| preview.elements.contains(&id))
+            .map(|preview| preview.opacity)
+    }
+
+    pub fn cancel_opacity_preview(&mut self) {
+        self.opacity_preview = None;
+    }
+
+    /// Commit one opacity edit; slider previews never change the document.
+    pub fn set_opacity(&mut self, selection_ctx: &mut ToolContext, opacity: f32) {
+        self.cancel_opacity_preview();
+        let changes: Vec<_> = self
             .selected_elements
             .iter()
-            .filter_map(|s_el| {
-                selection_ctx
-                    .buffer
-                    .elements
-                    .get(&s_el.id)
-                    .map(|el| (s_el.id, el.opacity()))
+            .filter_map(|selected| {
+                let element = selection_ctx.buffer.elements.get_mut(&selected.id)?;
+                let old_opacity = element.opacity();
+                if element.deleted() || old_opacity == opacity {
+                    return None;
+                }
+                element.set_opacity(opacity);
+                Some(history::OpacityChangeElement {
+                    id: selected.id,
+                    old_opacity,
+                    new_opacity: opacity,
+                })
             })
             .collect();
-    }
-
-    fn apply_opacity(&mut self, selection_ctx: &mut ToolContext, opacity: f32) -> bool {
-        let mut buffer_changed = false;
-        self.selected_elements.iter().for_each(|s_el| {
-            if let Some(el) = selection_ctx.buffer.elements.get_mut(&s_el.id) {
-                el.set_opacity(opacity);
-                buffer_changed = true;
-            }
-        });
-        buffer_changed
-    }
-
-    fn commit_opacity_edit(&mut self, selection_ctx: &mut ToolContext) {
-        let event = history::Event::OpacityChange(
-            self.selected_elements
-                .iter()
-                .filter_map(|s_el: &selection::SelectedElement| {
-                    selection_ctx.buffer.elements.get(&s_el.id).and_then(|el| {
-                        self.selection_opacity_snapshot
-                            .get(&s_el.id)
-                            .map(|old_opacity| history::OpacityChangeElement {
-                                id: s_el.id,
-                                old_opacity: *old_opacity,
-                                new_opacity: el.opacity(),
-                            })
-                    })
-                })
-                .collect(),
-        );
-        self.selection_opacity_snapshot.clear();
-        selection_ctx.history.save(event);
-    }
-
-    /// The opacity slider, clicked at `opacity`.
-    pub fn set_opacity(&mut self, selection_ctx: &mut ToolContext, opacity: f32) {
-        self.begin_opacity_edit(selection_ctx);
-        self.apply_opacity(selection_ctx, opacity);
-        self.commit_opacity_edit(selection_ctx);
+        if !changes.is_empty() {
+            selection_ctx
+                .history
+                .save(history::Event::OpacityChange(changes));
+        }
     }
 
     fn show_stroke_properties(

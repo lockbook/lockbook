@@ -154,8 +154,8 @@ impl InputControllerTool for Pen {
             let radius = self.screen_radius(pen_ctx.viewport_settings.coordinates(), 0.25);
 
             pen_ctx.painter.circle_filled(
-                pointer.screen_pos.0,
-                radius.0,
+                pointer.screen_pos.into_inner(),
+                radius.into_inner(),
                 ThemePalette::resolve_dynamic_color(self.active_color, ui.visuals().dark_mode)
                     .linear_multiply(self.active_opacity),
             );
@@ -174,7 +174,7 @@ impl Pen {
         } else {
             coordinates.screen_length(DocumentLength(radius))
         };
-        ScreenLength(radius.0 * (1.0 + self.pressure_alpha * (2.0 * force - 1.0)))
+        ScreenLength(radius.into_inner() * (1.0 + self.pressure_alpha * (2.0 * force - 1.0)))
     }
 
     pub fn change_color(&mut self, new_color: DynamicColor) {
@@ -230,15 +230,15 @@ impl Pen {
                 .viewport_settings
                 .coordinates()
                 .document_length(ScreenLength(path_stroke.width))
-                .0;
+                .into_inner();
         };
 
-        let document_pos = payload.document_pos.0;
+        let document_pos = payload.document_pos.into_inner();
         self.path_builder.tolerance = pen_ctx
             .viewport_settings
             .coordinates()
             .document_length(ScreenLength(0.5))
-            .0 as f64;
+            .into_inner() as f64;
 
         if let Some(EditableElement::Path(p)) = pen_ctx.buffer.elements.get_mut(&self.current_id) {
             p.diff_state.data_changed = true;
@@ -287,7 +287,7 @@ impl Pen {
     }
 
     fn end(&mut self, pen_ctx: &mut ToolContext<'_>, payload: CanvasPointer) {
-        let document_pos = payload.document_pos.0;
+        let document_pos = payload.document_pos.into_inner();
         if let Some(EditableElement::Path(path)) = pen_ctx.buffer.elements.get_mut(&self.current_id)
         {
             path.diff_state.data_changed = true;
@@ -313,7 +313,7 @@ impl Pen {
     }
 
     fn predict_draw(&mut self, pen_ctx: &mut ToolContext<'_>, payload: CanvasPointer) {
-        let document_pos = payload.document_pos.0;
+        let document_pos = payload.document_pos.into_inner();
         if let Some(EditableElement::Path(p)) = pen_ctx.buffer.elements.get_mut(&self.current_id) {
             p.diff_state.data_changed = true;
             let maybe_new_mg = self.path_builder.line_to(document_pos, &mut p.data);

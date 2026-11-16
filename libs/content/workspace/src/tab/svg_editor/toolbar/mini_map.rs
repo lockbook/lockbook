@@ -1,10 +1,10 @@
 use resvg::usvg::Transform;
 
+use crate::tab::svg_editor::coordinates::CanvasView;
 use crate::tab::svg_editor::coordinates::{
     CanvasCoordinates, DocumentVector, ScreenRect, ScreenVector,
 };
 use crate::tab::svg_editor::toolbar::{MINI_MAP_WIDTH, Toolbar, ToolbarContext};
-use crate::tab::svg_editor::view::CanvasView;
 use crate::tab::svg_editor::viewport::transform_canvas;
 use crate::tab::svg_editor::{CanvasSettings, ViewportSettings};
 const SCROLLBAR_WIDTH: f32 = 15.0;
@@ -69,7 +69,7 @@ impl Toolbar {
         let bounded_rect = bounded_rect.translate(bounded_rect_offset);
         let container_rect = main_coordinates
             .document_rect(ScreenRect(tlbr_ctx.viewport_settings.container_rect))
-            .0
+            .into_inner()
             .translate(bounded_rect_offset);
 
         let s = mini_map_rect.width() / bounded_rect.width().max(1.0);
@@ -90,15 +90,22 @@ impl Toolbar {
         painter.rect_filled(painter.clip_rect(), 0.0, ui.visuals().extreme_bg_color);
 
         let coordinates = CanvasCoordinates::new(viewport_transform);
-        self.renderer
-            .render_svg(ui, CanvasView::new(tlbr_ctx.buffer, coordinates), &mut painter);
+        self.renderer.render_svg(
+            ui,
+            CanvasView::new(tlbr_ctx.buffer, coordinates),
+            &mut painter,
+            |id, opacity| {
+                self.eraser
+                    .preview_opacity(id, self.selection.preview_opacity(id).unwrap_or(opacity))
+            },
+        );
 
         let viewport_rect = coordinates
             .screen_rect(
                 main_coordinates
                     .document_rect(ScreenRect(tlbr_ctx.viewport_settings.container_rect)),
             )
-            .0;
+            .into_inner();
 
         let blue = ui.visuals().widgets.active.bg_fill;
         painter.rect(
@@ -141,7 +148,7 @@ impl Toolbar {
             let transform = maybe_delta.map(|delta| {
                 let delta = main_coordinates
                     .screen_vector(coordinates.document_vector(ScreenVector(delta)))
-                    .0;
+                    .into_inner();
                 Transform::from_translate(delta.x, delta.y)
             });
 
@@ -173,7 +180,7 @@ impl Toolbar {
 
         let container_rect = coordinates
             .document_rect(ScreenRect(tlbr_ctx.viewport_settings.container_rect))
-            .0
+            .into_inner()
             .translate(bounded_rect_offset);
 
         let scrollarea_size = egui::vec2(SCROLLBAR_WIDTH, mini_map_rect.height());
@@ -216,7 +223,7 @@ impl Toolbar {
         }
         delta = coordinates
             .screen_vector(DocumentVector(delta / scale_down_factor))
-            .0;
+            .into_inner();
 
         if scrollarea_res.hover_pos().is_some() {
             let smooth_scroll_delta = ui.input(|r| r.smooth_scroll_delta);

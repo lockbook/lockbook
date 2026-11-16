@@ -49,7 +49,7 @@ impl SVGEditor {
                             egui::vec2(img.width() as f32, img.height() as f32),
                             ScreenPoint(paste_pos),
                         );
-                        let fitted_img_rect = fitted_img_rect.0;
+                        let fitted_img_rect = fitted_img_rect.into_inner();
 
                         let id = Uuid::new_v4();
                         self.buffer.elements.insert(
@@ -57,7 +57,7 @@ impl SVGEditor {
                             EditableElement::Image(Box::new(Image {
                                 data: resvg::usvg::ImageKind::PNG(data.into()),
                                 visible: true,
-                                transform: transform.0,
+                                transform: transform.into_inner(),
                                 view_box: NonZeroRect::from_xywh(
                                     fitted_img_rect.min.x,
                                     fitted_img_rect.min.y,
@@ -121,11 +121,13 @@ impl SVGEditor {
 fn image_paste_placement(
     coordinates: CanvasCoordinates, container: ScreenRect, size: egui::Vec2, position: ScreenPoint,
 ) -> (DocumentRect, DocumentTransform) {
-    let image_rect = egui::Rect::from_min_size(position.0, size);
-    let transform = if container.0.width() < size.x * 2.0 || container.0.height() < size.y * 2.0 {
-        get_rect_identity_transform(container.0, image_rect, 0.5, position.0)
+    let image_rect = egui::Rect::from_min_size(position.into_inner(), size);
+    let transform = if container.into_inner().width() < size.x * 2.0
+        || container.into_inner().height() < size.y * 2.0
+    {
+        get_rect_identity_transform(container.into_inner(), image_rect, 0.5, position.into_inner())
     } else {
-        let delta = position.0 - image_rect.center();
+        let delta = position.into_inner() - image_rect.center();
         Some(Transform::from_translate(delta.x, delta.y))
     }
     .unwrap_or_default();
@@ -141,7 +143,7 @@ fn paste_elements(
     position: ScreenPoint,
 ) -> Vec<Uuid> {
     let Some(bounds) = calc_elements_bounds(&source) else { return Vec::new() };
-    let delta = coordinates.document_point(position).0 - bounds.center();
+    let delta = coordinates.document_point(position).into_inner() - bounds.center();
     duplicate_elements(
         source.elements,
         source.weak_path_pressures,

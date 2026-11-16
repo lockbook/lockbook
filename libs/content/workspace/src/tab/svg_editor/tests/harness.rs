@@ -167,25 +167,6 @@ impl TestCanvas {
         self.frame(vec![]);
     }
 
-    /// Pinch-zoom by `factor` around `at`.
-    pub fn zoom(&mut self, factor: f32, at: Pos2) {
-        self.frame(vec![Event::PointerMoved(at)]);
-        self.frame(vec![Event::Zoom(factor)]);
-        self.frame(vec![]);
-    }
-
-    /// Two-finger scroll.
-    pub fn pan(&mut self, delta: Vec2) {
-        self.frame(vec![Event::MouseWheel {
-            unit: egui::MouseWheelUnit::Point,
-            delta,
-            modifiers: Modifiers::NONE,
-            phase: egui::TouchPhase::Move,
-            source: egui::MouseWheelSource::Unknown,
-        }]);
-        self.frame(vec![]);
-    }
-
     /// The bytes a save writes (tab/mod.rs clone_content → into_bytes).
     pub fn file(&self) -> String {
         self.svg_ref().buffer.serialize()

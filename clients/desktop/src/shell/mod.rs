@@ -438,8 +438,7 @@ impl ShellApp {
             sheets::show_modals(self, ctx, &t, &mut queue);
         }
 
-        let background_enabled = self.modal.is_none();
-        if !background_enabled {
+        if self.modal.is_some() {
             ctx.root_ui(|root| root.disable());
         }
 
@@ -469,9 +468,7 @@ impl ShellApp {
                         sidebar::show_sliding(self, ui, &t, &mut queue, ui.max_rect().width());
                     });
             });
-            if background_enabled {
-                sidebar::resize_over_workspace(ctx, &t, titlebar::HEADER_H);
-            }
+            sidebar::resize_over_workspace(ctx, &t, titlebar::HEADER_H);
             if let Some(state) =
                 egui::containers::panel::PanelState::load(ctx, sidebar::panel_id(ctx))
             {

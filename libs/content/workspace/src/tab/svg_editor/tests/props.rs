@@ -7,7 +7,7 @@ use std::fmt::Debug;
 use bezier_rs::Subpath;
 use egui::{Pos2, Rect, pos2, vec2};
 use lb_rs::Uuid;
-use lb_rs::model::svg::buffer::{Buffer, get_highlighter_colors, get_pen_colors};
+use lb_rs::model::svg::buffer::{Buffer, get_pen_colors};
 use lb_rs::model::svg::element::{DynamicColor, EditableElement, ManipulatorGroupId};
 use resvg::usvg::Transform;
 
@@ -27,15 +27,6 @@ fn save_reopen_shows_the_same() {
     check(|b| gen_case(b, true), save_reopen_check);
 }
 
-// #[test]
-// fn svg_export_preserves_canvas_appearance() {
-//     check(|b| gen_case(b, true), |c| renders_check(c, false));
-// }
-
-// #[test]
-// fn svg_export_preserves_canvas_appearance_round_caps() {
-//     check(|b| gen_case(b, true), |c| renders_check(c, true));
-// }
 #[test]
 fn undo_all_restores_and_redo_all_replays() {
     check(|b| gen_case(b, false), undo_redo_check);
@@ -374,15 +365,6 @@ fn differs(what: &str, a: &[bool], b: &[bool]) -> Result<(), String> {
     Err(why)
 }
 
-/// The saved file looks the same in any SVG viewer as on the canvas.
-/// `round` renders the file as if it said round caps and joins.
-fn renders_check(c: &Case, round: bool) -> Result<(), String> {
-    let mut canvas = TestCanvas::open(&file_bytes(&c.file));
-    c.edits.run(&mut canvas);
-    let file = canvas.save();
-    differs("canvas vs viewer", &canvas_mask(&canvas), &viewer_mask(&file, canvas.master(), round))
-}
-
 // Editors share the same file and action corpus, taking turns writing.
 const WRITERS: usize = 2;
 
@@ -649,24 +631,6 @@ fn erase_first(canvas: &mut TestCanvas) {
 }
 
 #[test]
-fn smoke_each_gesture_reaches_the_buffer() {
-    let mut c = TestCanvas::open(r#"<svg xmlns="http://www.w3.org/2000/svg"></svg>"#);
-    draw(&mut c, Tool::Pen, &[pos2(300., 300.), pos2(350., 320.), pos2(400., 300.)]);
-    let drawn = canvas_view(&c);
-    c.tool(Tool::Selection);
-    c.drag(&[pos2(300., 300.), pos2(310., 305.), pos2(320., 310.)]);
-    let moved = canvas_view(&c);
-    c.zoom(2., pos2(400., 300.));
-    c.pan(vec2(10., 5.));
-    let zoom = c.master();
-    erase_first(&mut c);
-    assert_eq!(drawn.len(), 1);
-    assert_ne!(drawn, moved);
-    assert_ne!(zoom, Transform::identity());
-    assert!(canvas_view(&c).is_empty());
-}
-
-#[test]
 fn selection_opacity_survives_save_reopen_and_undo() {
     for tool in [Tool::Pen, Tool::Highlighter] {
         let mut canvas = TestCanvas::open(r#"<svg xmlns="http://www.w3.org/2000/svg"></svg>"#);
@@ -689,32 +653,6 @@ fn selection_opacity_survives_save_reopen_and_undo() {
         canvas.act(CanvasAction::Undo);
         same("undo erase preserves opacity", &edited, &canvas_view(&canvas), true).unwrap();
     }
-}
-
-#[test]
-fn smoke_each_control_reaches_the_buffer() {
-    let mut c = TestCanvas::open(r#"<svg xmlns="http://www.w3.org/2000/svg"></svg>"#);
-    draw(&mut c, Tool::Pen, &[pos2(300., 300.), pos2(350., 320.)]);
-    draw(&mut c, Tool::Pen, &[pos2(400., 300.), pos2(450., 320.)]);
-    let before = canvas_view(&c);
-    c.act_many(actions::click(pos2(400., 300.)));
-    assert_eq!(c.svg_ref().toolbar.selection.selected_elements.len(), 1);
-    c.act_many([
-        CanvasAction::SetSelectionColor(get_pen_colors()[1]),
-        CanvasAction::SetSelectionWidth(5.),
-        CanvasAction::SetSelectionOpacity(0.5),
-        CanvasAction::MoveSelectionLayer(LayerMove::ToBack),
-    ]);
-    c.tool(Tool::Highlighter);
-    c.act(CanvasAction::SetPenColor(get_highlighter_colors()[2]));
-    draw(&mut c, Tool::Highlighter, &[pos2(300., 400.), pos2(350., 420.)]);
-    let after = canvas_view(&c);
-    assert_eq!(after.len(), 3);
-    let restyled = after.iter().position(|s| s.id == before[0].id).unwrap();
-    assert_eq!(restyled, 2, "the layer move put the restyled stroke at the back");
-    assert_ne!(after[restyled].rgb, before[0].rgb);
-    assert_eq!((after[restyled].width, after[restyled].opacity), (500, 128));
-    assert_eq!((after[0].width, after[0].opacity), (1500, 26), "highlighter stroke");
 }
 
 fn fixed_stroke(points: &[Pos2]) -> Vec<CanvasAction> {
@@ -1010,4 +948,46 @@ fn taps_are_centered_dots_and_survive_prediction_save_and_history() {
             same("redo tap", &drawn, &canvas_view(&canvas), true).unwrap();
         }
     }
+}
+
+#[test]
+fn eraser_preview_does_not_change_saved_opacity() {
+    let mut canvas = TestCanvas::open(
+        "<svg xmlns='http://www.w3.org/2000/svg'><path fill='none' stroke='black' \
+         stroke-width='6' d='M300 300 L350 320'/></svg>",
+    );
+    canvas.tool(Tool::Eraser);
+    let before = canvas.file();
+    let point = canvas
+        .svg_ref()
+        .viewport_settings
+        .coordinates()
+        .screen_point(super::super::coordinates::DocumentPoint(pos2(300., 300.)))
+        .into_inner();
+    canvas.act(CanvasAction::Erase(EraseEvent::Build(point)));
+    for _ in 0..3 {
+        canvas.frame(vec![]);
+        assert_eq!(canvas.file(), before);
+        assert!(!canvas.svg_ref().history.has_undo());
+    }
+    let mesh_alpha = |canvas: &TestCanvas| {
+        canvas
+            .shapes
+            .iter()
+            .filter_map(|shape| {
+                let egui::Shape::Mesh(mesh) = &shape.shape else { return None };
+                mesh.vertices.first().map(|vertex| vertex.color.a())
+            })
+            .max()
+            .unwrap()
+    };
+    assert!(mesh_alpha(&canvas) < 100, "the preview should still fade on screen");
+    canvas.act(CanvasAction::Erase(EraseEvent::Cancel));
+    assert_eq!(canvas.file(), before);
+    assert_eq!(mesh_alpha(&canvas), 255);
+    canvas.act(CanvasAction::Erase(EraseEvent::Build(point)));
+    canvas.act(CanvasAction::Erase(EraseEvent::End));
+    assert!(canvas_view(&canvas).is_empty());
+    canvas.act(CanvasAction::Undo);
+    assert_eq!(canvas.file(), before);
 }

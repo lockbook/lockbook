@@ -12,7 +12,6 @@ mod renderer;
 pub(super) mod toolbar;
 pub(super) mod tools;
 mod util;
-mod view;
 
 use egui::UiBuilder;
 use web_time::Instant;
@@ -298,6 +297,10 @@ impl SVGEditor {
             }
         }
         self.input_ctx.update(ui);
+        if !ui.is_enabled() {
+            self.toolbar.selection.cancel_opacity_preview();
+            self.toolbar.eraser.cancel_preview();
+        }
 
         self.viewport_settings.update_working_rect(
             self.settings,
@@ -491,8 +494,17 @@ impl SVGEditor {
         ui.vertical(|ui| {
             self.renderer.render_svg(
                 ui,
-                view::CanvasView::new(&self.buffer, self.viewport_settings.coordinates()),
+                coordinates::CanvasView::new(&self.buffer, self.viewport_settings.coordinates()),
                 &mut self.painter,
+                |id, opacity| {
+                    self.toolbar.eraser.preview_opacity(
+                        id,
+                        self.toolbar
+                            .selection
+                            .preview_opacity(id)
+                            .unwrap_or(opacity),
+                    )
+                },
             )
         })
         .inner
@@ -568,6 +580,10 @@ fn execute_action(
     cfg: &mut WsPersistentStore,
 ) {
     use CanvasAction as A;
+    if matches!(action, A::Undo | A::Redo) {
+        toolbar.selection.cancel_opacity_preview();
+        toolbar.eraser.cancel_preview();
+    }
     match action {
         A::Pen(event) => toolbar.pen.handle_tool_event(ui, event, ctx),
         A::Highlighter(event) => toolbar.highlighter.handle_tool_event(ui, event, ctx),

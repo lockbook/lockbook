@@ -88,8 +88,8 @@ pub struct ToolContext<'a> {
 }
 
 impl ToolContext<'_> {
-    pub fn view(&self) -> super::view::CanvasView<'_> {
-        super::view::CanvasView::new(self.buffer, self.viewport_settings.coordinates())
+    pub fn view(&self) -> super::coordinates::CanvasView<'_> {
+        super::coordinates::CanvasView::new(self.buffer, self.viewport_settings.coordinates())
     }
 }
 
@@ -218,6 +218,8 @@ impl ViewportSettings {
 #[macro_export]
 macro_rules! set_tool {
     ($obj:expr, $new_tool:expr) => {
+        $obj.selection.cancel_opacity_preview();
+        $obj.eraser.cancel_preview();
         if $obj.active_tool != $new_tool {
             $obj.show_tool_popover = false;
             $obj.layout.tool_popover = None;

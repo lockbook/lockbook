@@ -18,29 +18,39 @@ impl ViewportSettings {
     }
 
     pub fn document_to_screen(&self, point: egui::Pos2) -> egui::Pos2 {
-        self.coordinates().screen_point(DocumentPoint(point)).0
+        self.coordinates()
+            .screen_point(DocumentPoint(point))
+            .into_inner()
     }
 
     pub fn screen_to_document(&self, point: egui::Pos2) -> egui::Pos2 {
-        self.coordinates().document_point(ScreenPoint(point)).0
+        self.coordinates()
+            .document_point(ScreenPoint(point))
+            .into_inner()
     }
 
     pub fn screen_vector_to_document(&self, vector: egui::Vec2) -> egui::Vec2 {
-        self.coordinates().document_vector(ScreenVector(vector)).0
+        self.coordinates()
+            .document_vector(ScreenVector(vector))
+            .into_inner()
     }
 
     pub fn document_rect_to_screen(&self, rect: egui::Rect) -> egui::Rect {
-        self.coordinates().screen_rect(DocumentRect(rect)).0
+        self.coordinates()
+            .screen_rect(DocumentRect(rect))
+            .into_inner()
     }
 
     pub fn screen_rect_to_document(&self, rect: egui::Rect) -> egui::Rect {
-        self.coordinates().document_rect(ScreenRect(rect)).0
+        self.coordinates()
+            .document_rect(ScreenRect(rect))
+            .into_inner()
     }
 
     pub fn screen_transform_to_document(&self, transform: Transform) -> Transform {
         self.coordinates()
             .document_transform(ScreenTransform(transform))
-            .0
+            .into_inner()
     }
 
     /// The saved transform maps into viewport-local coordinates. The UI's

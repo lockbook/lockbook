@@ -550,8 +550,8 @@ fn show_stroke_preview(ui: &mut egui::Ui, pen: &mut Pen, tlbr_ctx: &mut ToolbarC
 
     let coordinates = tlbr_ctx.viewport_settings.coordinates();
     let subapth: Subpath<ManipulatorGroupId> = bez.graduated_outline(
-        pen.screen_radius(coordinates, 1.0).0 as f64,
-        pen.screen_radius(coordinates, 0.0).0 as f64,
+        pen.screen_radius(coordinates, 1.0).into_inner() as f64,
+        pen.screen_radius(coordinates, 0.0).into_inner() as f64,
         Cap::Round,
     );
 

@@ -92,7 +92,7 @@ impl InputControllerTool for ShapesTool {
                     .viewport_settings
                     .coordinates()
                     .document_point(ScreenPoint(pos))
-                    .0;
+                    .into_inner();
                 if self.build_origin.is_none() {
                     self.build_origin = Some(pos);
                 }
