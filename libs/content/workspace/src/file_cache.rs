@@ -67,6 +67,17 @@ pub struct FileCache {
     titles: OnceLock<HashMap<String, Vec<u32>>>,
     /// Counts the caches swapped in by [`Self::replace`].
     pub generation: u64,
+    /// Carried from one cache to the next, like the notes.
+    workers: Workers,
+}
+
+/// Stops the workers [`FileCache::keep`] started when the last cache they
+/// keep is dropped.
+#[derive(Default)]
+struct Workers {
+    /// Held for its drop, which wakes the workers to stop.
+    #[cfg(not(target_family = "wasm"))]
+    _stop: Option<tokio::sync::watch::Sender<()>>,
 }
 
 /// Folders first, then name. Parent+name is unique so `id` is not in the key.
@@ -112,6 +123,7 @@ impl FileCache {
             notes: Default::default(),
             titles: Default::default(),
             generation: 0,
+            workers: Default::default(),
         }
     }
 
@@ -163,6 +175,7 @@ impl FileCache {
             notes: Default::default(),
             titles: Default::default(),
             generation: 0,
+            workers: Default::default(),
         }
     }
 
@@ -269,6 +282,20 @@ impl FileCache {
     }
 }
 
+/// `events`' next event, or `None` once the cache it serves is dropped.
+#[cfg(not(target_family = "wasm"))]
+pub(crate) fn next_event(
+    events: &mut tokio::sync::broadcast::Receiver<lb_rs::service::events::Event>,
+    stopped: &mut tokio::sync::watch::Receiver<()>,
+) -> Option<Result<lb_rs::service::events::Event, tokio::sync::broadcast::error::RecvError>> {
+    futures::executor::block_on(async {
+        tokio::select! {
+            event = events.recv() => Some(event),
+            _ = stopped.changed() => None,
+        }
+    })
+}
+
 impl FileCache {
     /// Puts `cache` in place of this one, keeping the notes it still has, as
     /// the next generation.
@@ -276,6 +303,7 @@ impl FileCache {
         let mut notes = std::mem::take(&mut self.notes);
         notes.retain_in(&cache);
         cache.notes = notes;
+        cache.workers = std::mem::take(&mut self.workers);
         cache.generation = self.generation + 1;
         *self = cache;
     }
@@ -288,12 +316,15 @@ impl FileCache {
         use lb_rs::service::events::{Event, SyncIncrement};
         use tokio::sync::broadcast::error::RecvError;
 
-        NoteIndex::keep(files, lb.clone(), ctx.clone());
-        let (weak, lb, ctx) = (Arc::downgrade(files), lb.clone(), ctx.clone());
+        let (stop, stopped) = tokio::sync::watch::channel(());
+        files.write().unwrap().workers = Workers { _stop: Some(stop) };
+        NoteIndex::keep(files, lb.clone(), ctx.clone(), stopped.clone());
+        let (weak, lb, ctx, mut stopped) =
+            (Arc::downgrade(files), lb.clone(), ctx.clone(), stopped);
         std::thread::spawn(move || {
             let mut events = lb.subscribe();
-            loop {
-                match events.blocking_recv() {
+            while let Some(event) = next_event(&mut events, &mut stopped) {
+                match event {
                     Ok(Event::MetadataChanged(_) | Event::IpcChangesApplied)
                     | Err(RecvError::Lagged(_)) => {
                         let cache = FileCache::new(&lb);
@@ -1789,5 +1820,25 @@ pub(crate) mod tests {
         assert!(!web_link(&format!("lb://{id}")));
         assert!(!web_link("notes/plan.md"));
         assert!(!web_link("/notes/plan.md"));
+    }
+
+    /// The workers keep waiting while a replaced cache carries their guard,
+    /// and wake to stop once the last cache is dropped.
+    #[cfg(not(target_family = "wasm"))]
+    #[test]
+    fn workers_stop_with_the_last_cache() {
+        let (stop, stopped) = tokio::sync::watch::channel(());
+        let (_events_tx, events) = tokio::sync::broadcast::channel(1);
+        let mut cache = FileCache::empty();
+        cache.workers = Workers { _stop: Some(stop) };
+        cache.replace(FileCache::empty());
+        assert!(stopped.has_changed().is_ok(), "replacing the cache stopped its workers");
+
+        let worker = std::thread::spawn(move || {
+            let (mut events, mut stopped) = (events, stopped);
+            next_event(&mut events, &mut stopped).is_none()
+        });
+        drop(cache);
+        assert!(worker.join().unwrap());
     }
 }

@@ -13,6 +13,8 @@ use lb_rs::blocking::Lb;
 #[cfg(not(target_family = "wasm"))]
 use lb_rs::service::events::Event;
 
+#[cfg(not(target_family = "wasm"))]
+use crate::file_cache::next_event;
 use crate::file_cache::{Change, FileCache, FilesExt, Reach};
 use crate::link_plan::Plan;
 use crate::links::{LinkKind, NoteLink, NoteText, read_note};
@@ -180,7 +182,10 @@ impl NoteIndex {
     /// device arrives with no write announced at all.
     /// The reader waits for the first ask and stops with the cache.
     #[cfg(not(target_family = "wasm"))]
-    pub(crate) fn keep(files: &Arc<RwLock<FileCache>>, lb: Lb, ctx: egui::Context) {
+    pub(crate) fn keep(
+        files: &Arc<RwLock<FileCache>>, lb: Lb, ctx: egui::Context,
+        mut stopped: tokio::sync::watch::Receiver<()>,
+    ) {
         let (wake, woken) = std::sync::mpsc::channel();
         *files.read().unwrap().notes.wake.lock().unwrap() = Some(wake);
         let files = Arc::downgrade(files);
@@ -195,8 +200,7 @@ impl NoteIndex {
             strong.read().unwrap().notes.set_ready();
             drop(strong);
             ctx.request_repaint();
-            loop {
-                let event = events.blocking_recv();
+            while let Some(event) = next_event(&mut events, &mut stopped) {
                 let Some(files) = files.upgrade() else { return };
                 match event {
                     Ok(Event::DocumentWritten(id, _)) => {
