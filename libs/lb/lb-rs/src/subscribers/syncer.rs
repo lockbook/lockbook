@@ -245,6 +245,8 @@ impl<S: Server, D: LocalDocuments> Lb<S, D> {
             )
             .await?;
 
+        self.promote_landed(&updates.file_metadata).await?;
+
         let tx = self.ro_tx().await;
         let db = tx.db();
 
@@ -1142,6 +1144,7 @@ impl<S: Server, D: LocalDocuments> Lb<S, D> {
         drop(tx);
 
         if !updates.is_empty() {
+            self.note_pushed(&local_changes_no_digests).await?;
             self.client
                 .upsert_file_metadata_v2(
                     self.get_account()?,
@@ -1154,6 +1157,9 @@ impl<S: Server, D: LocalDocuments> Lb<S, D> {
         let db = tx.db();
 
         // base = local
+        for file in &local_changes_no_digests {
+            db.pushed_metadata.remove(file.id())?;
+        }
         promote_pushed(&mut db.base_metadata, &mut db.local_metadata, local_changes_no_digests)?;
 
         tx.end();
@@ -1204,6 +1210,10 @@ impl<S: Server, D: LocalDocuments> Lb<S, D> {
             warn!("sync push_docs held lock for {:?}", start.elapsed());
         }
 
+        if !updates.is_empty() {
+            self.note_pushed(&local_changes_digests_only).await?;
+        }
+
         let futures = updates.clone().into_iter().map(|diff| self.push_doc(diff));
 
         let mut stream = stream::iter(futures).buffer_unordered(
@@ -1233,11 +1243,56 @@ impl<S: Server, D: LocalDocuments> Lb<S, D> {
         let mut tx = self.begin_tx().await;
         let db = tx.db();
         // base = local (metadata)
+        for file in &local_changes_digests_only {
+            db.pushed_metadata.remove(file.id())?;
+        }
         promote_pushed(&mut db.base_metadata, &mut db.local_metadata, local_changes_digests_only)?;
 
         tx.end();
 
         if let Some(err) = last_error { Err(err) } else { Ok(()) }
+    }
+
+    /// Promotes the versions in `remote` this device pushed without hearing back: the server
+    /// holding exactly one of them means it took that push, whose answer was lost. Each is
+    /// promoted as the answer would have, so this device sees its own change as its own.
+    async fn promote_landed(&self, remote: &[SignedMeta]) -> LbResult<()> {
+        if self.ro_tx().await.db().pushed_metadata.is_empty() {
+            return Ok(());
+        }
+        let mut tx = self.begin_tx().await;
+        let db = tx.db();
+        let landed: Vec<SignedMeta> = remote
+            .iter()
+            .filter(|file| {
+                db.pushed_metadata
+                    .get(file.id())
+                    .is_some_and(|pushed| same(pushed, file))
+            })
+            .cloned()
+            .collect();
+        if landed.is_empty() {
+            return Ok(());
+        }
+        let ids: Vec<Uuid> = landed.iter().map(|file| *file.id()).collect();
+        promote_pushed(&mut db.base_metadata, &mut db.local_metadata, landed)?;
+        for id in &ids {
+            db.pushed_metadata.remove(id)?;
+        }
+        tx.end();
+        Ok(())
+    }
+
+    /// Notes `files` as pushed, before they're sent: once written, a push whose answer is lost is
+    /// recognized by the next sync, and a push that isn't written is never sent.
+    async fn note_pushed(&self, files: &[SignedMeta]) -> LbResult<()> {
+        let mut tx = self.begin_tx().await;
+        let db = tx.db();
+        for file in files {
+            db.pushed_metadata.insert(*file.id(), file.clone())?;
+        }
+        tx.end();
+        Ok(())
     }
 
     async fn push_doc(&self, diff: FileDiff<SignedMeta>) -> LbResult<Uuid> {
@@ -1580,6 +1635,13 @@ fn server_access<L: TreeLike, R: TreeLike<F = L::F>>(
         }
     }
     Ok(mode)
+}
+
+/// Whether `a` and `b` are one signed version, not merely equal in content.
+fn same(a: &SignedMeta, b: &SignedMeta) -> bool {
+    a == b
+        && a.timestamped_value.timestamp == b.timestamped_value.timestamp
+        && a.signature == b.signature
 }
 
 /// Promotes `pushed` into `base`, keeping local writes made during the push.

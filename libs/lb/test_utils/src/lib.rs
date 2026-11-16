@@ -1,5 +1,6 @@
 pub mod assert;
 pub mod byte_source;
+pub mod faulty;
 pub mod gate;
 pub mod prop;
 pub mod shrink;
