@@ -11,6 +11,8 @@ mod link_inbox;
 mod perf;
 mod settings;
 pub mod shell;
+#[cfg(feature = "try")]
+mod try_mode;
 mod util;
 
 pub use crate::settings::Settings;

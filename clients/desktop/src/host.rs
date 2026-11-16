@@ -747,6 +747,14 @@ fn resources_declare_xft_dpi(resources: &str) -> bool {
 /// Opens the product shell at the `lb://` link it was launched with, if any,
 /// or hands that link to the app already open.
 pub fn run() {
+    #[cfg(feature = "try")]
+    {
+        let args: Vec<String> = std::env::args().collect();
+        if let Some(try_mode) = crate::try_mode::Try::from_args(&args) {
+            return run_try(try_mode.unwrap_or_else(|e| fail(&e)));
+        }
+    }
+
     let link = std::env::args()
         .skip(1)
         .find(|a| a.get(..3).is_some_and(|s| s.eq_ignore_ascii_case("lb:")));
@@ -756,6 +764,33 @@ pub fn run() {
         }
     }
     open(ShellApp::default(), link.into_iter().collect(), true);
+}
+
+/// The app on a QA fixture, in memory: see [crate::try_mode].
+#[cfg(feature = "try")]
+fn run_try(try_mode: crate::try_mode::Try) {
+    use crate::try_mode::Try;
+
+    // Logs, settings and anything else the app keeps go here instead of the user's data directory.
+    // SAFETY: no other thread has started.
+    unsafe { std::env::set_var("LOCKBOOK_PATH", &try_mode.home) };
+    let (link, core) = try_mode
+        .world()
+        .and_then(|core| Ok((Try::qa_link(&core)?, core)))
+        .unwrap_or_else(|e| fail(&format!("{e:?}")));
+    let mut shell = ShellApp::new(Arc::new(move || Ok(core.clone())));
+    shell.on_exit = Some(Box::new(move |core| {
+        if let Err(e) = try_mode.finish(core) {
+            eprintln!("lockbook-desktop: {e}");
+        }
+    }));
+    open(shell, vec![link], false);
+}
+
+#[cfg(feature = "try")]
+fn fail(message: &str) -> ! {
+    eprintln!("lockbook-desktop: {message}");
+    std::process::exit(2);
 }
 
 /// Opens a window on `shell`, then the `links`. With `inbox`, it also takes links later launches
