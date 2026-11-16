@@ -2214,7 +2214,8 @@ impl MdRender {
                             embed_ui,
                             url,
                             screen_rect,
-                            frag.source_range.start(),
+                            frag.source_range,
+                            scope,
                         ),
                         EmbedKind::Rule => self.paint_rule(embed_ui, screen_rect),
                         EmbedKind::Math => {

@@ -582,10 +582,15 @@ impl<'ast> MdRender {
         egui::Id::unique(("md_tab_embed", node_range))
     }
 
-    /// Paints the tab an embed slot holds; `at` is where its source starts,
-    /// which tells repeated embeds of one title apart.
-    pub fn paint_tab_embed(&mut self, ui: &mut egui::Ui, title: &str, rect: Rect, at: Grapheme) {
+    /// Paints the tab an embed slot holds; `range` is its source, whose start
+    /// tells repeated embeds of one title apart. Its band's interaction id
+    /// is `scope`'s.
+    pub fn paint_tab_embed(
+        &mut self, ui: &mut egui::Ui, title: &str, rect: Rect, range: (Grapheme, Grapheme),
+        scope: egui::Id,
+    ) {
         let name = title;
+        let at = range.start();
         // one tab shows once a frame; the empty slot covers where it was
         if !self.painting_drag_float && self.lifted_embed == Some(at) {
             return;
@@ -649,6 +654,12 @@ impl<'ast> MdRender {
         let rule = egui::Stroke::new(1.0, t.neutral_bg_tertiary());
         ui.painter().hline(rect.x_range(), title.bottom(), rule);
         self.tab_embeds.paint(ui, key, place.clone(), rect, band);
+        // a mouse lifts the embed by its band, beneath the Open button
+        if !self.readonly && !self.touch_mode && !self.painting_drag_float {
+            let id = scope.with(("md_embed_band", range));
+            let resp = ui.interact(title, id, Sense::click_and_drag());
+            self.embed_bands.push((range, resp));
+        }
         if show_open {
             open_button(ui, title, &place);
         }
@@ -1012,6 +1023,86 @@ mod tests {
         });
         r.tab_embeds.path = vec![id];
         (t, id)
+    }
+
+    /// A note embed's Open, clicked in an editable note, opens the note in
+    /// place rather than lifting the embed by its title.
+    #[test]
+    fn open_on_an_embed_opens_it() {
+        let mut t = TestWs::new();
+        let (plan, _) = embed_of_a_link(&mut t);
+        let tabs = t.ws.tab_strip.len();
+        click_open(&mut t, Default::default());
+        frames_until(&mut t, |t| {
+            t.ws.current_tab()
+                .and_then(|tab| tab.destination.backing_file())
+                == Some(plan)
+        });
+        assert_eq!(t.ws.tab_strip.len(), tabs);
+    }
+
+    /// Cmd on Open opens the note in a new tab.
+    #[test]
+    fn cmd_open_on_an_embed_opens_a_tab() {
+        let mut t = TestWs::new();
+        embed_of_a_link(&mut t);
+        let tabs = t.ws.tab_strip.len();
+        click_open(&mut t, egui::Modifiers::COMMAND);
+        frames_until(&mut t, |t| t.ws.tab_strip.len() == tabs + 1);
+    }
+
+    /// The rest of a note embed's title, held and moved, lifts the embed.
+    #[test]
+    fn a_drag_by_an_embeds_title_lifts_it() {
+        let mut t = TestWs::new();
+        embed_of_a_link(&mut t);
+        let (rect, _) = shown(&mut t).unwrap();
+        let md = t.ws.current_tab_mut().unwrap().markdown_mut().unwrap();
+        let band = md.edit.renderer.tab_embed_band("Plan", rect).unwrap();
+        let from = band.left_center() + vec2(40.0, 0.0);
+        let button = |pressed| egui::Event::PointerButton {
+            pos: from,
+            button: egui::PointerButton::Primary,
+            pressed,
+            modifiers: Default::default(),
+        };
+        t.frame_with(vec![egui::Event::PointerMoved(from)]);
+        t.frame_with(vec![button(true)]);
+        for i in 1..=4 {
+            t.frame_with(vec![egui::Event::PointerMoved(from + vec2(0.0, 10.0 * i as f32))]);
+        }
+        let md = t.ws.current_tab_mut().unwrap().markdown_mut().unwrap();
+        let held = md.edit.in_progress_image_drag.as_ref().map(|d| d.image);
+        assert_eq!(held, Some((Grapheme(7), Grapheme(16))));
+    }
+
+    /// Presses the shown embed's Open, holding `modifiers`, and lets go a
+    /// frame later, as a hand does; the embed is never lifted between.
+    fn click_open(t: &mut TestWs, modifiers: egui::Modifiers) {
+        let open = open_button_center(t);
+        let button = |pressed| egui::Event::PointerButton {
+            pos: open,
+            button: egui::PointerButton::Primary,
+            pressed,
+            modifiers,
+        };
+        // each frame's input sets its modifiers anew
+        let held = egui::Event::ModifiersChanged(modifiers);
+        t.frame_with(vec![held.clone(), egui::Event::PointerMoved(open)]);
+        t.frame_with(vec![held.clone(), button(true)]);
+        t.frame_with(vec![held.clone()]);
+        let md = t.ws.current_tab_mut().unwrap().markdown_mut().unwrap();
+        assert!(md.edit.in_progress_image_drag.is_none(), "the press lifted the embed");
+        t.frame_with(vec![held, button(false)]);
+    }
+
+    /// Where the shown note embed of `Plan` draws its Open button.
+    fn open_button_center(t: &mut TestWs) -> egui::Pos2 {
+        let (rect, _) = shown(t).unwrap();
+        let md = t.ws.current_tab_mut().unwrap().markdown_mut().unwrap();
+        let band = md.edit.renderer.tab_embed_band("Plan", rect).unwrap();
+        let half = md.edit.renderer.open_button_width() / 2.0;
+        pos2(band.right() - CARD_PAD.pts() - half, band.center().y)
     }
 
     /// `![[#Chairs]]` embeds the note's own heading, as `![[Board#Chairs]]` does.

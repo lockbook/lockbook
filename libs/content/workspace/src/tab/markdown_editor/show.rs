@@ -592,6 +592,7 @@ impl MdEdit {
         self.renderer.error_marks.clear();
         self.renderer.clear_row_scroll_frame();
         self.renderer.touch_targets.clear();
+        self.renderer.embed_bands.clear();
         let render_rect = Rect::from_min_size(rect.min, egui::Vec2::new(rect.width(), height));
         ui.scope_builder(UiBuilder::new().max_rect(render_rect), |ui| {
             // Clip the (possibly overflowing) layout to the field.
