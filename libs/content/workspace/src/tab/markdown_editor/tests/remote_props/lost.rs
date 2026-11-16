@@ -652,3 +652,22 @@ fn drop_moved_cases() {
     // and one at their outer edge moves the image there, unstyled
     drop(line, (2, 13), 15, "![a](a.png) d\n").unwrap();
 }
+
+/// What the editor writes for a drop out of a table row written without a
+/// leading pipe, which the image opens, passes the drop check.
+#[test]
+fn drop_moved_out_of_a_pipeless_row() {
+    use super::super::super::input::Event;
+    use super::super::harness::TestEditor;
+    let image = "![a](https://x.test/i.png)";
+    let before = format!("para\n\n {image} | b\n --- | --- \n c | d\n");
+    let mut ws = TestEditor::new(&before);
+    ws.enter_frame();
+    let start = before.find(image).unwrap();
+    let range = (Grapheme(start), Grapheme(start + image.len()));
+    ws.push(Event::Move { range, to: Grapheme(4) });
+    ws.enter_frame();
+    let after = ws.get_text().to_string();
+    assert_ne!(after, before, "the image moved");
+    drop_moved(&before, &after, range, Grapheme(4)).unwrap();
+}
