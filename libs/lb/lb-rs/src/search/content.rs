@@ -14,6 +14,7 @@ struct Document {
     file: File,
     filename: String,
     parent_path: String,
+    in_pending_share: bool,
     lowercased_content: String,
 }
 
@@ -91,6 +92,7 @@ impl ContentSearcher {
                                 file: meta,
                                 filename,
                                 parent_path,
+                                in_pending_share,
                                 lowercased_content: content.to_lowercase(),
                             });
                         }
@@ -211,6 +213,7 @@ impl ContentSearcher {
                         filename: doc.filename.clone(),
                         parent_path: doc.parent_path.clone(),
                         is_folder: false,
+                        in_pending_share: doc.in_pending_share,
                         path_indices: Vec::new(),
                         path_matches,
                         content_matches,

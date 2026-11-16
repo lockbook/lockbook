@@ -552,17 +552,24 @@ pub fn home_crumb() -> String {
     format!("{} Home", phosphor::HOUSE)
 }
 
-/// Crumb text as a label; a leading house glyph takes folder accent.
+/// Where a file in a share you haven't accepted is, in place of [`home_crumb`]: it has no path.
+pub fn shared_crumb() -> String {
+    format!("{} Shared with me", phosphor::USERS)
+}
+
+/// Crumb text as a label; a leading house or users glyph takes folder accent.
 pub fn crumb_label<'a>(
     text: &'a str, ink: Color32, accent: Color32,
 ) -> crate::widgets::GlyphonLabel<'a> {
-    match text.strip_prefix(phosphor::HOUSE) {
-        Some(rest) => crate::widgets::GlyphonLabel::new_colored(
-            vec![(phosphor::HOUSE, Some(accent)), (rest, None)],
-            ink,
-        ),
-        None => crate::widgets::GlyphonLabel::new(text, ink),
+    for glyph in [phosphor::HOUSE, phosphor::USERS] {
+        if let Some(rest) = text.strip_prefix(glyph) {
+            return crate::widgets::GlyphonLabel::new_colored(
+                vec![(glyph, Some(accent)), (rest, None)],
+                ink,
+            );
+        }
     }
+    crate::widgets::GlyphonLabel::new(text, ink)
 }
 
 /// Display crumbs for a stored path: `/a/b/c` → `a/b/c`.

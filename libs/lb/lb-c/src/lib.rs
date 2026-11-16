@@ -815,6 +815,7 @@ pub struct LbPathSearcherResult {
     id: LbUuid,
     filename: *mut c_char,
     parent_path: *mut c_char,
+    in_pending_share: bool,
     matched_indices: *mut u32,
     matched_indices_len: usize,
 }
@@ -853,6 +854,7 @@ pub extern "C" fn lb_path_searcher_query(
                 id: r.id.into(),
                 filename: cstring(r.filename.as_str()),
                 parent_path: cstring(r.parent_path.as_str()),
+                in_pending_share: r.in_pending_share,
                 matched_indices,
                 matched_indices_len,
             }
@@ -879,6 +881,7 @@ pub struct LbContentSearcherResult {
     id: LbUuid,
     filename: *mut c_char,
     parent_path: *mut c_char,
+    in_pending_share: bool,
     matches: *mut LbContentSearcherMatch,
     matches_len: usize,
     path_matches: *mut LbContentSearcherMatch,
@@ -943,6 +946,7 @@ pub extern "C" fn lb_content_searcher_query(
                 id: r.id.into(),
                 filename: cstring(r.filename.as_str()),
                 parent_path: cstring(r.parent_path.as_str()),
+                in_pending_share: r.in_pending_share,
                 matches,
                 matches_len,
                 path_matches,

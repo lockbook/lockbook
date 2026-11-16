@@ -8,10 +8,14 @@ import android.text.SpannableString
 import android.text.SpannableStringBuilder
 import android.text.style.BackgroundColorSpan
 import android.text.style.ForegroundColorSpan
+import android.text.style.ImageSpan
+import android.util.TypedValue
+import androidx.appcompat.content.res.AppCompatResources
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.viewModelScope
+import app.lockbook.R
 import app.lockbook.util.SearchedDocumentViewHolderInfo
 import app.lockbook.util.SingleMutableLiveData
 import app.lockbook.util.makeSpannableString
@@ -302,8 +306,20 @@ class SearchDocumentsViewModel(
         }
     }
 
+    /** Where a file in a share you haven't accepted is, in place of a path: it has none. */
+    private fun sharedWithMeCrumb(): SpannableString {
+        val app = getApplication<Application>()
+        val size = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_SP, 14f, app.resources.displayMetrics).toInt()
+        val icon = AppCompatResources.getDrawable(app, R.drawable.ic_baseline_group_24)!!.mutate()
+        icon.setBounds(0, 0, size, size)
+        return SpannableString("  " + app.getString(R.string.search_shared_with_me)).apply {
+            setSpan(ImageSpan(icon, ImageSpan.ALIGN_BASELINE), 0, 1, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
+        }
+    }
+
     private fun pathResultRow(result: PathSearcherResult): SearchedDocumentViewHolderInfo.DocumentNameViewHolderInfo? {
-        val (parentPathSpan, fileNameSpan) = result.toHighlightedPathParts()
+        val (highlightedParent, fileNameSpan) = result.toHighlightedPathParts()
+        val parentPathSpan = if (result.inPendingShare) sharedWithMeCrumb() else highlightedParent
         val file =
             FileMetadataStore.snapshots.value
                 ?.idsAndFiles
@@ -325,7 +341,7 @@ class SearchDocumentsViewModel(
 
         return SearchedDocumentViewHolderInfo.DocumentContentViewHolderInfo(
             file,
-            result.parentPath.makeSpannableString(),
+            if (result.inPendingShare) sharedWithMeCrumb() else result.parentPath.makeSpannableString(),
             result.filename.makeSpannableString(),
             snippets,
             result.matches.size,
@@ -345,7 +361,7 @@ class SearchDocumentsViewModel(
             match.toHighlightedSnippet(result)?.let { snippet ->
                 SearchedDocumentViewHolderInfo.DocumentContentViewHolderInfo(
                     file,
-                    result.parentPath.makeSpannableString(),
+                    if (result.inPendingShare) sharedWithMeCrumb() else result.parentPath.makeSpannableString(),
                     result.filename.makeSpannableString(),
                     listOf(snippet),
                     result.matches.size,

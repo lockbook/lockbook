@@ -28,6 +28,7 @@ struct PathEntry {
     path: String,
     filename: String,
     parent_path: String,
+    in_pending_share: bool,
 }
 
 fn path_result(entry: &PathEntry, path_indices: Vec<u32>) -> SearchResult {
@@ -36,6 +37,7 @@ fn path_result(entry: &PathEntry, path_indices: Vec<u32>) -> SearchResult {
         filename: entry.filename.clone(),
         parent_path: entry.parent_path.clone(),
         is_folder: entry.file.is_folder(),
+        in_pending_share: entry.in_pending_share,
         path_indices,
         path_matches: Vec::new(),
         content_matches: Vec::new(),
@@ -55,11 +57,13 @@ impl PathSearcher {
     pub async fn new<S: Server>(lb: &Lb<S>) -> Self {
         let files = lb.list_metadatas().await.unwrap_or_default();
         let paths = lb.list_paths_with_ids(None).await.unwrap_or_default();
+        let pending = lb.get_pending_share_files().await.unwrap_or_default();
         let by_id: HashMap<Uuid, File> = files.into_iter().map(|f| (f.id, f)).collect();
-        Self::from_files(
+        Self::from_entries(
             paths
                 .into_iter()
                 .filter_map(|(id, path)| by_id.get(&id).cloned().map(|file| (file, path))),
+            pending,
         )
     }
 
@@ -67,6 +71,12 @@ impl PathSearcher {
     /// Same matcher as [`Self::new`]; used by editor link completions so they
     /// share ranking (including empty-query recents) with filename search.
     pub fn from_files(entries: impl IntoIterator<Item = (File, String)>) -> Self {
+        Self::from_entries(entries, Vec::new())
+    }
+
+    /// Files in shares you haven't accepted have no path; they're found by name alone, as if
+    /// at the root, and never fall under a folder filter.
+    fn from_entries(entries: impl IntoIterator<Item = (File, String)>, pending: Vec<File>) -> Self {
         let notify = Arc::new(|| {});
         let nucleo: Nucleo<PathEntry> = Nucleo::new(nucleo::Config::DEFAULT, notify, None, 1);
         let injector = nucleo.injector();
@@ -86,6 +96,7 @@ impl PathSearcher {
                     path: path.clone(),
                     filename: filename.to_string(),
                     parent_path: parent_path.to_string(),
+                    in_pending_share: false,
                 },
                 |entry, cols| {
                     cols[0] = entry.path.as_str().into();
@@ -93,6 +104,21 @@ impl PathSearcher {
             );
             path_to_id.insert(path, file.id);
             files.push(file);
+        }
+
+        for file in pending {
+            injector.push(
+                PathEntry {
+                    path: format!("/{}", file.name),
+                    filename: file.name.clone(),
+                    parent_path: String::new(),
+                    in_pending_share: true,
+                    file,
+                },
+                |entry, cols| {
+                    cols[0] = entry.path.as_str().into();
+                },
+            );
         }
 
         let descendants = build_descendants(&files);

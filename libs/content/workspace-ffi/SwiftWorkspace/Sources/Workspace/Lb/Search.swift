@@ -8,13 +8,20 @@ public protocol PathSearching: AnyObject {
 public struct PathSearcherResult: Hashable, Identifiable {
     public let id: UUID
     public let filename: String
+    /// Empty for a file in a pending share, which has no path.
     public let parentPath: String
+    /// In a share you haven't accepted.
+    public let inPendingShare: Bool
     public let matchedIndices: [UInt]
 
-    public init(id: UUID, filename: String, parentPath: String, matchedIndices: [UInt]) {
+    public init(
+        id: UUID, filename: String, parentPath: String, inPendingShare: Bool = false,
+        matchedIndices: [UInt]
+    ) {
         self.id = id
         self.filename = filename
         self.parentPath = parentPath
+        self.inPendingShare = inPendingShare
         self.matchedIndices = matchedIndices
     }
 
@@ -25,6 +32,7 @@ public struct PathSearcherResult: Hashable, Identifiable {
         // Strip leading `/` so filename highlight offsets line up with full-path indices.
         let rawParent = String(cString: res.parent_path)
         parentPath = rawParent == "/" ? "/" : String(rawParent.dropFirst())
+        inPendingShare = res.in_pending_share
 
         matchedIndices = Array(
             UnsafeBufferPointer(start: res.matched_indices, count: Int(res.matched_indices_len))
@@ -84,19 +92,23 @@ public struct ContentSearcherMatch: Hashable {
 public struct ContentSearcherResult: Hashable, Identifiable {
     public let id: UUID
     public let filename: String
+    /// Empty for a file in a pending share, which has no path.
     public let parentPath: String
+    /// In a share you haven't accepted.
+    public let inPendingShare: Bool
     public let matches: [ContentSearcherMatch]
     /// Matches within the file's path/filename. Byte ranges into the canonical
     /// full path (`/parent/.../filename`).
     public let pathMatches: [ContentSearcherMatch]
 
     public init(
-        id: UUID, filename: String, parentPath: String, matches: [ContentSearcherMatch],
-        pathMatches: [ContentSearcherMatch] = []
+        id: UUID, filename: String, parentPath: String, inPendingShare: Bool = false,
+        matches: [ContentSearcherMatch], pathMatches: [ContentSearcherMatch] = []
     ) {
         self.id = id
         self.filename = filename
         self.parentPath = parentPath
+        self.inPendingShare = inPendingShare
         self.matches = matches
         self.pathMatches = pathMatches
     }
@@ -107,6 +119,7 @@ public struct ContentSearcherResult: Hashable, Identifiable {
 
         let rawParent = String(cString: res.parent_path)
         parentPath = rawParent == "/" ? "/" : String(rawParent.dropFirst())
+        inPendingShare = res.in_pending_share
 
         matches = Self.matchArray(res.matches, res.matches_len)
         pathMatches = Self.matchArray(res.path_matches, res.path_matches_len)

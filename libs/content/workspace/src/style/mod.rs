@@ -41,6 +41,7 @@ pub use chrome::{
 pub use color::{FG_HOVER, FG_PRESS, Theme, ThemeExt};
 pub use file_row::{
     crumb_label, ellipsize_path, ellipsize_path_tail, home_crumb, parent_crumbs, path_crumbs,
+    shared_crumb,
 };
 pub use interact::{
     canvas_selected_fills, interact_fill, interact_fill_response, link_cursor, quiet_canvas_fills,

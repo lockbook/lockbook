@@ -469,6 +469,16 @@ impl Search {
 
 const SCOPE_CHIP_MAX_W: f32 = 180.0;
 
+/// A result's location: its parent's crumbs, or, in a pending share, which has no path,
+/// [`crate::style::shared_crumb`].
+fn result_crumbs(r: &lb_rs::search::SearchResult) -> String {
+    if r.in_pending_share {
+        crate::style::shared_crumb()
+    } else {
+        crate::style::parent_crumbs(&r.parent_path)
+    }
+}
+
 fn scope_clear_sz() -> f32 {
     crate::style::control_icon_hit()
 }

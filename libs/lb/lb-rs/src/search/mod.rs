@@ -16,8 +16,11 @@ pub use path::PathSearcher;
 pub struct SearchResult {
     pub id: Uuid,
     pub filename: String,
+    /// Empty for a file in a pending share, which has no path.
     pub parent_path: String,
     pub is_folder: bool,
+    /// In a share you haven't accepted.
+    pub in_pending_share: bool,
     /// Character indices in the full path that matched (for path search highlighting).
     pub path_indices: Vec<u32>,
     pub path_matches: Vec<ContentMatch>,

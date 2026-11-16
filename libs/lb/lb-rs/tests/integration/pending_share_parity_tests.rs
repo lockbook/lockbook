@@ -126,3 +126,14 @@ async fn pending_files_have_no_path() {
     let paths = sharee.list_paths_with_ids(None).await.unwrap();
     assert!(!paths.iter().any(|(id, _)| *id == folder || *id == doc));
 }
+
+#[tokio::test]
+async fn pending_files_are_found_by_name() {
+    let (_owner, sharee, _folder, doc) = shared_folder(test_core_with_account().await).await;
+
+    let mut searcher = sharee.path_searcher().await;
+    searcher.query("doc.md");
+    let found = searcher.results().iter().find(|r| r.id == doc).unwrap();
+    assert!(found.in_pending_share);
+    assert_eq!((found.filename.as_str(), found.parent_path.as_str()), ("doc.md", ""));
+}

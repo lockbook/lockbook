@@ -195,9 +195,15 @@
                     highlightedPath(result.filename, byteBase: filenameByteBase)
                         .font(.body)
                         .fontWeight(.medium)
-                    highlightedPath(result.parentPath, byteBase: parentByteBase)
-                        .font(.caption)
-                        .foregroundColor(.secondary)
+                    Group {
+                        if result.inPendingShare {
+                            sharedWithMeCrumb
+                        } else {
+                            highlightedPath(result.parentPath, byteBase: parentByteBase)
+                        }
+                    }
+                    .font(.caption)
+                    .foregroundColor(.secondary)
 
                     if !result.matches.isEmpty {
                         VStack(alignment: .leading, spacing: 4) {
@@ -286,7 +292,11 @@
                 VStack(alignment: .leading, spacing: 4) {
                     highlighted(result.filename, offset: filenameOffset)
                         .font(.body)
-                    if !result.parentPath.isEmpty, result.parentPath != "/" {
+                    if result.inPendingShare {
+                        sharedWithMeCrumb
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    } else if !result.parentPath.isEmpty, result.parentPath != "/" {
                         highlighted(result.parentPath, offset: parentOffset)
                             .font(.caption)
                             .foregroundColor(.secondary)
@@ -356,9 +366,11 @@
                 VStack(alignment: .leading, spacing: 2) {
                     Text(result.filename)
                         .font(.headline)
-                    Text(result.parentPath)
-                        .font(.caption)
-                        .foregroundColor(.secondary)
+                    Group {
+                        if result.inPendingShare { sharedWithMeCrumb } else { Text(result.parentPath) }
+                    }
+                    .font(.caption)
+                    .foregroundColor(.secondary)
                 }
 
                 Spacer()
@@ -399,6 +411,11 @@
                     .contentShape(Rectangle())
             }
         }
+    }
+
+    /// Where a file in a share you haven't accepted is, in place of a path: it has none.
+    private var sharedWithMeCrumb: Text {
+        Text("\(Image(systemName: "person.2.fill")) Shared with me")
     }
 
     #Preview {

@@ -9,10 +9,7 @@ use lb_rs::search::{ContentSearcher, SearchFilter, SearchResult};
 use crate::{
     search::{SearchExecutor, SearchType, path},
     show::InputStateExt,
-    style::{
-        FileRow, RowGeom, Space, ThemeExt, file_row_icon, parent_crumbs, phosphor,
-        with_overlay_scroll,
-    },
+    style::{FileRow, RowGeom, Space, ThemeExt, file_row_icon, phosphor, with_overlay_scroll},
 };
 
 pub struct ContentSearch {
@@ -483,7 +480,7 @@ impl ContentSearch {
         let sc_w = if ordinal < 9 { path::shortcut_trail_w(ui, &t) } else { 0.0 };
         let resp = FileRow::new(&t, &result.filename)
             .icon(file_row_icon(&result.filename, false))
-            .subtitle(parent_crumbs(&result.parent_path))
+            .subtitle(super::result_crumbs(result))
             .highlighted(selected)
             .trail_reserve(sc_w)
             .show(ui, Id::unique("content_file").with(result.id));

@@ -336,6 +336,7 @@
     <string name="import_rcv_share_btn">Import</string>
     <string name="home_navbar_item">Home</string>
     <string name="shared_navbar_item">Shared</string>
+    <string name="search_shared_with_me">Shared with me</string>
 
     <string name="workspace_forward">Go forward in workspace</string>
     <string name="close_tab">Close a tab</string>

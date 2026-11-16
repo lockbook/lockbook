@@ -1019,6 +1019,14 @@ fn j_path_searcher_results<'local>(
         env.set_field(&obj, "parentPath", "Ljava/lang/String;", JValue::Object(&parent_path))
             .unwrap();
 
+        env.set_field(
+            &obj,
+            "inPendingShare",
+            "Z",
+            JValue::Bool(result.in_pending_share as jboolean),
+        )
+        .unwrap();
+
         let matched_indices = env.new_int_array(result.path_indices.len() as i32).unwrap();
         let indices: Vec<i32> = result.path_indices.iter().map(|&idx| idx as i32).collect();
         env.set_int_array_region(&matched_indices, 0, &indices)
@@ -1078,6 +1086,14 @@ fn j_content_searcher_results<'local>(
             .unwrap();
         env.set_field(&obj, "parentPath", "Ljava/lang/String;", JValue::Object(&parent_path))
             .unwrap();
+
+        env.set_field(
+            &obj,
+            "inPendingShare",
+            "Z",
+            JValue::Bool(result.in_pending_share as jboolean),
+        )
+        .unwrap();
 
         let matches = env
             .new_object_array(result.content_matches.len() as i32, &match_class, JObject::null())

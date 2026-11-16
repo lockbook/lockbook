@@ -8,8 +8,8 @@ use crate::{
     search::{SearchExecutor, SearchType},
     show::InputStateExt,
     style::{
-        FileRow, Space, ThemeExt, TypeRole, file_row_icon, parent_crumbs, phosphor,
-        phosphor_ui_font_id, with_overlay_scroll,
+        FileRow, Space, ThemeExt, TypeRole, file_row_icon, phosphor, phosphor_ui_font_id,
+        with_overlay_scroll,
     },
 };
 
@@ -27,7 +27,8 @@ pub struct PathSearch {
 struct Row {
     id: lb_rs::Uuid,
     filename: String,
-    parent_path: String,
+    /// What [`super::result_crumbs`] says.
+    location: String,
     is_folder: bool,
 }
 
@@ -212,7 +213,7 @@ impl PathSearch {
             .map(|r| Row {
                 id: r.id,
                 filename: r.filename.clone(),
-                parent_path: r.parent_path.clone(),
+                location: super::result_crumbs(r),
                 is_folder: r.is_folder,
             })
             .collect()
@@ -280,7 +281,7 @@ impl PathSearch {
             if row.is_folder { phosphor::FOLDER } else { file_row_icon(&row.filename, false) };
         let resp = FileRow::new(&t, &row.filename)
             .icon(icon)
-            .subtitle(parent_crumbs(&row.parent_path))
+            .subtitle(row.location.clone())
             .selected(selected)
             .trail_reserve(trail)
             .show(ui, Id::unique("search_row").with(row.id));
