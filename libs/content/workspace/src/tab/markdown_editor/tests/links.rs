@@ -247,28 +247,6 @@ fn toggle_link_twice_restores_text() {
     }
 }
 
-/// The text drawn, in order.
-fn drawn(ws: &TestEditor) -> String {
-    use crate::tab::markdown_editor::widget::utils::wrap_layout::FragmentContent;
-    let fragments = &ws.editor.edit.renderer.fragments;
-    fragments
-        .iter()
-        .filter_map(|f| match &f.content {
-            FragmentContent::Glyphs { buffer, .. } => {
-                let buffer = buffer.read().unwrap();
-                Some(
-                    buffer
-                        .lines
-                        .iter()
-                        .map(|l| l.text().to_string())
-                        .collect::<String>(),
-                )
-            }
-            _ => None,
-        })
-        .collect()
-}
-
 /// `md` in `/project/notes.md`, `{plan}` standing for `/project/plan.md`'s
 /// id, and that id.
 fn note_linking_plan(md: &str) -> (TestEditor, Uuid) {
@@ -305,7 +283,7 @@ fn chip_at(ws: &TestEditor, range: (usize, usize)) -> egui::Pos2 {
 fn property_links_draw_by_name() {
     let md = "---\nblockers: [lb://{plan}, x]\nsession: lb://{plan}\nnot: lb:// x\n---\nbody\n";
     let (mut ws, plan) = note_linking_plan(md);
-    let text = drawn(&ws);
+    let text = ws.drawn();
     assert_eq!(text.matches("plan").count(), 2, "{text}");
     assert!(!text.contains(&plan.to_string()), "{text}");
     assert!(text.contains("lb:// x"), "{text}");
@@ -313,12 +291,12 @@ fn property_links_draw_by_name() {
     let value = ws.get_text().find("session: ").unwrap() + "session: lb://".len();
     ws.push(Event::Select { region: (Grapheme(value), Grapheme(value)).into() });
     ws.enter_frame();
-    assert!(drawn(&ws).contains(&format!("lb://{plan}")));
+    assert!(ws.drawn().contains(&format!("lb://{plan}")));
 
     // collapsed, the strip names the file too
     ws.push(Event::FrontMatter(super::super::input::FrontMatterAction::ToggleCollapsed));
     ws.enter_frame();
-    let strip = drawn(&ws);
+    let strip = ws.drawn();
     assert!(strip.contains("plan") && !strip.contains(&plan.to_string()), "{strip}");
 }
 

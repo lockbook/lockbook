@@ -3,6 +3,7 @@
 //! A list is a row of chips, `true`/`false` a checkbox, and rows the grid
 //! cannot edit in place show as source ([`crate::front_matter`]).
 
+use chrono::{DateTime, Local};
 use comrak::nodes::{AstNode, NodeCodeBlock};
 use egui::{Pos2, Rect, Ui, Vec2};
 use lb_rs::model::text::offset_types::{
@@ -11,6 +12,7 @@ use lb_rs::model::text::offset_types::{
 use unicode_segmentation::UnicodeSegmentation as _;
 
 use crate::front_matter::{FrontMatter, RowKind, Value, url_value};
+use crate::local_time;
 use crate::tab::markdown_editor::input::{Event, FrontMatterAction};
 use crate::tab::markdown_editor::widget::utils::wrap_layout::{
     EmbedKind, EmbedSpec, FontFamily, Format, Layout, StyleInfo, WrapUnitLayout,
@@ -160,6 +162,18 @@ impl<'ast> MdRender {
         url_value(&self.buffer[written]).filter(|_| !self.range_revealed_interior(text))
     }
 
+    /// After a value or item that is a timestamp with a time zone, the time
+    /// it is here, in secondary ink.
+    fn layout_local_time(&self, v: &mut Layout, text: (Grapheme, Grapheme)) {
+        let Ok(at) = DateTime::parse_from_rfc3339(&self.buffer[text]) else { return };
+        let label = local_time::label(at.with_timezone(&Local), Local::now());
+        let format = Format {
+            color: self.ctx.get_lb_theme().neutral_fg_secondary(),
+            ..self.text_format_document()
+        };
+        v.push_override(text.end().into_range(), &format!("  {label}"), format);
+    }
+
     /// A value or item as the collapsed strip shows it: a link by its
     /// title.
     fn front_matter_shown(
@@ -218,7 +232,10 @@ impl<'ast> MdRender {
                             quotes.map_or(*text, |(open, close)| (open.start(), close.end()));
                         match self.property_link_at(*text, written) {
                             Some(url) => self.layout_property_link(v, *text, &url, room),
-                            None => v.push_source(*text, &self.buffer[*text], value_format.clone()),
+                            None => {
+                                v.push_source(*text, &self.buffer[*text], value_format.clone());
+                                self.layout_local_time(v, *text);
+                            }
                         }
                     }
                 }
@@ -262,6 +279,7 @@ impl<'ast> MdRender {
                         v.push_source(item.text, &self.buffer[item.text], chip.clone());
                     }
                     v.style_close();
+                    self.layout_local_time(v, item.text);
                 }
                 hidden(v, (prev, line_end));
             }

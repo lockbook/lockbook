@@ -1608,16 +1608,7 @@ fn is_shared(files: &FileCache, mut id: Uuid) -> bool {
 
 fn format_ts(ts: i64) -> String {
     let Some(utc) = DateTime::from_timestamp(ts, 0) else { return String::new() };
-    let dt: DateTime<Local> = utc.with_timezone(&Local);
-    let now = Local::now();
-    let days_ago = (now.date_naive() - dt.date_naive()).num_days();
-    if days_ago == 0 {
-        dt.format("%H:%M").to_string()
-    } else if days_ago == 1 {
-        format!("Yesterday {}", dt.format("%H:%M"))
-    } else {
-        dt.format("%b %-d %H:%M").to_string()
-    }
+    crate::local_time::label(utc.with_timezone(&Local), Local::now())
 }
 
 #[cfg(test)]

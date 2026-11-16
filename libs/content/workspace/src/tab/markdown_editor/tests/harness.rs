@@ -260,6 +260,28 @@ impl TestEditor {
         self.record(out.platform_output);
     }
 
+    /// The text drawn, in order.
+    pub fn drawn(&self) -> String {
+        use crate::tab::markdown_editor::widget::utils::wrap_layout::FragmentContent;
+        let fragments = &self.editor.edit.renderer.fragments;
+        fragments
+            .iter()
+            .filter_map(|f| match &f.content {
+                FragmentContent::Glyphs { buffer, .. } => {
+                    let buffer = buffer.read().unwrap();
+                    Some(
+                        buffer
+                            .lines
+                            .iter()
+                            .map(|l| l.text().to_string())
+                            .collect::<String>(),
+                    )
+                }
+                _ => None,
+            })
+            .collect()
+    }
+
     pub fn has_focus(&self, id: egui::Id) -> bool {
         self.editor.edit.renderer.ctx.memory(|m| m.has_focus(id))
     }
