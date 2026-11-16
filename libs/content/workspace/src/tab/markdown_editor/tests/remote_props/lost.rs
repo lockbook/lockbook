@@ -690,3 +690,29 @@ fn drop_moved_out_of_a_pipeless_row() {
     assert_ne!(after, before, "the image moved");
     drop_moved(&before, &after, range, Grapheme(4)).unwrap();
 }
+
+/// What the editor writes for a drop out of the last cell of a table row
+/// written without a trailing pipe, which the image fills, passes the drop
+/// check: the shapes `gen_table` makes with a leading pipe only, and with
+/// neither.
+#[test]
+fn drop_moved_out_of_a_rows_last_cell_without_a_trailing_pipe() {
+    use super::super::super::input::Event;
+    use super::super::harness::TestEditor;
+    let image = "![a](https://x.test/i.png)";
+    for before in [
+        format!("para\n\n| a | {image} \n| --- | --- \n"),
+        format!("para\n\n| a | _{image}_ \n| --- | --- \n"),
+        format!("para\n\n a | {image} \n --- | --- \n"),
+    ] {
+        let mut ws = TestEditor::new(&before);
+        ws.enter_frame();
+        let start = before.find(image).unwrap();
+        let range = (Grapheme(start), Grapheme(start + image.len()));
+        ws.push(Event::Move { range, to: Grapheme(4) });
+        ws.enter_frame();
+        let after = ws.get_text().to_string();
+        assert_ne!(after, before, "the image moved");
+        drop_moved(&before, &after, range, Grapheme(4)).unwrap();
+    }
+}
