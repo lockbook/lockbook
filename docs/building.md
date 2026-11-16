@@ -107,6 +107,6 @@ lb-rs & server have no system dependencies.
 
 lb-rs can be pointed to a server via the `API_URL` env var, by default clients are engineered to connect to our production server: `https://api.prod.lockbook.net`. See [self-hosting](self-hosting.md) for more information.
 
-Tests are configured to connect to `http://localhost:8000`. To run only the tests that need no server, set `LB_TEST_IN_PROCESS=1`. The rest return early, and CI runs them against a real server.
+Tests are configured to connect to `http://localhost:8000`. To run them with no server, set `LB_TEST_IN_PROCESS=1`: the tests that reach a server over HTTP then reach one the test process serves on loopback. CI runs them against a real server.
 
 You can run the server locally by executing `lbdev server` for local dev.

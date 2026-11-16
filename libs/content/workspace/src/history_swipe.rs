@@ -511,9 +511,6 @@ mod tests {
     /// A workspace with nothing happening asks for no more frames.
     #[test]
     fn idle_workspace_stops_repainting() {
-        if ::test_utils::without_server() {
-            return;
-        }
         let mut t = crate::test_utils::ws::TestWs::new();
         let id = t.doc("a.md", "# Notes\n\nsome text\n");
         t.ws.open_file(id, true, false);
