@@ -1,8 +1,9 @@
+use crate::tab::svg_editor::CanvasAction;
 use bezier_rs::Subpath;
 use lb_rs::Uuid;
 use lb_rs::model::svg::buffer::{get_dyn_color, get_highlighter_colors, get_pen_colors};
 use lb_rs::model::svg::diff::DiffState;
-use lb_rs::model::svg::element::{Color, DynamicColor, Element, Path, Stroke};
+use lb_rs::model::svg::element::{Color, DynamicColor, EditableElement, Path, Stroke};
 use resvg::usvg::Transform;
 use serde::{Deserialize, Serialize};
 use tracing::{Level, event, trace};
@@ -21,7 +22,15 @@ pub const DEFAULT_HIGHLIGHTER_STROKE_WIDTH: f32 = 15.0;
 const LONG_PRESS_MOVE_THRESHOLD: f32 = 2.0;
 
 #[derive(Default)]
+pub enum PenKind {
+    #[default]
+    Pen,
+    Highlighter,
+}
+
+#[derive(Default)]
 pub struct Pen {
+    kind: PenKind,
     pub active_color: DynamicColor,
     pub colors_history: [DynamicColor; 2],
     pub active_stroke_width: f32,
@@ -89,8 +98,8 @@ impl InputControllerTool for Pen {
     type ToolEvent = PathEvent;
 
     fn controller_event_to_tool_event(
-        &self, controller_event: InputControllerEvent,
-    ) -> Option<Self::ToolEvent> {
+        &self, controller_event: InputControllerEvent<CanvasAction>,
+    ) -> Option<CanvasAction> {
         match controller_event {
             InputControllerEvent::ToolStart(tool_payload) => Some(PathEvent::Draw(tool_payload)),
             InputControllerEvent::ToolRun(tool_payload) => Some(PathEvent::Draw(tool_payload)),
@@ -104,6 +113,10 @@ impl InputControllerTool for Pen {
                 Some(PathEvent::PredictedDraw(ToolPayload { pos: pos2, force, id: None }))
             }
         }
+        .map(|event| match self.kind {
+            PenKind::Pen => CanvasAction::Pen(event),
+            PenKind::Highlighter => CanvasAction::Highlighter(event),
+        })
     }
 
     fn handle_tool_event(&mut self, _: &mut egui::Ui, event: PathEvent, pen_ctx: &mut ToolContext) {
@@ -120,12 +133,13 @@ impl InputControllerTool for Pen {
     }
 
     fn show_hover_point(&self, ui: &mut egui::Ui, pos: egui::Pos2, pen_ctx: &mut ToolContext<'_>) {
-        let is_current_path_empty =
-            if let Some(Element::Path(path)) = pen_ctx.buffer.elements.get_mut(&self.current_id) {
-                path.data.is_empty()
-            } else {
-                true
-            };
+        let is_current_path_empty = if let Some(EditableElement::Path(path)) =
+            pen_ctx.buffer.elements.get_mut(&self.current_id)
+        {
+            path.data.is_empty()
+        } else {
+            true
+        };
 
         if is_current_path_empty {
             let mut radius = self.active_stroke_width / 2.0;
@@ -159,7 +173,7 @@ impl Pen {
         self.active_color = new_color;
     }
 
-    pub fn new(settings: PenSettings) -> Self {
+    pub fn new(settings: PenSettings, kind: PenKind) -> Self {
         let active_color = get_dyn_color(Color {
             red: settings.color.r(),
             green: settings.color.g(),
@@ -169,6 +183,7 @@ impl Pen {
         let pen_colors = get_pen_colors();
 
         Pen {
+            kind,
             active_color,
             active_stroke_width: settings.width,
             current_id: Uuid::new_v4(),
@@ -182,7 +197,8 @@ impl Pen {
     }
 
     fn cancel_path(&mut self, pen_ctx: &mut ToolContext<'_>) {
-        if let Some(Element::Path(path)) = pen_ctx.buffer.elements.get_mut(&self.current_id) {
+        if let Some(EditableElement::Path(path)) = pen_ctx.buffer.elements.get_mut(&self.current_id)
+        {
             self.path_builder.clear();
             self.path_builder.is_canceled_path = true;
             path.diff_state.data_changed = true;
@@ -203,7 +219,7 @@ impl Pen {
 
         self.update_long_press(payload);
 
-        if let Some(Element::Path(p)) = pen_ctx.buffer.elements.get_mut(&self.current_id) {
+        if let Some(EditableElement::Path(p)) = pen_ctx.buffer.elements.get_mut(&self.current_id) {
             p.diff_state.data_changed = true;
             p.stroke = Some(path_stroke);
 
@@ -221,13 +237,12 @@ impl Pen {
             event!(Level::TRACE, "starting a new path");
             self.insert_force(pen_ctx, payload.force);
 
-            let el = Element::Path(Path {
+            let el = EditableElement::Path(Path {
                 data: Subpath::new(vec![], false),
                 visible: true,
                 fill: None,
                 stroke: Some(path_stroke),
                 transform: Transform::identity(),
-                opacity: 1.0,
                 diff_state: DiffState::default(),
                 deleted: false,
             });
@@ -237,7 +252,9 @@ impl Pen {
                 .elements
                 .insert_before(0, self.current_id, el);
 
-            if let Some(Element::Path(p)) = pen_ctx.buffer.elements.get_mut(&self.current_id) {
+            if let Some(EditableElement::Path(p)) =
+                pen_ctx.buffer.elements.get_mut(&self.current_id)
+            {
                 self.path_builder.line_to(payload.pos, &mut p.data);
             }
         }
@@ -281,7 +298,8 @@ impl Pen {
     }
 
     fn end(&mut self, pen_ctx: &mut ToolContext<'_>, payload: ToolPayload) {
-        if let Some(Element::Path(path)) = pen_ctx.buffer.elements.get_mut(&self.current_id) {
+        if let Some(EditableElement::Path(path)) = pen_ctx.buffer.elements.get_mut(&self.current_id)
+        {
             path.diff_state.data_changed = true;
             self.path_builder.line_to(payload.pos, &mut path.data);
 
@@ -305,7 +323,7 @@ impl Pen {
     }
 
     fn predict_draw(&mut self, pen_ctx: &mut ToolContext<'_>, payload: ToolPayload) {
-        if let Some(Element::Path(p)) = pen_ctx.buffer.elements.get_mut(&self.current_id) {
+        if let Some(EditableElement::Path(p)) = pen_ctx.buffer.elements.get_mut(&self.current_id) {
             let maybe_new_mg = self.path_builder.line_to(payload.pos, &mut p.data);
             trace!(maybe_new_mg, "adding predicted touch to the path at");
 
@@ -328,7 +346,9 @@ impl Pen {
 
     fn clear_predicted_points(&mut self, pen_ctx: &mut ToolContext<'_>) {
         if let Some(first_predicted_mg) = self.path_builder.first_predicted_mg {
-            if let Some(Element::Path(p)) = pen_ctx.buffer.elements.get_mut(&self.current_id) {
+            if let Some(EditableElement::Path(p)) =
+                pen_ctx.buffer.elements.get_mut(&self.current_id)
+            {
                 for n in (first_predicted_mg..p.data.manipulator_groups().len()).rev() {
                     trace!(n, "removing predicted touch at ");
                     p.data.remove_manipulator_group(n);

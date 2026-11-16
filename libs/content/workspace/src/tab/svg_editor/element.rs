@@ -4,7 +4,7 @@ use lb_rs::model::errors::LbResult;
 use lb_rs::model::svg::WeakTransform;
 use lb_rs::model::svg::buffer::{Buffer, WeakViewportSettings};
 use lb_rs::model::svg::diff::DiffState;
-use lb_rs::model::svg::element::{Element, Image, Path, WeakImage};
+use lb_rs::model::svg::element::{EditableElement, Image, Path, WeakImage};
 use resvg::usvg::{NonZeroRect, Transform};
 
 use super::ViewportSettings;
@@ -14,13 +14,13 @@ pub trait BoundedElement {
     fn bounding_box(&self) -> egui::Rect;
 }
 
-impl BoundedElement for Element {
+impl BoundedElement for EditableElement {
     fn bounding_box(&self) -> egui::Rect {
         match self {
-            Element::Path(p) => p.bounding_box(),
-            Element::Image(image) => image.bounding_box(),
+            EditableElement::Path(p) => p.bounding_box(),
+            EditableElement::Image(image) => image.bounding_box(),
 
-            Element::Text(_) => todo!(),
+            EditableElement::Text(_) => todo!(),
         }
     }
 }
@@ -140,10 +140,14 @@ impl PromoteBufferWeakImages for Buffer {
             image.diff_state.transformed = None;
 
             if weak_image.z_index >= self.elements.len() {
-                self.elements.insert(id, Element::Image(Box::new(image)));
-            } else {
                 self.elements
-                    .shift_insert(weak_image.z_index, id, Element::Image(Box::new(image)));
+                    .insert(id, EditableElement::Image(Box::new(image)));
+            } else {
+                self.elements.shift_insert(
+                    weak_image.z_index,
+                    id,
+                    EditableElement::Image(Box::new(image)),
+                );
             };
         });
     }

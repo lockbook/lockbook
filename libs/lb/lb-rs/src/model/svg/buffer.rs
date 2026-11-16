@@ -12,8 +12,8 @@ use uuid::Uuid;
 use super::WeakTransform;
 use super::diff::DiffState;
 use super::element::{
-    Color, DynamicColor, Element, ManipulatorGroupId, Path, Stroke, WeakImage, WeakImages,
-    WeakPathPressures,
+    Color, DynamicColor, EditableElement, ManipulatorGroupId, Path, Stroke,
+    SvgSerializationContext, SvgSerialize, WeakImages, WeakPathPressures,
 };
 
 const ZOOM_G_ID: &str = "lb_master_transform";
@@ -23,7 +23,7 @@ const WEAK_VIEWPORT_SETTINGS_G_ID: &str = "lb_viewport_settings";
 
 #[derive(Default, Clone)]
 pub struct Buffer {
-    pub elements: IndexMap<Uuid, Element>,
+    pub elements: IndexMap<Uuid, EditableElement>,
     pub weak_images: WeakImages,
     pub weak_path_pressures: WeakPathPressures,
     pub weak_viewport_settings: WeakViewportSettings,
@@ -87,7 +87,7 @@ impl Buffer {
     }
 
     pub fn reload(
-        local_elements: &mut IndexMap<Uuid, Element>, local_weak_images: &mut WeakImages,
+        local_elements: &mut IndexMap<Uuid, EditableElement>, local_weak_images: &mut WeakImages,
         local_weak_pressures: &mut WeakPathPressures,
         local_viewport_settings: &mut WeakViewportSettings, base_buffer: &Self,
         remote_buffer: &Self,
@@ -116,9 +116,11 @@ impl Buffer {
         base_buffer
             .elements
             .iter()
-            .filter_map(|(id, el)| if let Element::Path(p) = el { Some((id, p)) } else { None })
+            .filter_map(
+                |(id, el)| if let EditableElement::Path(p) = el { Some((id, p)) } else { None },
+            )
             .for_each(|(id, base_path)| {
-                if let Some(Element::Path(remote_path)) = remote_buffer.elements.get(id) {
+                if let Some(EditableElement::Path(remote_path)) = remote_buffer.elements.get(id) {
                     if remote_path != base_path {
                         // this element was changed remotly
                         let mut transformed_path = remote_path.clone();
@@ -129,7 +131,7 @@ impl Buffer {
                             .apply_transform(u_transform_to_bezier(&local_master_transform));
                         transformed_path.diff_state.data_changed = true;
 
-                        local_elements.insert(*id, Element::Path(transformed_path.clone()));
+                        local_elements.insert(*id, EditableElement::Path(transformed_path.clone()));
 
                         if let Some(remote_pressure) = remote_buffer.weak_path_pressures.get(id) {
                             local_weak_pressures.insert(*id, remote_pressure.clone());
@@ -145,7 +147,7 @@ impl Buffer {
         // strokes new in remote go after the nearest preceding stroke that local still has
         let mut cursor = 0;
         for (id, el) in remote_buffer.elements.iter() {
-            let Element::Path(remote_el) = el else { continue };
+            let EditableElement::Path(remote_el) = el else { continue };
             if base_buffer.elements.contains_key(id) {
                 if let Some(pos) = local_elements.get_index_of(id) {
                     cursor = pos + 1;
@@ -160,7 +162,7 @@ impl Buffer {
                 transformed_path.diff_state.data_changed = true;
                 transformed_path.diff_state.transformed = None;
 
-                local_elements.insert_before(cursor, *id, Element::Path(transformed_path));
+                local_elements.insert_before(cursor, *id, EditableElement::Path(transformed_path));
                 cursor += 1;
                 if let Some(base_pressure) = remote_buffer.weak_path_pressures.get(id) {
                     local_weak_pressures.insert(*id, base_pressure.clone());
@@ -169,13 +171,13 @@ impl Buffer {
         }
     }
 
-    pub fn insert(&mut self, id: Uuid, mut el: Element) {
+    pub fn insert(&mut self, id: Uuid, mut el: EditableElement) {
         match el {
-            Element::Path(ref mut path) => {
+            EditableElement::Path(ref mut path) => {
                 path.diff_state.data_changed = true;
                 path.diff_state.transformed = None
             }
-            Element::Image(ref mut image) => {
+            EditableElement::Image(ref mut image) => {
                 image.diff_state.data_changed = true;
                 image.diff_state.transformed = None
             }
@@ -192,11 +194,11 @@ impl Buffer {
     pub fn remove(&mut self, id: Uuid) {
         if let Some(el) = self.elements.get_mut(&id) {
             match el {
-                Element::Path(path) => {
+                EditableElement::Path(path) => {
                     path.deleted = true;
                     path.diff_state.delete_changed = true;
                 }
-                Element::Image(image) => {
+                EditableElement::Image(image) => {
                     image.deleted = true;
                     image.diff_state.delete_changed = true;
                 }
@@ -216,57 +218,25 @@ impl Buffer {
 }
 
 pub fn serialize_inner(
-    id_map: &HashMap<Uuid, String>, elements: &IndexMap<Uuid, Element>,
+    id_map: &HashMap<Uuid, String>, elements: &IndexMap<Uuid, EditableElement>,
     weak_viewport_settings: &WeakViewportSettings, buffer_weak_images: &WeakImages,
     weak_pressures: &WeakPathPressures,
 ) -> String {
-    let mut root = r#"<svg xmlns="http://www.w3.org/2000/svg">"#.into();
+    let mut root = String::from(r#"<svg xmlns="http://www.w3.org/2000/svg">"#);
     let mut weak_images = WeakImages::default();
     let master_transform = Transform::from(weak_viewport_settings.master_transform);
 
-    for (index, el) in elements.iter().enumerate() {
-        match el.1 {
-            Element::Path(p) => {
-                if p.deleted {
-                    continue;
-                }
-                let mut curv_attrs = " ".to_string();
-                // if it's empty then the curve will not be converted to string via bezier_rs
-                if let Some(stroke) = p.stroke {
-                    curv_attrs = format!(
-                        "stroke-width='{}' stroke='rgba({},{},{},{})' fill='none' id='{}' transform='{}'",
-                        stroke.width,
-                        stroke.color.light.red,
-                        stroke.color.light.green,
-                        stroke.color.light.blue,
-                        stroke.opacity,
-                        id_map.get(el.0).unwrap_or(&el.0.to_string()),
-                        to_svg_transform(p.transform)
-                    );
-                }
-
-                let mut data = p.data.clone();
-                data.apply_transform(u_transform_to_bezier(
-                    &master_transform.invert().unwrap_or_default(),
-                ));
-
-                if data.len() > 1 {
-                    data.to_svg(&mut root, curv_attrs, "".into(), "".into(), "".into())
-                }
-            }
-            Element::Image(img) => {
-                if img.deleted {
-                    continue;
-                }
-
-                let mut weak_image: WeakImage = img.into_weak(index);
-
-                weak_image.transform(master_transform.invert().unwrap_or_default());
-
-                weak_images.insert(*el.0, weak_image);
-            }
-            Element::Text(_) => {}
-        }
+    let document_transform = master_transform.invert().unwrap_or_default();
+    for (index, (id, element)) in elements.iter().enumerate() {
+        let svg_id = id_map.get(id).cloned().unwrap_or_else(|| id.to_string());
+        let mut context = SvgSerializationContext {
+            id: *id,
+            svg_id: &svg_id,
+            z_index: index,
+            document_transform,
+            weak_images: &mut weak_images,
+        };
+        root.push_str(&element.to_string(&mut context));
     }
 
     let zoom_level = format!(
@@ -312,7 +282,7 @@ pub fn serialize_inner(
 }
 
 pub fn parse_child(
-    u_el: &usvg::Node, elements: &mut IndexMap<Uuid, Element>,
+    u_el: &usvg::Node, elements: &mut IndexMap<Uuid, EditableElement>,
     weak_viewport_settings: &mut WeakViewportSettings, id_map: &mut HashMap<Uuid, String>,
     weak_images: &mut WeakImages, weak_path_pressures: &mut WeakPathPressures,
 ) {
@@ -389,7 +359,7 @@ pub fn parse_child(
 
             elements.insert(
                 id,
-                Element::Path(Path {
+                EditableElement::Path(Path {
                     data,
                     visible: path.is_visible(),
                     fill: path.fill().cloned(),
@@ -397,7 +367,6 @@ pub fn parse_child(
                     transform: path.abs_transform(),
                     diff_state,
                     deleted: false,
-                    opacity: 1.0,
                 }),
             );
         }
@@ -551,11 +520,4 @@ pub fn u_transform_to_bezier(src: &Transform) -> DAffine2 {
         },
         translation: glam::DVec2 { x: src.tx.into(), y: src.ty.into() },
     }
-}
-
-fn to_svg_transform(transform: Transform) -> String {
-    format!(
-        "matrix({} {} {} {} {} {})",
-        transform.sx, transform.ky, transform.kx, transform.sy, transform.tx, transform.ty
-    )
 }

@@ -7,7 +7,9 @@ use glam::DVec2;
 use indexmap::IndexMap;
 use lb_rs::Uuid;
 use lb_rs::model::svg::buffer::{Buffer, get_pen_colors};
-use lb_rs::model::svg::element::{DynamicColor, Element, ManipulatorGroupId, Stroke, WeakImages};
+use lb_rs::model::svg::element::{
+    DynamicColor, EditableElement, ManipulatorGroupId, Stroke, WeakImages,
+};
 use resvg::usvg::Transform;
 
 use lb_rs::model::svg::buffer::serialize_inner;
@@ -17,13 +19,13 @@ use crate::tab::input_controller::InputControllerEvent;
 use crate::tab::svg_editor::clip::duplicate_elements;
 use crate::tab::svg_editor::element::BoundedElement;
 use crate::tab::svg_editor::history::{self, TransformElement};
-use crate::tab::svg_editor::keyboard_shortcuts::{CanvasAction, LayerMove};
 use crate::tab::svg_editor::toolbar::{
     ToolContext, show_color_btn, show_opacity_slider, show_section_header, show_thickness_slider,
 };
 use crate::tab::svg_editor::tools::pen::DEFAULT_PEN_STROKE_WIDTH;
 use crate::tab::svg_editor::tools::{InputControllerTool, selection};
 use crate::tab::svg_editor::util::{pointer_intersects_element, transform_rect};
+use crate::tab::svg_editor::{CanvasAction, LayerMove};
 use crate::tab::svg_editor::{DeleteElement, Event};
 use crate::theme::icons::Icon;
 use crate::theme::palette::ThemePalette;
@@ -82,17 +84,17 @@ impl ElementEditableProperties {
                 has_element = true;
                 opacity = el.opacity();
                 match el {
-                    Element::Path(_) => {
+                    EditableElement::Path(_) => {
                         all_images = false;
                         stroke = el.stroke();
                         if stroke.is_none() {
                             all_strokes = false;
                         }
                     }
-                    Element::Image(_) => {
+                    EditableElement::Image(_) => {
                         all_strokes = false;
                     }
-                    Element::Text(_) => {
+                    EditableElement::Text(_) => {
                         all_strokes = false;
                         all_images = false;
                     }
@@ -188,7 +190,7 @@ pub struct Layout {
     pub popover: Option<egui::Rect>,
 }
 
-#[derive(Debug)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub enum SelectionEvent {
     StartLaso(BuildPayload),
     LasoBuild(BuildPayload),
@@ -211,15 +213,15 @@ impl InputControllerTool for Selection {
     type ToolEvent = SelectionEvent;
 
     fn controller_event_to_tool_event(
-        &self, controller_event: InputControllerEvent,
-    ) -> Option<Self::ToolEvent> {
+        &self, controller_event: InputControllerEvent<CanvasAction>,
+    ) -> Option<CanvasAction> {
         match controller_event {
             InputControllerEvent::ToolStart(payload) => {
                 // we're hovering over an element
                 let suggested_op = self.compute_suggested_op(payload.pos);
 
                 if let Some(op) = suggested_op {
-                    return Some(SelectionEvent::StartTransform(op));
+                    return Some(CanvasAction::Selection(SelectionEvent::StartTransform(op)));
                 }
 
                 Some(SelectionEvent::StartLaso(BuildPayload {
@@ -240,6 +242,7 @@ impl InputControllerTool for Selection {
             },
             _ => None,
         }
+        .map(CanvasAction::Selection)
     }
 
     fn handle_tool_event(
@@ -603,13 +606,13 @@ impl Selection {
         laso_selected_elements
     }
 
-    fn el_intersects_laso(&mut self, el: &Element) -> bool {
+    fn el_intersects_laso(&mut self, el: &EditableElement) -> bool {
         let laso_rect = match self.laso_rect {
             Some(val) => val,
             None => return false,
         };
         match el {
-            Element::Path(path) => {
+            EditableElement::Path(path) => {
                 let path_rect = path.bounding_box();
                 if laso_rect.intersects(path_rect) {
                     let laso_bb = Subpath::new_rect(
@@ -626,11 +629,11 @@ impl Selection {
                     false
                 }
             }
-            Element::Image(img) => {
+            EditableElement::Image(img) => {
                 let img_bb = img.bounding_box();
                 laso_rect.contains_rect(img_bb) || laso_rect.intersects(img_bb)
             }
-            Element::Text(_) => todo!(),
+            EditableElement::Text(_) => todo!(),
         }
     }
 
@@ -817,7 +820,7 @@ impl Selection {
             return;
         }
         let id_map = &selection_ctx.buffer.id_map;
-        let elements: IndexMap<Uuid, Element> = self
+        let elements: IndexMap<Uuid, EditableElement> = self
             .selected_elements
             .iter()
             .map(|el| (el.id, selection_ctx.buffer.elements.get(&el.id).unwrap().clone()))

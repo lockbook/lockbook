@@ -4,7 +4,7 @@ use super::ViewportSettings;
 use super::element::BoundedElement;
 use super::util::transform_rect;
 use lb_rs::model::svg::buffer::u_transform_to_bezier;
-use lb_rs::model::svg::element::Element;
+use lb_rs::model::svg::element::EditableElement;
 
 use super::Buffer;
 pub const MIN_ZOOM_LEVEL: f32 = 0.1;
@@ -28,17 +28,17 @@ pub fn transform_canvas(
 
     for el in buffer.elements.values_mut() {
         match el {
-            Element::Path(path) => {
+            EditableElement::Path(path) => {
                 path.diff_state.transformed = Some(t);
                 path.data.apply_transform(u_transform_to_bezier(&t));
             }
-            Element::Image(image) => {
+            EditableElement::Image(image) => {
                 if let Some(new_vbox) = image.view_box.transform(t) {
                     image.view_box = new_vbox;
                 }
                 image.diff_state.transformed = Some(t);
             }
-            Element::Text(_) => todo!(),
+            EditableElement::Text(_) => todo!(),
         }
     }
     viewport_settings.bounded_rect = viewport_settings

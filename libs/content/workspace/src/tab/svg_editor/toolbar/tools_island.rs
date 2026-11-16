@@ -8,7 +8,7 @@ use lyon::tessellation::{BuffersBuilder, FillOptions, FillTessellator, VertexBuf
 
 use crate::set_tool;
 use crate::tab::ExtendedInput as _;
-use crate::tab::svg_editor::keyboard_shortcuts::CanvasAction;
+use crate::tab::svg_editor::CanvasAction;
 use crate::tab::svg_editor::renderer::VertexConstructor;
 use crate::tab::svg_editor::toolbar::{show_color_btn, show_opacity_slider, show_thickness_slider};
 use crate::tab::svg_editor::tools::eraser::DEFAULT_ERASER_RADIUS;

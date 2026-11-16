@@ -1,7 +1,8 @@
+use crate::tab::svg_editor::CanvasAction;
 use bezier_rs::Subpath;
 use lb_rs::model::svg::{
     diff::DiffState,
-    element::{Element, Path, Stroke},
+    element::{EditableElement, Path, Stroke},
 };
 use resvg::usvg::Transform;
 
@@ -39,7 +40,7 @@ impl ShapeType {
         }
     }
 }
-#[derive(PartialEq, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub enum ShapeEvent {
     Build(egui::Pos2),
     End,
@@ -50,8 +51,8 @@ impl InputControllerTool for ShapesTool {
     type ToolEvent = ShapeEvent;
 
     fn controller_event_to_tool_event(
-        &self, event: InputControllerEvent,
-    ) -> Option<Self::ToolEvent> {
+        &self, event: InputControllerEvent<CanvasAction>,
+    ) -> Option<CanvasAction> {
         match event {
             InputControllerEvent::ToolStart(payload) | InputControllerEvent::ToolRun(payload) => {
                 Some(ShapeEvent::Build(payload.pos))
@@ -61,6 +62,7 @@ impl InputControllerTool for ShapesTool {
             | InputControllerEvent::ViewportChangeWithToolCancel => Some(ShapeEvent::Cancel),
             _ => None,
         }
+        .map(CanvasAction::Shape)
     }
 
     fn handle_tool_event(
@@ -93,7 +95,9 @@ impl InputControllerTool for ShapesTool {
                 let current_id = self.current_id.unwrap();
                 self.is_building = true;
 
-                if let Some(Element::Path(p)) = shapes_ctx.buffer.elements.get_mut(&current_id) {
+                if let Some(EditableElement::Path(p)) =
+                    shapes_ctx.buffer.elements.get_mut(&current_id)
+                {
                     p.diff_state.data_changed = true;
                     let anchor1 = pos_to_dvec(build_origin);
                     let anchor2 = pos_to_dvec(pos);
@@ -110,13 +114,12 @@ impl InputControllerTool for ShapesTool {
                 } else {
                     // todo: add stroke ui controls
 
-                    let el = Element::Path(Path {
+                    let el = EditableElement::Path(Path {
                         data: Subpath::new(vec![], false),
                         visible: true,
                         fill: None,
                         stroke: Some(self.active_stroke),
                         transform: Transform::identity(),
-                        opacity: 1.0,
                         diff_state: DiffState::default(),
                         deleted: false,
                     });

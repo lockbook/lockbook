@@ -2,7 +2,7 @@ mod background;
 mod clip;
 mod element;
 mod history;
-pub(super) mod keyboard_shortcuts;
+mod keyboard_shortcuts;
 #[cfg(test)]
 mod tests;
 mod viewport;
@@ -33,13 +33,17 @@ use lb_rs::Uuid;
 use lb_rs::model::file_metadata::DocumentHmac;
 use lb_rs::model::svg::buffer::{Buffer, u_transform_to_bezier};
 use lb_rs::model::svg::diff::DiffState;
-use lb_rs::model::svg::element::{DynamicColor, Element};
+use lb_rs::model::svg::element::{DynamicColor, EditableElement};
 use renderer::Renderer;
 use resvg::usvg::Transform;
 use serde::{Deserialize, Serialize};
 pub use toolbar::Tool;
 use toolbar::{ToolContext, ToolbarContext};
+use tools::InputControllerTool;
 use tools::pen::PenSettings;
+pub use tools::{
+    eraser::EraseEvent, pen::PathEvent, selection::SelectionEvent, shapes::ShapeEvent,
+};
 use tracing::info;
 
 pub struct SVGEditor {
@@ -55,7 +59,7 @@ pub struct SVGEditor {
     history: History,
     pub toolbar: Toolbar,
 
-    input_controller: InputController,
+    input_controller: InputController<CanvasAction>,
     images: Box<dyn CanvasImages>,
     pub open_file: Uuid,
     last_render: Instant,
@@ -162,7 +166,7 @@ impl SVGEditor {
         let mut viewport_settings = ViewportSettings::from(buffer.weak_viewport_settings);
 
         for (_, el) in buffer.elements.iter_mut() {
-            if let Element::Path(path) = el {
+            if let EditableElement::Path(path) = el {
                 path.data
                     .apply_transform(u_transform_to_bezier(&viewport_settings.master_transform));
             }
@@ -210,10 +214,11 @@ impl SVGEditor {
             viewport_settings,
             cfg,
             read_only,
-            input_controller: InputController::new(
-                InputControllerConfig::new(settings.pencil_only_drawing, read_only),
-                keyboard_shortcuts::BINDINGS,
-            ),
+            input_controller: InputController::new(InputControllerConfig::new(
+                settings.pencil_only_drawing,
+                read_only,
+                keyboard_shortcuts::resolve,
+            )),
         }
     }
 
@@ -233,9 +238,9 @@ impl SVGEditor {
         if !request_diff_change {
             for (_, el) in &mut self.buffer.elements {
                 match el {
-                    Element::Path(p) => p.diff_state = DiffState::default(),
-                    Element::Image(i) => i.diff_state = DiffState::default(),
-                    Element::Text(_) => todo!(),
+                    EditableElement::Path(p) => p.diff_state = DiffState::default(),
+                    EditableElement::Image(i) => i.diff_state = DiffState::default(),
+                    EditableElement::Text(_) => todo!(),
                 }
             }
         }
@@ -365,36 +370,54 @@ impl SVGEditor {
         self.toolbar
             .active_tool_mut()
             .show_tool_ui(ui, &mut tool_context);
+
         let mut selection_seen_tool_run = false;
-        for event in self.input_controller.process(ui, &layout_ctx) {
+
+        let events = self.input_controller.process(ui, &layout_ctx);
+        let active_tool = self.toolbar.active_tool;
+
+        for event in events {
             if let InputControllerEvent::Action(action) = event {
                 execute_action(ui, action, &mut self.toolbar, &mut tool_context, &mut self.cfg);
                 continue;
             }
-            let active_tool = self.toolbar.active_tool;
+
+            // todo: this is a bit hacky. selection_seen_tool_run needs to be gone
             if selection_seen_tool_run && matches!(event, InputControllerEvent::ToolRun(..)) {
                 continue;
             }
 
-            if let input_controller::InputControllerEvent::ViewportChange(transform) = event {
+            if let InputControllerEvent::ViewportChange(transform) = event {
                 transform_canvas(tool_context.buffer, tool_context.viewport_settings, transform);
-            } else if let input_controller::InputControllerEvent::Gesture(num_touches) = event {
+            } else if let InputControllerEvent::Gesture(num_touches) = event {
                 if num_touches == 2 {
                     tool_context.history.undo(tool_context.buffer)
                 } else if num_touches == 3 {
                     tool_context.history.redo(tool_context.buffer)
                 }
             } else {
-                self.toolbar.active_tool_mut().process_controller_event(
-                    ui,
-                    event,
-                    &mut tool_context,
-                );
+                let action = self
+                    .toolbar
+                    .active_tool_mut()
+                    .controller_event_to_tool_event(event);
+                if let Some(action) = action {
+                    execute_action(ui, action, &mut self.toolbar, &mut tool_context, &mut self.cfg);
+                }
             }
 
             if active_tool == Tool::Selection && matches!(event, InputControllerEvent::ToolRun(..))
             {
                 selection_seen_tool_run = true;
+            }
+        }
+
+        // Toolbar controls already produce canvas commands; execute them here
+        // after input events, alongside commands from keyboard shortcuts.
+        if !self.read_only {
+            for event in ui.ctx().read_events() {
+                if let crate::tab::Event::Canvas(action) = event {
+                    execute_action(ui, action, &mut self.toolbar, &mut tool_context, &mut self.cfg);
+                }
             }
         }
 
@@ -430,7 +453,7 @@ impl SVGEditor {
             .iter()
             .filter(|(_, el)| !el.deleted())
             .for_each(|(_, el)| {
-                if let Element::Path(p) = el {
+                if let EditableElement::Path(p) = el {
                     anchor_count += p.data.len()
                 }
             });
@@ -450,13 +473,52 @@ impl SVGEditor {
     }
 }
 
+/// A command or tool interaction executed by the canvas.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum CanvasAction {
+    Pen(PathEvent),
+    Highlighter(PathEvent),
+    Erase(EraseEvent),
+    Shape(ShapeEvent),
+    Selection(SelectionEvent),
+    DeleteSelection,
+    CutSelection,
+    CopySelection,
+    SelectAll,
+    Undo,
+    Redo,
+    SetTool(Tool),
+    ToggleToolPopover,
+    SetSelectionColor(DynamicColor),
+    SetSelectionWidth(f32),
+    SetSelectionOpacity(f32),
+    MoveSelectionLayer(LayerMove),
+    /// for the pen or highlighter, whichever is active
+    SetPenColor(DynamicColor),
+    SetPenWidth(f32),
+    SetPenOpacity(f32),
+}
+
+/// Index 0 is drawn on top.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum LayerMove {
+    ToBack,
+    Backward,
+    Forward,
+    ToFront,
+}
+
 fn execute_action(
-    ui: &mut egui::Ui, action: keyboard_shortcuts::CanvasAction, toolbar: &mut Toolbar,
-    ctx: &mut ToolContext, cfg: &mut WsPersistentStore,
+    ui: &mut egui::Ui, action: CanvasAction, toolbar: &mut Toolbar, ctx: &mut ToolContext,
+    cfg: &mut WsPersistentStore,
 ) {
-    use keyboard_shortcuts::CanvasAction as A;
-    use tools::{InputControllerTool, selection::SelectionEvent};
+    use CanvasAction as A;
     match action {
+        A::Pen(event) => toolbar.pen.handle_tool_event(ui, event, ctx),
+        A::Highlighter(event) => toolbar.highlighter.handle_tool_event(ui, event, ctx),
+        A::Erase(event) => toolbar.eraser.handle_tool_event(ui, event, ctx),
+        A::Shape(event) => toolbar.shapes_tool.handle_tool_event(ui, event, ctx),
+        A::Selection(event) => toolbar.selection.handle_tool_event(ui, event, ctx),
         A::Undo => ctx.history.undo(ctx.buffer),
         A::Redo => ctx.history.redo(ctx.buffer),
         A::SetTool(tool) => toolbar.set_tool(tool, ctx.settings, cfg),

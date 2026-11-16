@@ -4,23 +4,25 @@ use super::{CanvasSettings, ViewportSettings};
 use bezier_rs::{Bezier, Subpath};
 use glam::DVec2;
 use lb_rs::model::svg::WeakRect;
-use lb_rs::model::svg::element::{Element, ManipulatorGroupId};
+use lb_rs::model::svg::element::{EditableElement, ManipulatorGroupId};
 use lyon::math::Point;
 use resvg::usvg::Transform;
 
 pub fn pointer_intersects_element(
-    el: &Element, pos: egui::Pos2, last_pos: Option<egui::Pos2>, error_radius: f64,
+    el: &EditableElement, pos: egui::Pos2, last_pos: Option<egui::Pos2>, error_radius: f64,
 ) -> bool {
     match el {
-        Element::Path(p) => pointer_intersects_outline(&p.data, pos, last_pos, error_radius),
-        Element::Image(img) => {
+        EditableElement::Path(p) => {
+            pointer_intersects_outline(&p.data, pos, last_pos, error_radius)
+        }
+        EditableElement::Image(img) => {
             let rect = img.bounding_box().expand(error_radius as f32);
 
             let last_pos = last_pos.unwrap_or(pos.round());
 
             rect.contains(pos) || rect.contains(last_pos)
         }
-        Element::Text(_) => todo!(),
+        EditableElement::Text(_) => todo!(),
     }
 }
 

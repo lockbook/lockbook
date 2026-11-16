@@ -4,7 +4,7 @@ use egui::{Mesh, TextureHandle};
 use glam::f64::DVec2;
 use lb_rs::Uuid;
 use lb_rs::model::svg::diff::DiffState;
-use lb_rs::model::svg::element::{Element, Image, Path, WeakPathPressures};
+use lb_rs::model::svg::element::{EditableElement, Image, Path, WeakPathPressures};
 use lyon::path::{AttributeIndex, LineCap, LineJoin};
 use lyon::tessellation::{
     self, BuffersBuilder, FillVertexConstructor, StrokeOptions, StrokeTessellator,
@@ -116,7 +116,7 @@ impl Renderer {
                 };
 
                 match el {
-                    Element::Path(path) => {
+                    EditableElement::Path(path) => {
                         let stale_mesh = if let Some(MeshShape { scale, .. }) =
                             self.mesh_cache.get(id)
                         {
@@ -172,7 +172,7 @@ impl Renderer {
                             self.viewport_transform,
                         )
                     }
-                    Element::Image(image) => {
+                    EditableElement::Image(image) => {
                         if image.deleted
                             || (!image.diff_state.opacity_changed
                                 && !image.diff_state.data_changed
@@ -201,7 +201,7 @@ impl Renderer {
 
                         Some((*id, RenderOp::ForwordImage(image)))
                     }
-                    Element::Text(_) => todo!(),
+                    EditableElement::Text(_) => todo!(),
                 }
             })
             .collect();
@@ -330,8 +330,7 @@ fn tesselate_path<'a>(
             return Some((*id, RenderOp::Delete));
         }
         let stroke_color = ThemePalette::resolve_dynamic_color(stroke.color, dark_mode)
-            .linear_multiply(stroke.opacity)
-            .linear_multiply(p.opacity);
+            .linear_multiply(stroke.opacity);
 
         let mut builder = lyon::path::BuilderWithAttributes::new(1);
 

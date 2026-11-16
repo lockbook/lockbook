@@ -39,7 +39,7 @@ use crate::{
         lazy::LazyTree,
         signed_meta::SignedMeta,
         staged::StagedTreeLikeMut,
-        svg::{self, buffer::u_transform_to_bezier, element::Element},
+        svg::{self, buffer::u_transform_to_bezier, element::EditableElement},
         symkey, text,
         tree_like::TreeLike,
         validate,
@@ -702,7 +702,7 @@ impl Lb {
                                             svg::buffer::Buffer::new(&local_document);
 
                                         for (_, el) in local_buffer.elements.iter_mut() {
-                                            if let Element::Path(path) = el {
+                                            if let EditableElement::Path(path) = el {
                                                 path.data.apply_transform(u_transform_to_bezier(
                                                     &Transform::from(
                                                         local_buffer

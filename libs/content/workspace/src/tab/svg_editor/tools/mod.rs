@@ -1,4 +1,5 @@
 use crate::tab::input_controller::InputControllerEvent;
+use crate::tab::svg_editor::CanvasAction;
 use crate::tab::svg_editor::toolbar::ToolContext;
 
 pub mod eraser;
@@ -10,8 +11,8 @@ pub mod shapes;
 pub trait InputControllerTool {
     type ToolEvent;
     fn controller_event_to_tool_event(
-        &self, controller_event: InputControllerEvent,
-    ) -> Option<Self::ToolEvent>;
+        &self, controller_event: InputControllerEvent<CanvasAction>,
+    ) -> Option<CanvasAction>;
     fn handle_tool_event(
         &mut self, ui: &mut egui::Ui, event: Self::ToolEvent, ctx: &mut ToolContext,
     );
@@ -20,22 +21,20 @@ pub trait InputControllerTool {
     fn show_tool_ui(&mut self, ui: &mut egui::Ui, ctx: &mut ToolContext);
 }
 
-// Object-safe version that erases the event type
+// Object-safe input conversion and tool UI; execution stays in the canvas.
 pub trait DynInputControllerTool {
-    fn process_controller_event(
-        &mut self, ui: &mut egui::Ui, event: InputControllerEvent, ctx: &mut ToolContext,
-    );
+    fn controller_event_to_tool_event(
+        &self, event: InputControllerEvent<CanvasAction>,
+    ) -> Option<CanvasAction>;
     fn show_hover_point(&self, ui: &mut egui::Ui, pos: egui::Pos2, ctx: &mut ToolContext<'_>);
     fn show_tool_ui(&mut self, ui: &mut egui::Ui, ctx: &mut ToolContext);
 }
 
 impl<T: InputControllerTool> DynInputControllerTool for T {
-    fn process_controller_event(
-        &mut self, ui: &mut egui::Ui, event: InputControllerEvent, ctx: &mut ToolContext,
-    ) {
-        if let Some(ev) = self.controller_event_to_tool_event(event) {
-            self.handle_tool_event(ui, ev, ctx);
-        }
+    fn controller_event_to_tool_event(
+        &self, event: InputControllerEvent<CanvasAction>,
+    ) -> Option<CanvasAction> {
+        InputControllerTool::controller_event_to_tool_event(self, event)
     }
 
     fn show_hover_point(&self, ui: &mut egui::Ui, pos: egui::Pos2, ctx: &mut ToolContext<'_>) {

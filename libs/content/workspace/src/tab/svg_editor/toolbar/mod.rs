@@ -24,7 +24,10 @@ use viewport_island::ViewportPopover;
 
 use super::history::History;
 use super::renderer::Renderer;
-use super::tools::{eraser::Eraser, pen::Pen};
+use super::tools::{
+    eraser::Eraser,
+    pen::{Pen, PenKind},
+};
 use super::{CanvasSettings, ViewportSettings};
 pub const MINI_MAP_WIDTH: f32 = 100.0;
 
@@ -257,8 +260,8 @@ impl Toolbar {
 
     pub fn new(elements_count: usize, settings: &CanvasSettings) -> Self {
         Toolbar {
-            pen: Pen::new(settings.pen),
-            highlighter: Pen::new(PenSettings::default_highlighter()),
+            pen: Pen::new(settings.pen, PenKind::Pen),
+            highlighter: Pen::new(PenSettings::default_highlighter(), PenKind::Highlighter),
             renderer: Renderer::new(elements_count),
             active_tool: Default::default(),
             eraser: Default::default(),

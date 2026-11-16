@@ -1,7 +1,8 @@
+use crate::tab::svg_editor::CanvasAction;
 use std::collections::HashMap;
 
 use lb_rs::Uuid;
-use lb_rs::model::svg::element::Element;
+use lb_rs::model::svg::element::EditableElement;
 
 use crate::tab::input_controller::InputControllerEvent;
 use crate::tab::svg_editor::DeleteElement;
@@ -29,7 +30,7 @@ impl Default for Eraser {
     }
 }
 
-#[derive(PartialEq, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub enum EraseEvent {
     Build(egui::Pos2),
     End,
@@ -42,8 +43,8 @@ impl InputControllerTool for Eraser {
     type ToolEvent = EraseEvent;
 
     fn controller_event_to_tool_event(
-        &self, controller_event: InputControllerEvent,
-    ) -> Option<Self::ToolEvent> {
+        &self, controller_event: InputControllerEvent<CanvasAction>,
+    ) -> Option<CanvasAction> {
         match controller_event {
             InputControllerEvent::ToolStart(payload) | InputControllerEvent::ToolRun(payload) => {
                 Some(EraseEvent::Build(payload.pos))
@@ -54,6 +55,7 @@ impl InputControllerTool for Eraser {
             | InputControllerEvent::ViewportChangeWithToolCancel => Some(EraseEvent::Cancel),
             _ => None,
         }
+        .map(CanvasAction::Erase)
     }
 
     fn handle_tool_event(
@@ -79,10 +81,12 @@ impl InputControllerTool for Eraser {
                     });
 
                 self.delete_candidates.iter().for_each(|(id, &opacity)| {
-                    if let Some(Element::Path(p)) = eraser_ctx.buffer.elements.get_mut(id) {
-                        if opacity == p.opacity {
-                            p.opacity *= 0.3;
-                            p.diff_state.opacity_changed = true
+                    if let Some(EditableElement::Path(p)) = eraser_ctx.buffer.elements.get_mut(id) {
+                        if let Some(stroke) = &mut p.stroke {
+                            if opacity == stroke.opacity {
+                                stroke.opacity *= 0.3;
+                                p.diff_state.opacity_changed = true;
+                            }
                         }
                     };
                 });
@@ -95,8 +99,10 @@ impl InputControllerTool for Eraser {
                 }
 
                 self.delete_candidates.iter().for_each(|(id, &opacity)| {
-                    if let Some(Element::Path(p)) = eraser_ctx.buffer.elements.get_mut(id) {
-                        p.opacity = opacity;
+                    if let Some(EditableElement::Path(p)) = eraser_ctx.buffer.elements.get_mut(id) {
+                        if let Some(stroke) = &mut p.stroke {
+                            stroke.opacity = opacity;
+                        }
                         p.deleted = true;
                         p.diff_state.delete_changed = true;
                     };
@@ -114,8 +120,10 @@ impl InputControllerTool for Eraser {
             }
             EraseEvent::Cancel => {
                 self.delete_candidates.iter().for_each(|(id, &opacity)| {
-                    if let Some(Element::Path(p)) = eraser_ctx.buffer.elements.get_mut(id) {
-                        p.opacity = opacity;
+                    if let Some(EditableElement::Path(p)) = eraser_ctx.buffer.elements.get_mut(id) {
+                        if let Some(stroke) = &mut p.stroke {
+                            stroke.opacity = opacity;
+                        }
                         p.diff_state.opacity_changed = true;
                     };
                 });

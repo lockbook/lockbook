@@ -19,7 +19,8 @@ use egui::{Event, Key, Modifiers, PointerButton, Pos2, RawInput, Rect, Vec2};
 use lb_rs::Uuid;
 use lb_rs::model::errors::{LbErrKind, LbResult};
 
-use super::super::keyboard_shortcuts::CanvasAction;
+use super::super::CanvasAction;
+use super::super::keyboard_shortcuts::BINDINGS;
 use super::super::{CanvasImages, SVGEditor, Tool};
 use crate::tab::ExtendedInput as _;
 use crate::tab::TabContent;
@@ -55,8 +56,6 @@ pub struct TestCanvas {
     time: f64,
     /// What the last frame painted.
     pub shapes: Vec<egui::epaint::ClippedShape>,
-    /// The tool a pen stroke is drawn with.
-    pub drawing_with: Tool,
 }
 
 impl TestCanvas {
@@ -73,13 +72,7 @@ impl TestCanvas {
         );
         // the minimap paints the strokes again, smaller
         editor.settings.show_mini_map = false;
-        let mut canvas = Self {
-            tab: TabContent::Svg(editor),
-            ctx,
-            time: 0.,
-            shapes: vec![],
-            drawing_with: Tool::Pen,
-        };
+        let mut canvas = Self { tab: TabContent::Svg(editor), ctx, time: 0., shapes: vec![] };
         // the first frame lays the canvas out, the second paints it
         canvas.frame(vec![]);
         canvas.frame(vec![]);
@@ -115,7 +108,12 @@ impl TestCanvas {
             });
         });
         out.textures_delta.clear();
-        self.shapes = out.shapes;
+        let canvas_clip = self.svg_ref().painter.clip_rect();
+        self.shapes = out
+            .shapes
+            .into_iter()
+            .filter(|shape| shape.clip_rect == canvas_clip)
+            .collect();
     }
 
     pub fn key(&mut self, key: Key, modifiers: Modifiers) {
@@ -125,9 +123,15 @@ impl TestCanvas {
         ]);
     }
 
-    /// Submits what a toolbar control submits.
     pub fn act(&mut self, action: CanvasAction) {
-        self.ctx.push_event(crate::tab::Event::Canvas(action));
+        self.act_many([action]);
+    }
+
+    /// Several commands can arrive before the next frame is rendered.
+    pub fn act_many(&mut self, actions: impl IntoIterator<Item = CanvasAction>) {
+        for action in actions {
+            self.ctx.push_event(crate::tab::Event::Canvas(action));
+        }
         self.frame(vec![]);
     }
 
@@ -137,13 +141,13 @@ impl TestCanvas {
         if self.svg_ref().toolbar.active_tool == tool {
             return;
         }
-        let key = match tool {
-            Tool::Pen => Key::B,
-            Tool::Eraser => Key::E,
-            Tool::Selection => Key::S,
-            other => return self.act(CanvasAction::SetTool(other)),
-        };
-        self.key(key, Modifiers::NONE);
+        if let Some(binding) = BINDINGS.iter().find(
+            |binding| matches!(binding.action, CanvasAction::SetTool(bound_tool) if bound_tool == tool),
+        ) {
+            self.key(binding.key, binding.modifiers);
+        } else {
+            self.act(CanvasAction::SetTool(tool));
+        }
     }
 
     /// Press at the first point, move through the rest, release at the last.

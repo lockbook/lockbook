@@ -2,7 +2,7 @@ use indexmap::IndexMap;
 use lb_rs::Uuid;
 use lb_rs::model::svg::buffer::{Buffer, u_transform_to_bezier};
 use lb_rs::model::svg::diff::DiffState;
-use lb_rs::model::svg::element::{Element, Image, WeakPathPressures};
+use lb_rs::model::svg::element::{EditableElement, Image, WeakPathPressures};
 use resvg::usvg::{NonZeroRect, Transform};
 
 use crate::tab::svg_editor::element::BoundedElement;
@@ -70,7 +70,7 @@ impl SVGEditor {
                         let id = Uuid::new_v4();
                         self.buffer.elements.insert(
                             id,
-                            Element::Image(Box::new(Image {
+                            EditableElement::Image(Box::new(Image {
                                 data: resvg::usvg::ImageKind::PNG(data.into()),
                                 visible: true,
                                 transform,
@@ -159,7 +159,7 @@ impl SVGEditor {
 }
 
 pub fn duplicate_elements(
-    src_elements: IndexMap<Uuid, Element>, src_pressure_map: WeakPathPressures,
+    src_elements: IndexMap<Uuid, EditableElement>, src_pressure_map: WeakPathPressures,
     target: &mut Buffer, history: &mut History, maybe_transform: Option<Transform>,
 ) -> Vec<Uuid> {
     let mut new_ids = Vec::with_capacity(src_elements.iter().count());
@@ -167,7 +167,7 @@ pub fn duplicate_elements(
         let new_id = Uuid::new_v4();
         let mut new_el = el.clone();
 
-        if let Element::Path(_) = el {
+        if let EditableElement::Path(_) = el {
             let maybe_pressure = src_pressure_map.get(id).map(|vec| vec.to_owned());
             if let Some(pressures) = maybe_pressure {
                 target.weak_path_pressures.insert(new_id, pressures);
@@ -176,17 +176,17 @@ pub fn duplicate_elements(
 
         if let Some(transform) = maybe_transform {
             match &mut new_el {
-                Element::Path(path) => {
+                EditableElement::Path(path) => {
                     path.data.apply_transform(u_transform_to_bezier(&transform));
                     path.diff_state = DiffState::new();
                 }
-                Element::Image(image) => {
+                EditableElement::Image(image) => {
                     if let Some(new_vbox) = image.view_box.transform(transform) {
                         image.view_box = new_vbox;
                     };
                     image.diff_state = DiffState::new();
                 }
-                Element::Text(_) => {}
+                EditableElement::Text(_) => {}
             }
         }
 
