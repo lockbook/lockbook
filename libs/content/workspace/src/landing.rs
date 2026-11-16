@@ -20,6 +20,7 @@ use crate::style::{
     surface_motion,
 };
 use crate::workspace::Workspace;
+use lb_rs::io::server::Server;
 
 #[derive(Clone, Default, Serialize, Deserialize)]
 pub struct LandingPage {
@@ -81,7 +82,7 @@ impl LandingPage {
     }
 }
 
-impl Workspace {
+impl<S: Server> Workspace<S> {
     pub fn show_landing_page(&mut self, ui: &mut Ui) {
         let t = ui.ctx().get_lb_theme();
         let ctx = ui.ctx().clone();
@@ -235,7 +236,7 @@ enum RecentCmd {
     Duplicate,
 }
 
-impl Workspace {
+impl<S: Server> Workspace<S> {
     pub(crate) fn toggle_pin(&mut self, id: Uuid) {
         let pinned = self.core.list_pinned().unwrap_or_default();
         let res =

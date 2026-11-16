@@ -10,8 +10,9 @@ use crate::components::{
 use crate::shell::ShellApp;
 use crate::shell::action::{Action, Action as A, UpgradeStage};
 use crate::shell::prefs::AccountPanel;
+use lb::io::server::Server;
 
-fn plan_standing(app: &ShellApp) -> super::account_plan::AccountStanding {
+fn plan_standing<S: Server>(app: &ShellApp<S>) -> super::account_plan::AccountStanding {
     use super::account_plan::AccountStanding;
     let cap = app
         .session
@@ -22,7 +23,9 @@ fn plan_standing(app: &ShellApp) -> super::account_plan::AccountStanding {
     AccountStanding::from_subscription_and_cap(info, cap)
 }
 
-pub(crate) fn page_account(app: &mut ShellApp, ui: &mut Ui, t: &Theme, queue: &mut Vec<Action>) {
+pub(crate) fn page_account<S: Server>(
+    app: &mut ShellApp<S>, ui: &mut Ui, t: &Theme, queue: &mut Vec<Action>,
+) {
     // In-content panels (phrase / QR / manage). Esc / Back → HideAccountKey.
     match &app.account_panel {
         AccountPanel::Phrase => {
@@ -103,7 +106,9 @@ pub(crate) fn page_account(app: &mut ShellApp, ui: &mut Ui, t: &Theme, queue: &m
 }
 
 /// In-settings phrase view (body · mono plate · Back · Copy). Esc → HideAccountKey.
-fn page_account_phrase(app: &ShellApp, ui: &mut Ui, t: &Theme, queue: &mut Vec<Action>) {
+fn page_account_phrase<S: Server>(
+    app: &ShellApp<S>, ui: &mut Ui, t: &Theme, queue: &mut Vec<Action>,
+) {
     // Parallel to QR: “Scan this QR… to sign in.”
     ui.label(
         TypeRole::Body
@@ -149,7 +154,9 @@ fn page_account_phrase(app: &ShellApp, ui: &mut Ui, t: &Theme, queue: &mut Vec<A
 }
 
 /// In-settings log out confirm. Esc / Back → HideAccountKey.
-fn page_account_logout(app: &mut ShellApp, ui: &mut Ui, t: &Theme, queue: &mut Vec<Action>) {
+fn page_account_logout<S: Server>(
+    app: &mut ShellApp<S>, ui: &mut Ui, t: &Theme, queue: &mut Vec<Action>,
+) {
     ui.label(
         TypeRole::Body
             .rich(
@@ -190,7 +197,9 @@ fn page_account_logout(app: &mut ShellApp, ui: &mut Ui, t: &Theme, queue: &mut V
 }
 
 /// In-settings delete account (type username). Esc / Back → HideAccountKey.
-fn page_account_delete(app: &mut ShellApp, ui: &mut Ui, t: &Theme, queue: &mut Vec<Action>) {
+fn page_account_delete<S: Server>(
+    app: &mut ShellApp<S>, ui: &mut Ui, t: &Theme, queue: &mut Vec<Action>,
+) {
     let username = app
         .session
         .ready()
@@ -262,7 +271,9 @@ fn page_account_delete(app: &mut ShellApp, ui: &mut Ui, t: &Theme, queue: &mut V
 }
 
 /// Stripe upgrade as an in-Settings page (not a sheet).
-fn page_account_upgrade(app: &mut ShellApp, ui: &mut Ui, t: &Theme, queue: &mut Vec<Action>) {
+fn page_account_upgrade<S: Server>(
+    app: &mut ShellApp<S>, ui: &mut Ui, t: &Theme, queue: &mut Vec<Action>,
+) {
     let (stage, error, done, number_tail) = match &app.account_panel {
         AccountPanel::Upgrade { stage, error, done, number, .. } => {
             (*stage, error.clone(), done.clone(), number.clone())
@@ -489,7 +500,9 @@ fn map_digit_cursor(old: &str, old_cursor: usize, new: &str) -> usize {
 }
 
 /// In-settings cancel subscription. Esc / Back → HideAccountKey.
-fn page_account_cancel_sub(app: &ShellApp, ui: &mut Ui, t: &Theme, queue: &mut Vec<Action>) {
+fn page_account_cancel_sub<S: Server>(
+    app: &ShellApp<S>, ui: &mut Ui, t: &Theme, queue: &mut Vec<Action>,
+) {
     let period = app
         .session
         .ready()
@@ -520,7 +533,7 @@ fn page_account_cancel_sub(app: &ShellApp, ui: &mut Ui, t: &Theme, queue: &mut V
 }
 
 /// In-settings QR view — same column as phrase (body · code · Back). Esc → HideAccountKey.
-fn page_account_qr(app: &ShellApp, ui: &mut Ui, t: &Theme, queue: &mut Vec<Action>) {
+fn page_account_qr<S: Server>(app: &ShellApp<S>, ui: &mut Ui, t: &Theme, queue: &mut Vec<Action>) {
     ui.label(
         TypeRole::Body
             .rich("Scan this QR with Lockbook on another device to sign in.")
@@ -611,7 +624,9 @@ fn decode_png_color_image(png: &[u8]) -> Result<egui::ColorImage, String> {
 /// Plan / storage — one plate. Paying: payment/status values. Not paying:
 /// Payment row carries Upgrade in the trailing slot.
 /// Cancel lives with Log out / Delete under Manage.
-fn page_plan_body(app: &mut ShellApp, ui: &mut Ui, t: &Theme, queue: &mut Vec<Action>) {
+fn page_plan_body<S: Server>(
+    app: &mut ShellApp<S>, ui: &mut Ui, t: &Theme, queue: &mut Vec<Action>,
+) {
     // SI readable from lb (1000-based) so premium shows 30 GB not ~27.9 GiB.
     let storage = app
         .session

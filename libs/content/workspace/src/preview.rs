@@ -26,6 +26,8 @@ use crate::tab::{
 use crate::theme::palette_v2::{Theme, ThemeExt as _};
 use crate::widgets::glyphon_cache::GlyphonCache;
 use crate::widgets::image_cache::ImageCache;
+use lb_rs::io::network::Network;
+use lb_rs::io::server::Server;
 
 /// How long a preview waits for its tab to settle: a worker that never
 /// finishes, not the design, is what this bounds.
@@ -63,10 +65,10 @@ impl Look {
 }
 
 /// A tab on a private context, drawn frame by frame.
-pub struct Headless {
+pub struct Headless<S = Network> {
     pub ctx: Context,
-    pub res: TabResources,
-    pub tab: Tab,
+    pub res: TabResources<S>,
+    pub tab: Tab<S>,
     fragment: Option<crate::tab::Fragment>,
     padding: f32,
     /// The image's size in points of the private context, and its pixels per
@@ -79,11 +81,11 @@ pub struct Headless {
     shapes: Vec<ClippedShape>,
 }
 
-impl Headless {
+impl<S: Server> Headless<S> {
     /// Builds `req`'s tab on a private context looking like `look`, sharing
     /// `live`'s core, files, and persistence. Reads the document from core
     /// on the calling thread.
-    pub fn open(live: &TabResources, look: Look, req: &PreviewRequest) -> Self {
+    pub fn open(live: &TabResources<S>, look: Look, req: &PreviewRequest) -> Self {
         let ctx = Context::default();
         let mut fonts = egui::FontDefinitions::default();
         crate::register_fonts(&mut fonts);
@@ -258,7 +260,7 @@ impl Headless {
     }
 }
 
-impl Drop for Headless {
+impl<S> Drop for Headless<S> {
     /// The texture history only ever feeds copies to renderers.
     fn drop(&mut self) {
         self.textures.clear();
@@ -316,8 +318,8 @@ pub fn encode_png(pixels: Vec<u8>, [width, height]: [u32; 2]) -> Result<Vec<u8>,
 }
 
 /// Draws `req` off screen until it settles and returns it as a PNG.
-pub fn render_png(
-    live: &TabResources, look: Look, req: &PreviewRequest, gpu: &PreviewGpu,
+pub fn render_png<S: Server>(
+    live: &TabResources<S>, look: Look, req: &PreviewRequest, gpu: &PreviewGpu,
 ) -> Result<Vec<u8>, String> {
     let frame = Headless::open(live, look, req).settled_frame()?;
     let (pixels, size) = gpu.render(frame)?;

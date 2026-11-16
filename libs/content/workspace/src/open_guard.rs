@@ -18,6 +18,7 @@ use web_time::{Duration, Instant};
 
 use crate::style::{Button, Space, Spacer, ThemeExt as _, TypeRole, control_height, phosphor};
 use crate::tab::{ContentState, Tab};
+use lb_rs::io::server::Server;
 
 /// Editor frame time grows ~60ms per MB of ordinary text.
 const MAX_TEXT_BYTES: usize = 1_000_000;
@@ -301,7 +302,7 @@ impl OpenGuard {
     /// Shows `tab`, holding the marker through each frame of its content
     /// until it settles. The marker exists only mid-frame, so a suspended
     /// app the system kills leaves none.
-    pub fn show<R>(&self, tab: &mut Tab, show: impl FnOnce(&mut Tab) -> R) -> R {
+    pub fn show<R, S: Server>(&self, tab: &mut Tab<S>, show: impl FnOnce(&mut Tab<S>) -> R) -> R {
         let open = matches!(tab.content, ContentState::Open(_));
         if open && tab.first_draw {
             tab.watch = Some(Instant::now());

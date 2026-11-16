@@ -15,8 +15,9 @@ use super::viewport::get_rect_identity_transform;
 // use super::tools::selection::SelectedElement;
 use super::util::transform_rect;
 use super::{InsertElement, SVGEditor, Tool};
+use lb_rs::io::server::Server;
 
-impl SVGEditor {
+impl<S: Server> SVGEditor<S> {
     pub fn handle_clip_input(&mut self, ui: &mut egui::Ui) {
         for custom_event in ui.ctx().read_events() {
             match custom_event {

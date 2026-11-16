@@ -20,6 +20,7 @@ use crate::components::{
 use crate::shell::ShellApp;
 use crate::shell::action::Action;
 use crate::shell::action::Action as A;
+use lb::io::server::Server;
 
 /// Local chrome: hold last quiet message while syncing; spin arrows after tap.
 #[derive(Default)]
@@ -105,7 +106,7 @@ fn usage_frac(status: &Status) -> Option<f32> {
     (cap != 0).then(|| (usage.server_usage.exact as f64 / cap as f64).min(1.0) as f32)
 }
 
-fn layout(app: &ShellApp) -> Option<Layout> {
+fn layout<S: Server>(app: &ShellApp<S>) -> Option<Layout> {
     let ready = app.session.ready()?;
     let frac = usage_frac(&ready.status).filter(|_| app.settings.sidebar_usage);
     let mut y = V_PAD.pts();
@@ -120,11 +121,11 @@ fn layout(app: &ShellApp) -> Option<Layout> {
 }
 
 /// The footer's height: the usage track when it shows, then the status row.
-pub fn measure(app: &ShellApp) -> f32 {
+pub fn measure<S: Server>(app: &ShellApp<S>) -> f32 {
     layout(app).map_or(0.0, |l| l.height)
 }
 
-pub fn show(app: &mut ShellApp, ui: &mut Ui, t: &Theme, queue: &mut Vec<Action>) {
+pub fn show<S: Server>(app: &mut ShellApp<S>, ui: &mut Ui, t: &Theme, queue: &mut Vec<Action>) {
     let Some(layout) = layout(app) else {
         return;
     };

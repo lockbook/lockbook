@@ -11,6 +11,7 @@ use crate::tab::markdown_editor::input::{Event, Location, Region};
 use crate::tab::markdown_editor::widget::{
     CompletionStep, completion_accepted, completion_dismissed, completion_step,
 };
+use lb_rs::io::server::Server;
 
 const MAX_RESULTS: usize = 5;
 /// The popup's width, narrower where the window is: room for
@@ -368,7 +369,7 @@ fn matching_shortcode<'a>(emoji: &'a emojis::Emoji, query: &str) -> &'a str {
         .unwrap_or("")
 }
 
-impl MdEdit {
+impl<S: Server> MdEdit<S> {
     pub fn show_emoji_completions(&mut self, ui: &mut Ui) {
         if self.renderer.readonly || !self.emoji_completions.active {
             return;

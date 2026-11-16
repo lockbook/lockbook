@@ -11,6 +11,7 @@ use lb_rs::model::text::operation_types::Operation;
 use super::edit::{cell_text, replace};
 use super::{RowBounds, TableBounds, cell_content, is_cell_space};
 use crate::tab::markdown_editor::{MdEdit, MdRender};
+use lb_rs::io::server::Server;
 
 /// A structure edit, made where the selection ends.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -137,7 +138,7 @@ impl RowText {
     }
 }
 
-impl MdRender {
+impl<S: Server> MdRender<S> {
     /// The part of `row`'s line its cells and their pipes take up: all of
     /// it but indentation, space after it, and a long row's surplus cells.
     pub(super) fn table_row_structure(&self, row: &RowBounds) -> (Grapheme, Grapheme) {
@@ -265,7 +266,7 @@ impl MdRender {
     }
 }
 
-impl<'ast> MdEdit {
+impl<'ast, S: Server> MdEdit<S> {
     /// Carries out a structure edit on the table the selection ends in, or
     /// for [`TableAction::Insert`], where it ends outside one.
     pub fn table_action(
@@ -351,7 +352,7 @@ impl<'ast> MdEdit {
                 let (_, leading, trailing) = r.table_delimiter_structure(table);
                 let opened = column > 0 || leading;
                 let mut aligned =
-                    MdRender::aligned_delimiter_cell(&r.buffer[cell], opened, alignment);
+                    <MdRender>::aligned_delimiter_cell(&r.buffer[cell], opened, alignment);
                 if columns == 1 && !leading && delimiter_wants_pipe(&[aligned.clone()], trailing) {
                     aligned.insert(0, '|');
                 }

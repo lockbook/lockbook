@@ -22,6 +22,7 @@ use crate::theme::palette_v2::ThemeExt as _;
 use crate::widgets::diagram_cache::{DiagramSize, PrintSvg};
 use crate::widgets::glyphon_label::{GlyphonLabel, ShapedLabel};
 use crate::widgets::math::{Formula, Typeset};
+use lb_rs::io::server::Server;
 
 const PENDING_HEIGHT: f32 = 120.0;
 /// How far a diagram shrinks to fit the note: its 16pt labels stay about
@@ -37,7 +38,7 @@ struct Preview {
     image: Option<(String, Vec2)>,
 }
 
-impl<'ast> MdRender {
+impl<'ast, S: Server> MdRender<S> {
     pub fn is_diagram(node_code_block: &NodeCodeBlock) -> bool {
         node_code_block.fenced
             && node_code_block
@@ -401,7 +402,7 @@ pub enum Picture {
     Formula(Formula),
 }
 
-impl<'ast> MdRender {
+impl<'ast, S: Server> MdRender<S> {
     /// The collapsed image, diagram or formula the selection exactly covers.
     pub fn selected_picture(&self, root: &'ast AstNode<'ast>) -> Option<Picture> {
         let selection = self.buffer.current.selection;
@@ -473,7 +474,7 @@ enum DiagramMenu {
     Edit,
 }
 
-impl<'ast> MdEdit {
+impl<'ast, S: Server> MdEdit<S> {
     /// Escape in a diagram's source selects the diagram, which folds it back
     /// into its picture: the way out of what Edit opened.
     pub fn escape_diagram_source(
@@ -511,7 +512,7 @@ impl<'ast> MdEdit {
                 continue;
             }
             let range = self.renderer.node_range(node);
-            let salt = MdRender::diagram_interaction_id_salt(range);
+            let salt = <MdRender>::diagram_interaction_id_salt(range);
             let Some(response) = self
                 .renderer
                 .interaction_responses

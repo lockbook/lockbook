@@ -19,18 +19,20 @@ use crate::tab::{ContextMenuTarget, ExtendedInput as _, ExtendedOutput as _};
 use crate::widgets::diagram_cache::{DiagramCache, DiagramSize};
 use crate::widgets::image_cache::{ImageCache, ImageKey, ImageState};
 use crate::widgets::math::{Formula, MathCache, Typeset};
+use lb_rs::io::network::Network;
+use lb_rs::io::server::Server;
 
 const MIN_ZOOM_LEVEL: f32 = 0.1;
 const ZOOM_STEP: f32 = 10.0;
 const SCREEN_PADDING: egui::Pos2 =
     if cfg!(target_os = "android") { egui::pos2(10.0, 10.0) } else { egui::pos2(20.0, 20.0) };
 
-pub struct ImageViewer {
+pub struct ImageViewer<S = Network> {
     picture: Picture,
     /// Drawn alone inside another surface: no controls, and the context's
     /// events are left for the host.
     pub embedded: bool,
-    images: ImageCache,
+    images: ImageCache<S>,
     input_controller: InputController,
     master_transform: Transform,
     /// Last frame's island rects; the canvas ignores presses that start on them.
@@ -59,20 +61,20 @@ enum ImageCmd {
     Copy,
 }
 
-impl ImageViewer {
-    pub fn new(id: Uuid, images: ImageCache) -> Self {
+impl<S: Server> ImageViewer<S> {
+    pub fn new(id: Uuid, images: ImageCache<S>) -> Self {
         Self::of(Picture::File(id), images)
     }
 
-    pub fn diagram(source: String, images: ImageCache) -> Self {
+    pub fn diagram(source: String, images: ImageCache<S>) -> Self {
         Self::of(Picture::Diagram(source), images)
     }
 
-    pub fn formula(formula: Formula, images: ImageCache) -> Self {
+    pub fn formula(formula: Formula, images: ImageCache<S>) -> Self {
         Self::of(Picture::Formula(formula), images)
     }
 
-    fn of(picture: Picture, images: ImageCache) -> Self {
+    fn of(picture: Picture, images: ImageCache<S>) -> Self {
         Self {
             picture,
             embedded: false,

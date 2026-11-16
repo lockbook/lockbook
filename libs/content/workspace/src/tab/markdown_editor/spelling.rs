@@ -10,8 +10,9 @@ use crate::tab::markdown_editor::widget::utils::wrap_layout::{
     DecoLine, Fragment, FragmentContent,
 };
 use crate::theme::palette_v2::ThemeExt as _;
+use lb_rs::io::server::Server;
 
-impl MdRender {
+impl<S: Server> MdRender<S> {
     /// Whether spelling is marked: on, editable, and not the drag card.
     pub fn spelling_marked(&self) -> bool {
         self.spell_check && !self.readonly && !self.painting_drag_float

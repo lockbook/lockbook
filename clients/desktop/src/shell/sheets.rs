@@ -14,6 +14,7 @@ use super::action::Action as A;
 use super::action::{Action, Modal};
 use super::ops::is_saved_share;
 use super::settings;
+use lb::io::server::Server;
 
 /// True when `q` has been stable for 100ms and verify should run.
 pub(crate) fn debounce_query(
@@ -65,7 +66,9 @@ enum ModalKind {
     Onboard,
 }
 
-pub fn show_modals(app: &mut ShellApp, ctx: &egui::Context, t: &Theme, queue: &mut Vec<Action>) {
+pub fn show_modals<S: Server>(
+    app: &mut ShellApp<S>, ctx: &egui::Context, t: &Theme, queue: &mut Vec<Action>,
+) {
     let kind = match &app.modal {
         None => return,
         Some(Modal::Settings { .. }) => ModalKind::Settings,
@@ -145,7 +148,7 @@ pub fn show_modals(app: &mut ShellApp, ctx: &egui::Context, t: &Theme, queue: &m
     }
 }
 
-pub(crate) fn file_name(app: &ShellApp, id: Uuid) -> String {
+pub(crate) fn file_name<S: Server>(app: &ShellApp<S>, id: Uuid) -> String {
     app.session
         .ready()
         .and_then(|r| {
@@ -159,8 +162,8 @@ pub(crate) fn file_name(app: &ShellApp, id: Uuid) -> String {
         .unwrap_or_else(|| "item".into())
 }
 
-fn show_delete(
-    app: &ShellApp, ctx: &egui::Context, t: &Theme, queue: &mut Vec<Action>, ids: &[Uuid],
+fn show_delete<S: Server>(
+    app: &ShellApp<S>, ctx: &egui::Context, t: &Theme, queue: &mut Vec<Action>, ids: &[Uuid],
 ) {
     // Expand state lives in temp memory (keyed by selection) so folders can
     // open without a Modal field / Action for every click.
@@ -256,7 +259,7 @@ fn paint_delete_para(ui: &mut egui::Ui, t: &Theme, spans: &[(String, bool)]) {
     );
 }
 
-fn delete_parts(app: &ShellApp, ids: &[Uuid]) -> DeleteParts {
+fn delete_parts<S: Server>(app: &ShellApp<S>, ids: &[Uuid]) -> DeleteParts {
     let undo = "This cannot be undone.";
     let empty = DeleteParts {
         owned_ids: Vec::new(),
@@ -468,7 +471,9 @@ pub(crate) fn delete_is_strict_ancestor(
     false
 }
 
-fn show_rename(app: &mut ShellApp, ctx: &egui::Context, t: &Theme, queue: &mut Vec<Action>) {
+fn show_rename<S: Server>(
+    app: &mut ShellApp<S>, ctx: &egui::Context, t: &Theme, queue: &mut Vec<Action>,
+) {
     let layer = egui::LayerId::new(Order::Foreground, Id::unique("shell_rename"));
     if sheet_dim(ctx, Id::unique("shell_rename_dim"), layer) {
         queue.push(A::CloseModal);

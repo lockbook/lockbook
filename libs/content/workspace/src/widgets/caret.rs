@@ -34,7 +34,7 @@ pub fn with_blinking_caret(ui: &Ui, time_since_interact: f64, paint: impl FnOnce
     });
     let time_since_interact = time_since_interact.min(now - refocused_at);
 
-    if !Workspace::user_present(ui.ctx()) {
+    if !<Workspace>::user_present(ui.ctx()) {
         paint(1.0);
         return;
     }

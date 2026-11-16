@@ -22,8 +22,8 @@ const DELETE_LIST_VISIBLE_ROWS: f32 = 7.0;
 /// **Files-only selection:** returns `false` without painting — the bold
 /// summary already names the docs; a static one-row plate reads as a button.
 /// Returns `true` when a tree was painted (at least one folder in the roots).
-pub fn show_delete_tree(
-    app: &ShellApp, ui: &mut Ui, t: &Theme, ids: &[Uuid],
+pub fn show_delete_tree<S: Server>(
+    app: &ShellApp<S>, ui: &mut Ui, t: &Theme, ids: &[Uuid],
     expanded: &mut std::collections::HashSet<Uuid>,
 ) -> bool {
     let flat = {
@@ -125,8 +125,8 @@ fn flatten_delete(
     flatten(files, expanded, id, depth, out, false);
 }
 
-fn paint_delete_row(
-    app: &ShellApp, ui: &mut Ui, t: &Theme, row: FlatRow, paint_rect: Rect, hit_rect: Rect,
+fn paint_delete_row<S: Server>(
+    app: &ShellApp<S>, ui: &mut Ui, t: &Theme, row: FlatRow, paint_rect: Rect, hit_rect: Rect,
     elevated: bool, pin_vy: Option<f32>, pin_top_r: u8,
     expanded: &mut std::collections::HashSet<Uuid>,
 ) {
@@ -157,6 +157,7 @@ fn paint_delete_row(
     }
 }
 
+use lb::io::server::Server;
 pub use workspace_rs::style::{
     expand_ancestors_of, folder_tree_default_height, folder_tree_scroll_key, is_forbidden_move_dest,
 };
@@ -164,8 +165,8 @@ pub use workspace_rs::style::{
 /// Sticky expandable folder tree for create / move / import pickers.
 ///
 /// Thin host wrapper: files come from the session; paint lives in workspace.
-pub fn show_folder_tree(
-    app: &ShellApp, ui: &mut Ui, t: &Theme, expanded: &mut std::collections::HashSet<Uuid>,
+pub fn show_folder_tree<S: Server>(
+    app: &ShellApp<S>, ui: &mut Ui, t: &Theme, expanded: &mut std::collections::HashSet<Uuid>,
     selected: Option<Uuid>, moving: &[Uuid], id_salt: &str, list_h: f32,
 ) -> Option<Uuid> {
     let ready = app.session.ready()?;

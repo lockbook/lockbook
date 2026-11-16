@@ -5,8 +5,9 @@
 //! for reviewability; methods the view or the parent call are `pub(super)`.
 
 use super::*;
+use lb_rs::io::server::Server;
 
-impl Chat {
+impl<S: Server> Chat<S> {
     /// The provider the next turn runs with: this user's per-chat selection
     /// (latest config entry), or — for a chat with none — the sticky last-used
     /// default, resolved against the *cached* provider list. Pure — no file

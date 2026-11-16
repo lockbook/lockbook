@@ -13,17 +13,21 @@ use winit::window::{Icon, Window, WindowId};
 use workspace_rs::tab::{ClipContent, ExtendedInput, ExtendedOutput as _};
 
 use crate::{Output, ShellApp, WgpuLockbook};
+use lb::io::network::Network;
+use lb::io::server::Server;
 
-struct App {
-    state: Option<AppState>,
+struct App<S = Network> {
+    state: Option<AppState<S>>,
+    /// The shell, until the window it draws in exists.
+    shell: Option<ShellApp<S>>,
     proxy: EventLoopProxy<UserEvent>,
     /// Links that arrived before the window, opened once it exists.
     links: Vec<String>,
 }
 
-struct AppState {
+struct AppState<S = Network> {
     window: Arc<Window>,
-    lb: WgpuLockbook<'static>,
+    lb: WgpuLockbook<'static, S>,
     egui_winit: egui_winit::State,
     clipboard: arboard::Clipboard,
     /// The last gif copied, keyed by a hash of the pixels it put on the clipboard
@@ -39,7 +43,7 @@ struct AppState {
     ime_rect: Option<egui::Rect>,
 }
 
-impl ApplicationHandler<UserEvent> for App {
+impl<S: Server> ApplicationHandler<UserEvent> for App<S> {
     fn resumed(&mut self, event_loop: &ActiveEventLoop) {
         if self.state.is_some() {
             return;
@@ -87,7 +91,8 @@ impl ApplicationHandler<UserEvent> for App {
             crate::shell::macos_window::pin_traffic_lights(window.as_ref());
         }
 
-        let mut lb = init_app(Arc::clone(&window));
+        let shell = self.shell.take().expect("the shell is made once");
+        let mut lb = init_app(Arc::clone(&window), shell);
 
         let proxy = self.proxy.clone();
         lb.renderer
@@ -226,8 +231,16 @@ impl ApplicationHandler<UserEvent> for App {
 
     fn user_event(&mut self, _event_loop: &ActiveEventLoop, event: UserEvent) {
         let Some(state) = &mut self.state else {
-            if let UserEvent::OpenLink(url) = event {
-                self.links.push(url);
+            match event {
+                UserEvent::OpenLink(url) => self.links.push(url),
+                #[cfg(any(target_os = "macos", feature = "try"))]
+                UserEvent::Close => {
+                    if let Some(shell) = &mut self.shell {
+                        shell.exiting();
+                    }
+                    std::process::exit(0);
+                }
+                UserEvent::RepaintRequested { .. } => {}
             }
             return;
         };
@@ -258,6 +271,11 @@ impl ApplicationHandler<UserEvent> for App {
                 state.window.focus_window();
                 state.window.request_redraw();
             }
+            #[cfg(any(target_os = "macos", feature = "try"))]
+            UserEvent::Close => {
+                state.close_requested = true;
+                state.window.request_redraw();
+            }
         }
     }
 
@@ -279,7 +297,7 @@ impl ApplicationHandler<UserEvent> for App {
     }
 }
 
-impl AppState {
+impl<S: Server> AppState<S> {
     fn render(&mut self, _event_loop: &ActiveEventLoop) {
         let size = self.window.inner_size();
         if size.width > 0 && size.height > 0 {
@@ -335,6 +353,7 @@ impl AppState {
         // window closes once they're written.
         if self.close_requested {
             if self.lb.app.saves_settled() {
+                self.lb.app.exiting();
                 std::process::exit(0);
             }
             self.window.request_redraw();
@@ -551,7 +570,7 @@ fn is_paste_shortcut(modifiers: winit::keyboard::ModifiersState, event: &WindowE
     }
 }
 
-fn init_app(window: Arc<Window>) -> WgpuLockbook<'static> {
+fn init_app<S: Server>(window: Arc<Window>, app: ShellApp<S>) -> WgpuLockbook<'static, S> {
     // Safety: window is kept alive in Arc for lifetime of app
     let renderer = unsafe {
         RendererState::from_surface(
@@ -559,11 +578,12 @@ fn init_app(window: Arc<Window>) -> WgpuLockbook<'static> {
         )
     };
 
-    init_with_renderer(renderer)
+    init_with_renderer(renderer, app)
 }
 
-fn init_with_renderer(mut renderer: RendererState<'static>) -> WgpuLockbook<'static> {
-    let app = ShellApp::default();
+fn init_with_renderer<S: Server>(
+    mut renderer: RendererState<'static>, app: ShellApp<S>,
+) -> WgpuLockbook<'static, S> {
     workspace_rs::font::choose(
         app.settings.text_font.as_deref(),
         app.settings.code_font.as_deref(),
@@ -607,6 +627,10 @@ enum UserEvent {
     },
     /// A link another launch of the app handed over.
     OpenLink(String),
+    /// A quit from outside the window, such as the app menu's: closes it the way its close button
+    /// does.
+    #[cfg(any(target_os = "macos", feature = "try"))]
+    Close,
 }
 
 struct IconData {
@@ -740,6 +764,14 @@ fn resources_declare_xft_dpi(resources: &str) -> bool {
 /// Opens the product shell at the `lb://` link it was launched with, if any,
 /// or hands that link to the app already open.
 pub fn run() {
+    #[cfg(feature = "try")]
+    {
+        let args: Vec<String> = std::env::args().collect();
+        if let Some(try_mode) = crate::try_mode::Try::from_args(&args) {
+            return run_try(try_mode.unwrap_or_else(|e| fail(&e)));
+        }
+    }
+
     let link = std::env::args()
         .skip(1)
         .find(|a| a.get(..3).is_some_and(|s| s.eq_ignore_ascii_case("lb:")));
@@ -748,6 +780,52 @@ pub fn run() {
             return;
         }
     }
+    open(ShellApp::default(), link.into_iter().collect(), |proxy| {
+        crate::link_inbox::listen(move |url| {
+            let _ = proxy.send_event(UserEvent::OpenLink(url));
+        });
+    });
+}
+
+/// The app on a QA fixture, in memory: see [crate::try_mode].
+#[cfg(feature = "try")]
+fn run_try(try_mode: crate::try_mode::Try) {
+    use crate::try_mode::Try;
+
+    // Logs, settings and anything else the app keeps go here instead of the user's data directory.
+    // SAFETY: no other thread has started.
+    unsafe { std::env::set_var("LOCKBOOK_PATH", &try_mode.home) };
+    // Before any thread starts, so every thread holds them.
+    let signals = crate::try_mode::Signals::hold();
+    let (link, core) = try_mode
+        .world()
+        .and_then(|core| Ok((Try::qa_link(&core)?, core)))
+        .unwrap_or_else(|e| fail(&format!("{e:?}")));
+    let finished = core.clone();
+    let mut shell = ShellApp::new(Arc::new(move || Ok(core.clone())));
+    shell.on_exit = Some(Box::new(move || {
+        if let Err(e) = try_mode.finish(&finished) {
+            eprintln!("lockbook-desktop: {e}");
+        }
+    }));
+    open(shell, vec![link], |proxy| {
+        signals.on_signal(move || {
+            let _ = proxy.send_event(UserEvent::Close);
+        })
+    });
+}
+
+#[cfg(feature = "try")]
+fn fail(message: &str) -> ! {
+    eprintln!("lockbook-desktop: {message}");
+    std::process::exit(2);
+}
+
+/// Opens a window on `shell`, then the `links`. `listen` is handed the event loop, to send it
+/// events from elsewhere.
+fn open<S: Server>(
+    shell: ShellApp<S>, links: Vec<String>, listen: impl FnOnce(EventLoopProxy<UserEvent>),
+) {
     env_logger::init();
 
     let config = lb::model::core_config::Config::ui_config("egui");
@@ -781,12 +859,15 @@ pub fn run() {
     let event_loop = builder.build().expect("failed to create event loop");
     event_loop.set_control_flow(ControlFlow::Wait);
 
-    let proxy = event_loop.create_proxy();
-    crate::link_inbox::listen(move |url| {
-        let _ = proxy.send_event(UserEvent::OpenLink(url));
-    });
-    let links = link.into_iter().collect();
-    let mut app = App { state: None, proxy: event_loop.create_proxy(), links };
+    listen(event_loop.create_proxy());
+    #[cfg(target_os = "macos")]
+    {
+        let proxy = event_loop.create_proxy();
+        crate::shell::macos_window::quit_closes(move || {
+            let _ = proxy.send_event(UserEvent::Close);
+        });
+    }
+    let mut app = App { state: None, shell: Some(shell), proxy: event_loop.create_proxy(), links };
     event_loop.run_app(&mut app).expect("event loop failed");
 }
 

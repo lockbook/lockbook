@@ -10,8 +10,9 @@ use crate::tab::markdown_editor::table::TableSelection;
 use crate::tab::markdown_editor::{MdRender, TouchTarget};
 
 use crate::theme::palette_v2::ThemeExt as _;
+use lb_rs::io::server::Server;
 
-impl<'ast> MdRender {
+impl<'ast, S: Server> MdRender<S> {
     pub fn height_table(&self, node: &'ast AstNode<'ast>) -> f32 {
         let width = self.width(node);
         let row_height = self.layout.row_height;

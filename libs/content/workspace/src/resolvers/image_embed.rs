@@ -12,6 +12,8 @@ use crate::style::chrome::phosphor;
 use crate::theme::palette_v2::ThemeExt as _;
 use crate::widgets::GlyphonLabel;
 use crate::widgets::image_cache::{ImageCache, ImageKey, ImageState};
+use lb_rs::io::network::Network;
+use lb_rs::io::server::Server;
 
 /// The url of the image a wiki embed names (`![[photo.png]]`): its title in
 /// brackets, resolved in [`ImageEmbedResolver`], whose note it's relative to.
@@ -24,20 +26,20 @@ pub fn wiki_embed_title(url: &str) -> Option<&str> {
     url.strip_prefix("[[")?.strip_suffix("]]")
 }
 
-pub struct ImageEmbedResolver {
-    images: ImageCache,
+pub struct ImageEmbedResolver<S = Network> {
+    images: ImageCache<S>,
     file_id: Uuid,
     /// An image shown since the last ask was still loading.
     pending: std::cell::Cell<bool>,
 }
 
-impl ImageEmbedResolver {
-    pub fn new(images: ImageCache, file_id: Uuid) -> Self {
+impl<S: Server> ImageEmbedResolver<S> {
+    pub fn new(images: ImageCache<S>, file_id: Uuid) -> Self {
         Self { images, file_id, pending: Default::default() }
     }
 }
 
-impl ImageEmbedResolver {
+impl<S: Server> ImageEmbedResolver<S> {
     /// The image `url` shows in this note, as a link in it would reach it,
     /// and whether it waits for the reader to ask for it: a file past the
     /// note's scope, which opens different things for different readers,
@@ -74,7 +76,7 @@ impl ImageEmbedResolver {
 /// screen's scale.
 const PLACEHOLDER_PT: f32 = 160.0;
 
-impl EmbedResolver for ImageEmbedResolver {
+impl<S: Server> EmbedResolver for ImageEmbedResolver<S> {
     fn size(&self, url: &str) -> Vec2 {
         let placeholder = Vec2::splat(PLACEHOLDER_PT * self.images.pixels_per_point());
         self.shown(url)

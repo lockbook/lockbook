@@ -44,6 +44,8 @@ use crate::widgets::image_cache::ImageCache;
 use crate::widgets::tab_cache::TabCache;
 use lb_rs::model::file::ShareMode;
 
+use lb_rs::io::network::Network;
+use lb_rs::io::server::Server;
 #[cfg(not(target_family = "wasm"))]
 use tokio::sync::broadcast::error::TryRecvError;
 
@@ -57,9 +59,9 @@ struct ClosedTab {
     index: usize,
 }
 
-pub struct Workspace {
+pub struct Workspace<S = Network> {
     // User activity
-    pub tabs: TabCache,
+    pub tabs: TabCache<S>,
     pub tab_strip: Vec<Session>,
     /// Active session (not its destination — two sessions may share a dest).
     pub current_tab: Option<SessionId>,
@@ -72,10 +74,10 @@ pub struct Workspace {
     pub landing_page: LandingPage,
     pub account: Account,
 
-    pub preview: Option<Tab>,
+    pub preview: Option<Tab<S>>,
     /// In-flight search preview load. Displayed pane stays on [`Self::preview`]
     /// until this is Open/Failed (or 200ms, then a spinner).
-    pub preview_pending: Option<Tab>,
+    pub preview_pending: Option<Tab<S>>,
     /// A new search starts where the last one left off.
     pub last_search: SearchState,
 
@@ -90,9 +92,9 @@ pub struct Workspace {
     pub(crate) link_sheet_keys: (bool, bool),
 
     // Files and task status
-    pub tasks: TaskManager,
+    pub tasks: TaskManager<S>,
     pub files: Arc<RwLock<FileCache>>,
-    pub images: ImageCache,
+    pub images: ImageCache<S>,
     pub previews: LinkPreviews,
     pub last_save_all: Option<Instant>,
     pub last_sync_completed: Option<Instant>,
@@ -105,7 +107,7 @@ pub struct Workspace {
     pub ctx: Context,
     pub(crate) open_guard: Arc<OpenGuard>,
 
-    pub core: Lb,
+    pub core: Lb<S>,
     pub lb_rx: events::Receiver<Event>,
     /// The file cache's generation last seen.
     files_generation: u64,
@@ -133,7 +135,7 @@ pub struct Workspace {
 #[derive(Clone, Copy)]
 struct UserPresent(bool);
 
-impl Workspace {
+impl<S: Server> Workspace<S> {
     pub fn set_user_present(&self) {
         self.ctx.data_mut(|d| {
             d.insert_temp(egui::Id::unique("user_present"), UserPresent(self.core.user_active()))
@@ -149,10 +151,10 @@ impl Workspace {
     }
 }
 
-impl Workspace {
+impl<S: Server> Workspace<S> {
     #[instrument(name = "Workspace::new", level = "trace", skip_all)]
     pub fn new(
-        core: &Lb, ctx: &Context, persist: bool, file_cache: Option<Arc<RwLock<FileCache>>>,
+        core: &Lb<S>, ctx: &Context, persist: bool, file_cache: Option<Arc<RwLock<FileCache>>>,
     ) -> Self {
         let writable_dir = core.get_config().writeable_path;
         let writeable_dir = Path::new(&writable_dir);
@@ -436,7 +438,7 @@ impl Workspace {
         self.tab_strip.is_empty()
     }
 
-    pub fn current_tab(&self) -> Option<&Tab> {
+    pub fn current_tab(&self) -> Option<&Tab<S>> {
         self.current_tab.as_ref().and_then(|id| self.tabs.get(id))
     }
 
@@ -477,22 +479,22 @@ impl Workspace {
         self.current_tab().map(|tab| self.tab_title(tab))
     }
 
-    pub fn current_tab_mut(&mut self) -> Option<&mut Tab> {
+    pub fn current_tab_mut(&mut self) -> Option<&mut Tab<S>> {
         self.current_tab.and_then(|id| self.tabs.get_mut(&id))
     }
 
-    pub fn current_tab_markdown(&self) -> Option<&Markdown> {
+    pub fn current_tab_markdown(&self) -> Option<&Markdown<S>> {
         self.current_tab()?.markdown()
     }
 
-    pub fn current_tab_markdown_mut(&mut self) -> Option<&mut Markdown> {
+    pub fn current_tab_markdown_mut(&mut self) -> Option<&mut Markdown<S>> {
         self.current_tab_mut()?.markdown_mut()
     }
-    pub fn current_tab_svg_mut(&mut self) -> Option<&mut SVGEditor> {
+    pub fn current_tab_svg_mut(&mut self) -> Option<&mut SVGEditor<S>> {
         self.current_tab_mut()?.svg_mut()
     }
 
-    pub fn current_tab_image(&self) -> Option<&ImageViewer> {
+    pub fn current_tab_image(&self) -> Option<&ImageViewer<S>> {
         self.current_tab()?.image_viewer()
     }
 
@@ -500,7 +502,7 @@ impl Workspace {
     /// markdown document's editor or the chat tab's composer. Lets the
     /// `UITextInput` FFI bridge target whichever editor is current without
     /// caring which kind of tab owns it.
-    pub fn focused_mdedit_mut(&mut self) -> Option<&mut MdEdit> {
+    pub fn focused_mdedit_mut(&mut self) -> Option<&mut MdEdit<S>> {
         let tab = self.current_tab_mut()?;
         if tab.markdown().is_some() {
             tab.markdown_mut().map(|md| &mut md.edit)
@@ -699,7 +701,7 @@ impl Workspace {
     }
 
     /// What tab content is built from, for this workspace's context.
-    pub fn resources(&self) -> crate::tab::TabResources {
+    pub fn resources(&self) -> crate::tab::TabResources<S> {
         crate::tab::TabResources {
             ctx: self.ctx.clone(),
             core: self.core.clone(),
@@ -1716,7 +1718,7 @@ impl Workspace {
     /// Opens or focuses the mind map. Reuses an existing mind-map session;
     /// otherwise follows the same open policy as the file tree.
     #[cfg(not(target_family = "wasm"))]
-    pub fn upsert_mind_map(&mut self, _core: Lb) {
+    pub fn upsert_mind_map(&mut self, _core: Lb<S>) {
         if let Some(i) = self
             .tab_strip
             .iter()
@@ -1729,7 +1731,7 @@ impl Workspace {
         };
     }
     #[cfg(target_family = "wasm")]
-    pub fn upsert_mind_map(&mut self, core: Lb) {
+    pub fn upsert_mind_map(&mut self, core: Lb<S>) {
         warn!("Mind map is not supported on wasm targets");
     }
 
@@ -1771,7 +1773,7 @@ impl Workspace {
         self.out.selected_file = Some(folder_id);
     }
 
-    pub fn start_space_inspector(&mut self, _core: Lb, folder: Option<File>) {
+    pub fn start_space_inspector(&mut self, _core: Lb<S>, folder: Option<File>) {
         let root_id = folder
             .map(|f| f.id)
             .unwrap_or_else(|| self.core.get_root().map(|r| r.id).unwrap_or_default());
@@ -1859,7 +1861,7 @@ impl Workspace {
     /// first and nothing in flight is overtaken. A note that stays a note
     /// takes its new extension in place.
     pub(crate) fn refit_to_names(&mut self) {
-        let fits = |tab: &Tab, name: &str| {
+        let fits = |tab: &Tab<S>, name: &str| {
             content_fits_name(&tab.content, name)
                 && tab
                     .markdown()
@@ -2080,7 +2082,7 @@ impl Workspace {
     }
 }
 
-impl Workspace {
+impl<S: Server> Workspace<S> {
     fn pending_share_ids(&self) -> Vec<Uuid> {
         let mut ids: Vec<Uuid> = self
             .files
@@ -2117,10 +2119,10 @@ pub struct WsPersistentStore {
 }
 
 /// Content for `dest`, or why it failed to open.
-fn open_content(
-    dest: &Destination, doc: Option<crate::tab::Doc>, res: &crate::tab::TabResources,
+fn open_content<S: Server>(
+    dest: &Destination, doc: Option<crate::tab::Doc>, res: &crate::tab::TabResources<S>,
     salt: egui::Id, read_only: bool,
-) -> ContentState {
+) -> ContentState<S> {
     match TabContent::open(dest, doc, res, salt, read_only) {
         Ok(content) => ContentState::Open(content),
         Err(failure) => ContentState::Failed(failure),
@@ -2129,8 +2131,8 @@ fn open_content(
 
 /// Whether `content` takes `bytes`, a newer version of file `id` now named
 /// `name`, in place: the same editor would open them, whatever the extension.
-fn content_reloads(
-    content: &ContentState, name: &str, bytes: &[u8], guard: &OpenGuard, id: Uuid,
+fn content_reloads<S: Server>(
+    content: &ContentState<S>, name: &str, bytes: &[u8], guard: &OpenGuard, id: Uuid,
 ) -> bool {
     let doc_type = DocType::from_name(name);
     match content {
@@ -2152,7 +2154,7 @@ fn content_reloads(
 
 /// Whether `content` was built for a file named `name`. Loading content picks
 /// its editor from core's current name when the load lands.
-fn content_fits_name(content: &ContentState, name: &str) -> bool {
+fn content_fits_name<S: Server>(content: &ContentState<S>, name: &str) -> bool {
     let doc_type = DocType::from_name(name);
     match content {
         ContentState::Open(TabContent::Markdown(_)) => matches!(

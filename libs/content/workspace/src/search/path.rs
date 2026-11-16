@@ -12,6 +12,7 @@ use crate::{
         phosphor_ui_font_id, with_overlay_scroll,
     },
 };
+use lb_rs::io::server::Server;
 
 pub struct PathSearch {
     searcher: lb_rs::search::PathSearcher,
@@ -185,7 +186,7 @@ impl SearchExecutor for PathSearch {
 }
 
 impl PathSearch {
-    pub fn new(lb: &Lb) -> Self {
+    pub fn new<S: Server>(lb: &Lb<S>) -> Self {
         Self {
             searcher: lb.path_searcher(),
             submitted_query: String::new(),

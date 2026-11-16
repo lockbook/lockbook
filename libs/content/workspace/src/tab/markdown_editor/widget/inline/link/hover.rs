@@ -16,6 +16,7 @@ use crate::tab::markdown_editor::widget::inline::link::LinkMetaLookup;
 use crate::theme::palette_v2::{Theme, ThemeExt as _};
 use crate::widgets::GlyphonLabel;
 use crate::widgets::TextOverflow;
+use lb_rs::io::server::Server;
 
 /// Width of the hover card's content.
 pub(crate) const CARD_W: f32 = 320.0;
@@ -29,7 +30,7 @@ const BANNER_MIN_ASPECT: f32 = 1.4;
 const FAVICON: f32 = 16.0;
 const AVATAR: f32 = 18.0;
 
-impl MdRender {
+impl<S: Server> MdRender<S> {
     /// The preview card for a web link under the pointer, with the block
     /// card's buttons. `shows_url`: the link's text is its URL, so a card
     /// with nothing fetched would only repeat it. False when it has no card.

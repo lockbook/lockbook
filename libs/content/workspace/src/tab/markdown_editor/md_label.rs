@@ -13,9 +13,11 @@ use lb_rs::model::text::buffer::Buffer;
 use crate::TextBufferArea;
 
 use super::{Arena, MdRender};
+use lb_rs::io::network::Network;
+use lb_rs::io::server::Server;
 
-pub struct MdLabel {
-    pub renderer: MdRender,
+pub struct MdLabel<S = Network> {
+    pub renderer: MdRender<S>,
     /// (content hash, width, dark mode) of the last prepared render. When it
     /// matches, `prepare` skips the reparse + `bump_text_seq` so the layout
     /// cache survives — a transcript of unchanging labels then re-lays-out
@@ -23,7 +25,7 @@ pub struct MdLabel {
     last_prepared: Option<(u64, u32, bool)>,
 }
 
-impl MdLabel {
+impl<S: Server> MdLabel<S> {
     pub fn new(ctx: egui::Context) -> Self {
         Self { renderer: MdRender::empty(ctx), last_prepared: None }
     }

@@ -12,6 +12,8 @@ use super::ShellApp;
 use super::action::{Action, Modal, OnboardLookup, OnboardMode};
 use super::apply_share::spawn_username_exists;
 use super::session::{self, CoreLoad, OnboardFail, Session};
+use lb::io::network::Network;
+use lb::io::server::Server;
 
 /// Seed the onboard URL field: `API_URL` when it isn’t the hosted default.
 pub(crate) fn initial_api_url() -> String {
@@ -102,7 +104,7 @@ fn onboard_uname_format_ok(username: &str) -> bool {
 }
 
 /// Apply finished create-username network checks.
-pub(crate) fn onboard_poll_uname(app: &mut ShellApp, ctx: &Context) {
+pub(crate) fn onboard_poll_uname<S: Server>(app: &mut ShellApp<S>, ctx: &Context) {
     let done: Option<(String, OnboardLookup)> =
         ctx.data_mut(|d| d.remove_temp::<(String, OnboardLookup)>(onboard_uname_verify_done_key()));
     let Some((name, lookup)) = done else {
@@ -126,7 +128,7 @@ pub(crate) fn onboard_poll_uname(app: &mut ShellApp, ctx: &Context) {
 }
 
 /// Debounced availability check via `username_exists` (works signed-out).
-pub(crate) fn onboard_verify_uname(app: &mut ShellApp, ctx: &Context) {
+pub(crate) fn onboard_verify_uname<S: Server>(app: &mut ShellApp<S>, ctx: &Context) {
     onboard_poll_uname(app, ctx);
     let (q, api_url) = match &app.modal {
         Some(Modal::Onboard {
@@ -206,13 +208,13 @@ fn onboard_import_secret(account_key: &str) -> String {
     if words.len() == 24 { words.join(" ") } else { words.concat() }
 }
 
-pub(crate) enum AutoOnboard {
-    Ready { core: Lb, files: FileCache, sub_info: Option<SubscriptionInfo> },
+pub(crate) enum AutoOnboard<S = Network> {
+    Ready { core: Lb<S>, files: FileCache, sub_info: Option<SubscriptionInfo> },
     Failed,
 }
 
 /// Apply a finished auto-import. Failures are silent — the form stays put.
-pub(crate) fn poll_auto_import(app: &mut ShellApp, ctx: &Context) {
+pub(crate) fn poll_auto_import<S: Server>(app: &mut ShellApp<S>, ctx: &Context) {
     let Some(rx) = &app.onboard_auto_rx else {
         return;
     };
@@ -244,7 +246,7 @@ pub(crate) fn poll_auto_import(app: &mut ShellApp, ctx: &Context) {
     }
 }
 
-pub(crate) fn onboard_submit(app: &mut ShellApp, ctx: &Context, show_error: bool) {
+pub(crate) fn onboard_submit<S: Server>(app: &mut ShellApp<S>, ctx: &Context, show_error: bool) {
     if app.onboard_auto_rx.is_some() {
         return;
     }
@@ -423,8 +425,8 @@ pub(crate) fn onboard_submit(app: &mut ShellApp, ctx: &Context, show_error: bool
     });
 }
 
-fn onboard_account(
-    core: &Lb, mode: OnboardMode, uname: &str, import_secret: &str, api: &str,
+fn onboard_account<S: Server>(
+    core: &Lb<S>, mode: OnboardMode, uname: &str, import_secret: &str, api: &str,
 ) -> Result<(), String> {
     match mode {
         OnboardMode::Create => core
@@ -439,9 +441,9 @@ fn onboard_account(
     }
 }
 
-fn onboard_sync_and_cache(
-    core: Lb, status: Option<&session::LoadStatus>, ctx: &Context,
-) -> Result<CoreLoad, Box<(Lb, String)>> {
+fn onboard_sync_and_cache<S: Server>(
+    core: Lb<S>, status: Option<&session::LoadStatus>, ctx: &Context,
+) -> Result<CoreLoad<S>, Box<(Lb<S>, String)>> {
     use super::session::set_load_status;
     if let Some(status) = status {
         set_load_status(status, "Syncing your files…");

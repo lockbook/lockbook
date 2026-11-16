@@ -7,8 +7,9 @@ use crate::components::{Theme, claim, place_at};
 use super::ShellApp;
 use super::action::Action;
 use super::tabs;
+use lb::io::server::Server;
 
-pub fn show(app: &mut ShellApp, ui: &mut Ui, _t: &Theme, queue: &mut Vec<Action>) {
+pub fn show<S: Server>(app: &mut ShellApp<S>, ui: &mut Ui, _t: &Theme, queue: &mut Vec<Action>) {
     ui.spacing_mut().item_spacing = egui::vec2(0.0, 0.0);
 
     tabs::show(app, ui, _t, queue);

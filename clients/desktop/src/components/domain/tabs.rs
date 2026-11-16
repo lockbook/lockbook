@@ -25,6 +25,7 @@ use crate::shell::action::Action as A;
 use crate::shell::titlebar::{
     HEADER_H, block_window_drag, tab_drag_gap, tab_left_inset, tab_right_inset,
 };
+use lb::io::server::Server;
 
 const TAB_PAD_X: f32 = 12.0;
 const TAB_MAX_W: f32 = 180.0;
@@ -48,7 +49,9 @@ struct TabReorder(usize);
 /// Paint the titleband. Always claims [`HEADER_H`] (including zero tabs) so the
 /// editor / landing page sit below chrome. Returns **`true`** after the band is
 /// claimed.
-pub fn show(app: &mut ShellApp, ui: &mut Ui, t: &Theme, queue: &mut Vec<Action>) -> bool {
+pub fn show<S: Server>(
+    app: &mut ShellApp<S>, ui: &mut Ui, t: &Theme, queue: &mut Vec<Action>,
+) -> bool {
     ui.spacing_mut().item_spacing = vec2(0.0, 0.0);
 
     let (tabs, can_reopen) = app

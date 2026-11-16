@@ -7,6 +7,7 @@ use crate::TextBufferArea;
 use crate::tab::markdown_editor::TouchTarget;
 use crate::tab::markdown_editor::{Affinity, MdRender};
 use crate::widgets::glyphon_cache::{GlyphonCache, GlyphonCacheKey, GlyphonFontFamily};
+use lb_rs::io::server::Server;
 
 pub trait BufferExt {
     fn shaped_size(&self, ppi: f32) -> Vec2;
@@ -615,7 +616,7 @@ fn push_sanitised(out: &mut String, tabs: &mut Vec<usize>, text: &str) {
     }
 }
 
-impl MdRender {
+impl<S: Server> MdRender<S> {
     /// Where body text's baseline falls in a row, as a fraction of the row
     /// height down from its top; the same at every size.
     pub(crate) fn body_baseline(&self, row_height: f32) -> f32 {
@@ -827,8 +828,8 @@ fn tab_stop_distance(row_height: f32) -> f32 {
 ///
 /// Returns `None` on font-system unavailability or panic during
 /// shape (caller falls back to an empty layout).
-fn shape_to_items(
-    renderer: &MdRender, layout: &Layout, row_height: f32, width: f32, inline_pad: f32,
+fn shape_to_items<S: Server>(
+    renderer: &MdRender<S>, layout: &Layout, row_height: f32, width: f32, inline_pad: f32,
 ) -> Option<Vec<InlineItem>> {
     use std::sync::{Arc, Mutex};
 
@@ -1212,8 +1213,8 @@ fn shape_cache_key(text: &str, format: &Format, metric: f32, width_px: f32) -> G
 /// (in chunk-local coords) back to a source grapheme via
 /// `layout.source_segments`, and sums each glyph's width into the
 /// owning grapheme's slot.
-fn cluster_advances_from_buffer(
-    renderer: &MdRender, layout: &Layout,
+fn cluster_advances_from_buffer<S: Server>(
+    renderer: &MdRender<S>, layout: &Layout,
     buffer: &std::sync::Arc<std::sync::RwLock<glyphon::Buffer>>, chunk_lo: usize,
     source_range: (Grapheme, Grapheme), ppi: f32,
 ) -> Vec<f32> {
@@ -1281,8 +1282,8 @@ fn default_format() -> Format {
 /// separator between consecutive sub-Boxes so the greedy breaker
 /// can wrap inside the token.
 #[allow(clippy::too_many_arguments)]
-fn emit_cluster_split_boxes(
-    renderer: &MdRender, layout: &Layout,
+fn emit_cluster_split_boxes<S: Server>(
+    renderer: &MdRender<S>, layout: &Layout,
     fs: &std::sync::Arc<std::sync::Mutex<glyphon::FontSystem>>,
     cache: &std::sync::Arc<std::sync::Mutex<GlyphonCache>>, items: &mut Vec<InlineItem>,
     chunk_text: &str, chunk_lo: usize, source_range: (Grapheme, Grapheme), format: &Format,
@@ -1361,8 +1362,8 @@ fn empty_buffer(row_height: f32, ppi: f32) -> std::sync::Arc<std::sync::RwLock<g
 
 /// Map a visible byte range back to source. Returns `(start, start)`
 /// for an empty intersection (caller treats this as no-source).
-fn source_range_for_visible(
-    renderer: &MdRender, layout: &Layout, visible_lo: usize, visible_hi: usize,
+fn source_range_for_visible<S: Server>(
+    renderer: &MdRender<S>, layout: &Layout, visible_lo: usize, visible_hi: usize,
 ) -> (Grapheme, Grapheme) {
     let segs = &renderer.buffer.current.segs;
     let mut lo = layout.source_range.end();
@@ -2054,7 +2055,7 @@ pub fn build_rows(
 
 // ─── paint (WrapUnitLayout → painted glyphs + MdRender::fragments) ───
 
-impl MdRender {
+impl<S: Server> MdRender<S> {
     /// Paint a wrap unit. For each row, paint each fragment in
     /// turn; the screen-space fragment is mirrored onto
     /// `self.fragments` for cursor / hit-test lookups.
@@ -2321,7 +2322,7 @@ fn in_cell(fragment: &Fragment, cell: &(Grapheme, Grapheme)) -> bool {
 
 // ─── cursor + hit-test helpers (read-only over fragments) ────────────
 
-impl MdRender {
+impl<S: Server> MdRender<S> {
     /// Find the fragment whose `source_range` contains `offset`,
     /// inclusive of both endpoints (so cursor positions at line-
     /// trailing `\n` bytes — excluded from any source line by

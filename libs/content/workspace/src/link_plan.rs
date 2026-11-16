@@ -16,6 +16,7 @@ use crate::file_cache::{
 use crate::links::{LinkKind, NoteLink, written_dests};
 use crate::note_index::{Backlink, locate};
 use crate::resolvers::link::can_edit;
+use lb_rs::io::server::Server;
 
 /// A link's new destination.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -255,7 +256,7 @@ fn rewrite(
 /// rewritten `to`, leaving the rest of the note as it is. A note changed
 /// since is rewritten from what it holds now. Returns the notes it couldn't
 /// write.
-pub fn write_mends(lb: &Lb, mends: &[Mend]) -> Vec<(Uuid, String)> {
+pub fn write_mends<S: Server>(lb: &Lb<S>, mends: &[Mend]) -> Vec<(Uuid, String)> {
     let mut failed = vec![];
     for note in distinct(mends.iter().map(|m| m.note)) {
         let ours: Vec<&Mend> = mends.iter().filter(|m| m.note == note).collect();
@@ -266,7 +267,7 @@ pub fn write_mends(lb: &Lb, mends: &[Mend]) -> Vec<(Uuid, String)> {
     failed
 }
 
-fn write_note(lb: &Lb, note: Uuid, mends: &[&Mend]) -> LbResult<()> {
+fn write_note<S: Server>(lb: &Lb<S>, note: Uuid, mends: &[&Mend]) -> LbResult<()> {
     let mut written: Vec<Mend> = vec![];
     for m in mends {
         let to = match m.to.strip_prefix("lb://") {

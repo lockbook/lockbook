@@ -750,7 +750,7 @@ fn an_undo_and_a_key_in_one_frame_let_go_of_the_image() {
 fn images_and_html(md: &str) -> (usize, Vec<String>) {
     use comrak::nodes::NodeValue;
     let arena = comrak::Arena::new();
-    let root = comrak::parse_document(&arena, md, &super::super::MdRender::comrak_options());
+    let root = comrak::parse_document(&arena, md, &<super::super::MdRender>::comrak_options());
     let images = root
         .descendants()
         .filter(|n| matches!(n.data.borrow().value, NodeValue::Image(_)))

@@ -14,13 +14,14 @@ use crate::tab::markdown_editor::fold::FOLD_TAG;
 use crate::tab::markdown_editor::widget::inline::image::image::image_url;
 use crate::tab::markdown_editor::widget::utils::NodeValueExt as _;
 use crate::tab::markdown_editor::{Event, MdRender};
+use lb_rs::io::server::Server;
 
 pub(crate) mod container;
 pub(crate) mod drag;
 pub(crate) mod leaf;
 pub(crate) mod spacing;
 
-impl<'ast> MdRender {
+impl<'ast, S: Server> MdRender<S> {
     pub fn width(&self, node: &'ast AstNode<'ast>) -> f32 {
         let parent = || node.parent().unwrap();
         let parent_width = || self.width(parent());
@@ -805,7 +806,7 @@ impl LayoutCache {
     }
 }
 
-impl MdRender {
+impl<S: Server> MdRender<S> {
     /// Look up or shape a glyphon buffer for the given text and formatting.
     /// Delegates to the shared GlyphonCache so the same shaped buffer is reused
     /// across frames (and across widgets). The editor-specific concern here is
@@ -951,7 +952,7 @@ impl MdRender {
     }
 }
 
-impl<'ast> MdRender {
+impl<'ast, S: Server> MdRender<S> {
     fn height_deps(&self) -> HeightDeps {
         [
             self.width_seq,

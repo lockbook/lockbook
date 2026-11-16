@@ -11,6 +11,7 @@ use serde::{Deserialize, Serialize};
 
 use super::action::Action as A;
 use super::session::Ready;
+use lb::io::server::Server;
 
 /// How long after signup the card shows for `arm`, if it does.
 fn delay_ms(arm: SignInNudge) -> Option<u64> {
@@ -39,7 +40,7 @@ pub struct Nudges {
 }
 
 impl Nudges {
-    pub fn load(ready: &Ready) -> Self {
+    pub fn load<S: Server>(ready: &Ready<S>) -> Self {
         let path = ready.workspace.core.get_config().writeable_path.clone();
         let path = PathBuf::from(path).join("nudges.json");
         let state = std::fs::read(&path)
@@ -51,7 +52,7 @@ impl Nudges {
         nudges
     }
 
-    fn set_due(&mut self, ready: &Ready) {
+    fn set_due<S: Server>(&mut self, ready: &Ready<S>) {
         let username = &ready.workspace.account.username;
         let delay = delay_ms(cohort_in(SignInNudge::EXPERIMENT, username));
         self.due_at = self
@@ -62,7 +63,7 @@ impl Nudges {
     }
 
     /// This device just created the account.
-    pub fn created(&mut self, ready: &Ready) {
+    pub fn created<S: Server>(&mut self, ready: &Ready<S>) {
         self.state.created_at = Some(now());
         self.set_due(ready);
         self.save();

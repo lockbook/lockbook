@@ -13,9 +13,10 @@ use super::apply_onboard::{
     display_server_host, onboard_server_editing_key, onboard_server_snap_key,
     uname_check_matches_core,
 };
+use lb::io::server::Server;
 
-pub(crate) fn show_onboard(
-    app: &mut ShellApp, ctx: &egui::Context, t: &Theme, queue: &mut Vec<Action>,
+pub(crate) fn show_onboard<S: Server>(
+    app: &mut ShellApp<S>, ctx: &egui::Context, t: &Theme, queue: &mut Vec<Action>,
 ) {
     let (mode, uname_lookup, uname_lookup_for, busy, err, api_url) = match &app.modal {
         Some(Modal::Onboard {
@@ -351,7 +352,9 @@ pub(crate) fn show_onboard(
         });
 }
 
-fn onboard_backup(app: &mut ShellApp, ui: &mut egui::Ui, t: &Theme, queue: &mut Vec<Action>) {
+fn onboard_backup<S: Server>(
+    app: &mut ShellApp<S>, ui: &mut egui::Ui, t: &Theme, queue: &mut Vec<Action>,
+) {
     ui.label(
         TypeRole::Heading
             .rich("Your secret key")
@@ -496,7 +499,9 @@ fn onboard_server_need_focus_key() -> Id {
 }
 
 /// Rest: hostname caption. Click: field. Blur / Enter commit; Esc reverts; × defaults.
-fn onboard_server_row(app: &mut ShellApp, ui: &mut egui::Ui, t: &Theme, api_url: &str) {
+fn onboard_server_row<S: Server>(
+    app: &mut ShellApp<S>, ui: &mut egui::Ui, t: &Theme, api_url: &str,
+) {
     let editing_key = onboard_server_editing_key();
     let snap_key = onboard_server_snap_key();
     let mut editing = ui

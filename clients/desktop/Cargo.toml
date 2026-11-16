@@ -3,6 +3,10 @@ name = "lockbook-desktop"
 version = "26.11.13"
 edition = "2021"
 
+[features]
+# `--try`: opens a QA fixture on a core and server in memory
+try = ["dep:lockbook-server"]
+
 [dependencies]
 arboard = { version = "3.6", features = ["image", "wayland-data-control"] }
 chrono = { version = "0.4", default-features = false, features = ["clock"] }
@@ -21,6 +25,7 @@ image = { version = "0.25", default-features = false, features = [
     "ico",
 ] }
 lb = { package = "lb-rs", path = "../../libs/lb/lb-rs", default-features = false }
+lockbook-server = { path = "../../server", features = ["in-process"], optional = true }
 log = "0.4"
 tracing = "0.1"
 rfd = { version = "0.15.4", default-features = false, features = ["xdg-portal", "async-std"] }
@@ -73,3 +78,8 @@ objc2-foundation = { version = "0.2.2", default-features = false, features = [
     "NSUserDefaults",
 ] }
 raw-window-handle = "0.6"
+
+# AppKit's quit, which needs the main thread.
+[[test]]
+name = "quit"
+harness = false

@@ -11,10 +11,11 @@ use crate::components::{
 use super::ShellApp;
 use super::action::Action as A;
 use super::action::{Action, Modal, ShareLookup, ShareStaged};
+use lb::io::server::Server;
 use lb::model::file::ShareMode;
 
-pub(crate) fn show_share(
-    app: &mut ShellApp, ctx: &egui::Context, t: &Theme, queue: &mut Vec<Action>,
+pub(crate) fn show_share<S: Server>(
+    app: &mut ShellApp<S>, ctx: &egui::Context, t: &Theme, queue: &mut Vec<Action>,
 ) {
     // Drain background username checks (never block the UI thread on network).
     super::apply::share_poll_network(app, ctx);
@@ -400,7 +401,7 @@ impl ShareAccessRow {
 }
 
 /// Owner + direct shares on `id` + inherited shares from ancestor folders.
-fn share_access_rows(app: &ShellApp, id: Uuid) -> Vec<ShareAccessRow> {
+fn share_access_rows<S: Server>(app: &ShellApp<S>, id: Uuid) -> Vec<ShareAccessRow> {
     let Some(ready) = app.session.ready() else {
         return Vec::new();
     };

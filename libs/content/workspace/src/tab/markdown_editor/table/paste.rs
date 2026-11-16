@@ -13,6 +13,7 @@ use super::structure::{BLANK, RowText, delimiter_wants_pipe, row_text};
 use crate::tab::markdown_editor::bounds::RangesExt as _;
 use crate::tab::markdown_editor::{MdEdit, MdRender};
 use crate::tab::markdown_editor::{Syntax, View};
+use lb_rs::io::server::Server;
 
 /// Rows of cells, as the text of each, read from a paste.
 pub type Grid = Vec<Vec<String>>;
@@ -73,7 +74,7 @@ fn content_end(cell: &str) -> usize {
     cell_content(cell, true).1
 }
 
-impl MdRender {
+impl<S: Server> MdRender<S> {
     /// The grid a paste of `text` holds, if it is to paste as one. Tabs
     /// separate cells; with `as_table`, a table having been asked for,
     /// commas do where there are no tabs. A plain paste outside a table is a
@@ -257,7 +258,7 @@ impl MdRender {
     }
 }
 
-impl<'ast> MdEdit {
+impl<'ast, S: Server> MdEdit<S> {
     /// Pastes a grid: into the table the selection starts in, or as a new
     /// table in the selection's place.
     pub fn paste_grid(

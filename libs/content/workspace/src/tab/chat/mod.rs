@@ -33,6 +33,8 @@ use crate::tab::markdown_editor::{MdEdit, MdLabel};
 use crate::tab::markdown_editor::{Syntax, View};
 use crate::theme::icons::Icon;
 use crate::theme::palette_v2::{Palette, ThemeExt, username_color};
+use lb_rs::io::network::Network;
+use lb_rs::io::server::Server;
 
 mod anthropic;
 mod backend;
@@ -213,9 +215,9 @@ fn template_label(name: &str, json: &str) -> String {
 /// are per-message so each one's `LayoutCache` can actually memoize across
 /// frames — rotating one shared label through every message would invalidate
 /// the cache on every rotation.
-pub struct Entry {
+pub struct Entry<S = Network> {
     pub msg: Message,
-    pub label: MdLabel,
+    pub label: MdLabel<S>,
 }
 
 /// Per-row layout plan produced by the first pass. All rects absolute; pass 2
@@ -312,7 +314,7 @@ struct StripPlan {
     ts: Option<Arc<Galley>>,
 }
 
-impl Entry {
+impl<S: Server> Entry<S> {
     fn new(
         msg: Message, ctx: &egui::Context, files: Arc<RwLock<FileCache>>, chat_id: Uuid,
     ) -> Self {
@@ -334,7 +336,7 @@ impl Entry {
     }
 }
 
-pub struct Chat {
+pub struct Chat<S = Network> {
     pub id: Uuid,
     /// What the chat's widget ids derive from.
     pub salt: Id,
@@ -342,13 +344,13 @@ pub struct Chat {
     /// and it never takes focus.
     pub embedded: bool,
     pub hmac: Option<DocumentHmac>,
-    pub entries: Vec<Entry>,
-    pub composer: MdEdit,
+    pub entries: Vec<Entry<S>>,
+    pub composer: MdEdit<S>,
     /// The connect step's masked API-key input. A real `MdEdit` (not an egui
     /// `TextEdit`) so the native iOS keyboard/caret reach it through the same
     /// bridge the composer uses — `focused_mdedit_mut` points here while the
     /// connect step is open. Plain source + `mask` so it renders as `*`.
-    pub key_field: MdEdit,
+    pub key_field: MdEdit<S>,
     /// The masked field's tight layout rect (one centered row), where the
     /// `MdEdit` renders and clips.
     key_field_rect: Rect,
@@ -410,11 +412,11 @@ pub struct Chat {
     /// Agent driver for 1-1 agent chats. `None` when the chat is shared.
     harness: Option<harness::Harness>,
     /// Renders the in-flight streaming reply.
-    streaming_label: MdLabel,
+    streaming_label: MdLabel<S>,
     /// Unshared at open — eligible for an agent (setup guidance is shown if
     /// none could be built).
     unshared: bool,
-    core: lb_rs::blocking::Lb,
+    core: lb_rs::blocking::Lb<S>,
     /// Config loaded off the UI thread — decrypting provider files (and the
     /// prompt) is too slow for the render frame in debug. `provider` is the
     /// resolved current one (setup hint + the turn's backend); `providers`
@@ -549,8 +551,8 @@ enum Onboard {
 
 /// This user's latest per-chat model selection (config entries are ts-sorted
 /// with the rest of the log; last wins).
-fn latest_selection(
-    entries: &[Entry], username: &str,
+fn latest_selection<S: Server>(
+    entries: &[Entry<S>], username: &str,
 ) -> Option<lb_rs::model::chat::ModelSelection> {
     entries
         .iter()
@@ -571,7 +573,7 @@ const EFFORT_LEVELS: &[&str] = &["low", "medium", "high"];
 
 /// This user's latest per-chat reasoning-effort pick (config entries are
 /// ts-sorted with the log; last wins). `EFFORT_AUTO` clears the override.
-fn latest_effort(entries: &[Entry], username: &str) -> Option<String> {
+fn latest_effort<S: Server>(entries: &[Entry<S>], username: &str) -> Option<String> {
     entries
         .iter()
         .filter(|e| e.msg.from == username)
@@ -582,7 +584,7 @@ fn latest_effort(entries: &[Entry], username: &str) -> Option<String> {
 
 /// This user's granted access roots (config entries are ts-sorted with the
 /// log; last wins). Empty until the first grant.
-fn latest_scope(entries: &[Entry], username: &str) -> Vec<String> {
+fn latest_scope<S: Server>(entries: &[Entry<S>], username: &str) -> Vec<String> {
     entries
         .iter()
         .filter(|e| e.msg.from == username)
@@ -634,7 +636,9 @@ fn is_auth_error(msg: &str) -> bool {
 /// The model this user last ran `provider` with, mined from the append-only
 /// config history — what makes switching back to a provider land on the
 /// model you left it on, not the file default.
-fn last_model_for(entries: &[Entry], username: &str, provider: &str) -> Option<String> {
+fn last_model_for<S: Server>(
+    entries: &[Entry<S>], username: &str, provider: &str,
+) -> Option<String> {
     entries
         .iter()
         .filter(|e| e.msg.from == username)
@@ -645,7 +649,7 @@ fn last_model_for(entries: &[Entry], username: &str, provider: &str) -> Option<S
         .next_back()
 }
 
-impl Chat {
+impl<S: Server> Chat<S> {
     fn region_rect(&self) -> Option<Rect> {
         let id = self.region?;
         self.entry_rows
@@ -672,9 +676,9 @@ impl Chat {
 
     pub fn new(
         bytes: &[u8], id: Uuid, hmac: Option<DocumentHmac>, account: Account, ctx: egui::Context,
-        files: Arc<RwLock<FileCache>>, core: &lb_rs::blocking::Lb,
+        files: Arc<RwLock<FileCache>>, core: &lb_rs::blocking::Lb<S>,
     ) -> Self {
-        let entries: Vec<Entry> = Buffer::new(bytes)
+        let entries: Vec<Entry<S>> = Buffer::new(bytes)
             .messages
             .into_iter()
             .map(|m| Entry::new(m, &ctx, Arc::clone(&files), id))
@@ -926,7 +930,7 @@ impl Chat {
         self.key_entry.is_none()
     }
 
-    pub fn focused_field(&mut self) -> &mut MdEdit {
+    pub fn focused_field(&mut self) -> &mut MdEdit<S> {
         if self.key_entry.is_some() { &mut self.key_field } else { &mut self.composer }
     }
 
@@ -946,7 +950,7 @@ impl Chat {
         let merged_msgs = Buffer::new(&merged).messages;
         self.base = bytes.to_vec();
 
-        let mut old: Vec<Entry> = std::mem::take(&mut self.entries);
+        let mut old: Vec<Entry<S>> = std::mem::take(&mut self.entries);
         self.entries = merged_msgs
             .into_iter()
             .map(|msg| match old.iter().position(|e| e.msg == msg) {
@@ -1294,8 +1298,8 @@ struct ForkInfo {
 /// yet synced) also falls back to the implicit parent rather than orphaning
 /// the row. `hide_children_of` truncates the walk at that parent — used
 /// while regenerating so the superseded reply disappears during the turn.
-fn resolve_visible(
-    entries: &[Entry], branch_choice: &HashMap<Uuid, Uuid>, hide_children_of: Option<Uuid>,
+fn resolve_visible<S: Server>(
+    entries: &[Entry<S>], branch_choice: &HashMap<Uuid, Uuid>, hide_children_of: Option<Uuid>,
 ) -> Vec<VisibleRow> {
     let msgs: Vec<usize> = (0..entries.len())
         .filter(|&i| !entries[i].hidden())
@@ -1340,7 +1344,7 @@ fn resolve_visible(
 /// indices in ts order), built the same way [`resolve_visible`] does so
 /// deletion and display agree on parentage. Hidden rows (config) are not in
 /// the tree.
-fn child_map(entries: &[Entry]) -> HashMap<Option<usize>, Vec<usize>> {
+fn child_map<S: Server>(entries: &[Entry<S>]) -> HashMap<Option<usize>, Vec<usize>> {
     let msgs: Vec<usize> = (0..entries.len())
         .filter(|&i| !entries[i].hidden())
         .collect();
@@ -1364,7 +1368,7 @@ fn child_map(entries: &[Entry]) -> HashMap<Option<usize>, Vec<usize>> {
 /// The parent id a sibling of `entries[idx]` should carry: the row's own
 /// resolved parent (`Uuid::nil()` = root), or `None` when the parent is a
 /// legacy id-less row that can't be referenced.
-fn parent_for_sibling(entries: &[Entry], idx: usize) -> Option<Uuid> {
+fn parent_for_sibling<S: Server>(entries: &[Entry<S>], idx: usize) -> Option<Uuid> {
     match entries[idx].msg.reply_to {
         Some(rt) => Some(rt),
         None => {
@@ -1474,7 +1478,7 @@ fn truncate_for_persist(mut result: String) -> String {
 /// it's folded onto the following tool call's assistant turn (`carry`) so the
 /// sequence alternates user/assistant correctly and the two never land as
 /// consecutive assistant turns.
-fn seed_history(entries: &[Entry], visible: &[VisibleRow]) -> Vec<backend::ChatMsg> {
+fn seed_history<S: Server>(entries: &[Entry<S>], visible: &[VisibleRow]) -> Vec<backend::ChatMsg> {
     let mut out = Vec::new();
     let mut carry: Option<String> = None;
     let flush = |out: &mut Vec<backend::ChatMsg>, carry: &mut Option<String>| {
@@ -1526,8 +1530,8 @@ fn seed_history(entries: &[Entry], visible: &[VisibleRow]) -> Vec<backend::ChatM
 /// flag decoded). The shared spine of [`rebuild_buffers`] and
 /// [`build_tool_viz`] — the inverse of live dispatch, so both agree on how a
 /// reopened chat reconstructs agent state.
-fn fold_visible(
-    entries: &[Entry], visible: &[VisibleRow],
+fn fold_visible<S: Server>(
+    entries: &[Entry<S>], visible: &[VisibleRow],
     mut f: impl FnMut(&mut tools::Buffers, &Message, &ToolRecord, Option<String>, bool),
 ) -> tools::Buffers {
     let mut buffers = tools::Buffers::default();
@@ -1548,7 +1552,7 @@ fn fold_visible(
 /// captures load content, edits transform it, syncs mark it clean. Reopening a
 /// chat reconstructs every open buffer, including unsaved edits. Each record's
 /// raw content rides its `capture` attachment (see [`push_tool_message`]).
-fn rebuild_buffers(entries: &[Entry], visible: &[VisibleRow]) -> tools::Buffers {
+fn rebuild_buffers<S: Server>(entries: &[Entry<S>], visible: &[VisibleRow]) -> tools::Buffers {
     fold_visible(entries, visible, |buffers, _msg, record, capture, errored| {
         tools::fold_record(buffers, &record.name, &record.args, capture, errored);
     })
@@ -1558,8 +1562,8 @@ fn rebuild_buffers(entries: &[Entry], visible: &[VisibleRow]) -> tools::Buffers 
 /// re-folding the visible records — the same fold as [`rebuild_buffers`],
 /// snapshotting around each record. Also returns the final fold: the buffers
 /// the next tool call runs against.
-fn build_tool_viz(
-    entries: &[Entry], visible: &[VisibleRow],
+fn build_tool_viz<S: Server>(
+    entries: &[Entry<S>], visible: &[VisibleRow],
 ) -> (HashMap<Uuid, tools::Viz>, tools::Buffers) {
     let mut viz = HashMap::new();
     let buffers = fold_visible(entries, visible, |buffers, msg, record, capture, errored| {

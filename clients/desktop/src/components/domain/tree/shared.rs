@@ -14,6 +14,7 @@ use crate::shell::action::Action;
 use crate::shell::prefs::relative_modified;
 
 use super::{FileCmd, RowGeom, TreeRowChrome, empty_state, paint_tree_file_row, row_type_icon};
+use lb::io::server::Server;
 
 /// One visible row in Shared with me (share root or descendant under an expanded folder).
 #[derive(Clone, Debug)]
@@ -28,7 +29,9 @@ struct SharedFlat {
     subtitle: Option<String>,
 }
 
-pub fn show_shared(app: &mut ShellApp, ui: &mut Ui, t: &Theme, queue: &mut Vec<Action>) {
+pub fn show_shared<S: Server>(
+    app: &mut ShellApp<S>, ui: &mut Ui, t: &Theme, queue: &mut Vec<Action>,
+) {
     app.ensure_shared_cache();
     if app
         .session
@@ -138,8 +141,9 @@ fn paint_shared_section(ui: &Ui, t: &Theme, title: &str, x: f32, top: f32, h: f3
 }
 
 /// Paint one Shared-with-me file row (share root or descendant).
-fn paint_shared_row(
-    app: &ShellApp, ui: &mut Ui, t: &Theme, queue: &mut Vec<Action>, row: &SharedFlat, rect: Rect,
+fn paint_shared_row<S: Server>(
+    app: &ShellApp<S>, ui: &mut Ui, t: &Theme, queue: &mut Vec<Action>, row: &SharedFlat,
+    rect: Rect,
 ) {
     let expanded = app
         .session
@@ -270,7 +274,7 @@ fn paint_shared_row(
     }
 }
 
-fn shared_folder_empty(app: &ShellApp, id: Uuid, is_folder: bool) -> bool {
+fn shared_folder_empty<S: Server>(app: &ShellApp<S>, id: Uuid, is_folder: bool) -> bool {
     if !is_folder {
         return true;
     }

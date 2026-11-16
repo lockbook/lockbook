@@ -17,8 +17,11 @@ use crate::shell::ops::is_saved_share;
 use crate::shell::prefs::recents_bucket;
 
 use super::{FileCmd, RowGeom, TreeRowChrome, empty_state, paint_tree_file_row, row_type_icon};
+use lb::io::server::Server;
 
-pub fn show_recents(app: &mut ShellApp, ui: &mut Ui, t: &Theme, queue: &mut Vec<Action>) {
+pub fn show_recents<S: Server>(
+    app: &mut ShellApp<S>, ui: &mut Ui, t: &Theme, queue: &mut Vec<Action>,
+) {
     app.ensure_recents_cache();
     if app.session.ready().is_none() {
         return;

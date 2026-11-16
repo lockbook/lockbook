@@ -24,6 +24,7 @@ pub use crate::components::domain::sidebar_resize::{
     resize_over_workspace, resting_width, restore_panel_width_if_collapsed, sync_resizing_latch,
     width_max, width_min,
 };
+use lb::io::server::Server;
 
 /// Landmarks for the Files head (title clearance + chip row). Tests only.
 #[derive(Clone, Debug)]
@@ -60,8 +61,8 @@ pub fn take_head_readout(ctx: &egui::Context) -> Option<SidebarHeadReadout> {
 
 /// Paint the sidebar at resting width with its **right** edge on this ui's
 /// right (slide in/out). Clip so the left runs off-screen.
-pub fn show_sliding(
-    app: &mut ShellApp, ui: &mut Ui, t: &Theme, queue: &mut Vec<Action>, full_w: f32,
+pub fn show_sliding<S: Server>(
+    app: &mut ShellApp<S>, ui: &mut Ui, t: &Theme, queue: &mut Vec<Action>, full_w: f32,
 ) {
     let vis = ui.max_rect();
     ui.set_clip_rect(vis.intersect(ui.clip_rect()));
@@ -83,7 +84,7 @@ pub fn show_sliding(
     );
 }
 
-pub fn show(app: &mut ShellApp, ui: &mut Ui, t: &Theme, queue: &mut Vec<Action>) {
+pub fn show<S: Server>(app: &mut ShellApp<S>, ui: &mut Ui, t: &Theme, queue: &mut Vec<Action>) {
     ui.spacing_mut().item_spacing = egui::vec2(0.0, 0.0);
     ui.set_clip_rect(ui.max_rect().intersect(ui.clip_rect()));
 

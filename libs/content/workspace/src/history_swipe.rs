@@ -7,6 +7,7 @@ use crate::style::chrome::{overlay_shadow, phosphor, phosphor_font_id};
 use crate::tab::{ContentState, TabContent};
 use crate::theme::palette_v2::ThemeExt as _;
 use crate::workspace::Workspace;
+use lb_rs::io::server::Server;
 
 const THRESHOLD: f32 = 96.0;
 const RADIUS: f32 = 20.0;
@@ -175,7 +176,7 @@ impl HistorySwipe {
     }
 }
 
-impl Workspace {
+impl<S: Server> Workspace<S> {
     pub fn history_swipe(&mut self, dir: SwipeDir, travel: f32, y: Option<f32>) -> bool {
         self.ctx.request_repaint();
         self.swipe.pull(dir, travel, y)

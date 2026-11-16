@@ -39,6 +39,7 @@ use super::action::{Action, SidebarPane};
 
 use metrics::{group_gap, icon_hit_size, icon_size, left_chrome_w, titlebar_glyph, toolbar_gap};
 
+use lb::io::server::Server;
 #[cfg(not(any(target_os = "macos", target_os = "windows")))]
 use linux::window_controls;
 #[cfg(target_os = "windows")]
@@ -124,7 +125,9 @@ fn titleband_double_click_interval() -> f64 {
 
 /// Paint drag strip, resize edges, floating toolbar, and window controls.
 /// Call once per frame from the shell root (after panels so tab blockers exist).
-pub fn show(app: &mut ShellApp, ctx: &egui::Context, t: &Theme, queue: &mut Vec<Action>) {
+pub fn show<S: Server>(
+    app: &mut ShellApp<S>, ctx: &egui::Context, t: &Theme, queue: &mut Vec<Action>,
+) {
     // Chrome first so its rects are in the blocker list before drag_strip.
     // Pane / history icons are workspace chrome — hide them on onboard.
     if app.product_open() {
@@ -240,7 +243,9 @@ fn drag_strip(ctx: &egui::Context) {
     ctx.send_viewport_cmd(ViewportCommand::StartDrag);
 }
 
-fn floating_toolbar(app: &mut ShellApp, ctx: &egui::Context, t: &Theme, queue: &mut Vec<Action>) {
+fn floating_toolbar<S: Server>(
+    app: &mut ShellApp<S>, ctx: &egui::Context, t: &Theme, queue: &mut Vec<Action>,
+) {
     let y = HEADER_CENTER - icon_size() / 2.0;
     // Pane cluster always sits on titleband chrome (tab strip / sidebar head).
     let ground = t.neutral_bg_secondary();
@@ -310,7 +315,9 @@ fn floating_toolbar(app: &mut ShellApp, ctx: &egui::Context, t: &Theme, queue: &
 /// The sidecar toggle at the titleband's right, before the window controls:
 /// the current note's outline, docked beside its text. Muted where there's
 /// no note to outline.
-fn sidecar_toggle(app: &mut ShellApp, ctx: &egui::Context, t: &Theme, queue: &mut Vec<Action>) {
+fn sidecar_toggle<S: Server>(
+    app: &mut ShellApp<S>, ctx: &egui::Context, t: &Theme, queue: &mut Vec<Action>,
+) {
     let size = icon_size();
     let y = HEADER_CENTER - size / 2.0;
     let right = ctx.content_rect().right() - sidecar_toggle_inset();
@@ -336,7 +343,9 @@ fn sidecar_toggle(app: &mut ShellApp, ctx: &egui::Context, t: &Theme, queue: &mu
 
 /// The source toggle, left of the sidecar toggle: files with a rendered form
 /// shown as their text. Muted where the file has no rendered form.
-fn source_toggle(app: &mut ShellApp, ctx: &egui::Context, t: &Theme, queue: &mut Vec<Action>) {
+fn source_toggle<S: Server>(
+    app: &mut ShellApp<S>, ctx: &egui::Context, t: &Theme, queue: &mut Vec<Action>,
+) {
     let size = icon_size();
     let y = HEADER_CENTER - size / 2.0;
     let right = ctx.content_rect().right() - sidecar_toggle_inset() - size;

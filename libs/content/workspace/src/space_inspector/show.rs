@@ -8,6 +8,8 @@ use egui::{
     UiBuilder,
 };
 use lb_rs::blocking::Lb;
+use lb_rs::io::network::Network;
+use lb_rs::io::server::Server;
 use lb_rs::model::errors::LbErr;
 use lb_rs::model::file::File;
 use lb_rs::model::usage::bytes_to_human;
@@ -27,8 +29,8 @@ struct ColorHelper {
     color: Color32,
 }
 
-pub struct SpaceInspector {
-    lb: Lb,
+pub struct SpaceInspector<S = Network> {
+    lb: Lb<S>,
     state: Arc<Mutex<AppState>>,
     data: Data,
     layer_height: f32,
@@ -45,8 +47,8 @@ enum AppState {
     Error(LbErr),
 }
 
-impl SpaceInspector {
-    pub fn new(lb: &Lb, potential_root: Option<File>, ctx: Context) -> Self {
+impl<S: Server> SpaceInspector<S> {
+    pub fn new(lb: &Lb<S>, potential_root: Option<File>, ctx: Context) -> Self {
         let bg_lb = lb.clone();
         let state: Arc<Mutex<AppState>> = Default::default();
         let bg_state = state.clone();
@@ -71,7 +73,9 @@ impl SpaceInspector {
     }
 
     #[tracing::instrument(name = "SpaceInspector::load", level = "trace", skip_all)]
-    fn load(bg_lb: Lb, bg_state: Arc<Mutex<AppState>>, potential_root: Option<File>, ctx: Context) {
+    fn load(
+        bg_lb: Lb<S>, bg_state: Arc<Mutex<AppState>>, potential_root: Option<File>, ctx: Context,
+    ) {
         let usage = bg_lb.get_usage();
         let meta_data = bg_lb.list_metadatas();
 

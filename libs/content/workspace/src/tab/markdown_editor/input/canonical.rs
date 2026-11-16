@@ -7,6 +7,7 @@ use crate::tab::markdown_editor::widget::link_completions::{
 use crate::tab::markdown_editor::{self, MdEdit};
 use comrak::nodes::{AstNode, ListType, NodeHeading, NodeLink, NodeList, NodeValue};
 use egui::{self, Key, Modifiers};
+use lb_rs::io::server::Server;
 use lb_rs::model::text::offset_types::RangeExt as _;
 use markdown_editor::input::{Advance, Bound, Event, FrontMatterAction, Increment, Region};
 
@@ -31,7 +32,7 @@ impl From<Modifiers> for Advance {
 
 const PAGE_LINES: usize = 50;
 
-impl MdEdit {
+impl<S: Server> MdEdit<S> {
     /// For pasted text that is an id link (`lb://`, or a file's external URL)
     /// to a document here: the destination this note would link to it with,
     /// any `#fragment` kept, and the name to show. A heading of this note is
@@ -64,7 +65,7 @@ impl MdEdit {
     }
 }
 
-impl<'ast> MdEdit {
+impl<'ast, S: Server> MdEdit<S> {
     pub fn translate_egui_keyboard_event(
         &self, event: egui::Event, root: &'ast AstNode<'ast>,
     ) -> Option<Event> {

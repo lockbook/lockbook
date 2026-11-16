@@ -4,8 +4,9 @@ use crate::{
     tab::svg_editor::{BackgroundOverlay, SVGEditor},
     theme::palette::ThemePalette,
 };
+use lb_rs::io::server::Server;
 
-impl SVGEditor {
+impl<S: Server> SVGEditor<S> {
     pub fn paint_background_colors(&mut self, ui: &mut egui::Ui) {
         ui.painter().rect_filled(
             self.viewport_settings.container_rect,

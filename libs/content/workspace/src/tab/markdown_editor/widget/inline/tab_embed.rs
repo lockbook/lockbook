@@ -37,6 +37,8 @@ use crate::tab::{
 };
 use crate::theme::palette_v2::ThemeExt as _;
 use crate::widgets::{GlyphonLabel, TextOverflow};
+use lb_rs::io::network::Network;
+use lb_rs::io::server::Server;
 
 /// The most documents one chain of embeds holds, the note itself included;
 /// past it an embed is the link it names.
@@ -53,14 +55,13 @@ pub fn tab_embed_title(node: &AstNode<'_>) -> Option<String> {
 }
 
 /// The tabs one editor shows in its embed slots and hover cards.
-#[derive(Default)]
-pub struct TabEmbeds {
+pub struct TabEmbeds<S = Network> {
     /// What the tabs are built from; none where nothing can embed.
-    pub res: Option<TabResources>,
+    pub res: Option<TabResources<S>>,
     /// The files from the outermost note to this one: an embed among them
     /// cycles, and the length is the depth.
     pub path: Vec<Uuid>,
-    slots: RefCell<HashMap<SlotKey, Slot>>,
+    slots: RefCell<HashMap<SlotKey, Slot<S>>>,
     /// Changes when a slot takes a new height.
     seq: Cell<u64>,
     /// A slot settled this frame: the next one draws it.
@@ -81,9 +82,9 @@ struct SlotKey {
     card: bool,
 }
 
-struct Slot {
+struct Slot<S = Network> {
     place: Place,
-    state: SlotState,
+    state: SlotState<S>,
     /// A newer version of the document being read, to take in place.
     reload: Option<Receiver<Result<Option<Doc>, TabFailure>>>,
     /// The tab has settled once; the skeleton is gone for good.
@@ -95,14 +96,30 @@ struct Slot {
     touched: bool,
 }
 
-enum SlotState {
+enum SlotState<S = Network> {
     /// The document as read, or none for one that opens without its bytes.
     Loading(Receiver<Result<Option<Doc>, TabFailure>>),
-    Open(Box<Tab>),
+    Open(Box<Tab<S>>),
     Failed(String),
 }
 
-impl TabEmbeds {
+// Not derived: that would ask the server for a default.
+impl<S> Default for TabEmbeds<S> {
+    fn default() -> Self {
+        Self {
+            res: None,
+            path: Default::default(),
+            slots: Default::default(),
+            seq: Default::default(),
+            settling: Default::default(),
+            active: Default::default(),
+            #[cfg(not(target_family = "wasm"))]
+            writes: Default::default(),
+        }
+    }
+}
+
+impl<S: Server> TabEmbeds<S> {
     pub fn seq(&self) -> u64 {
         self.seq.get()
     }
@@ -136,7 +153,7 @@ impl TabEmbeds {
 
     /// Reads again the documents written since last frame that slots show.
     #[cfg(not(target_family = "wasm"))]
-    fn reload_written(&self, slots: &mut HashMap<SlotKey, Slot>) {
+    fn reload_written(&self, slots: &mut HashMap<SlotKey, Slot<S>>) {
         use lb_rs::service::events::Event;
         let Some(res) = &self.res else { return };
         let mut writes = self.writes.borrow_mut();
@@ -198,7 +215,7 @@ impl TabEmbeds {
     /// The place `title` embeds, if it can: a document past no cycle and
     /// within the depth, while something can build its tab. A note shows a
     /// heading of its own once: the copy shows none of itself.
-    fn place(&self, renderer: &MdRender, title: &str) -> Option<Place> {
+    fn place(&self, renderer: &MdRender<S>, title: &str) -> Option<Place> {
         let place = self.reach(renderer, title)?;
         let id = place.dest.backing_file()?;
         let shown = self.path.iter().filter(|shown| **shown == id).count();
@@ -209,7 +226,7 @@ impl TabEmbeds {
     }
 
     /// The document `title` names, for a card, which nests nothing.
-    fn reach(&self, renderer: &MdRender, title: &str) -> Option<Place> {
+    fn reach(&self, renderer: &MdRender<S>, title: &str) -> Option<Place> {
         let res = self.res.as_ref()?;
         let id = renderer.resolve_wikilink(title)?;
         let named_whole = res.files.read().unwrap().wiki_file_part(title) == title;
@@ -217,7 +234,7 @@ impl TabEmbeds {
         self.place_of(res, id, heading)
     }
 
-    fn place_of(&self, res: &TabResources, id: Uuid, fragment: Option<&str>) -> Option<Place> {
+    fn place_of(&self, res: &TabResources<S>, id: Uuid, fragment: Option<&str>) -> Option<Place> {
         let files = res.files.read().unwrap();
         files.get_by_id(id).filter(|f| f.is_document())?;
         let fragment = fragment.and_then(Fragment::from_url);
@@ -261,7 +278,7 @@ impl TabEmbeds {
         }
         slot.touched = true;
         slot.rect = rect;
-        let failed = |slot: &Slot| matches!(slot.state, SlotState::Failed(_));
+        let failed = |slot: &Slot<S>| matches!(slot.state, SlotState::Failed(_));
         let was_failed = failed(slot);
         slot.poll(&res, &self.path, key.card);
         // the slot takes its message's height
@@ -340,7 +357,7 @@ impl TabEmbeds {
     }
 }
 
-impl<'ast> MdEdit {
+impl<'ast, S: Server> MdEdit<S> {
     /// A click on a tab embed, wherever its tab has no widget of its own,
     /// does what one on an image does ([`MdEdit::handle_embed_tap`]).
     pub fn handle_tab_embed_interactions(
@@ -351,7 +368,7 @@ impl<'ast> MdEdit {
         for node in root.descendants() {
             let Some(title) = tab_embed_title(node) else { continue };
             let range = self.renderer.node_range(node);
-            let salt = MdRender::tab_embed_interaction_id_salt(range);
+            let salt = <MdRender>::tab_embed_interaction_id_salt(range);
             self.handle_embed_tap(root, node, ui, id, ops, &wiki_embed_key(&title), salt, open);
             // a click on the tab's body, which its editor handed on
             let rects = self
@@ -409,7 +426,9 @@ impl EmbedClick {
 
 /// Reads `dest` on a thread, or nothing for a document that opens without
 /// its bytes.
-fn load(res: &TabResources, dest: Destination) -> Receiver<Result<Option<Doc>, TabFailure>> {
+fn load<S: Server>(
+    res: &TabResources<S>, dest: Destination,
+) -> Receiver<Result<Option<Doc>, TabFailure>> {
     let (tx, rx) = mpsc::channel();
     let res = res.clone();
     std::thread::spawn(move || {
@@ -423,9 +442,9 @@ fn load(res: &TabResources, dest: Destination) -> Receiver<Result<Option<Doc>, T
     rx
 }
 
-impl Slot {
+impl<S: Server> Slot<S> {
     /// Reads the document on a thread; the tab builds when it lands.
-    fn open(res: &TabResources, place: Place) -> Self {
+    fn open(res: &TabResources<S>, place: Place) -> Self {
         let state = SlotState::Loading(load(res, place.dest.clone()));
         let rect = Rect::NOTHING;
         Self { place, state, reload: None, shown: false, measured: false, rect, touched: true }
@@ -433,7 +452,7 @@ impl Slot {
 
     /// Builds the tab once its document has been read, and takes a newer
     /// version in place.
-    fn poll(&mut self, res: &TabResources, path: &[Uuid], card: bool) {
+    fn poll(&mut self, res: &TabResources<S>, path: &[Uuid], card: bool) {
         if let Some(Ok(Ok(Some(doc)))) = self.reload.as_ref().map(|rx| rx.try_recv()) {
             self.reload = None;
             match &mut self.state {
@@ -459,8 +478,9 @@ impl Slot {
 
     /// What the slot shows of `doc` as read: its tab, or why there is none.
     fn opened(
-        &self, res: &TabResources, path: &[Uuid], card: bool, doc: Result<Option<Doc>, TabFailure>,
-    ) -> SlotState {
+        &self, res: &TabResources<S>, path: &[Uuid], card: bool,
+        doc: Result<Option<Doc>, TabFailure>,
+    ) -> SlotState<S> {
         let dest = &self.place.dest;
         let salt = egui::Id::unique(Uuid::new_v4());
         let content = doc.and_then(|doc| TabContent::open(dest, doc, res, salt, true));
@@ -495,7 +515,9 @@ impl Slot {
 
 /// What an embed of `place` says in place of a note without the heading it
 /// names. A card shows the note, as opening the link does.
-fn missing_heading(place: &Place, content: &TabContent, card: bool) -> Option<String> {
+fn missing_heading<S: Server>(
+    place: &Place, content: &TabContent<S>, card: bool,
+) -> Option<String> {
     let Some(Fragment::Heading(heading)) = &place.fragment else { return None };
     let TabContent::Markdown(md) = content else { return None };
     let headings = document_headings(&md.edit.renderer.buffer.current.text);
@@ -504,7 +526,7 @@ fn missing_heading(place: &Place, content: &TabContent, card: bool) -> Option<St
     missing.then(|| format!("This note has no heading named **{heading}**."))
 }
 
-impl<'ast> MdRender {
+impl<'ast, S: Server> MdRender<S> {
     /// The place `node`'s embed shows and its slot's size, if it embeds a
     /// tab here: on a line of its own's width in a block that isn't revealed.
     fn tab_embed_slot(

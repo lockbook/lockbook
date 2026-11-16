@@ -31,6 +31,7 @@ use serde_json::{Value, json};
 use crate::file_cache::path_segments;
 
 use super::backend::ToolSchema;
+use lb_rs::io::server::Server;
 
 /// A note the model refuses to open beyond — a truncated capture would corrupt
 /// replay, so oversized notes error instead of loading a partial snapshot.
@@ -75,7 +76,7 @@ pub fn out_of_scope(path: &str, scope: &[String]) -> String {
 /// A grant as stored: the canonical path, folders with their trailing '/'.
 /// An unresolvable path is granted verbatim — harmless, and a folder created
 /// later under a verbatim folder grant still matches.
-pub(super) async fn normalize_grant(lb: &Lb, path: &str) -> String {
+pub(super) async fn normalize_grant<S: Server>(lb: &Lb<S>, path: &str) -> String {
     match lb.get_by_path(path).await {
         Ok(f) => lb
             .get_path_by_id(f.id)
@@ -577,7 +578,9 @@ fn arg<'a>(args: &'a Value, key: &str) -> Result<&'a str, String> {
 /// Run one tool call against the branch and the lockbook. `lb` is the async
 /// core (the driver runs its own runtime). Errors are folded into the result
 /// so a failing call steers the model rather than aborting the turn.
-pub async fn dispatch(lb: &Lb, buffers: &mut Buffers, name: &str, args: &Value) -> Outcome {
+pub async fn dispatch<S: Server>(
+    lb: &Lb<S>, buffers: &mut Buffers, name: &str, args: &Value,
+) -> Outcome {
     match name {
         "list" => list(lb, args).await,
         "read_note" => read_note(lb, buffers, args).await,
@@ -586,7 +589,7 @@ pub async fn dispatch(lb: &Lb, buffers: &mut Buffers, name: &str, args: &Value) 
     }
 }
 
-async fn list(lb: &Lb, args: &Value) -> Outcome {
+async fn list<S: Server>(lb: &Lb<S>, args: &Value) -> Outcome {
     let path = args.get("path").and_then(Value::as_str).unwrap_or("/");
     let recursive = args
         .get("recursive")
@@ -634,7 +637,7 @@ async fn list(lb: &Lb, args: &Value) -> Outcome {
     Outcome::ok(rows.join("\n"))
 }
 
-async fn read_note(lb: &Lb, buffers: &mut Buffers, args: &Value) -> Outcome {
+async fn read_note<S: Server>(lb: &Lb<S>, buffers: &mut Buffers, args: &Value) -> Outcome {
     let path = match arg(args, "path") {
         Ok(p) => p,
         Err(e) => return Outcome::err(e),
@@ -669,7 +672,7 @@ async fn read_note(lb: &Lb, buffers: &mut Buffers, args: &Value) -> Outcome {
     }
 }
 
-async fn edit_note(lb: &Lb, buffers: &mut Buffers, args: &Value) -> Outcome {
+async fn edit_note<S: Server>(lb: &Lb<S>, buffers: &mut Buffers, args: &Value) -> Outcome {
     let (path, old, new) = match (arg(args, "path"), arg(args, "old_str"), arg(args, "new_str")) {
         (Ok(p), Ok(o), Ok(n)) => (p, o, n),
         (Err(e), ..) | (_, Err(e), _) | (.., Err(e)) => return Outcome::err(e),
@@ -713,7 +716,9 @@ async fn edit_note(lb: &Lb, buffers: &mut Buffers, args: &Value) -> Outcome {
 
 /// Write a buffer back to the real note — no longer a model tool; the
 /// driver runs it right after each approved edit.
-pub(super) async fn sync_note(lb: &Lb, buffers: &mut Buffers, args: &Value) -> Outcome {
+pub(super) async fn sync_note<S: Server>(
+    lb: &Lb<S>, buffers: &mut Buffers, args: &Value,
+) -> Outcome {
     let path = match arg(args, "path") {
         Ok(p) => p,
         Err(e) => return Outcome::err(e),
@@ -754,7 +759,7 @@ struct Synced {
 /// Write a dirty buffer back with compare-and-swap. On a concurrent on-disk
 /// change, 3-way merge and retry. A brand-new note (no base hmac) is created
 /// first.
-async fn write_back(lb: &Lb, path: &str, buf: &Buffer) -> Result<Synced, String> {
+async fn write_back<S: Server>(lb: &Lb<S>, path: &str, buf: &Buffer) -> Result<Synced, String> {
     let id = match lb.get_by_path(path).await {
         Ok(f) => f.id,
         // Never synced: create it, then write with no prior version.
@@ -806,8 +811,8 @@ use CaptureErr::*;
 /// Read a note's bytes and version for capture. A never-written note reads as
 /// empty (not an error) — the model can edit a blank buffer and create it on
 /// sync.
-async fn capture_from_disk(
-    lb: &Lb, path: &str,
+async fn capture_from_disk<S: Server>(
+    lb: &Lb<S>, path: &str,
 ) -> Result<(Option<DocumentHmac>, String), CaptureErr> {
     let file = lb.get_by_path(path).await.map_err(|_| Missing)?;
     if !file.is_document() {
@@ -822,7 +827,7 @@ async fn capture_from_disk(
 }
 
 /// A path miss with the closest actual paths, so the model can self-correct.
-async fn did_you_mean(lb: &Lb, path: &str) -> String {
+async fn did_you_mean<S: Server>(lb: &Lb<S>, path: &str) -> String {
     let mut suggestions = Vec::new();
     if let Ok(paths) = lb.list_paths(None).await {
         let target = path.to_lowercase();

@@ -18,6 +18,7 @@ use crate::tab::markdown_editor::widget::block::drag::{BlockDrag, DragUnit, Drop
 use crate::tab::markdown_editor::{Arena, MdEdit, MdRender};
 use crate::theme::palette_v2::ThemeExt as _;
 use crate::widgets::GlyphonLabel;
+use lb_rs::io::server::Server;
 
 /// A row's handle; a column's is as long and lies along the top border.
 const HANDLE: Vec2 = Vec2::new(12.0, 20.0);
@@ -57,7 +58,7 @@ fn column_handle_id(table: Grapheme, column: usize) -> Id {
     Id::unique(("table_column_handle", table, column))
 }
 
-impl MdRender {
+impl<S: Server> MdRender<S> {
     /// What identifies the table that has a row on the line starting at
     /// `row`: where its header's line starts.
     pub fn table_key(&self, row: Grapheme) -> Option<Grapheme> {
@@ -399,7 +400,7 @@ impl MdRender {
     }
 }
 
-impl MdEdit {
+impl<S: Server> MdEdit<S> {
     /// Carries out a dropped table drag: moves the row or column `drag`
     /// holds to the gap at `insert_offset`. The selection is left where
     /// the edit puts it.
@@ -527,7 +528,7 @@ impl MdEdit {
     }
 }
 
-impl<'ast> MdRender {
+impl<'ast, S: Server> MdRender<S> {
     /// Where a row's line starts after its container's prefix: what its
     /// painted cells and its bounds know it by.
     pub fn table_row_key(&self, row: &'ast AstNode<'ast>) -> Grapheme {

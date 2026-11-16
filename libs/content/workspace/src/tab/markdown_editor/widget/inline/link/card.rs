@@ -20,10 +20,11 @@ use crate::tab::markdown_editor::widget::utils::NodeValueExt as _;
 use crate::tab::markdown_editor::widget::utils::wrap_layout::{EmbedKind, EmbedSpec, Layout};
 use crate::tab::markdown_editor::{MdEdit, MdRender};
 use crate::theme::palette_v2::ThemeExt as _;
+use lb_rs::io::server::Server;
 
 const SKELETON_HEIGHT: f32 = 84.0;
 
-impl<'ast> MdRender {
+impl<'ast, S: Server> MdRender<S> {
     fn card_box_width(&self, block_width: f32) -> f32 {
         // the hover card's width: one card, resting or hovered
         block_width.clamp(0.0, CARD_W + 2.0 * CARD_PAD.pts())
@@ -136,7 +137,7 @@ impl<'ast> MdRender {
     }
 }
 
-impl<'ast> MdEdit {
+impl<'ast, S: Server> MdEdit<S> {
     /// Open or select a clicked link card. Classification differs from images (a
     /// `Link` that `link_renders_as_card`); tap handling is shared via
     /// [`MdEdit::handle_embed_tap`].
@@ -159,7 +160,7 @@ impl<'ast> MdEdit {
             if wikilink {
                 continue;
             }
-            let salt = MdRender::card_interaction_id_salt(self.renderer.node_range(node));
+            let salt = <MdRender>::card_interaction_id_salt(self.renderer.node_range(node));
             // not drawn as a card this frame
             if !self
                 .renderer
@@ -220,7 +221,7 @@ impl<'ast> MdEdit {
             if !capsule {
                 continue;
             }
-            let salt = MdRender::link_capsule_id_salt(self.renderer.node_range(node));
+            let salt = <MdRender>::link_capsule_id_salt(self.renderer.node_range(node));
             // not drawn as a capsule this frame
             if !self
                 .renderer

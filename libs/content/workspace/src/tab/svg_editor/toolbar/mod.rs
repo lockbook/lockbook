@@ -26,6 +26,7 @@ use super::history::History;
 use super::renderer::Renderer;
 use super::tools::{eraser::Eraser, pen::Pen};
 use super::{CanvasSettings, ViewportSettings};
+use lb_rs::io::server::Server;
 pub const MINI_MAP_WIDTH: f32 = 100.0;
 
 const COLOR_SWATCH_BTN_RADIUS: f32 = 11.0;
@@ -447,7 +448,7 @@ fn get_non_additive(color: &egui::Color32) -> egui::Color32 {
     egui::Color32::from_rgb(color.r(), color.g(), color.b())
 }
 
-impl SVGEditor {
+impl<S: Server> SVGEditor<S> {
     pub fn detect_islands_interaction(&self, pointer: egui::Pos2) -> bool {
         let islands = [
             self.toolbar.layout.history_island,

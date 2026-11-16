@@ -24,6 +24,7 @@ use super::print::{print_frame, textured};
 use crate::tab::TabResources;
 use crate::widgets::diagram_cache::PrintSvg;
 use crate::widgets::glyphon_render::{PrintText, TextBufferArea};
+use lb_rs::io::server::Server;
 
 /// Room around a page's content, in PDF points: half an inch.
 const MARGIN: f32 = 36.0;
@@ -61,8 +62,8 @@ impl Paper {
 
 /// Prints the note `id` on `paper` and writes it as a PDF. `text` is an open
 /// note's text, unsaved edits and all, instead of what's saved.
-pub fn render_pdf(
-    live: &TabResources, id: Uuid, text: Option<String>, paper: Paper,
+pub fn render_pdf<S: Server>(
+    live: &TabResources<S>, id: Uuid, text: Option<String>, paper: Paper,
 ) -> Result<Vec<u8>, String> {
     let size = Vec2::new(paper.note_width(), paper.note_height());
     let frame = print_frame(live, id, text, size)?;

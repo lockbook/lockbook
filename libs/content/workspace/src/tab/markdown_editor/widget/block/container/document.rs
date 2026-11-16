@@ -8,8 +8,9 @@ use crate::tab::markdown_editor::widget::block::leaf::code_block::CodeUnit;
 use crate::tab::markdown_editor::widget::utils::wrap_layout::{FontFamily, Format, Layout};
 use crate::tab::markdown_editor::{Syntax, View};
 use crate::theme::palette_v2::ThemeExt as _;
+use lb_rs::io::server::Server;
 
-impl<'ast> MdRender {
+impl<'ast, S: Server> MdRender<S> {
     pub fn text_format_document(&self) -> Format {
         Format {
             family: FontFamily::Sans,

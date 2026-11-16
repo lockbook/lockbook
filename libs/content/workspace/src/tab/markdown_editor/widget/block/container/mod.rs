@@ -17,6 +17,7 @@ use crate::tab::markdown_editor::widget::utils::NodeValueExt as _;
 use crate::tab::markdown_editor::widget::utils::wrap_layout::{
     Fragment, FragmentContent, FragmentInset,
 };
+use lb_rs::io::server::Server;
 
 pub(crate) mod alert;
 pub(crate) mod block_quote;
@@ -28,7 +29,7 @@ pub(crate) mod table;
 pub(crate) mod table_row;
 pub(crate) mod task_item;
 
-impl<'ast> MdRender {
+impl<'ast, S: Server> MdRender<S> {
     // the height of a block that contains blocks is the sum of the heights of the blocks it contains
     pub fn block_children_height(&self, node: &'ast AstNode<'ast>) -> f32 {
         let mut height_sum = 0.0;

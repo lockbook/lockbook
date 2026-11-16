@@ -11,6 +11,7 @@ use comrak::nodes::{AstNode, NodeValue};
 use lb_rs::model::text::offset_types::{Grapheme, RangeExt as _};
 
 use super::MdRender;
+use lb_rs::io::server::Server;
 
 /// One heading of a note, in document order.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -83,7 +84,7 @@ pub fn headings_in<'a>(root: &'a AstNode<'a>) -> Vec<(&'a AstNode<'a>, Heading)>
 /// The headings of markdown source.
 pub fn document_headings(md: &str) -> Vec<Heading> {
     let arena = comrak::Arena::new();
-    let root = comrak::parse_document(&arena, md, &MdRender::comrak_options());
+    let root = comrak::parse_document(&arena, md, &<MdRender>::comrak_options());
     headings_in(root).into_iter().map(|(_, h)| h).collect()
 }
 
@@ -139,7 +140,7 @@ pub fn wiki_token(heading: &Heading) -> String {
     if plain && slugify(text) == heading.slug { text.clone() } else { heading.slug.clone() }
 }
 
-impl<'ast> MdRender {
+impl<'ast, S: Server> MdRender<S> {
     /// Where a jump to a heading puts the caret: after its text, before
     /// trailing markup such as a fold tag.
     pub fn heading_caret(&self, node: &'ast AstNode<'ast>) -> Grapheme {

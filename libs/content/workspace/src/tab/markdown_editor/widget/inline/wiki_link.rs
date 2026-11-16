@@ -4,8 +4,9 @@ use lb_rs::model::text::offset_types::{Grapheme, RangeExt as _};
 
 use crate::tab::markdown_editor::MdRender;
 use crate::tab::markdown_editor::widget::utils::wrap_layout::Layout;
+use lb_rs::io::server::Server;
 
-impl<'ast> MdRender {
+impl<'ast, S: Server> MdRender<S> {
     pub fn resolve_wikilink(&self, url: &str) -> Option<Uuid> {
         self.link_resolver.resolve_wikilink(url)
     }

@@ -5,8 +5,9 @@ use crate::tab::markdown_editor::MdRender;
 use crate::tab::markdown_editor::widget::utils::wrap_layout::{EmbedKind, EmbedSpec, Layout};
 
 use crate::theme::palette_v2::ThemeExt as _;
+use lb_rs::io::server::Server;
 
-impl<'ast> MdRender {
+impl<'ast, S: Server> MdRender<S> {
     pub fn height_thematic_break(&self) -> f32 {
         self.layout.row_height
     }

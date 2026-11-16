@@ -9,8 +9,9 @@ use super::DebugInfoCache;
 use super::ShellApp;
 use super::action::{Modal, SettingsCat, UpgradeStage};
 use super::prefs::AccountPanel;
+use lb::io::server::Server;
 
-pub(crate) fn ensure_settings_account(app: &mut ShellApp) {
+pub(crate) fn ensure_settings_account<S: Server>(app: &mut ShellApp<S>) {
     if !matches!(app.modal, Some(Modal::Settings { .. })) {
         app.modal = Some(Modal::Settings { cat: SettingsCat::Account });
     } else if let Some(Modal::Settings { cat }) = &mut app.modal {
@@ -21,11 +22,14 @@ pub(crate) fn ensure_settings_account(app: &mut ShellApp) {
 /// Classic logout: wipe local data and **exit**. In-process re-init races
 /// `lb_bg_worker` / tokio workers holding the DB — not worth the shared-surface
 /// changes in workspace/lb-rs. Next launch opens onboard.
-pub(crate) fn do_logout(app: &mut ShellApp, _ctx: &Context) {
+pub(crate) fn do_logout<S: Server>(app: &mut ShellApp<S>, _ctx: &Context) {
     app.modal = None;
     app.close_account_panel();
     if let Some(r) = app.session.ready_mut() {
         r.workspace.save_all_tabs();
+    }
+    app.exiting();
+    if let Some(r) = app.session.ready_mut() {
         let path = r.workspace.core.get_config().writeable_path.clone();
         let _ = fs::remove_dir_all(path);
     }
@@ -33,11 +37,14 @@ pub(crate) fn do_logout(app: &mut ShellApp, _ctx: &Context) {
 }
 
 /// Server delete (best-effort), wipe local data, exit.
-pub(crate) fn do_delete_account(app: &mut ShellApp, _ctx: &Context) {
+pub(crate) fn do_delete_account<S: Server>(app: &mut ShellApp<S>, _ctx: &Context) {
     app.modal = None;
     app.close_account_panel();
     if let Some(r) = app.session.ready_mut() {
         r.workspace.save_all_tabs();
+    }
+    app.exiting();
+    if let Some(r) = app.session.ready_mut() {
         let path = r.workspace.core.get_config().writeable_path.clone();
         let core = r.workspace.core.clone();
         let _ = core.delete_account();
@@ -47,7 +54,7 @@ pub(crate) fn do_delete_account(app: &mut ShellApp, _ctx: &Context) {
     std::process::exit(0);
 }
 
-pub(crate) fn spawn_account_qr(app: &mut ShellApp, ctx: &Context) {
+pub(crate) fn spawn_account_qr<S: Server>(app: &mut ShellApp<S>, ctx: &Context) {
     {
         let Ok(mut g) = app.account_qr.lock() else {
             return;
@@ -97,7 +104,7 @@ fn parse_card_exp(exp: &str) -> Option<(i32, i32)> {
     Some((month, 2000 + yy))
 }
 
-pub(crate) fn upgrade_validate_and_confirm(app: &mut ShellApp) {
+pub(crate) fn upgrade_validate_and_confirm<S: Server>(app: &mut ShellApp<S>) {
     let AccountPanel::Upgrade { stage: UpgradeStage::EnterCard, number, exp, cvc, .. } =
         &app.account_panel
     else {
@@ -135,7 +142,7 @@ pub(crate) fn upgrade_validate_and_confirm(app: &mut ShellApp) {
     }
 }
 
-pub(crate) fn upgrade_start_pay(app: &mut ShellApp, ctx: &Context) {
+pub(crate) fn upgrade_start_pay<S: Server>(app: &mut ShellApp<S>, ctx: &Context) {
     let (number, exp_month, exp_year, cvc) = match &app.account_panel {
         AccountPanel::Upgrade { stage: UpgradeStage::Confirm, number, exp, cvc, .. } => {
             let (m, y) = parse_card_exp(exp).unwrap_or((0, 0));
@@ -175,7 +182,7 @@ pub(crate) fn upgrade_start_pay(app: &mut ShellApp, ctx: &Context) {
 struct UpgradePayResult(Option<Result<(), String>>);
 
 /// Poll Stripe upgrade worker + refresh sub/usage on success.
-pub(crate) fn poll_upgrade(app: &mut ShellApp, ctx: &Context) {
+pub(crate) fn poll_upgrade<S: Server>(app: &mut ShellApp<S>, ctx: &Context) {
     let AccountPanel::Upgrade { stage: UpgradeStage::Paying, done: None, .. } = &app.account_panel
     else {
         return;
@@ -202,7 +209,7 @@ pub(crate) fn poll_upgrade(app: &mut ShellApp, ctx: &Context) {
 }
 
 /// Background `Lb::debug_info` (can take a beat).
-pub(crate) fn spawn_debug_info(app: &mut ShellApp, ctx: &Context, force: bool) {
+pub(crate) fn spawn_debug_info<S: Server>(app: &mut ShellApp<S>, ctx: &Context, force: bool) {
     {
         let Ok(mut g) = app.debug_info.lock() else {
             return;

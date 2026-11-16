@@ -19,6 +19,7 @@ use crate::tab::markdown_editor::input::{Event, Location, Region};
 use crate::tab::markdown_editor::widget::{
     CompletionStep, completion_accepted, completion_dismissed, completion_step,
 };
+use lb_rs::io::server::Server;
 
 const MAX_RESULTS: usize = 5;
 
@@ -508,7 +509,7 @@ fn rank(candidates: &[Candidate], query: &str, exclude: &[String]) -> Vec<Candid
         .collect()
 }
 
-impl MdEdit {
+impl<S: Server> MdEdit<S> {
     pub fn show_property_completions(&mut self, ui: &mut Ui) {
         if self.renderer.readonly || !self.property_completions.active {
             return;

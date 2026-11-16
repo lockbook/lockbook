@@ -9,8 +9,9 @@ use lb_rs::model::text::offset_types::Grapheme;
 use super::input::{Event, Gesture};
 use super::widget::block::drag::{BlockDrag, BlockDragAction, DragUnit, TouchReorder};
 use super::{MdEdit, TouchTarget};
+use lb_rs::io::server::Server;
 
-impl MdEdit {
+impl<S: Server> MdEdit<S> {
     /// The touch target painted under `pos` last frame.
     pub fn touch_target_at(&self, pos: Pos2) -> Option<&TouchTarget> {
         self.renderer

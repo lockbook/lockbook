@@ -11,8 +11,9 @@ use lb_rs::model::text::operation_types::Operation;
 
 use crate::front_matter::{self, FrontMatter, RowKind, Value};
 use crate::tab::markdown_editor::{MdEdit, MdRender, View};
+use lb_rs::io::server::Server;
 
-impl<'ast> MdRender {
+impl<'ast, S: Server> MdRender<S> {
     /// Recompute [`Bounds::front_matter`](super::bounds::Bounds). Depends
     /// on text only, so source view has them for its front matter edits too.
     pub fn calc_front_matter_bounds(&mut self, root: &'ast AstNode<'ast>) {
@@ -156,7 +157,7 @@ impl<'ast> MdRender {
     }
 }
 
-impl MdEdit {
+impl<S: Server> MdEdit<S> {
     /// A caret before the opening fence, or a selection strictly inside
     /// hidden syntax, moves to a caret the eye can see. A note just opened
     /// puts the caret before the fence, and a click on a hidden span (the

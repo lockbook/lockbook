@@ -4,8 +4,9 @@ use lb_rs::model::text::offset_types::{Grapheme, RangeExt as _};
 use crate::tab::markdown_editor::MdRender;
 use crate::tab::markdown_editor::widget::utils::wrap_layout::{Format, Layout};
 use crate::theme::palette_v2::ThemeExt as _;
+use lb_rs::io::server::Server;
 
-impl<'ast> MdRender {
+impl<'ast, S: Server> MdRender<S> {
     pub fn text_format_html_inline(&self, parent: &AstNode<'_>) -> Format {
         Format {
             color: self.ctx.get_lb_theme().neutral_fg_secondary(),

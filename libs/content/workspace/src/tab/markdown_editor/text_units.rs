@@ -10,6 +10,7 @@ use lb_rs::model::text::offset_types::{Byte, Grapheme, RangeExt as _};
 use unicode_segmentation::UnicodeSegmentation as _;
 
 use super::{MdEdit, View};
+use lb_rs::io::server::Server;
 
 type Range = (Grapheme, Grapheme);
 
@@ -52,7 +53,7 @@ pub fn boundary_from(units: &[Range], p: Grapheme, backward: bool) -> Option<Gra
     if backward { bounds.filter(|&b| b < p).max() } else { bounds.filter(|&b| b > p).min() }
 }
 
-impl MdEdit {
+impl<S: Server> MdEdit<S> {
     pub fn unit_enclosing(&self, unit: Unit, p: Grapheme, backward: bool) -> Option<Range> {
         enclosing(&self.units_near(unit, p), p, backward)
     }

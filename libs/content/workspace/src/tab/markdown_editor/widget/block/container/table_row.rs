@@ -6,8 +6,9 @@ use crate::tab::markdown_editor::table::TableCellBox;
 use crate::tab::markdown_editor::widget::block::drag::DragUnit;
 use crate::tab::markdown_editor::widget::utils::wrap_layout::Format;
 use crate::theme::palette_v2::ThemeExt as _;
+use lb_rs::io::server::Server;
 
-impl<'ast> MdRender {
+impl<'ast, S: Server> MdRender<S> {
     pub fn text_format_table_row(&self, parent: &AstNode<'_>, is_header_row: bool) -> Format {
         let parent_text_format = self.text_format(parent);
         Format { bold: is_header_row, ..parent_text_format }

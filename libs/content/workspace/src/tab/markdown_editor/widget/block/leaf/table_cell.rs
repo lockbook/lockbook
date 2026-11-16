@@ -7,8 +7,9 @@ use lb_rs::model::text::offset_types::RangeExt as _;
 use crate::tab::markdown_editor::MdRender;
 use crate::tab::markdown_editor::widget::block::TableCellKey;
 use crate::tab::markdown_editor::widget::utils::wrap_layout::Layout;
+use lb_rs::io::server::Server;
 
-impl<'ast> MdRender {
+impl<'ast, S: Server> MdRender<S> {
     /// Lays out a cell's content. Its padding takes no room, but every
     /// position in it has a place — at the content's near edge — so a caret
     /// an edit leaves there still shows.

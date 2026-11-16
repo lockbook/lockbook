@@ -5,8 +5,9 @@ use lb_rs::model::text::offset_types::Grapheme;
 use crate::tab::markdown_editor::MdRender;
 use crate::tab::markdown_editor::widget::utils::wrap_layout::{Format, Layout};
 use crate::theme::palette_v2::ThemeExt;
+use lb_rs::io::server::Server;
 
-impl<'ast> MdRender {
+impl<'ast, S: Server> MdRender<S> {
     pub fn background_color_highlight(&self) -> Color32 {
         self.ctx.get_lb_theme().bg().yellow.gamma_multiply(0.35)
     }

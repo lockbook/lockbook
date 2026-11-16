@@ -17,11 +17,12 @@ use crate::tab::markdown_editor::widget::utils::wrap_layout::{
     FragmentContent, Layout, WrapUnitLayout,
 };
 use crate::widgets::GlyphonLabel;
+use lb_rs::io::server::Server;
 
 /// How long a copied heading link shows its check.
 const COPIED_SECS: f32 = 1.5;
 
-impl<'ast> MdRender {
+impl<'ast, S: Server> MdRender<S> {
     pub fn heading_row_height(&self, level: u8) -> f32 {
         self.layout.row_height
             * match level {

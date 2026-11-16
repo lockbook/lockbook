@@ -24,6 +24,8 @@ use lb_rs::model::text::offset_types::Grapheme;
 use crate::tab::markdown_editor::MdRender;
 use crate::tab::markdown_editor::View;
 use crate::widgets::affine_scroll::Rows;
+use lb_rs::io::network::Network;
+use lb_rs::io::server::Server;
 
 /// Stable identity of a row in the document. `Leading` and `Trailing`
 /// are the always-present virtual padding rows; `Block(i)` is a top-
@@ -39,8 +41,8 @@ pub enum DocRowId {
     Trailing,
 }
 
-pub struct DocScrollContent<'a, 'ast> {
-    pub renderer: &'a MdRender,
+pub struct DocScrollContent<'a, 'ast, S = Network> {
+    pub renderer: &'a MdRender<S>,
     pub root: &'ast AstNode<'ast>,
     /// Cached top-level child blocks for this frame. Empty in source
     /// mode (the [`Rows`] impl uses `Line(idx)` instead).
@@ -62,8 +64,10 @@ pub struct DocScrollContent<'a, 'ast> {
 /// The top pad, which holds content clear of the Android status bar.
 pub const DEFAULT_LEADING: f32 = 15.0;
 
-impl<'a, 'ast> DocScrollContent<'a, 'ast> {
-    pub fn new(renderer: &'a MdRender, root: &'ast AstNode<'ast>, trailing_precise: f32) -> Self {
+impl<'a, 'ast, S: Server> DocScrollContent<'a, 'ast, S> {
+    pub fn new(
+        renderer: &'a MdRender<S>, root: &'ast AstNode<'ast>, trailing_precise: f32,
+    ) -> Self {
         let source = renderer.view == View::Source;
         let blocks: Vec<_> = if source { Vec::new() } else { root.children().collect() };
         let line_count = renderer.bounds.source_lines.len();
@@ -103,7 +107,7 @@ impl<'a, 'ast> DocScrollContent<'a, 'ast> {
     /// leading pad. Render, persistence, and scroll-target lookups
     /// must use this so they walk the same row sequence.
     pub fn for_frame(
-        renderer: &'a MdRender, root: &'ast AstNode<'ast>, viewport_height: f32,
+        renderer: &'a MdRender<S>, root: &'ast AstNode<'ast>, viewport_height: f32,
     ) -> Self {
         Self::new(renderer, root, viewport_height / 2.0).with_default_leading()
     }
@@ -161,7 +165,7 @@ impl<'a, 'ast> DocScrollContent<'a, 'ast> {
     }
 }
 
-impl<'a, 'ast> Rows for DocScrollContent<'a, 'ast> {
+impl<'a, 'ast, S: Server> Rows for DocScrollContent<'a, 'ast, S> {
     type RowId = DocRowId;
 
     fn padding(&self, id: &DocRowId) -> bool {
@@ -319,8 +323,8 @@ impl<'a, 'ast> Rows for DocScrollContent<'a, 'ast> {
 /// Takes `&mut MdRender` because `show_*` functions push fragments
 /// and text areas; takes `blocks` separately so the caller can drop
 /// the `&MdRender` borrow held by [`DocScrollContent`] before painting.
-pub fn paint_row<'ast>(
-    ui: &mut Ui, renderer: &mut MdRender, root: &'ast AstNode<'ast>,
+pub fn paint_row<'ast, S: Server>(
+    ui: &mut Ui, renderer: &mut MdRender<S>, root: &'ast AstNode<'ast>,
     blocks: &[&'ast AstNode<'ast>], id: &DocRowId, top_left: Pos2, content_x: f32,
 ) {
     match id {

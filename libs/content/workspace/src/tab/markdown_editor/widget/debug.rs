@@ -4,8 +4,9 @@ use web_time::Instant;
 
 use crate::tab::markdown_editor::MdRender;
 use crate::theme::palette_v2::ThemeExt as _;
+use lb_rs::io::server::Server;
 
-impl MdRender {
+impl<S: Server> MdRender<S> {
     pub fn show_debug_fps(&mut self, ui: &mut Ui) {
         let now = Instant::now();
         self.frame_times[self.frame_times_idx] = now;

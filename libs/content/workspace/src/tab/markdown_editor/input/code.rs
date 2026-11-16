@@ -17,6 +17,7 @@ use crate::syntax::{Highlights, Lang, Role};
 use crate::tab::markdown_editor::Syntax;
 use crate::tab::markdown_editor::bounds::RangesExt as _;
 use crate::tab::markdown_editor::{MdEdit, MdRender};
+use lb_rs::io::server::Server;
 
 /// A bracket and the one it pairs with.
 pub type BracketPair = [(Grapheme, Grapheme); 2];
@@ -146,7 +147,7 @@ pub fn closer_of(open: u8) -> Option<u8> {
     }
 }
 
-impl<'ast> MdRender {
+impl<'ast, S: Server> MdRender<S> {
     /// The code `offset` is in: a whole file's when it isn't a note, or a
     /// code block's when `offset` is on one of its code lines.
     pub fn code_scope_at(&self, root: &'ast AstNode<'ast>, offset: Grapheme) -> Option<CodeScope> {
@@ -207,7 +208,7 @@ impl<'ast> MdRender {
     }
 }
 
-impl<'ast> MdEdit {
+impl<'ast, S: Server> MdEdit<S> {
     /// Tab and Shift-Tab when every selected line is code. A caret gets an
     /// indent level; a selection's lines each gain or lose one.
     pub fn indent_in_code(

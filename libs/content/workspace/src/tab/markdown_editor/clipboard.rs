@@ -12,8 +12,9 @@ use regex::Regex;
 
 use crate::tab::markdown_editor::MdRender;
 use crate::widgets::image_cache::encode_png;
+use lb_rs::io::server::Server;
 
-impl<'ast> MdRender {
+impl<'ast, S: Server> MdRender<S> {
     /// `range` as drawn with nothing revealed: inline syntax, heading
     /// marks, quote bars, and code fences are gone; list markers stay
     /// because they are drawn as text.

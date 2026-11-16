@@ -11,6 +11,8 @@ mod link_inbox;
 mod perf;
 mod settings;
 pub mod shell;
+#[cfg(feature = "try")]
+mod try_mode;
 mod util;
 
 pub use crate::settings::Settings;
@@ -19,14 +21,16 @@ pub use host::run;
 
 use egui::{OrderedViewportIdMap, PlatformOutput, ViewportOutput};
 use egui_wgpu_renderer::{PreparedFrame, RendererState};
+use lb::io::network::Network;
+use lb::io::server::Server;
 use tracing::instrument;
 
 /// Custom-host product frame: wgpu surface + shell.
-pub struct WgpuLockbook<'window> {
+pub struct WgpuLockbook<'window, S = Network> {
     pub renderer: RendererState<'window>,
     pub queued_events: Vec<egui::Event>,
     pub double_queued_events: Vec<egui::Event>,
-    pub app: ShellApp,
+    pub app: ShellApp<S>,
 }
 
 #[derive(Default)]
@@ -35,7 +39,7 @@ pub struct Output {
     pub viewport: OrderedViewportIdMap<ViewportOutput>,
 }
 
-impl WgpuLockbook<'_> {
+impl<S: Server> WgpuLockbook<'_, S> {
     #[instrument(level = "trace", skip_all)]
     pub fn frame(&mut self) -> Output {
         let _sample = lb::service::perf::Sample::new();
