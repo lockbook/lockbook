@@ -29,16 +29,18 @@ use crate::tab::svg_editor::SVGEditor;
 use crate::tab::{Destination, Fragment, TabContent, TabFailure};
 use crate::widgets::image_cache::ImageCache;
 use crate::workspace::WsPersistentStore;
+use lb_rs::io::network::Network;
+use lb_rs::io::server::Server;
 
 /// What a tab's content is built from, for one egui context: textures are
 /// allocated through the context, and the image cache and link previews
 /// count their changes on it, so a bundle never feeds another context.
 #[derive(Clone)]
-pub struct TabResources {
+pub struct TabResources<S = Network> {
     pub ctx: Context,
-    pub core: Lb,
+    pub core: Lb<S>,
     pub files: Arc<RwLock<FileCache>>,
-    pub images: ImageCache,
+    pub images: ImageCache<S>,
     pub previews: LinkPreviews,
     pub persistence: WsPersistentStore,
     pub account: Account,
@@ -71,7 +73,7 @@ pub fn is_text(bytes: &[u8]) -> bool {
     content_inspector::inspect(bytes).is_text()
 }
 
-impl TabResources {
+impl<S: Server> TabResources<S> {
     /// The height `fragment`'s region had at `width` when last measured
     /// settled, so a slot lays out right before its tab loads.
     pub fn remembered_height(
@@ -121,13 +123,13 @@ impl TabResources {
     }
 }
 
-impl TabContent {
+impl<S: Server> TabContent<S> {
     /// Builds the content for `dest`, its widget ids derived from `salt`.
     /// A document other than an image needs `doc`; the open guard refuses
     /// what would hang and marks the open on disk.
     pub fn open(
-        dest: &Destination, doc: Option<Doc>, res: &TabResources, salt: Id, read_only: bool,
-    ) -> Result<TabContent, TabFailure> {
+        dest: &Destination, doc: Option<Doc>, res: &TabResources<S>, salt: Id, read_only: bool,
+    ) -> Result<TabContent<S>, TabFailure> {
         let id = match dest {
             Destination::File(id) => *id,
             #[cfg(not(target_family = "wasm"))]

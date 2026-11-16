@@ -8,6 +8,7 @@ use unicode_segmentation::UnicodeSegmentation as _;
 
 use super::input::Bound;
 use super::table::TableBounds;
+use lb_rs::io::server::Server;
 
 pub type SourceLines = Vec<(Grapheme, Grapheme)>;
 pub type Words = Vec<(Grapheme, Grapheme)>;
@@ -133,7 +134,7 @@ impl Default for Bounds {
     }
 }
 
-impl MdRender {
+impl<S: Server> MdRender<S> {
     pub fn calc_source_lines(&mut self) {
         self.bounds.source_lines.clear();
 
@@ -754,7 +755,7 @@ impl<'r, const N: usize> Iterator for RangeJoinIter<'r, N> {
     }
 }
 
-impl MdRender {
+impl<S: Server> MdRender<S> {
     pub fn print_bounds(&self) {
         self.print_words_bounds();
         self.print_wrap_lines_bounds();

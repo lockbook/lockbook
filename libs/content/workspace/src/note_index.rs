@@ -17,6 +17,7 @@ use crate::file_cache::{Change, FileCache, FilesExt, Reach};
 use crate::link_plan::Plan;
 use crate::links::{LinkKind, NoteLink, NoteText, read_note};
 use crate::tab::markdown_editor::fragment::Heading;
+use lb_rs::io::server::Server;
 
 #[derive(Default)]
 pub struct NoteIndex {
@@ -180,7 +181,7 @@ impl NoteIndex {
     /// device arrives with no write announced at all.
     /// The reader waits for the first ask and stops with the cache.
     #[cfg(not(target_family = "wasm"))]
-    pub(crate) fn keep(files: &Arc<RwLock<FileCache>>, lb: Lb, ctx: egui::Context) {
+    pub(crate) fn keep<S: Server>(files: &Arc<RwLock<FileCache>>, lb: Lb<S>, ctx: egui::Context) {
         let (wake, woken) = std::sync::mpsc::channel();
         *files.read().unwrap().notes.wake.lock().unwrap() = Some(wake);
         let files = Arc::downgrade(files);
@@ -232,14 +233,14 @@ pub fn is_note(f: &lb_rs::model::file::File) -> bool {
     f.is_document() && f.name.ends_with(".md")
 }
 
-fn read(lb: &Lb, id: Uuid) -> Option<NoteText> {
+fn read<S: Server>(lb: &Lb<S>, id: Uuid) -> Option<NoteText> {
     let bytes = lb.read_document(id, false).ok()?;
     Some(read_note(&String::from_utf8_lossy(&bytes)))
 }
 
 /// Reads every note `lb` has, in parallel, or with `only_new`, those not
 /// read yet.
-fn read_notes(files: &RwLock<FileCache>, lb: &Lb, only_new: bool) {
+fn read_notes<S: Server>(files: &RwLock<FileCache>, lb: &Lb<S>, only_new: bool) {
     let mut ids: Vec<Uuid> = lb
         .list_metadatas()
         .unwrap_or_default()

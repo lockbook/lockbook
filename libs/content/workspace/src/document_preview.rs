@@ -59,7 +59,7 @@ pub fn markdown_excerpt(text: &str, cursor: usize) -> MarkdownExcerpt {
         .trim()
         .to_owned();
 
-    let options = MdRender::comrak_options();
+    let options = <MdRender>::comrak_options();
     let mut markdown = String::new();
     // Only inspect the full document when preceding lines might contain an opening fence.
     if first > 0 {

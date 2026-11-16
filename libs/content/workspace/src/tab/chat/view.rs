@@ -7,6 +7,7 @@ use super::*;
 use crate::file_cache::path_segments;
 use crate::show::InputStateExt as _;
 use egui::scroll_area::{ScrollBarVisibility, ScrollSource};
+use lb_rs::io::server::Server;
 
 /// A vertically-stacked, horizontally-centered column painted as one block in
 /// a rect — the shared skeleton of the onboarding chooser, connect step,
@@ -108,7 +109,7 @@ fn body_galley(ui: &Ui, text: &str, wrap_w: f32, dim: egui::Color32) -> Arc<Gall
 }
 
 /// Total height of stacked diff segments at `width`.
-fn segments_height(label: &mut MdLabel, segs: &[diff::Segment], width: f32) -> f32 {
+fn segments_height<S: Server>(label: &mut MdLabel<S>, segs: &[diff::Segment], width: f32) -> f32 {
     let mut h = 0.0;
     for (k, seg) in segs.iter().enumerate() {
         if k > 0 {
@@ -124,8 +125,8 @@ fn segments_height(label: &mut MdLabel, segs: &[diff::Segment], width: f32) -> f
 /// by half the stacking gap, so adjacent del/add bands sit flush). Returns
 /// the glyphon areas for the caller's text callback.
 #[allow(clippy::too_many_arguments)]
-fn paint_segments(
-    ui: &mut Ui, label: &mut MdLabel, salt: Id, segs: &[diff::Segment], pos: Pos2, width: f32,
+fn paint_segments<S: Server>(
+    ui: &mut Ui, label: &mut MdLabel<S>, salt: Id, segs: &[diff::Segment], pos: Pos2, width: f32,
     band_x: (f32, f32), add_wash: egui::Color32, del_wash: egui::Color32,
 ) -> Vec<crate::TextBufferArea> {
     let mut areas = Vec::new();
@@ -158,7 +159,7 @@ fn paint_segments(
     areas
 }
 
-impl Chat {
+impl<S: Server> Chat<S> {
     /// True for transcript touches (which scroll), so Android doesn't treat a
     /// short transcript scroll as a keyboard-summoning tap. Composer touches
     /// fall through so they still raise the keyboard.
@@ -526,7 +527,7 @@ impl Chat {
                     // Messages group into runs (consecutive rows that render
                     // as one visual block: name above, timestamp below) by
                     // author-and-kind. Notes never group.
-                    let run_key = |e: &Entry| (e.msg.from.clone(), e.msg.agent, e.msg.error);
+                    let run_key = |e: &Entry<S>| (e.msg.from.clone(), e.msg.agent, e.msg.error);
 
                     // pass 1: measure each visible message and compute its
                     // rect against a running y. This populates each label's

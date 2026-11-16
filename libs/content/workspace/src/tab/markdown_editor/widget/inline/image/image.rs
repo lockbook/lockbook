@@ -21,6 +21,7 @@ use crate::tab::markdown_editor::widget::utils::wrap_layout::FragmentContent;
 use crate::tab::markdown_editor::widget::utils::wrap_layout::{EmbedKind, EmbedSpec, Layout};
 use crate::tab::markdown_editor::{MdEdit, MdRender};
 use crate::tab::{ContextMenuTarget, ExtendedOutput as _};
+use lb_rs::io::server::Server;
 
 /// What an image node shows, as embeds take it: a markdown image's
 /// destination, or the [`wiki_embed_key`] of a wiki embed whose title names
@@ -65,7 +66,7 @@ pub struct ImageDrag {
     pub target: Option<Grapheme>,
 }
 
-impl MdRender {
+impl<S: Server> MdRender<S> {
     /// Prefetch textures under `node` so the image cache does not drop them.
     /// Used for off-screen neighbors about to scroll into view. Covers
     /// images ([`image_url`]) and link-preview thumbnails/favicons.
@@ -93,7 +94,7 @@ impl MdRender {
     }
 }
 
-impl<'ast> MdRender {
+impl<'ast, S: Server> MdRender<S> {
     pub fn image_size(&self, texture_size: Vec2, width: f32, requested: ImageDims) -> Vec2 {
         // Constrain the image to fit the renderer with a margin of breathing
         // room. Clamp to non-negative — when the renderer is too small to
@@ -319,7 +320,7 @@ impl<'ast> MdRender {
     }
 }
 
-impl<'ast> MdEdit {
+impl<'ast, S: Server> MdEdit<S> {
     /// The gesture that *opens* an embed rather than selecting it: a cmd-click
     /// (desktop). Touch taps select and pop the context menu, whose "Open
     /// Link" action opens, except in an editor that never takes focus (an
@@ -453,7 +454,7 @@ impl<'ast> MdEdit {
         for node in root.descendants() {
             let Some(url) = image_url(node) else { continue };
             let node_range = self.renderer.node_range(node);
-            let salt = MdRender::image_interaction_id_salt(node_range);
+            let salt = <MdRender>::image_interaction_id_salt(node_range);
             let grabbed = self
                 .renderer
                 .interaction_responses

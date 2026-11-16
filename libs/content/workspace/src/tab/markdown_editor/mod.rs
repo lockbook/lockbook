@@ -65,6 +65,8 @@ use crate::tab::markdown_editor::widget::toolbar::ToolbarPersistence;
 use crate::theme::palette_v2::ThemeExt as _;
 use crate::widgets::affine_scroll::{AffineScrollArea, Align, Offset, Reveal};
 use crate::workspace::WsPersistentStore;
+use lb_rs::io::network::Network;
+use lb_rs::io::server::Server;
 
 #[derive(Debug, Default)]
 pub struct Response {
@@ -121,7 +123,7 @@ pub enum Affinity {
     Downstream,
 }
 
-pub struct MdRender {
+pub struct MdRender<S = Network> {
     // context
     pub ctx: Context,
     pub layout: MdLayout,
@@ -309,7 +311,7 @@ pub struct MdRender {
     /// A link preview looked up since the last ask was still loading.
     pub previews_pending: std::cell::Cell<bool>,
     /// The tabs this note's embeds and hover cards show.
-    pub tab_embeds: widget::inline::tab_embed::TabEmbeds,
+    pub tab_embeds: widget::inline::tab_embed::TabEmbeds<S>,
     pub syntax: SyntaxHighlightCache,
 
     // viewport
@@ -356,7 +358,7 @@ impl Tree {
         });
         let nodes: &'static comrak::Arena<'static> = unsafe { &*std::ptr::from_ref(&tree.nodes) };
         let root = if markdown {
-            comrak::parse_document(nodes, &format!("{text}\n"), &MdRender::comrak_options())
+            comrak::parse_document(nodes, &format!("{text}\n"), &<MdRender>::comrak_options())
         } else {
             let doc = Ast::new(NodeValue::Document, LineColumn { line: 1, column: 1 });
             nodes.alloc(AstNode::new(RefCell::new(doc)))
@@ -381,8 +383,8 @@ pub enum ScrollTarget {
 /// mutate it. Self-contained so it can be used standalone (by a composer or a
 /// label+input pair) without needing an [`Editor`]'s surrounding widgets and
 /// workspace integration.
-pub struct MdEdit {
-    pub renderer: MdRender,
+pub struct MdEdit<S = Network> {
+    pub renderer: MdRender<S>,
 
     pub cursor: CursorState,
     pub event: EventState,
@@ -540,7 +542,7 @@ pub struct MdEdit {
     pub caret_moved: bool,
 }
 
-impl MdEdit {
+impl<S: Server> MdEdit<S> {
     /// Minimal editor for standalone composer-like use. Wraps
     /// `MdRender::empty` (no-op resolvers, empty `FileCache`) and sets
     /// `readonly = false` on the renderer so the composer can mutate.
@@ -601,11 +603,11 @@ impl MdEdit {
     }
 }
 
-pub struct Editor {
-    pub edit: MdEdit,
+pub struct Editor<S = Network> {
+    pub edit: MdEdit<S>,
 
     // workspace dependencies
-    pub core: Lb,
+    pub core: Lb<S>,
     pub persistence: WsPersistentStore,
 
     // document identity
@@ -722,11 +724,11 @@ pub struct MdFilePersistence {
     selection: (Grapheme, Grapheme),
 }
 
-pub struct MdResources {
+pub struct MdResources<S = Network> {
     pub ctx: Context,
     /// The workspace's link previews, shared by every tab.
     pub previews: LinkPreviews,
-    pub core: Lb,
+    pub core: Lb<S>,
     pub persistence: WsPersistentStore,
     pub files: Arc<RwLock<FileCache>>,
     pub link_resolver: Box<dyn LinkResolver>,
@@ -810,7 +812,110 @@ pub type HttpClient = reqwest::Client;
 #[cfg(not(target_arch = "wasm32"))]
 pub type HttpClient = reqwest::blocking::Client;
 
+#[cfg(test)]
 impl MdRender {
+    pub(crate) fn test(md: &str) -> Self {
+        let ctx = test_egui_ctx();
+        let ws_seq = crate::seq::ws_seq(&ctx);
+        let previews = LinkPreviews::offline(ctx.clone());
+        let diagrams = crate::widgets::diagram_cache::DiagramCache::of(&ctx);
+        let math = crate::widgets::math::MathCache::of(&ctx);
+        Self {
+            ctx,
+            layout: MdLayout::desktop(),
+            dark_mode: false,
+            kind: Syntax::Markdown,
+            touch_mode: false,
+            open_origin: None,
+            painting_drag_float: false,
+            lifted_embed: None,
+            heading_copy: None,
+            heading_copied: None,
+            caret_moved: false,
+            caret_affinity: Default::default(),
+            typing: false,
+            front_matter_collapsed: false,
+            front_matter_collapse_toggled: false,
+            bounds: Default::default(),
+            buffer: md.into(),
+            fragments: Vec::new(),
+            block_boxes: Vec::new(),
+            table_cell_boxes: Vec::new(),
+            unbreakable: Vec::new(),
+            print_heading_top: None,
+            table_header_slots: Vec::new(),
+            row_scrolls: Default::default(),
+            row_scrollers: Default::default(),
+            wheel: Default::default(),
+            code_line_clips: Default::default(),
+            font_seq: crate::font::chosen_seq(),
+            code_copied: None,
+            diagrams,
+            math,
+            diagram_previews: Default::default(),
+            block_drag_action: None,
+            text_areas: Default::default(),
+            deco_lines: Default::default(),
+            misspelled: Default::default(),
+            error_marks: Default::default(),
+            edge_fades: Default::default(),
+            scroll_bounds: None,
+            over_text: Default::default(),
+            copy_buttons: Default::default(),
+            render_events: Vec::new(),
+            touch_targets: Default::default(),
+            card_action: Default::default(),
+            interaction_responses: Default::default(),
+            interaction_rects: Default::default(),
+            revealed_spoilers: Default::default(),
+            task_toggle_pending: None,
+            task_toggled: None,
+            reveal_selection: None,
+            entered_atom: None,
+            search_range: None,
+            ime_marked: None,
+            disable_images: false,
+            contact_linked_sites: false,
+            spell_check: false,
+            in_progress_selection: None,
+            in_progress_block_drag: None,
+            find_current_match: None,
+            platform_marked: None,
+            preview_match: None,
+            region: None,
+            region_reveal: None,
+            landing_text: None,
+            interactive: false,
+            print: false,
+            readonly: true,
+            view: View::Rendered,
+            mask: false,
+            single_line: false,
+            embeds: Box::new(()),
+            link_resolver: Box::new(()),
+            client: Default::default(),
+            files: Arc::new(RwLock::new(FileCache::empty())),
+            layout_cache: Default::default(),
+            previews,
+            previews_pending: Default::default(),
+            tab_embeds: Default::default(),
+            syntax: Default::default(),
+            width: Default::default(),
+            width_seq: 0,
+            viewport_height: Default::default(),
+            reveal_seq: 0,
+            text_seq: 0,
+            tree: None,
+            bounds_seq: 0,
+            ws_seq,
+            debug: false,
+            frame_times: [Instant::now(); 100],
+            frame_times_idx: 0,
+        }
+    }
+}
+
+impl<S: Server> MdRender<S> {
     /// The frame's time, which groups typing into undo units.
     pub fn now(&self) -> std::time::Duration {
         std::time::Duration::from_secs_f64(self.ctx.input(|i| i.time))
@@ -960,107 +1065,6 @@ impl MdRender {
         }
     }
 
-    #[cfg(test)]
-    pub(crate) fn test(md: &str) -> Self {
-        let ctx = test_egui_ctx();
-        let ws_seq = crate::seq::ws_seq(&ctx);
-        let previews = LinkPreviews::offline(ctx.clone());
-        let diagrams = crate::widgets::diagram_cache::DiagramCache::of(&ctx);
-        let math = crate::widgets::math::MathCache::of(&ctx);
-        Self {
-            ctx,
-            layout: MdLayout::desktop(),
-            dark_mode: false,
-            kind: Syntax::Markdown,
-            touch_mode: false,
-            open_origin: None,
-            painting_drag_float: false,
-            lifted_embed: None,
-            heading_copy: None,
-            heading_copied: None,
-            caret_moved: false,
-            caret_affinity: Default::default(),
-            typing: false,
-            front_matter_collapsed: false,
-            front_matter_collapse_toggled: false,
-            bounds: Default::default(),
-            buffer: md.into(),
-            fragments: Vec::new(),
-            block_boxes: Vec::new(),
-            table_cell_boxes: Vec::new(),
-            unbreakable: Vec::new(),
-            print_heading_top: None,
-            table_header_slots: Vec::new(),
-            row_scrolls: Default::default(),
-            row_scrollers: Default::default(),
-            wheel: Default::default(),
-            code_line_clips: Default::default(),
-            font_seq: crate::font::chosen_seq(),
-            code_copied: None,
-            diagrams,
-            math,
-            diagram_previews: Default::default(),
-            block_drag_action: None,
-            text_areas: Default::default(),
-            deco_lines: Default::default(),
-            misspelled: Default::default(),
-            error_marks: Default::default(),
-            edge_fades: Default::default(),
-            scroll_bounds: None,
-            over_text: Default::default(),
-            copy_buttons: Default::default(),
-            render_events: Vec::new(),
-            touch_targets: Default::default(),
-            card_action: Default::default(),
-            interaction_responses: Default::default(),
-            interaction_rects: Default::default(),
-            revealed_spoilers: Default::default(),
-            task_toggle_pending: None,
-            task_toggled: None,
-            reveal_selection: None,
-            entered_atom: None,
-            search_range: None,
-            ime_marked: None,
-            disable_images: false,
-            contact_linked_sites: false,
-            spell_check: false,
-            in_progress_selection: None,
-            in_progress_block_drag: None,
-            find_current_match: None,
-            platform_marked: None,
-            preview_match: None,
-            region: None,
-            region_reveal: None,
-            landing_text: None,
-            interactive: false,
-            print: false,
-            readonly: true,
-            view: View::Rendered,
-            mask: false,
-            single_line: false,
-            embeds: Box::new(()),
-            link_resolver: Box::new(()),
-            client: Default::default(),
-            files: Arc::new(RwLock::new(FileCache::empty())),
-            layout_cache: Default::default(),
-            previews,
-            previews_pending: Default::default(),
-            tab_embeds: Default::default(),
-            syntax: Default::default(),
-            width: Default::default(),
-            width_seq: 0,
-            viewport_height: Default::default(),
-            reveal_seq: 0,
-            text_seq: 0,
-            tree: None,
-            bounds_seq: 0,
-            ws_seq,
-            debug: false,
-            frame_times: [Instant::now(); 100],
-            frame_times_idx: 0,
-        }
-    }
-
     /// Whether the text has an outline: a note's headings, or a code file's
     /// definitions.
     pub fn has_outline(&self) -> bool {
@@ -1206,9 +1210,33 @@ impl MdRender {
     }
 }
 
+#[cfg(test)]
 impl Editor {
+    pub(crate) fn test(md: &str) -> Self {
+        let files = Arc::new(RwLock::new(FileCache::empty()));
+        let ctx = test_egui_ctx();
+        let core = crate::test_utils::in_memory_core();
+        Self::new(
+            md,
+            Uuid::new_v4(),
+            None,
+            MdResources {
+                previews: LinkPreviews::offline(ctx.clone()),
+                ctx,
+                core,
+                persistence: WsPersistentStore::new(false, std::path::PathBuf::new(), false),
+                link_resolver: Box::new(()),
+                embeds: Box::new(()),
+                files,
+            },
+            MdConfig { readonly: false, ext: String::new() },
+        )
+    }
+}
+
+impl<S: Server> Editor<S> {
     pub fn new(
-        md: &str, file_id: Uuid, hmac: Option<DocumentHmac>, res: MdResources, cfg: MdConfig,
+        md: &str, file_id: Uuid, hmac: Option<DocumentHmac>, res: MdResources<S>, cfg: MdConfig,
     ) -> Self {
         let MdResources { ctx, previews, core, persistence, files, link_resolver, embeds } = res;
         let MdConfig { readonly, ext } = cfg;
@@ -1430,28 +1458,6 @@ impl Editor {
         }
     }
 
-    #[cfg(test)]
-    pub(crate) fn test(md: &str) -> Self {
-        let files = Arc::new(RwLock::new(FileCache::empty()));
-        let ctx = test_egui_ctx();
-        let core = crate::test_utils::in_memory_core();
-        Self::new(
-            md,
-            Uuid::new_v4(),
-            None,
-            MdResources {
-                previews: LinkPreviews::offline(ctx.clone()),
-                ctx,
-                core,
-                persistence: WsPersistentStore::new(false, std::path::PathBuf::new(), false),
-                link_resolver: Box::new(()),
-                embeds: Box::new(()),
-                files,
-            },
-            MdConfig { readonly: false, ext: String::new() },
-        )
-    }
-
     pub fn id(&self) -> Id {
         Id::unique(self.edit.file_id).with(self.id_salt)
     }
@@ -1551,7 +1557,7 @@ impl Editor {
 
     /// Where the caret at `at` is drawn in its row this frame.
     fn caret_point(
-        &self, rows: &scroll_content::DocScrollContent<'_, '_>, at: Grapheme,
+        &self, rows: &scroll_content::DocScrollContent<'_, '_, S>, at: Grapheme,
     ) -> Option<DocOffset> {
         let row = rows.find_text_row(at)?;
         let &(_, row_top) = self.painted_rows.iter().find(|(id, _)| *id == row)?;
@@ -3094,7 +3100,7 @@ impl Editor {
     /// under the heading to the next heading of its level or higher, or else
     /// every row of the note.
     fn region_rows<'a>(
-        &self, rows: &scroll_content::DocScrollContent<'_, 'a>, root: &'a AstNode<'a>,
+        &self, rows: &scroll_content::DocScrollContent<'_, 'a, S>, root: &'a AstNode<'a>,
         fragment: Option<&crate::tab::Fragment>,
     ) -> Option<(DocRowId, DocRowId)> {
         use crate::widgets::affine_scroll::Rows as _;
@@ -3124,7 +3130,7 @@ impl Editor {
     /// Where the embed's region starts, at its first line rather than the
     /// spacing above it, and its height from there.
     fn region_span<'a>(
-        &self, rows: &scroll_content::DocScrollContent<'_, 'a>, root: &'a AstNode<'a>,
+        &self, rows: &scroll_content::DocScrollContent<'_, 'a, S>, root: &'a AstNode<'a>,
     ) -> Option<(DocOffset, f32)> {
         use crate::widgets::affine_scroll::Rows as _;
         let (first, last) = self.region_rows(rows, root, self.edit.renderer.region.as_ref())?;
@@ -3369,7 +3375,7 @@ impl Editor {
     /// else below. A row not laid out stands at its top: wholly above or
     /// below the view, it's never the one the reading line is in.
     fn heading_point(
-        &self, rows: &scroll_content::DocScrollContent<'_, '_>, heading: (Grapheme, Grapheme),
+        &self, rows: &scroll_content::DocScrollContent<'_, '_, S>, heading: (Grapheme, Grapheme),
     ) -> Option<DocOffset> {
         use crate::widgets::affine_scroll::Rows as _;
         let (start, end) = heading;
@@ -3397,7 +3403,7 @@ impl Editor {
     /// Where the text piece drawn holding `at` is in the note: its row, and
     /// its top in that row as the last frame painted it.
     fn text_point(
-        &self, rows: &scroll_content::DocScrollContent<'_, '_>, at: Grapheme,
+        &self, rows: &scroll_content::DocScrollContent<'_, '_, S>, at: Grapheme,
     ) -> Option<DocOffset> {
         let row = rows.find_text_row(at)?;
         let &(_, row_top) = self.painted_rows.iter().find(|(id, _)| *id == row)?;
@@ -3520,7 +3526,7 @@ impl Editor {
     /// when it's more than a screen away.
     fn scroll_by_pixels_to(
         state: &mut crate::widgets::affine_scroll::ScrollArea<DocRowId>,
-        content: &scroll_content::DocScrollContent<'_, '_>, target: DocOffset,
+        content: &scroll_content::DocScrollContent<'_, '_, S>, target: DocOffset,
     ) {
         use crate::widgets::affine_scroll::Action;
         let Some(now) = state.offset(content) else { return };
@@ -3691,9 +3697,9 @@ struct Slide {
 }
 
 impl Slide {
-    fn new(
+    fn new<S: Server>(
         state: &crate::widgets::affine_scroll::ScrollArea<scroll_content::DocRowId>,
-        rows: &scroll_content::DocScrollContent<'_, '_>, room: f32,
+        rows: &scroll_content::DocScrollContent<'_, '_, S>, room: f32,
     ) -> Option<Self> {
         use crate::widgets::affine_scroll::Rows as _;
         let screen = state.viewport_height;
@@ -3734,9 +3740,9 @@ impl Slide {
 /// the last screen of scrolling down to the note's last line. A function of
 /// the rows, the offset, and the view's height alone; [`heading_scroll`] is
 /// its inverse, so a heading opened is the heading scrolled to.
-fn reading_line(
+fn reading_line<S: Server>(
     state: &crate::widgets::affine_scroll::ScrollArea<scroll_content::DocRowId>,
-    rows: &scroll_content::DocScrollContent<'_, '_>,
+    rows: &scroll_content::DocScrollContent<'_, '_, S>,
 ) -> Option<DocOffset> {
     use crate::widgets::affine_scroll::offset_by;
     let room = reading_room();
@@ -3755,9 +3761,9 @@ fn reading_line(
 
 /// The offset whose reading line falls on `target`: `room` above it, or
 /// near the end the scroll where the sliding line meets it.
-fn heading_scroll(
+fn heading_scroll<S: Server>(
     state: &crate::widgets::affine_scroll::ScrollArea<scroll_content::DocRowId>,
-    rows: &scroll_content::DocScrollContent<'_, '_>, target: DocOffset,
+    rows: &scroll_content::DocScrollContent<'_, '_, S>, target: DocOffset,
 ) -> DocOffset {
     use crate::widgets::affine_scroll::offset_by;
     let room = reading_room();
@@ -3806,8 +3812,8 @@ fn scrolled_heading(
 /// no fragment exists (off-viewport block not yet shaped). The range
 /// is reordered to `(min, max)` so callers can pass raw `(anchor,
 /// cursor)` selections.
-pub(crate) fn build_target_reveal(
-    renderer: &MdRender, content: &scroll_content::DocScrollContent<'_, '_>,
+pub(crate) fn build_target_reveal<S: Server>(
+    renderer: &MdRender<S>, content: &scroll_content::DocScrollContent<'_, '_, S>,
     state: &crate::widgets::affine_scroll::ScrollArea<DocRowId>, range: (Grapheme, Grapheme),
     canvas_rect: Rect, pad: f32,
 ) -> Option<Reveal<DocRowId>> {
@@ -3831,8 +3837,8 @@ fn android_top_overlay() -> f32 {
     if cfg!(target_os = "android") { scroll_content::DEFAULT_LEADING } else { 0.0 }
 }
 
-fn endpoint_offset(
-    renderer: &MdRender, content: &scroll_content::DocScrollContent<'_, '_>,
+fn endpoint_offset<S: Server>(
+    renderer: &MdRender<S>, content: &scroll_content::DocScrollContent<'_, '_, S>,
     state: &crate::widgets::affine_scroll::ScrollArea<DocRowId>, target: Grapheme,
     canvas_rect: Rect, side: EndpointSide, pad: f32,
 ) -> Option<Offset<DocRowId>> {

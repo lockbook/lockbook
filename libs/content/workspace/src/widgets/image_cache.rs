@@ -35,6 +35,8 @@ use crate::file_cache::FileCache;
 use crate::seq::ws_seq;
 use crate::tab::markdown_editor::HttpClient;
 use crate::workspace::WsPersistentStore;
+use lb_rs::io::network::Network;
+use lb_rs::io::server::Server;
 
 /// Wraps a block in an `async` closure on wasm, a plain closure on native.
 /// Allows the same source to await async HTTP on wasm while running
@@ -104,21 +106,21 @@ impl Inner {
 }
 
 #[derive(Clone)]
-pub struct ImageCache {
+pub struct ImageCache<S = Network> {
     inner: Arc<Mutex<Inner>>,
     seq: Arc<AtomicU64>,
     ws_seq: Arc<AtomicU64>,
 
     ctx: Context,
     client: HttpClient,
-    core: Lb,
+    core: Lb<S>,
     files: Arc<RwLock<FileCache>>,
     persistence: WsPersistentStore, // persist image dims
 }
 
-impl ImageCache {
+impl<S: Server> ImageCache<S> {
     pub fn new(
-        ctx: Context, client: HttpClient, core: Lb, files: Arc<RwLock<FileCache>>,
+        ctx: Context, client: HttpClient, core: Lb<S>, files: Arc<RwLock<FileCache>>,
         persistence: WsPersistentStore,
     ) -> Self {
         let ws_seq = ws_seq(&ctx);

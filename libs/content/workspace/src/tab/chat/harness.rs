@@ -21,6 +21,7 @@ use super::backend::{Backend, ChatMsg, CompletionReq};
 use super::settings::Provider;
 use super::tools::{self, Buffers};
 use super::{anthropic, openai};
+use lb_rs::io::server::Server;
 
 /// Per-request output cap. Comfortably under Cerebras' free-tier 32k.
 const MAX_TOKENS: u32 = 16_000;
@@ -145,8 +146,8 @@ impl Harness {
     /// the one its command carries, and a misconfigured provider isn't
     /// pre-screened: the turn fails and surfaces as a retryable error row,
     /// which beats a silently dormant agent.
-    pub fn new(
-        ctx: egui::Context, core: lb_rs::blocking::Lb, history: Vec<ChatMsg>, buffers: Buffers,
+    pub fn new<S: Server>(
+        ctx: egui::Context, core: lb_rs::blocking::Lb<S>, history: Vec<ChatMsg>, buffers: Buffers,
     ) -> Self {
         let (cmd_tx, cmd_rx) = unbounded_channel();
         let (events_tx, events_rx) = unbounded_channel();
@@ -246,8 +247,8 @@ impl Harness {
     }
 }
 
-async fn run(
-    mut history: Vec<ChatMsg>, mut buffers: Buffers, lb: lb_rs::Lb, ctx: egui::Context,
+async fn run<S: Server>(
+    mut history: Vec<ChatMsg>, mut buffers: Buffers, lb: lb_rs::Lb<S>, ctx: egui::Context,
     mut cmd_rx: UnboundedReceiver<Cmd>, events_tx: UnboundedSender<AgentEvent>,
 ) {
     let send = |ev: AgentEvent| {

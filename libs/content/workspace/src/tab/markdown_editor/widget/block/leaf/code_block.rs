@@ -20,6 +20,7 @@ use crate::tab::markdown_editor::{MdRender, TouchTarget};
 
 use crate::theme::palette_v2::ThemeExt as _;
 use crate::widgets::GlyphonLabel;
+use lb_rs::io::server::Server;
 
 /// Code lines in the editor are laid out this wide: they never wrap.
 const UNBOUNDED: f32 = 100_000.0;
@@ -75,7 +76,7 @@ impl CopyButton {
     }
 }
 
-impl<'ast> MdRender {
+impl<'ast, S: Server> MdRender<S> {
     pub fn text_format_code_block(&self, parent: &AstNode<'_>) -> Format {
         let parent_text_format = self.text_format(parent);
         Format { family: FontFamily::Mono, ..parent_text_format }

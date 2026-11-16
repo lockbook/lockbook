@@ -10,6 +10,7 @@ use crate::theme::palette_v2::Palette;
 
 use super::bounds::RangesExt as _;
 use super::{MdEdit, MdRender, TouchTarget};
+use lb_rs::io::server::Server;
 use utils::NodeValueExt as _;
 
 pub(crate) mod block;
@@ -24,7 +25,7 @@ pub(crate) mod property_completions;
 pub(crate) mod toolbar;
 pub(crate) mod utils;
 
-impl<'ast> MdRender {
+impl<'ast, S: Server> MdRender<S> {
     /// Returns the range for the node.
     pub fn node_range(&self, node: &'ast AstNode<'ast>) -> (Grapheme, Grapheme) {
         // Check cache first
@@ -398,7 +399,7 @@ impl<'ast> MdRender {
 /// A width that fits a completion popup's short words.
 const COMPLETION_POPUP_WIDTH: f32 = 180.0;
 
-impl MdEdit {
+impl<S: Server> MdEdit<S> {
     /// A completion popup of `labels` beside the line at `anchor`, the
     /// `highlighted` row marked. Returns the row clicked.
     pub fn show_completion_rows(

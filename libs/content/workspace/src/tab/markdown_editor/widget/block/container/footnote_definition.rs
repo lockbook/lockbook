@@ -7,8 +7,9 @@ use crate::tab::markdown_editor::widget::utils::wrap_layout::Format;
 
 use crate::theme::palette_v2::ThemeExt as _;
 use crate::widgets::GlyphonLabel;
+use lb_rs::io::server::Server;
 
-impl<'ast> MdRender {
+impl<'ast, S: Server> MdRender<S> {
     pub fn text_format_footnote_definition(&self, parent: &AstNode<'_>) -> Format {
         let parent_text_format = self.text_format(parent);
         Format { color: self.ctx.get_lb_theme().neutral_fg_secondary(), ..parent_text_format }

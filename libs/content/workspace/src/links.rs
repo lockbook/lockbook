@@ -58,7 +58,7 @@ const CONTEXT_BYTES: usize = 160;
 /// are left out.
 pub fn read_note(md: &str) -> NoteText {
     let arena = Arena::new();
-    let root = comrak::parse_document(&arena, md, &MdRender::comrak_options());
+    let root = comrak::parse_document(&arena, md, &<MdRender>::comrak_options());
     let lines = line_starts(md);
     let mut links = vec![];
     for node in root.descendants() {
@@ -141,7 +141,7 @@ fn link_at<'a>(md: &str, lines: &[usize], node: &'a AstNode<'a>) -> Option<Found
 /// isn't written inside the link (a reference link's) has none.
 pub fn written_dests(md: &str) -> Vec<(LinkKind, String, Range<usize>)> {
     let arena = Arena::new();
-    let root = comrak::parse_document(&arena, md, &MdRender::comrak_options());
+    let root = comrak::parse_document(&arena, md, &<MdRender>::comrak_options());
     let lines = line_starts(md);
     root.descendants()
         .filter_map(|node| link_at(md, &lines, node))

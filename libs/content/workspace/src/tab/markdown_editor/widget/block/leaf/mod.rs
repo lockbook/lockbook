@@ -2,6 +2,7 @@ use comrak::nodes::AstNode;
 use lb_rs::model::text::offset_types::{Grapheme, RangeExt as _, RangeIterExt as _};
 
 use crate::tab::markdown_editor::MdRender;
+use lb_rs::io::server::Server;
 
 pub(crate) mod code_block;
 pub(crate) mod diagram;
@@ -12,7 +13,7 @@ pub(crate) mod paragraph;
 pub(crate) mod table_cell;
 pub(crate) mod thematic_break;
 
-impl<'ast> MdRender {
+impl<'ast, S: Server> MdRender<S> {
     /// Returns 5 ranges representing the pre-node range, pre-first-child section,
     /// inter-children section, post-last-child section, and post-node range.
     #[allow(clippy::type_complexity)]

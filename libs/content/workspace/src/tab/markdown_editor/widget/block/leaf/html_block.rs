@@ -3,8 +3,9 @@ use egui::{Pos2, Ui};
 
 use crate::tab::markdown_editor::MdRender;
 use crate::tab::markdown_editor::widget::utils::wrap_layout::Format;
+use lb_rs::io::server::Server;
 
-impl<'ast> MdRender {
+impl<'ast, S: Server> MdRender<S> {
     pub fn text_format_html_block(&self, parent: &AstNode<'_>) -> Format {
         self.text_format_code_block(parent)
     }

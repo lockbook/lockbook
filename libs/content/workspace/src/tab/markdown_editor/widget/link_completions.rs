@@ -24,6 +24,7 @@ use crate::tab::markdown_editor::input::{Event, Location, Region};
 use crate::tab::markdown_editor::widget::completion_popup_rect;
 use crate::widgets::GlyphonLabel;
 use crate::widgets::glyphon_label::TextOverflow;
+use lb_rs::io::server::Server;
 
 const MAX_RESULTS: usize = 7;
 /// The popup's width, narrower where the window is.
@@ -1036,7 +1037,7 @@ impl LinkCompletions {
     }
 }
 
-impl MdEdit {
+impl<S: Server> MdEdit<S> {
     pub fn show_link_completions(&mut self, ui: &mut Ui) {
         if self.renderer.readonly || !self.link_completions.active {
             return;

@@ -35,6 +35,7 @@ use super::widget::block::leaf::diagram::Picture;
 use super::widget::inline::link::{LinkMenuAction, fill_link_menu};
 use super::widget::inline::tab_embed::EmbedClick;
 use super::{Arena, ImeMarked, MdEdit, MdRender};
+use lb_rs::io::server::Server;
 
 #[derive(Clone)]
 enum EditorMenuCmd {
@@ -75,7 +76,7 @@ pub struct Applied {
 /// 57 pt that felt right on an iPhone, a 16 pt row and a 41 pt lift.
 const DRAG_SCROLL_ROWS: f32 = 3.5;
 
-impl MdEdit {
+impl<S: Server> MdEdit<S> {
     /// Applies the edits the last frame queued for this one: a let-go block
     /// drag's move and the internal events. Their offsets are aimed at the
     /// text on screen, so a reload applies them before it merges.
@@ -886,7 +887,7 @@ impl MdEdit {
     /// hit-testing.
     pub(crate) fn paint_drag_float<'a>(
         &mut self, ui: &mut Ui, root: &'a comrak::nodes::AstNode<'a>,
-        float: impl FnOnce(&mut MdRender, &mut Ui),
+        float: impl FnOnce(&mut MdRender<S>, &mut Ui),
     ) {
         let frag_len = self.renderer.fragments.len();
         let box_len = self.renderer.block_boxes.len();

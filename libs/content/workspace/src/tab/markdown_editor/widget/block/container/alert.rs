@@ -7,8 +7,9 @@ use lb_rs::model::text::offset_types::{Grapheme, Graphemes, RangeExt as _, Range
 
 use crate::tab::markdown_editor::MdRender;
 use crate::widgets::GlyphonLabel;
+use lb_rs::io::server::Server;
 
-impl<'ast> MdRender {
+impl<'ast, S: Server> MdRender<S> {
     pub fn text_format_alert(&self, parent: &AstNode<'_>, node_alert: &NodeAlert) -> Format {
         let parent_text_format = self.text_format(parent);
         Format {

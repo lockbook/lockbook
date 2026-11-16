@@ -17,13 +17,14 @@ use crate::widgets::GlyphonLabel;
 use crate::widgets::glyphon_cache::GlyphonCache;
 use crate::workspace::Workspace;
 use lb_rs::Uuid;
+use lb_rs::io::server::Server;
 
 pub const NEW_NOTE_SHORTCUT: egui::KeyboardShortcut =
     egui::KeyboardShortcut::new(Modifiers::COMMAND, Key::N);
 pub const SEARCH_SHORTCUT: egui::KeyboardShortcut =
     egui::KeyboardShortcut::new(Modifiers::COMMAND, Key::O);
 
-impl Workspace {
+impl<S: Server> Workspace<S> {
     pub fn show(&mut self, ui: &mut egui::Ui) -> Response {
         visuals::apply(ui.style_mut());
 

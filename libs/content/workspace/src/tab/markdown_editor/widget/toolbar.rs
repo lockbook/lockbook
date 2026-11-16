@@ -22,6 +22,7 @@ use crate::tab::markdown_editor::{Arena, MdRender, TouchTarget};
 use crate::tab::{ExtendedInput as _, ExtendedOutput as _};
 
 use crate::tab::markdown_editor::{self, Editor};
+use lb_rs::io::server::Server;
 use markdown_editor::Event;
 use markdown_editor::input::{FrontMatterAction, Region};
 
@@ -369,7 +370,7 @@ pub struct ToolbarPersistence {
     table: bool,
 }
 
-impl<'ast> Editor {
+impl<'ast, S: Server> Editor<S> {
     pub fn android_toolbar_state(&mut self) -> MarkdownToolbarState {
         let arena = Arena::new();
         let root = self.edit.renderer.reparse(&arena);
@@ -1806,7 +1807,7 @@ impl<'ast> Editor {
 
         // parse
         let arena = comrak::Arena::new();
-        let options = MdRender::comrak_options();
+        let options = <MdRender>::comrak_options();
         let text_with_newline = self.edit.renderer.buffer.current.text.to_string() + "\n";
         let root = comrak::parse_document(&arena, &text_with_newline, &options);
 
@@ -1846,7 +1847,7 @@ impl<'ast> Editor {
 
         // parse
         let arena = comrak::Arena::new();
-        let options = MdRender::comrak_options();
+        let options = <MdRender>::comrak_options();
         let text_with_newline = self.edit.renderer.buffer.current.text.to_string() + "\n";
         let root = comrak::parse_document(&arena, &text_with_newline, &options);
 

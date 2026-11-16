@@ -3,8 +3,9 @@ use lb_rs::model::text::offset_types::Grapheme;
 
 use crate::tab::markdown_editor::MdRender;
 use crate::tab::markdown_editor::widget::utils::wrap_layout::{Format, Layout};
+use lb_rs::io::server::Server;
 
-impl<'ast> MdRender {
+impl<'ast, S: Server> MdRender<S> {
     pub fn text_format_strong(&self, parent: &AstNode<'_>) -> Format {
         let parent_text_format = self.text_format(parent);
         Format { bold: true, ..parent_text_format }

@@ -4,8 +4,9 @@ use lb_rs::model::text::offset_types::{Grapheme, RangeExt, RangeIterExt as _};
 
 use crate::tab::markdown_editor::MdRender;
 use crate::tab::markdown_editor::widget::utils::wrap_layout::Layout;
+use lb_rs::io::server::Server;
 
-impl<'ast> MdRender {
+impl<'ast, S: Server> MdRender<S> {
     pub fn height_paragraph(&self, node: &'ast AstNode<'ast>) -> f32 {
         let mut result = 0.;
         let last_line_idx = self.node_last_line_idx(node);

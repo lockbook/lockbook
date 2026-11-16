@@ -17,6 +17,8 @@ use chrono::DateTime;
 use egui::Id;
 use lb_rs::Uuid;
 use lb_rs::blocking::Lb;
+use lb_rs::io::network::Network;
+use lb_rs::io::server::Server;
 use lb_rs::model::errors::{LbErr, LbErrKind};
 use lb_rs::model::file::File;
 use lb_rs::model::file_metadata::{DocumentHmac, FileType};
@@ -451,9 +453,9 @@ pub fn index_of_dest_to_activate(
 
 pub use open::{Doc, TabResources};
 
-pub struct Tab {
+pub struct Tab<S = Network> {
     pub destination: Destination,
-    pub content: ContentState,
+    pub content: ContentState<S>,
     /// Every widget id inside the tab derives from this: the session id for
     /// a tab in the strip, a fresh id for an embed or a preview.
     pub salt: Id,
@@ -506,8 +508,10 @@ pub struct Reveal {
     pub flash: bool,
 }
 
-impl Tab {
-    pub fn new(destination: Destination, content: ContentState, salt: Id, read_only: bool) -> Self {
+impl<S: Server> Tab<S> {
+    pub fn new(
+        destination: Destination, content: ContentState<S>, salt: Id, read_only: bool,
+    ) -> Self {
         let now = Instant::now();
         Self {
             destination,
@@ -551,7 +555,7 @@ impl Tab {
     }
 
     #[cfg(not(target_family = "wasm"))]
-    pub fn chat(&self) -> Option<&Chat> {
+    pub fn chat(&self) -> Option<&Chat<S>> {
         match &self.content {
             ContentState::Open(TabContent::Chat(chat)) => Some(chat),
             _ => None,
@@ -559,21 +563,21 @@ impl Tab {
     }
 
     #[cfg(not(target_family = "wasm"))]
-    pub fn chat_mut(&mut self) -> Option<&mut Chat> {
+    pub fn chat_mut(&mut self) -> Option<&mut Chat<S>> {
         match &mut self.content {
             ContentState::Open(TabContent::Chat(chat)) => Some(chat),
             _ => None,
         }
     }
 
-    pub fn markdown(&self) -> Option<&Markdown> {
+    pub fn markdown(&self) -> Option<&Markdown<S>> {
         match &self.content {
             ContentState::Open(TabContent::Markdown(md)) => Some(md),
             _ => None,
         }
     }
 
-    pub fn markdown_mut(&mut self) -> Option<&mut Markdown> {
+    pub fn markdown_mut(&mut self) -> Option<&mut Markdown<S>> {
         match &mut self.content {
             ContentState::Open(TabContent::Markdown(md)) => Some(md),
             _ => None,
@@ -587,7 +591,7 @@ impl Tab {
         }
     }
 
-    pub fn image_viewer(&self) -> Option<&ImageViewer> {
+    pub fn image_viewer(&self) -> Option<&ImageViewer<S>> {
         match &self.content {
             ContentState::Open(TabContent::Image(img)) => Some(img),
             _ => None,
@@ -599,14 +603,14 @@ impl Tab {
         !matches!(self.content, ContentState::Loading(_))
     }
 
-    pub fn svg(&self) -> Option<&SVGEditor> {
+    pub fn svg(&self) -> Option<&SVGEditor<S>> {
         match &self.content {
             ContentState::Open(TabContent::Svg(svg)) => Some(svg),
             _ => None,
         }
     }
 
-    pub fn svg_mut(&mut self) -> Option<&mut SVGEditor> {
+    pub fn svg_mut(&mut self) -> Option<&mut SVGEditor<S>> {
         match &mut self.content {
             ContentState::Open(TabContent::Svg(svg)) => Some(svg),
             _ => None,
@@ -629,14 +633,14 @@ impl Tab {
         }
     }
 
-    pub fn space_inspector(&self) -> Option<&SpaceInspector> {
+    pub fn space_inspector(&self) -> Option<&SpaceInspector<S>> {
         match &self.content {
             ContentState::Open(TabContent::SpaceInspector(sv)) => Some(sv),
             _ => None,
         }
     }
 
-    pub fn space_inspector_mut(&mut self) -> Option<&mut SpaceInspector> {
+    pub fn space_inspector_mut(&mut self) -> Option<&mut SpaceInspector<S>> {
         match &mut self.content {
             ContentState::Open(TabContent::SpaceInspector(sv)) => Some(sv),
             _ => None,
@@ -856,7 +860,7 @@ impl Tab {
         }
     }
 
-    pub fn is_dirty(&self, tasks: &TaskManager) -> bool {
+    pub fn is_dirty(&self, tasks: &TaskManager<S>) -> bool {
         if let Some(queued_at) = self.id().and_then(|id| tasks.save_queued_at(id)) {
             self.last_changed > queued_at
         } else {
@@ -866,27 +870,27 @@ impl Tab {
 }
 
 #[allow(clippy::large_enum_variant)]
-pub enum ContentState {
+pub enum ContentState<S = Network> {
     Loading(Uuid),
-    Open(TabContent),
+    Open(TabContent<S>),
     Failed(TabFailure),
 }
 
 #[allow(clippy::large_enum_variant)]
-pub enum TabContent {
+pub enum TabContent<S = Network> {
     #[cfg(not(target_family = "wasm"))]
-    Chat(Chat),
-    Image(ImageViewer),
-    Markdown(Markdown),
+    Chat(Chat<S>),
+    Image(ImageViewer<S>),
+    Markdown(Markdown<S>),
     Pdf(PdfViewer),
-    Svg(SVGEditor),
+    Svg(SVGEditor<S>),
     #[cfg(not(target_family = "wasm"))]
     MindMap(MindMap),
-    SpaceInspector(SpaceInspector),
-    Search(Search),
+    SpaceInspector(SpaceInspector<S>),
+    Search(Search<S>),
 }
 
-impl std::fmt::Debug for TabContent {
+impl<S: Server> std::fmt::Debug for TabContent<S> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             #[cfg(not(target_family = "wasm"))]
@@ -903,7 +907,7 @@ impl std::fmt::Debug for TabContent {
     }
 }
 
-impl TabContent {
+impl<S: Server> TabContent<S> {
     pub fn id(&self) -> Option<Uuid> {
         match self {
             #[cfg(not(target_family = "wasm"))]
@@ -1147,8 +1151,8 @@ pub enum ClipContent {
     NamedImage { name: String, data: Vec<u8> },
 }
 
-impl Workspace {
-    pub fn tab_title(&self, tab: &Tab) -> String {
+impl<S: Server> Workspace<S> {
+    pub fn tab_title(&self, tab: &Tab<S>) -> String {
         let files_arc = std::sync::Arc::clone(&self.files);
         let files_guard = files_arc.read().unwrap();
         match tab.id() {
@@ -1485,8 +1489,8 @@ pub const MAX_ATTACHMENT_SIZE_BYTES: usize = 25 * 1024 * 1024;
 
 // todo: use background thread
 // todo: refresh file tree view
-pub fn import_image(
-    core: &Lb, file_id: Uuid, name: Option<&str>, data: &[u8],
+pub fn import_image<S: Server>(
+    core: &Lb<S>, file_id: Uuid, name: Option<&str>, data: &[u8],
 ) -> Result<File, String> {
     let name = image_import_name(name, data);
     import_image_with_name(core, file_id, &name, data)
@@ -1513,8 +1517,8 @@ fn image_import_name(name: Option<&str>, data: &[u8]) -> String {
 }
 
 /// Import image bytes next to a document, using a unique name in its `imports` folder.
-fn import_image_with_name(
-    core: &Lb, target: Uuid, name: &str, data: &[u8],
+fn import_image_with_name<S: Server>(
+    core: &Lb<S>, target: Uuid, name: &str, data: &[u8],
 ) -> Result<File, String> {
     #[cfg(target_os = "android")]
     if data.len() > MAX_ATTACHMENT_SIZE_BYTES {

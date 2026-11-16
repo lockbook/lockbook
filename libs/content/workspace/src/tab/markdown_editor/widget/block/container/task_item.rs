@@ -13,6 +13,7 @@ use crate::tab::markdown_editor::widget::utils::{
 };
 use crate::tab::markdown_editor::{Event, MdRender};
 use crate::theme::palette_v2::{Theme, ThemeExt};
+use lb_rs::io::server::Server;
 
 /// Checking: the box pops and the check springs in over this long.
 const POP_SECS: f32 = ANIM_MAX_SECS;
@@ -103,7 +104,7 @@ fn partial_polyline(points: &[Pos2], draw: f32) -> Vec<Pos2> {
     out
 }
 
-impl<'ast> MdRender {
+impl<'ast, S: Server> MdRender<S> {
     pub fn height_task_item(&self, node: &'ast AstNode<'ast>) -> f32 {
         self.height_item(node)
     }

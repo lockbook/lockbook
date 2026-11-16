@@ -15,6 +15,7 @@ use crate::tab::{ContentState, Destination, Place, Presentation, TabContent, Tab
 use crate::theme::palette_v2::Mode;
 use crate::widgets::diagram_cache::PrintSvg;
 use crate::widgets::glyphon_render::PrintText;
+use lb_rs::io::server::Server;
 
 /// The whole note in one frame, in its own points.
 pub struct PrintFrame {
@@ -29,8 +30,8 @@ pub struct PrintFrame {
 /// Draws the note `id` whole, `size.x` wide and at least `size.y` tall.
 /// `text` is an open note's text, unsaved edits and all, instead of what's
 /// saved.
-pub fn print_frame(
-    live: &TabResources, id: Uuid, text: Option<String>, size: Vec2,
+pub fn print_frame<S: Server>(
+    live: &TabResources<S>, id: Uuid, text: Option<String>, size: Vec2,
 ) -> Result<PrintFrame, String> {
     let mut look = Look::of(&live.ctx);
     look.theme.current = Mode::Light;

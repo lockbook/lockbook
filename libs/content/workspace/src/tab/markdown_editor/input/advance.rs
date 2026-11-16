@@ -7,9 +7,10 @@ use crate::tab::markdown_editor::bounds::{BoundCase, BoundExt as _};
 use crate::tab::markdown_editor::input::{Advance, Bound, Increment};
 use crate::tab::markdown_editor::table::{CellBounds, TableCellBox};
 use crate::tab::markdown_editor::widget::utils::wrap_layout::Fragment;
+use lb_rs::io::server::Server;
 use lb_rs::model::text::offset_types::{Grapheme, RangeExt as _};
 
-impl MdEdit {
+impl<S: Server> MdEdit<S> {
     /// Where `advance` takes a caret at `offset`, and the row it is drawn on
     /// there when a soft wrap's shared offset leaves that open.
     pub fn advance(

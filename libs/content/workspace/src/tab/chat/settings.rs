@@ -23,6 +23,7 @@
 //! future setup UI offers known providers as templates that pre-fill a file.
 
 use lb_rs::blocking::Lb;
+use lb_rs::io::server::Server;
 use serde::Deserialize;
 
 const PROVIDERS_DIR: &str = "/.agent/providers";
@@ -34,7 +35,7 @@ pub const PROMPT_PATH: &str = "/.agent/prompt.md";
 const DEFAULT_PATH: &str = "/.agent/default.json";
 
 /// Read the sticky default selection, if one has been recorded.
-pub fn load_default(core: &Lb) -> Option<lb_rs::model::chat::ModelSelection> {
+pub fn load_default<S: Server>(core: &Lb<S>) -> Option<lb_rs::model::chat::ModelSelection> {
     let file = core.get_by_path(DEFAULT_PATH).ok()?;
     let bytes = core.read_document(file.id, false).ok()?;
     serde_json::from_slice(&bytes).ok()
@@ -42,7 +43,7 @@ pub fn load_default(core: &Lb) -> Option<lb_rs::model::chat::ModelSelection> {
 
 /// Record the sticky default selection. Best-effort — a convenience, not
 /// load-bearing — so I/O failures are swallowed.
-pub fn write_default(core: &Lb, selection: &lb_rs::model::chat::ModelSelection) {
+pub fn write_default<S: Server>(core: &Lb<S>, selection: &lb_rs::model::chat::ModelSelection) {
     let Ok(bytes) = serde_json::to_vec_pretty(selection) else { return };
     let id = match core.get_by_path(DEFAULT_PATH) {
         Ok(f) => f.id,
@@ -58,7 +59,7 @@ pub fn write_default(core: &Lb, selection: &lb_rs::model::chat::ModelSelection) 
 /// exists — an empty file means no system prompt, not the default; deleting
 /// the file restores the built-in preamble. Read at send time like
 /// everything else here — edit, then just send.
-pub fn system_prompt(core: &Lb) -> Option<String> {
+pub fn system_prompt<S: Server>(core: &Lb<S>) -> Option<String> {
     let file = core.get_by_path(PROMPT_PATH).ok()?;
     let bytes = core.read_document(file.id, false).ok()?;
     Some(String::from_utf8_lossy(&bytes).trim().to_string())
@@ -131,7 +132,7 @@ fn default_kind() -> String {
 /// half-created provider — skipped too, so an unconfigured provider is, in
 /// every respect (picker, resolution, onboarding), as if its file didn't
 /// exist; the roster's "add provider" flow is where it gets set up.
-pub fn load(core: &Lb) -> Vec<Provider> {
+pub fn load<S: Server>(core: &Lb<S>) -> Vec<Provider> {
     let Ok(dir) = core.get_by_path(PROVIDERS_DIR) else { return Vec::new() };
     let Ok(children) = core.get_children(&dir.id) else { return Vec::new() };
     let mut providers: Vec<Provider> = children

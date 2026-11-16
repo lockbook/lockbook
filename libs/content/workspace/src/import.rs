@@ -17,6 +17,7 @@ pub use lb_rs::service::import_export::{DocTotals, IgnoreReason};
 use lb_rs::subscribers::status::Status;
 
 use crate::show::DocType;
+use lb_rs::io::server::Server;
 
 /// Kinds of document someone can skip to fit their account.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -97,7 +98,7 @@ pub struct Room {
 impl Room {
     /// Asks the server, falling back to the last sync's numbers, then adds what
     /// local changes hold, at stored size. Edits count whole, so they overestimate.
-    pub fn measure(core: &Lb, status: &Status) -> Option<Self> {
+    pub fn measure<S: Server>(core: &Lb<S>, status: &Status) -> Option<Self> {
         let (server, cap) = match core.get_usage() {
             Ok(u) => (u.server_usage.exact, u.data_cap.exact),
             Err(_) => {
@@ -256,8 +257,8 @@ fn subject(paths: &[PathBuf]) -> String {
 
 /// Plans on another thread: listing and comparing a big folder takes about a
 /// second per 5,000 files.
-pub fn plan_in_background(
-    core: Lb, paths: Vec<PathBuf>, dest: Uuid, status: Status, ctx: egui::Context,
+pub fn plan_in_background<S: Server>(
+    core: Lb<S>, paths: Vec<PathBuf>, dest: Uuid, status: Status, ctx: egui::Context,
 ) -> std::sync::mpsc::Receiver<Result<ImportPlan, String>> {
     let (tx, rx) = std::sync::mpsc::channel();
     std::thread::spawn(move || {
@@ -330,7 +331,9 @@ pub struct JobView {
 const MS_PER_FILE: f64 = 19.0;
 const MS_PER_MB: f64 = 10.0;
 
-fn run(core: &Lb, plan: &ImportPlan, progress: &Mutex<Progress>, ctx: &egui::Context) {
+fn run<S: Server>(
+    core: &Lb<S>, plan: &ImportPlan, progress: &Mutex<Progress>, ctx: &egui::Context,
+) {
     let dest = plan.dest();
     // `ImportStatus` names each entry by its disk path as displayed.
     let sizes: HashMap<String, u64> = plan
@@ -391,7 +394,9 @@ const ETA_WARMUP_SECS: f64 = 3.0;
 impl ImportJob {
     /// Writes `plan` as the sheet showed it. Refuses, writing nothing, when it no longer fits
     /// the account.
-    pub fn start(core: Lb, plan: ImportPlan, status: Status, ctx: egui::Context) -> Self {
+    pub fn start<S: Server>(
+        core: Lb<S>, plan: ImportPlan, status: Status, ctx: egui::Context,
+    ) -> Self {
         let progress = Arc::new(Mutex::new(Progress {
             phase: Phase::Importing,
             done_files: 0,

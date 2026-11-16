@@ -11,9 +11,10 @@ use crate::tab::markdown_editor::widget::utils::{
 };
 
 use crate::theme::palette_v2::ThemeExt as _;
+use lb_rs::io::server::Server;
 
 // https://github.github.com/gfm/#list-items
-impl<'ast> MdRender {
+impl<'ast, S: Server> MdRender<S> {
     pub fn height_item(&self, node: &'ast AstNode<'ast>) -> f32 {
         let any_children = node.children().next().is_some();
         if any_children {

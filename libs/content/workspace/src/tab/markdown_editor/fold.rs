@@ -24,6 +24,7 @@ use crate::tab::markdown_editor::widget::utils::wrap_layout::{
     FontFamily, Format, Layout, StyleInfo,
 };
 use crate::tab::markdown_editor::{Arena, Event, MdEdit, MdRender};
+use lb_rs::io::server::Server;
 
 pub const FOLD_TAG: &str = "<!-- {\"fold\":true} -->";
 
@@ -40,7 +41,7 @@ fn fold_chip_id_salt(tag: (Grapheme, Grapheme)) -> egui::Id {
 
 // ─── fold bounds ─────────────────────────────────────────────────────
 
-impl<'ast> MdRender {
+impl<'ast, S: Server> MdRender<S> {
     /// The hidden contents of a foldable node — [`Self::heading_contents`]
     /// or [`Self::item_contents`] by node type.
     pub fn fold_contents(&self, node: &'ast AstNode<'ast>) -> Option<(Grapheme, Grapheme)> {
@@ -77,7 +78,7 @@ impl<'ast> MdRender {
 
 // ─── find reveal ─────────────────────────────────────────────────────
 
-impl MdRender {
+impl<S: Server> MdRender<S> {
     /// Ranges that reveal *folded contents* without unfolding: the
     /// current find match and preview, and an embed's section, which opens
     /// the folds around it. The selection is deliberately
@@ -110,7 +111,7 @@ impl MdRender {
 
 // ─── chip rendering + interaction ────────────────────────────────────
 
-impl<'ast> MdRender {
+impl<'ast, S: Server> MdRender<S> {
     /// Lay out an active fold's tag: a `···` chip while the contents are
     /// hidden, a zero-width anchor while a find match force-reveals them
     /// (the chip would misread as hidden content). Never show tag source.
@@ -171,7 +172,7 @@ impl<'ast> MdRender {
 
 // ─── navigation + selection atoms ────────────────────────────────────
 
-impl MdRender {
+impl<S: Server> MdRender<S> {
     /// Folded regions are atoms for navigation: an advance landing
     /// inside a fold tag or its hidden contents continues out in the
     /// travel direction — forward motion past the chip resumes at the
@@ -238,7 +239,7 @@ impl MdRender {
 
 // ─── capsule semantics for edits ─────────────────────────────────────
 
-impl MdRender {
+impl<S: Server> MdRender<S> {
     /// The chip stands for the contents it hides: an edit range that
     /// contains a fold's whole capsule (its tag) grows over that fold's
     /// hidden contents, so deleting or typing over the selection edits
@@ -300,7 +301,7 @@ impl MdRender {
 
 // ─── event hooks ─────────────────────────────────────────────────────
 
-impl<'ast> MdEdit {
+impl<'ast, S: Server> MdEdit<S> {
     /// Selections are snapped out of fold sections, but an edit can still
     /// leave one inside, e.g. indenting an item into a folded item; after
     /// an edit or a user move, unfold around it.

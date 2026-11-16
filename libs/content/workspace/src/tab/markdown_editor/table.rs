@@ -30,6 +30,7 @@ use super::input::{Advance, Increment, Location, Region};
 use super::row_scroll::RowScroller;
 use super::widget::utils::NodeValueExt as _;
 use super::{MdEdit, MdRender};
+use lb_rs::io::server::Server;
 
 /// One table's rows, cells, and pipes in the source.
 #[derive(Clone, Debug, PartialEq)]
@@ -200,7 +201,7 @@ fn cell_content(cell: &str, opened: bool) -> (usize, usize) {
 
 // ─── bounds ──────────────────────────────────────────────────────────
 
-impl<'ast> MdRender {
+impl<'ast, S: Server> MdRender<S> {
     /// Recompute [`Bounds::tables`]. Depends on text only, so source view
     /// has them for its table edits too.
     pub fn calc_table_bounds(&mut self, root: &'ast AstNode<'ast>) {
@@ -393,7 +394,7 @@ impl<'ast> MdRender {
 
 // ─── the caret ───────────────────────────────────────────────────────
 
-impl MdRender {
+impl<S: Server> MdRender<S> {
     /// Tables are grids for navigation: an advance from `origin` that lands
     /// on a table line outside cell content continues in the travel
     /// direction to the nearest content, or out of the table past its last
@@ -626,7 +627,7 @@ impl MdRender {
     }
 }
 
-impl MdRender {
+impl<S: Server> MdRender<S> {
     /// Gives `row` the cells it lacks through `column`, with the caret in
     /// the last: between its two spaces.
     pub fn write_table_cells(
@@ -650,7 +651,7 @@ impl MdRender {
     }
 }
 
-impl<'ast> MdRender {
+impl<'ast, S: Server> MdRender<S> {
     /// Whether a block style toggled now applies to `node`. A table takes
     /// one whole, as a leaf block does: a prefix on one row's line would
     /// end the table there.
@@ -703,7 +704,7 @@ impl<'ast> MdRender {
 
 // ─── event hooks ─────────────────────────────────────────────────────
 
-impl MdEdit {
+impl<S: Server> MdEdit<S> {
     /// A Select that is also an edit. True if handled (ops + caret pushed).
     ///
     /// A short row has no source for the cells it lacks: the first time the

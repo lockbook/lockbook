@@ -7,6 +7,7 @@ use resvg::usvg::{NonZeroRect, Transform};
 
 use super::ViewportSettings;
 use super::util::{demote_to_weak_rect, promote_weak_rect};
+use lb_rs::io::server::Server;
 
 pub trait BoundedElement {
     fn bounding_box(&self) -> egui::Rect;
@@ -51,10 +52,10 @@ impl BoundedElement for Path {
 }
 
 pub trait PromoteWeakImage {
-    fn from_weak(value: WeakImage, lb: &Lb) -> Image;
+    fn from_weak<S: Server>(value: WeakImage, lb: &Lb<S>) -> Image;
 }
 impl PromoteWeakImage for Image {
-    fn from_weak(value: WeakImage, lb: &Lb) -> Self {
+    fn from_weak<S: Server>(value: WeakImage, lb: &Lb<S>) -> Self {
         let data = lb
             .read_document(value.href, false)
             .expect("could not read image");
@@ -110,11 +111,11 @@ impl From<WeakViewportSettings> for ViewportSettings {
 }
 
 pub trait PromoteBufferWeakImages {
-    fn promote_weak_images(&mut self, master_transform: Transform, lb: &Lb);
+    fn promote_weak_images<S: Server>(&mut self, master_transform: Transform, lb: &Lb<S>);
 }
 
 impl PromoteBufferWeakImages for Buffer {
-    fn promote_weak_images(&mut self, master_transform: Transform, lb: &Lb) {
+    fn promote_weak_images<S: Server>(&mut self, master_transform: Transform, lb: &Lb<S>) {
         self.weak_images.drain().for_each(|(id, mut weak_image)| {
             weak_image.transform(master_transform);
 

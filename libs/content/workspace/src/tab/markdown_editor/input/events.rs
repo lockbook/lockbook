@@ -1,9 +1,10 @@
 use crate::tab::{ExtendedInput as _, markdown_editor};
 use egui::Context;
+use lb_rs::io::server::Server;
 use markdown_editor::MdEdit;
 use markdown_editor::input::Event;
 
-impl MdEdit {
+impl<S: Server> MdEdit<S> {
     /// Drain `Markdown` / `Undo` / `Redo` events from the egui context. Drop
     /// and Paste are left for the workspace's image-import pass;
     /// `PredictedTouch` / `MultiTouchGesture` are left for other tabs. Lives on

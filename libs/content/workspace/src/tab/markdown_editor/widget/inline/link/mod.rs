@@ -28,11 +28,12 @@ use unicode_segmentation::UnicodeSegmentation as _;
 pub use crate::resolvers::LinkState;
 use crate::resolvers::rich_spans;
 use crate::widgets::GlyphonLabel;
+use lb_rs::io::server::Server;
 
 /// Width cap of a link's hover card.
 const LINK_TIP_W: f32 = 300.0;
 
-impl<'ast> MdRender {
+impl<'ast, S: Server> MdRender<S> {
     pub fn text_format_link(&self, parent: &AstNode<'_>, state: LinkState) -> Format {
         let parent_text_format = self.text_format(parent);
         let theme = self.ctx.get_lb_theme();
@@ -958,7 +959,7 @@ fn alone_on_line<'a>(
     true
 }
 
-impl MdEdit {
+impl<S: Server> MdEdit<S> {
     /// A link to this note's heading with `slug`: the external URL, which
     /// opens the same place wherever it is pasted.
     pub fn heading_link(&self, slug: &str) -> String {
@@ -1041,7 +1042,7 @@ pub fn fill_link_menu<T>(
     }
 }
 
-impl<'ast> MdEdit {
+impl<'ast, S: Server> MdEdit<S> {
     /// The link-like node under `pos` for a desktop context menu, resolved
     /// through the fragment actually painted there — no offset snapping
     /// from empty space beside a link.
@@ -1131,7 +1132,7 @@ impl<'ast> MdEdit {
                 _ => continue,
             }
             let node_range = self.renderer.node_range(node);
-            let salt = MdRender::link_interaction_id_salt(node_range);
+            let salt = <MdRender>::link_interaction_id_salt(node_range);
             let response = match self
                 .renderer
                 .interaction_responses

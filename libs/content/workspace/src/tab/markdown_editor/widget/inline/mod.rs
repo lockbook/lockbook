@@ -27,7 +27,7 @@ pub(crate) mod text;
 pub(crate) mod underline;
 pub(crate) mod wiki_link;
 
-impl<'ast> MdRender {
+impl<'ast, S: Server> MdRender<S> {
     /// Returns the range between the start of the node and the start of its
     /// first child, if there is one.
     pub fn prefix_range(&self, node: &'ast AstNode<'ast>) -> Option<(Grapheme, Grapheme)> {
@@ -153,8 +153,9 @@ impl<'ast> MdRender {
 // ─── inline dispatcher + circumfix helper ───────────────────────────
 
 use crate::tab::markdown_editor::widget::utils::wrap_layout::{Format, Layout, StyleInfo};
+use lb_rs::io::server::Server;
 
-impl<'ast> MdRender {
+impl<'ast, S: Server> MdRender<S> {
     /// Emit `InlineItem`s for one inline AST node into `layout`.
     /// Dispatches on the node's `NodeValue` to a per-kind `layout_X`.
     pub fn layout_inline(

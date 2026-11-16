@@ -19,8 +19,9 @@ use crate::theme::palette_v2::ThemeExt as _;
 use crate::widgets::diagram_cache::PrintSvg;
 use crate::widgets::glyphon_label::{GlyphonLabel, ShapedLabel};
 use crate::widgets::math::{Formula, MathSize, Typeset};
+use lb_rs::io::server::Server;
 
-impl<'ast> MdRender {
+impl<'ast, S: Server> MdRender<S> {
     pub fn text_format_math(&self, parent: &AstNode<'_>) -> Format {
         self.text_format_code(parent)
     }
@@ -233,7 +234,7 @@ enum MathMenu {
     Edit,
 }
 
-impl<'ast> MdEdit {
+impl<'ast, S: Server> MdEdit<S> {
     /// A tap anywhere on a formula selects it, as one on a diagram does, and
     /// on touch pops the edit menu, whose Edit reveals its source
     /// ([`Self::enter_at_math`]); a cmd-click opens it, as any click does
@@ -243,9 +244,9 @@ impl<'ast> MdEdit {
     ) {
         let open = self.embed_tap_opens(ui);
         for node in root.descendants() {
-            let Some(formula) = MdRender::formula(node) else { continue };
+            let Some(formula) = <MdRender>::formula(node) else { continue };
             let range = self.renderer.node_range(node);
-            let salt = MdRender::math_interaction_id_salt(range);
+            let salt = <MdRender>::math_interaction_id_salt(range);
             let Some(response) = self
                 .renderer
                 .interaction_responses

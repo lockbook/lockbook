@@ -1,5 +1,6 @@
 use lb_rs::Uuid;
 use lb_rs::blocking::Lb;
+use lb_rs::io::server::Server;
 use linkify::{LinkFinder, LinkKind};
 use num_cpus;
 use scraper::{Html, Selector};
@@ -68,7 +69,7 @@ impl LinkNode {
     }
 }
 
-pub fn lockbook_data(core: &Lb) -> Graph {
+pub fn lockbook_data<S: Server>(core: &Lb<S>) -> Graph {
     let mut graph: Graph = Vec::new();
     let mut classify: Vec<NameId> = Vec::new();
     let mut id: usize = 0;

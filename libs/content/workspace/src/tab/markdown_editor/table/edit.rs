@@ -14,6 +14,7 @@ use crate::tab::markdown_editor::View;
 use crate::tab::markdown_editor::bounds::RangesExt as _;
 use crate::tab::markdown_editor::input::{Advance, Region};
 use crate::tab::markdown_editor::{MdEdit, MdRender};
+use lb_rs::io::server::Server;
 
 /// Everything between a cell's pipes, made to parse as that one cell.
 pub(super) struct CellText {
@@ -33,7 +34,7 @@ pub(super) struct CellText {
 fn starts_a_row(text: &str, closed: bool) -> bool {
     let line = format!("{text}{}\n", if closed { "|" } else { "" });
     let arena = comrak::Arena::new();
-    let root = comrak::parse_document(&arena, &line, &MdRender::comrak_options());
+    let root = comrak::parse_document(&arena, &line, &<MdRender>::comrak_options());
     let mut blocks = root
         .children()
         .map(|block| matches!(block.data.borrow().value, NodeValue::Paragraph));
@@ -153,7 +154,7 @@ enum Cut {
     Keep((Grapheme, Grapheme)),
 }
 
-impl MdRender {
+impl<S: Server> MdRender<S> {
     /// The replacement that makes `cell` read `text` between its pipes — the
     /// smallest that does, so that a keystroke stays a keystroke in the
     /// diff — with the caret left at byte `caret` of `text`. `edited` is
@@ -472,7 +473,7 @@ pub(super) fn replace(range: (Grapheme, Grapheme), text: &str) -> Operation {
     Operation::Replace(Replace { range, text: text.into() })
 }
 
-impl MdEdit {
+impl<S: Server> MdEdit<S> {
     /// Replaces `range` with `text` where that reaches a table: typing or
     /// pasting over a selection, or a platform's replacement of a range.
     /// Typed over cells and rows, text empties them and goes in the first.
@@ -599,7 +600,7 @@ impl MdEdit {
 
 // ─── keys ────────────────────────────────────────────────────────────
 
-impl MdRender {
+impl<S: Server> MdRender<S> {
     /// The table, row, and column the selection's end is in. `None` off a
     /// table, and on a delimiter row, which shows as source.
     pub fn table_position(&self) -> Option<(&TableBounds, usize, usize)> {
@@ -758,7 +759,7 @@ impl MdRender {
 /// Each row's cells' content ranges.
 pub type TableGrid = Vec<Vec<(Grapheme, Grapheme)>>;
 
-impl MdEdit {
+impl<S: Server> MdEdit<S> {
     /// Tab in a table moves to the next cell, or with shift the previous,
     /// wrapping across rows, and selects its content. From the last cell it
     /// adds a row, or past a blank last row leaves the table. False off a

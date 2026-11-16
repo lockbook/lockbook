@@ -12,6 +12,7 @@ use egui::{CursorIcon, Pos2, Rect, Ui, Vec2};
 use lb_rs::model::text::offset_types::{Grapheme, RangeExt as _};
 
 use crate::tab::markdown_editor::{MdEdit, MdRender};
+use lb_rs::io::server::Server;
 
 #[derive(Clone, Copy, Debug)]
 pub enum BlockDragAction {
@@ -83,7 +84,7 @@ pub struct DropGap {
     pub at: i32,
 }
 
-impl<'ast> MdRender {
+impl<'ast, S: Server> MdRender<S> {
     /// True iff `node` is an `Item`/`TaskItem` with ≥1 sibling item.
     pub fn is_reorderable_item(&self, node: &'ast AstNode<'ast>) -> bool {
         if !matches!(node.data.borrow().value, NodeValue::Item(_) | NodeValue::TaskItem(_)) {
@@ -326,7 +327,7 @@ pub struct BlockMovePlan {
     pub new_run: String,
 }
 
-impl<'ast> MdRender {
+impl<'ast, S: Server> MdRender<S> {
     /// Plan a sibling reorder as a positional permutation: items are
     /// permuted, separator gaps `Gi` stay in their slots. Same-depth
     /// siblings share a line prefix, so item text moves verbatim.
@@ -440,7 +441,7 @@ impl<'ast> MdRender {
     }
 }
 
-impl MdRender {
+impl<S: Server> MdRender<S> {
     /// Whether a long press at `pos` lifts something: an image or a note
     /// embed, or a list item, table row or column.
     pub fn can_lift(&self, pos: Pos2) -> bool {
@@ -448,7 +449,7 @@ impl MdRender {
     }
 }
 
-impl MdEdit {
+impl<S: Server> MdEdit<S> {
     /// Lift what a long press at `pos` grabs, the image over the block it
     /// sits in. False if nothing is there.
     pub(crate) fn lift(&mut self, pos: Pos2) -> bool {

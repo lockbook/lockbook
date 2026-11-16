@@ -16,6 +16,7 @@ use tracing::instrument;
 use urlencoding::decode;
 
 use crate::note_index::NoteIndex;
+use lb_rs::io::server::Server;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ResolvedLink {
@@ -138,7 +139,7 @@ impl FileCache {
     }
 
     #[instrument(name = "FileCache::new", level = "trace", skip_all, fields(n_files = tracing::field::Empty))]
-    pub fn new(lb: &Lb) -> LbResult<Self> {
+    pub fn new<S: Server>(lb: &Lb<S>) -> LbResult<Self> {
         let root = lb.get_root()?;
         let files = lb.list_metadatas()?;
         let shared = lb.get_pending_share_files()?;
@@ -239,7 +240,7 @@ impl FileCache {
     /// tree changes, its note index read once something wants it. The
     /// workers stop with the cache.
     #[cfg(not(target_family = "wasm"))]
-    pub fn keep(files: &Arc<RwLock<FileCache>>, lb: &Lb, ctx: &egui::Context) {
+    pub fn keep<S: Server>(files: &Arc<RwLock<FileCache>>, lb: &Lb<S>, ctx: &egui::Context) {
         use lb_rs::service::events::{Event, SyncIncrement};
         use tokio::sync::broadcast::error::RecvError;
 

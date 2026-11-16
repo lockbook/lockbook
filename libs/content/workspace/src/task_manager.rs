@@ -13,6 +13,8 @@ use tracing::{Level, error, instrument, span, trace, warn};
 
 use crate::tab::{SessionId, TabSaveContent};
 use crate::widgets::tab_cache::TabCache;
+use lb_rs::io::network::Network;
+use lb_rs::io::server::Server;
 
 #[derive(Default)]
 pub struct Tasks {
@@ -291,17 +293,17 @@ pub enum Ran {
 }
 
 #[derive(Clone)]
-pub struct TaskManager {
+pub struct TaskManager<S = Network> {
     pub tasks: Arc<Mutex<Tasks>>,
-    core: Lb,
+    core: Lb<S>,
     ctx: Context,
     /// Launched work a test runs step by step, in place of a thread each.
     #[cfg(test)]
     pub held: Option<Arc<Mutex<Vec<Work>>>>,
 }
 
-impl TaskManager {
-    pub fn new(core: Lb, ctx: Context) -> Self {
+impl<S: Server> TaskManager<S> {
+    pub fn new(core: Lb<S>, ctx: Context) -> Self {
         Self {
             tasks: Default::default(),
             core,
@@ -400,7 +402,7 @@ impl TaskManager {
     /// done - so it's the UI's responsibility to check in on it from time-to-time. This is necessary so that the UI
     /// can interject between tasks that are queued and tasks that they are queued behind i.e. to provide the latest
     /// hmac and file content so that a save succeeds.
-    pub fn check_launch(&self, tabs: &mut TabCache) {
+    pub fn check_launch(&self, tabs: &mut TabCache<S>) {
         let mut tasks = self.tasks.lock().unwrap();
 
         // Prioritize loads over saves because when they are both queued, it's likely because a sync pulled updates to

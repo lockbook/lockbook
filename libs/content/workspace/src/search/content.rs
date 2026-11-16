@@ -14,6 +14,7 @@ use crate::{
         with_overlay_scroll,
     },
 };
+use lb_rs::io::server::Server;
 
 pub struct ContentSearch {
     searcher: ContentSearcher,
@@ -34,7 +35,7 @@ pub struct ContentSearch {
 }
 
 impl ContentSearch {
-    pub fn new(lb: &Lb) -> Self {
+    pub fn new<S: Server>(lb: &Lb<S>) -> Self {
         ContentSearch {
             searcher: lb.content_searcher(),
             submitted_query: String::new(),

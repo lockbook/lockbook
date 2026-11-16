@@ -12,8 +12,9 @@ use unicode_segmentation::UnicodeSegmentation as _;
 use super::{Advance, Bound, FrontMatterAction, Increment, Region};
 use crate::front_matter::{FrontMatter, ListStyle, Quotes, RowKind as Kind, Value, needs_quotes};
 use crate::tab::markdown_editor::{MdEdit, View};
+use lb_rs::io::server::Server;
 
-impl MdEdit {
+impl<S: Server> MdEdit<S> {
     /// The front matter and the caret in it, when the selection is a caret
     /// in the block.
     fn front_matter_caret(&self) -> Option<(&FrontMatter<Grapheme>, Grapheme)> {
@@ -597,7 +598,7 @@ pub fn yaml_scalar(s: &str, quote: Option<char>, flow: bool) -> String {
     }
 }
 
-impl MdEdit {
+impl<S: Server> MdEdit<S> {
     /// The front matter checkbox whose value starts at `check`, and whether
     /// it is checked.
     pub fn front_matter_checkbox_at(

@@ -28,6 +28,8 @@ use element::PromoteBufferWeakImages;
 pub use history::{DeleteElement, Event, InsertElement};
 use lb_rs::Uuid;
 use lb_rs::blocking::Lb;
+use lb_rs::io::network::Network;
+use lb_rs::io::server::Server;
 use lb_rs::model::file_metadata::DocumentHmac;
 use lb_rs::model::svg::buffer::{Buffer, u_transform_to_bezier};
 use lb_rs::model::svg::diff::DiffState;
@@ -40,7 +42,7 @@ use toolbar::{ToolContext, ToolbarContext};
 use tools::pen::PenSettings;
 use tracing::info;
 
-pub struct SVGEditor {
+pub struct SVGEditor<S = Network> {
     /// Drawn alone inside another surface: no toolbar, and the context's
     /// events are left for the host.
     pub embedded: bool,
@@ -54,7 +56,7 @@ pub struct SVGEditor {
     pub toolbar: Toolbar,
 
     input_controller: InputController,
-    lb: Lb,
+    lb: Lb<S>,
     pub open_file: Uuid,
     last_render: Instant,
     renderer: Renderer,
@@ -149,9 +151,9 @@ enum BackgroundOverlay {
     Blank,
 }
 
-impl SVGEditor {
+impl<S: Server> SVGEditor<S> {
     pub fn new(
-        bytes: &[u8], ctx: &egui::Context, lb: lb_rs::blocking::Lb, open_file: Uuid,
+        bytes: &[u8], ctx: &egui::Context, lb: lb_rs::blocking::Lb<S>, open_file: Uuid,
         hmac: Option<DocumentHmac>, cfg: &WsPersistentStore, read_only: bool,
     ) -> Self {
         let content = std::str::from_utf8(bytes).unwrap();

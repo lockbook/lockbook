@@ -10,6 +10,7 @@ use lb_rs::model::text::offset_types::{Grapheme, RangeExt as _};
 use crate::style::{EDGE_FADE, overlay_scroll};
 use crate::tab::markdown_editor::{MdEdit, MdRender};
 use crate::widgets::affine_scroll::{COAST_DECAY_PER_SEC, COAST_STOP};
+use lb_rs::io::server::Server;
 
 /// How near a scrolled block's edge a drag pans it: a fingertip, Apple's
 /// smallest touch target.
@@ -71,7 +72,7 @@ impl Default for WheelGesture {
     }
 }
 
-impl MdRender {
+impl<S: Server> MdRender<S> {
     /// Forgets what the last frame painted of scrolled blocks and the
     /// chrome over them.
     pub fn clear_row_scroll_frame(&mut self) {
@@ -268,7 +269,7 @@ impl MdRender {
     }
 }
 
-impl MdRender {
+impl<S: Server> MdRender<S> {
     /// Keeps a wheel or trackpad gesture over the note to one axis, as
     /// macOS scroll views do. One that begins on a block wider than the
     /// note picks the axis it first moves along, a touch drag's slop away,
@@ -339,7 +340,7 @@ impl MdRender {
     }
 }
 
-impl MdEdit {
+impl<S: Server> MdEdit<S> {
     /// Gives a touch drag on the note's body to the block wider than the
     /// note it began on, if it sets out along the rows: the block pans and
     /// the page stays where it is. One that sets out down the rows is the

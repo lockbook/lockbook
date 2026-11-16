@@ -5,8 +5,9 @@ use egui::{Pos2, Ui};
 use lb_rs::model::text::offset_types::{Grapheme, RangeExt as _};
 
 use crate::tab::markdown_editor::MdRender;
+use lb_rs::io::server::Server;
 
-impl<'ast> MdRender {
+impl<'ast, S: Server> MdRender<S> {
     /// Converts an optional source line index range to a doc char offset range.
     pub fn spacing_range(&self, line_range: &Option<Range<usize>>) -> (Grapheme, Grapheme) {
         match line_range {

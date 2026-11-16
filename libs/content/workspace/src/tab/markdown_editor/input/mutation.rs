@@ -19,6 +19,7 @@ use lb_rs::model::text::offset_types::{
 use lb_rs::model::text::operation_types::{Operation, Replace};
 
 use super::{Advance, Bound, Location, Region};
+use lb_rs::io::server::Server;
 
 /// tracks editor state necessary to support translating input events to buffer operations
 #[derive(Default)]
@@ -26,7 +27,7 @@ pub struct EventState {
     pub internal_events: Vec<Event>,
 }
 
-impl<'ast> MdEdit {
+impl<'ast, S: Server> MdEdit<S> {
     /// Flips the task item or front matter checkbox whose mark is at
     /// `check`, and animates it.
     pub fn toggle_check(&mut self, check: Grapheme, operations: &mut Vec<Operation>) {
@@ -125,7 +126,7 @@ impl<'ast> MdEdit {
     }
 }
 
-impl<'ast> MdEdit {
+impl<'ast, S: Server> MdEdit<S> {
     /// The selection, else the current line; a selected fold chip is just
     /// its tag, but the clipboard gets the folded contents too.
     fn clipboard_range(&self, selection: (Grapheme, Grapheme)) -> (Grapheme, Grapheme) {
@@ -730,7 +731,7 @@ impl<'ast> MdEdit {
                 else {
                     return response;
                 };
-                let salt = MdRender::spoiler_interaction_id_salt(node);
+                let salt = <MdRender>::spoiler_interaction_id_salt(node);
                 if !self.renderer.revealed_spoilers.insert(salt) {
                     self.renderer.revealed_spoilers.remove(&salt);
                 }
@@ -1762,8 +1763,8 @@ fn kind_ancestor<'ast>(
 /// BlockQuotes/Alerts nest via `>` markers: drop them, but only when
 /// nested inside another quote/alert (top-level deindent would
 /// silently demote `> foo` to a paragraph).
-fn deindent_replacement<'ast>(
-    renderer: &MdRender, ancestor: &'ast AstNode<'ast>, line: (Grapheme, Grapheme),
+fn deindent_replacement<'ast, S: Server>(
+    renderer: &MdRender<S>, ancestor: &'ast AstNode<'ast>, line: (Grapheme, Grapheme),
 ) -> Option<((Grapheme, Grapheme), String)> {
     use NodeValue::*;
     match &ancestor.data.borrow().value {
@@ -1811,8 +1812,8 @@ fn deindent_replacement<'ast>(
 /// ancestors. `skip_container` walks past the deepest container
 /// when the cursor's on its marker line, so shift-tab there
 /// deindents the whole block instead of its content.
-fn find_deindent<'ast>(
-    renderer: &MdRender, root: &'ast AstNode<'ast>, line: (Grapheme, Grapheme),
+fn find_deindent<'ast, S: Server>(
+    renderer: &MdRender<S>, root: &'ast AstNode<'ast>, line: (Grapheme, Grapheme),
 ) -> Option<((Grapheme, Grapheme), String)> {
     let container = renderer.deepest_container_block_at_offset(root, line.end());
     let container_own_prefix = renderer.line_own_prefix(container, line);
@@ -1832,8 +1833,8 @@ fn find_deindent<'ast>(
 /// child's level unchanged.
 /// Grapheme range of an ordered-list item's leading marker digits on `line`
 /// (the `12` in `12. `), or `None` if `container` isn't an ordered list item.
-fn ordered_marker_digits<'ast>(
-    renderer: &MdRender, container: &'ast AstNode<'ast>, line: (Grapheme, Grapheme),
+fn ordered_marker_digits<'ast, S: Server>(
+    renderer: &MdRender<S>, container: &'ast AstNode<'ast>, line: (Grapheme, Grapheme),
 ) -> Option<(Grapheme, Grapheme)> {
     let parent = container.parent()?;
     if !matches!(
@@ -1850,7 +1851,9 @@ fn ordered_marker_digits<'ast>(
     (digits > 0).then(|| (own_prefix.start(), own_prefix.start() + Graphemes(digits)))
 }
 
-fn max_child_marker_col<'ast>(renderer: &MdRender, item: &'ast AstNode<'ast>) -> Option<usize> {
+fn max_child_marker_col<'ast, S: Server>(
+    renderer: &MdRender<S>, item: &'ast AstNode<'ast>,
+) -> Option<usize> {
     item.children()
         .filter(|c| matches!(&c.data.borrow().value, NodeValue::List(_)))
         .flat_map(|list| list.children())
@@ -1873,8 +1876,8 @@ fn max_child_marker_col<'ast>(renderer: &MdRender, item: &'ast AstNode<'ast>) ->
 /// There is deliberately no indent counterpart: indenting only the
 /// targeted line(s) can't strand a child (it always retains a list
 /// ancestor), so a tight child simply re-parents to a sibling.
-fn cascade_deindent_delta<'ast>(
-    renderer: &MdRender, container: &'ast AstNode<'ast>, delta_cols: isize,
+fn cascade_deindent_delta<'ast, S: Server>(
+    renderer: &MdRender<S>, container: &'ast AstNode<'ast>, delta_cols: isize,
     done: &mut std::collections::BTreeSet<usize>, operations: &mut Vec<Operation>,
 ) {
     if !matches!(
@@ -1898,7 +1901,7 @@ fn cascade_deindent_delta<'ast>(
     }
 }
 
-impl<'ast> MdEdit {
+impl<'ast, S: Server> MdEdit<S> {
     fn dehead_ast_node(&self, node: &'ast AstNode<'ast>, operations: &mut Vec<Operation>) {
         if let Some(range) = self.renderer.head_range(node) {
             operations.push(Operation::Replace(Replace { range, text: "".into() }));

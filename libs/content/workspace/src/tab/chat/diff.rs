@@ -76,7 +76,7 @@ fn blocks(text: &str) -> Vec<String> {
     let arena = Arena::new();
     // The renderer parses with a trailing newline; match it.
     let source = format!("{text}\n");
-    let root = comrak::parse_document(&arena, &source, &MdRender::comrak_options());
+    let root = comrak::parse_document(&arena, &source, &<MdRender>::comrak_options());
     let lines: Vec<&str> = source.lines().collect();
     root.children()
         .filter_map(|node| {

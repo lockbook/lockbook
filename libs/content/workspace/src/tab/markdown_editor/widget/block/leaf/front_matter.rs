@@ -17,6 +17,7 @@ use crate::tab::markdown_editor::widget::utils::wrap_layout::{
 };
 use crate::tab::markdown_editor::{MdRender, TouchTarget};
 use crate::theme::palette_v2::ThemeExt as _;
+use lb_rs::io::server::Server;
 
 /// The key column takes at most this share of the block's width.
 const KEY_COLUMN_MAX: f32 = 0.4;
@@ -58,7 +59,7 @@ fn cut(s: &str) -> String {
     if g.next().is_some() { format!("{head}…") } else { head }
 }
 
-impl<'ast> MdRender {
+impl<'ast, S: Server> MdRender<S> {
     pub(crate) fn frontmatter_as_code_block() -> NodeCodeBlock {
         NodeCodeBlock {
             fenced: true,

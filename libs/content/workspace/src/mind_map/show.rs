@@ -4,6 +4,7 @@ use super::data::{
 use egui::epaint::Shape;
 use egui::{Align2, Color32, FontId, Painter, Pos2, Rect, Stroke, Vec2};
 use lb_rs::blocking::Lb;
+use lb_rs::io::server::Server;
 use lb_rs::{Uuid, spawn};
 use std::collections::HashMap;
 use std::f32;
@@ -80,7 +81,7 @@ impl Grid {
 
 impl MindMap {
     /// `contact`: the reader lets linked sites be fetched for their titles.
-    pub fn new(core: &Lb, contact: bool) -> Self {
+    pub fn new<S: Server>(core: &Lb<S>, contact: bool) -> Self {
         let graph = lockbook_data(core);
         let positions = vec![egui::Pos2::ZERO; graph.len()];
         let thread_positions = vec![egui::Pos2::ZERO; graph.len()];

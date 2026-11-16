@@ -9,6 +9,7 @@ use crate::tab::{ContextMenuTarget, ExtendedInput as _, ExtendedOutput as _};
 use crate::theme::palette_v2::ThemeExt as _;
 
 use super::{Event, Region};
+use lb_rs::io::server::Server;
 
 /// Material handle size in dp (not scaled with font). Touch target is padded.
 const HANDLE_SIZE: f32 = 22.0;
@@ -25,7 +26,7 @@ pub struct CursorState {
     pub x_target: Option<f32>,
 }
 
-impl MdEdit {
+impl<S: Server> MdEdit<S> {
     /// Highlights the provided range with a faded version of the provided accent color.
     pub fn show_range(&self, ui: &mut Ui, highlight_range: (Grapheme, Grapheme), color: Color32) {
         self.renderer.show_range(ui, highlight_range, color)
@@ -360,7 +361,7 @@ impl MdEdit {
     }
 }
 
-impl MdEdit {
+impl<S: Server> MdEdit<S> {
     /// [`MdRender::range_rects`] for a platform text system, which places
     /// the end handle in the last rect. A range ending at the start of a
     /// line selects no glyph there, so the end caret's sliver is added on
@@ -378,7 +379,7 @@ impl MdEdit {
     }
 }
 
-impl MdRender {
+impl<S: Server> MdRender<S> {
     /// Highlights the provided range with a faded version of the provided accent color.
     pub fn show_range(&self, ui: &mut Ui, highlight_range: (Grapheme, Grapheme), color: Color32) {
         for rect in self.range_rects(highlight_range) {

@@ -3,8 +3,9 @@ use egui::{Stroke, Ui};
 
 use crate::tab::markdown_editor::MdRender;
 use crate::theme::palette_v2::ThemeExt;
+use lb_rs::io::server::Server;
 
-impl MdRender {
+impl<S: Server> MdRender<S> {
     // todo: all egui needs to be themed this way and this should be removed
     pub fn apply_theme(&self, ui: &mut Ui) {
         let theme = self.ctx.get_lb_theme();

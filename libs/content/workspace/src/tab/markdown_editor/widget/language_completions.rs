@@ -12,6 +12,7 @@ use crate::tab::markdown_editor::input::{Event, Location, Region};
 use crate::tab::markdown_editor::widget::{
     CompletionStep, completion_accepted, completion_dismissed, completion_step,
 };
+use lb_rs::io::server::Server;
 
 const MAX_RESULTS: usize = 5;
 
@@ -121,7 +122,7 @@ impl LanguageCompletions {
     }
 }
 
-impl MdEdit {
+impl<S: Server> MdEdit<S> {
     pub fn show_language_completions(&mut self, ui: &mut Ui) {
         if self.renderer.readonly || !self.language_completions.active {
             return;

@@ -10,6 +10,7 @@ use lb_rs::model::text::offset_types::{Byte, Grapheme, Graphemes, RangeExt as _,
 
 use crate::tab::markdown_editor::MdRender;
 use crate::tab::markdown_editor::bounds::RangesExt as _;
+use lb_rs::io::server::Server;
 
 pub(crate) mod wrap_layout;
 
@@ -141,7 +142,7 @@ pub fn leading_indent_cols_ceil(text: &str, target: usize) -> usize {
     cols
 }
 
-impl<'ast> MdRender {
+impl<'ast, S: Server> MdRender<S> {
     // wrappers because I'm tired of writing ".buffer.current.segs" all the time
     pub fn offset_to_byte(&self, i: Grapheme) -> Byte {
         self.buffer.current.segs.offset_to_byte(i)
