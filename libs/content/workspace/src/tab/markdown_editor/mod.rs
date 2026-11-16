@@ -284,6 +284,8 @@ pub struct MdRender {
     pub disable_images: bool, // skip image rendering (e.g. for the mobile toolbar)
     pub contact_linked_sites: bool, // mirror of the persisted pref; gates outbound link fetching
     pub spell_check: bool,    // mirror of the persisted pref; marks misspelled words
+    /// The time timestamps are read against, and the zone they are read in.
+    pub clock: widget::inline::timestamp::Clock,
 
     pub reveal_selection: Option<(Grapheme, Grapheme)>,
     /// A preview atom entered via `Event::EnterAtom` whose whole range is
@@ -907,6 +909,7 @@ impl MdRender {
             disable_images: false,
             contact_linked_sites: false,
             spell_check: false,
+            clock: Default::default(),
             reveal_selection: None,
             entered_atom: None,
             reveal_seq: 0,
@@ -1024,6 +1027,7 @@ impl MdRender {
             disable_images: false,
             contact_linked_sites: false,
             spell_check: false,
+            clock: Default::default(),
             in_progress_selection: None,
             in_progress_block_drag: None,
             find_current_match: None,
@@ -1306,6 +1310,7 @@ impl Editor {
             disable_images: false,
             contact_linked_sites: false,
             spell_check: false,
+            clock: Default::default(),
 
             embeds,
             link_resolver,
