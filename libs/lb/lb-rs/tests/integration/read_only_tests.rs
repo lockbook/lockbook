@@ -7,6 +7,9 @@ use test_utils::http::test_core_with_account;
 
 #[tokio::test]
 async fn read_only_instance_reads_pins_without_writing() {
+    if test_utils::without_server() {
+        return;
+    }
     let writer = test_core_with_account().await;
     let doc = writer.create_at_path("pinned.md").await.unwrap();
     writer.pin_file(doc.id).await.unwrap();

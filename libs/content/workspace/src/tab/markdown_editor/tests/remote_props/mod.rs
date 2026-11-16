@@ -141,11 +141,14 @@ fn the_caret_stays_on_screen() {
 }
 
 /// Runs `check` under the shared seed loop; a failure reproduces with the
-/// check's own log.
+/// check's own log. Each note is on an account at the server.
 fn run<C>(seeds: u64, buf_len: usize, check: C)
 where
     C: Fn(&[u8], &mut dyn FnMut(String)) -> Result<(), String>,
 {
+    if ::test_utils::without_server() {
+        return;
+    }
     crate::test_utils::prop::run(
         seeds,
         buf_len,

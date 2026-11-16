@@ -871,8 +871,14 @@ fn paint_skeleton(ui: &egui::Ui, rect: Rect) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::open_guard::OpenGuard;
+    use crate::tab::markdown_editor::tests::harness::TestEditor;
+    use crate::test_utils::files::{at, cache, tree};
     use crate::test_utils::ws::TestWs;
+    use crate::widgets::image_cache::ImageCache;
+    use lb_rs::model::account::Account;
     use lb_rs::model::file_metadata::FileType;
+    use std::sync::{Arc, RwLock};
     use web_time::{Duration, Instant};
 
     /// A pdf of `pages` blank letter pages.
@@ -961,6 +967,9 @@ mod tests {
     /// gets the arrow on the first frame, not the title band's open hand.
     #[test]
     fn landing_on_open_shows_the_arrow() {
+        if ::test_utils::without_server() {
+            return;
+        }
         let mut t = TestWs::new();
         embed_of_a_link(&mut t);
         let (rect, _) = shown(&mut t).unwrap();
@@ -976,19 +985,41 @@ mod tests {
         assert_eq!(t.cursor, egui::CursorIcon::Grab);
     }
 
+    /// The note at `path` among `paths`, its embeds resolving against them.
+    fn note_in(paths: &[&str], path: &str, md: &str) -> (TestEditor, Uuid) {
+        let id = at(&cache(tree("alice", paths)), path);
+        let mut t = TestEditor::in_files(cache(tree("alice", paths)), id, md);
+        let files = Arc::new(RwLock::new(cache(tree("alice", paths))));
+        let (core, persistence) = (t.editor.core.clone(), t.editor.persistence.clone());
+        let r = &mut t.editor.edit.renderer;
+        let images = ImageCache::new(
+            r.ctx.clone(),
+            Default::default(),
+            core.clone(),
+            files.clone(),
+            persistence.clone(),
+        );
+        r.tab_embeds.res = Some(TabResources {
+            ctx: r.ctx.clone(),
+            core,
+            files,
+            images,
+            previews: r.previews.clone(),
+            persistence,
+            account: Account::new("alice".into(), String::new()),
+            guard: Arc::new(OpenGuard::new(std::path::Path::new(""), false, None)),
+            watched: false,
+        });
+        r.tab_embeds.path = vec![id];
+        (t, id)
+    }
+
     /// `![[#Chairs]]` embeds the note's own heading, as `![[Board#Chairs]]` does.
     #[test]
     fn a_heading_alone_embeds_the_notes_own_heading() {
-        let mut t = TestWs::new();
-        let board = t.doc("Board.md", "# Chairs\n\nfour\n\n# Tables\n\n![[#Chairs]]\n");
-        t.ws.open_file(board, true, true);
-        frames_until(&mut t, |t| {
-            t.ws.current_tab_mut()
-                .and_then(|tab| tab.markdown_mut())
-                .is_some()
-        });
-        let md = t.ws.current_tab_mut().unwrap().markdown_mut().unwrap();
-        let r = &md.edit.renderer;
+        let md = "# Chairs\n\nfour\n\n# Tables\n\n![[#Chairs]]\n";
+        let (t, _) = note_in(&["/Board.md"], "/Board.md", md);
+        let r = &t.editor.edit.renderer;
         let named = r.tab_embeds.place(r, "Board#Chairs");
         assert!(named.is_some());
         assert_eq!(r.tab_embeds.place(r, "#Chairs"), named);
@@ -998,6 +1029,9 @@ mod tests {
     /// showing the whole note.
     #[test]
     fn a_missing_heading_embeds_a_message() {
+        if ::test_utils::without_server() {
+            return;
+        }
         let mut t = TestWs::new();
         t.doc("Plan.md", "# Goals\n\nShip it.\n");
         let note = t.doc("note.md", "above\n\n![[Plan#Gone]]\n\nbelow\n");
@@ -1019,18 +1053,10 @@ mod tests {
     /// A `#` that is part of a file's name names no heading.
     #[test]
     fn a_hash_in_a_files_name_is_no_heading() {
-        let mut t = TestWs::new();
-        t.doc("Plan.md", "# Q1\n");
-        let named = t.doc("Plan#Q1.md", "body\n");
-        let note = t.doc("note.md", "![[Plan#Q1]]\n");
-        t.ws.open_file(note, true, true);
-        frames_until(&mut t, |t| {
-            t.ws.current_tab_mut()
-                .and_then(|tab| tab.markdown_mut())
-                .is_some()
-        });
-        let md = t.ws.current_tab_mut().unwrap().markdown_mut().unwrap();
-        let r = &md.edit.renderer;
+        let paths = ["/Plan.md", "/Plan#Q1.md", "/note.md"];
+        let (t, _) = note_in(&paths, "/note.md", "![[Plan#Q1]]\n");
+        let named = at(&cache(tree("alice", &paths)), "/Plan#Q1.md");
+        let r = &t.editor.edit.renderer;
         assert_eq!(
             r.tab_embeds.place(r, "Plan#Q1"),
             Some(Place::at(Destination::File(named), None))
@@ -1040,6 +1066,9 @@ mod tests {
     /// A width after the pipe sizes a note embed, as it does an image.
     #[test]
     fn a_width_after_the_pipe_sizes_an_embed() {
+        if ::test_utils::without_server() {
+            return;
+        }
         let mut t = TestWs::new();
         t.doc("Plan.md", "# Goals\n\nShip it.\n");
         let note = t.doc("note.md", "above\n\n![[Plan|200]]\n\nbelow\n");
@@ -1052,6 +1081,9 @@ mod tests {
     /// A click on a note embed's body, away from its links, selects the embed.
     #[test]
     fn click_on_an_embed_selects_it() {
+        if ::test_utils::without_server() {
+            return;
+        }
         let mut t = TestWs::new();
         embed_of_a_link(&mut t);
         let (rect, _) = shown(&mut t).unwrap();
@@ -1063,6 +1095,9 @@ mod tests {
     /// Backspace after an embed selects it, as after an image; a second deletes it.
     #[test]
     fn backspace_after_an_embed_selects_it() {
+        if ::test_utils::without_server() {
+            return;
+        }
         use crate::tab::ExtendedInput;
         use crate::tab::markdown_editor::input::{Advance, Event, Increment, Region};
         let mut t = TestWs::new();
@@ -1090,6 +1125,9 @@ mod tests {
     /// note's own selection alone.
     #[test]
     fn drag_in_an_embed_selects_its_text() {
+        if ::test_utils::without_server() {
+            return;
+        }
         let mut t = TestWs::new();
         embed_of_a_link(&mut t);
         let before = t.ws.current_tab_mut().unwrap().markdown_mut().unwrap();
@@ -1126,6 +1164,9 @@ mod tests {
     /// A link in an embed still opens: the embed's click sits beneath it.
     #[test]
     fn link_in_an_embed_opens() {
+        if ::test_utils::without_server() {
+            return;
+        }
         let mut t = TestWs::new();
         let (_, other) = embed_of_a_link(&mut t);
         let (_, texts) = shown(&mut t).unwrap();
@@ -1144,6 +1185,9 @@ mod tests {
     /// On touch too, where the embedded note has no menu of its own.
     #[test]
     fn link_in_an_embed_opens_on_touch() {
+        if ::test_utils::without_server() {
+            return;
+        }
         let mut t = TestWs::new();
         t.ctx.set_os(egui::os::OperatingSystem::Android);
         let (_, other) = embed_of_a_link(&mut t);
@@ -1164,6 +1208,9 @@ mod tests {
     /// egui's, which opens it; elsewhere on the embed it selects it.
     #[test]
     fn touch_targets_on_an_embed() {
+        if ::test_utils::without_server() {
+            return;
+        }
         let mut t = TestWs::new();
         t.ctx.set_os(egui::os::OperatingSystem::IOS);
         embed_of_a_link(&mut t);
@@ -1186,6 +1233,9 @@ mod tests {
     /// Open, not the embed's, which would select it.
     #[test]
     fn a_tap_on_an_embeds_band_leaves_the_selection() {
+        if ::test_utils::without_server() {
+            return;
+        }
         use crate::tab::markdown_editor::widget::utils::wrap_layout::{EmbedKind, FragmentContent};
         let mut t = TestWs::new();
         t.ctx.set_os(egui::os::OperatingSystem::IOS);
@@ -1208,6 +1258,9 @@ mod tests {
     /// An embed stays on the page it names while the note is edited above it.
     #[test]
     fn pdf_embed_keeps_its_page_through_an_edit_above() {
+        if ::test_utils::without_server() {
+            return;
+        }
         let mut t = TestWs::new();
         let root = t.ws.core.get_root().unwrap().id;
         let pdf =
@@ -1238,6 +1291,9 @@ mod tests {
     /// too, with the folds inside it kept; the note keeps its folds.
     #[test]
     fn embed_of_a_folded_section_shows_it() {
+        if ::test_utils::without_server() {
+            return;
+        }
         let fold = crate::tab::markdown_editor::fold::FOLD_TAG;
         let mut t = TestWs::new();
         let plan = format!(
