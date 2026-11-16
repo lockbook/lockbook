@@ -1,7 +1,7 @@
 use resvg::usvg::Transform;
 
 use super::ViewportSettings;
-use super::element::BoundedElement;
+use super::element::{BoundedElement, stroked_path_bounds};
 use super::util::transform_rect;
 use lb_rs::model::svg::buffer::u_transform_to_bezier;
 use lb_rs::model::svg::element::Element;
@@ -77,26 +77,31 @@ pub fn get_rect_identity_transform(
     )
 }
 
-/// result is in absolute plane
-pub fn calc_elements_bounds(buffer: &Buffer) -> Option<egui::Rect> {
-    let mut elements_bound =
-        egui::Rect { min: egui::pos2(f32::MAX, f32::MAX), max: egui::pos2(f32::MIN, f32::MIN) };
-    let mut dirty_bound = false;
-    for (_, el) in buffer.elements.iter() {
+/// Content bounds in the buffer's current plane, including rendered stroke
+/// width and pressure. Use the canvas's zoom, or 1.0 for an untransformed preview.
+pub fn calc_elements_bounds(buffer: &Buffer, viewport_scale: f32) -> Option<egui::Rect> {
+    let mut bounds = egui::Rect::NOTHING;
+    for (id, el) in &buffer.elements {
         if el.deleted() {
             continue;
         }
 
-        let el_rect = el.bounding_box();
-        dirty_bound = true;
-
-        elements_bound.min.x = elements_bound.min.x.min(el_rect.min.x);
-        elements_bound.min.y = elements_bound.min.y.min(el_rect.min.y);
-
-        elements_bound.max.x = elements_bound.max.x.max(el_rect.max.x);
-        elements_bound.max.y = elements_bound.max.y.max(el_rect.max.y);
+        let rect = match el {
+            Element::Path(path) => {
+                let pressures = buffer
+                    .weak_path_pressures
+                    .get(id)
+                    .map_or(&[][..], Vec::as_slice);
+                stroked_path_bounds(path, pressures, viewport_scale)
+            }
+            Element::Image(image) => image.bounding_box(),
+            Element::Text(_) => continue,
+        };
+        if rect.is_finite() {
+            bounds = bounds.union(rect);
+        }
     }
-    if !dirty_bound { None } else { Some(elements_bound) }
+    bounds.is_finite().then_some(bounds)
 }
 
 pub fn zoom_percentage_to_transform(
@@ -109,4 +114,34 @@ pub fn zoom_percentage_to_transform(
             (1.0 - zoom_delta) * ui.ctx().content_rect().center().x,
             (1.0 - zoom_delta) * ui.ctx().content_rect().center().y,
         )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn canvas_bounds_include_pressure_and_zoom_and_exclude_deleted_paths() {
+        let mut buffer = Buffer::new(
+            r##"<svg xmlns="http://www.w3.org/2000/svg"><path d="M0 0 L100 0" stroke="#000000" stroke-width="8" fill="none"/></svg>"##,
+        );
+        let id = *buffer.elements.first().unwrap().0;
+        buffer.weak_path_pressures.insert(id, vec![1.0]);
+        assert_eq!(
+            calc_elements_bounds(&buffer, 1.0),
+            Some(egui::Rect::from_min_max(egui::pos2(-8.0, -8.0), egui::pos2(108.0, 8.0),))
+        );
+
+        let mut viewport = ViewportSettings::default();
+        transform_canvas(&mut buffer, &mut viewport, Transform::from_scale(2.0, 2.0));
+        assert_eq!(
+            calc_elements_bounds(&buffer, viewport.master_transform.sx),
+            Some(egui::Rect::from_min_max(egui::pos2(-16.0, -16.0), egui::pos2(216.0, 16.0),))
+        );
+
+        let Element::Path(path) = buffer.elements.get_mut(&id).unwrap() else { panic!() };
+        path.deleted = true;
+        assert_eq!(calc_elements_bounds(&buffer, 1.0), None);
+        assert_eq!(calc_elements_bounds(&Buffer::default(), 1.0), None);
+    }
 }

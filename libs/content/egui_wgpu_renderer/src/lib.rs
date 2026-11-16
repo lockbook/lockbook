@@ -19,7 +19,7 @@ pub use wgpu;
 mod frame_shame;
 mod offscreen;
 
-pub use offscreen::{OFFSCREEN_FORMAT, OffscreenFrame, render_offscreen};
+pub use offscreen::{OFFSCREEN_FORMAT, OffscreenFrame, render_offscreen, render_offscreen_async};
 
 pub struct RendererState<'w> {
     frame_start: Option<Instant>,

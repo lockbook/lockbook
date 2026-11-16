@@ -18,6 +18,7 @@ use tracing::{Level, span};
 use crate::theme::palette::ThemePalette;
 
 use super::Buffer;
+use super::element::stroke_width;
 use super::util::{devc_to_point, transform_point, transform_rect};
 
 const STROKE_WIDTH: AttributeIndex = 0;
@@ -339,15 +340,16 @@ fn tesselate_path<'a>(
         let mut i = 0;
 
         while let Some(mut seg) = p.data.get_segment(i) {
-            let mut thickness =
-                stroke.width * (p.transform.sx + p.transform.sy) / 2.0 * viewport_transform.sx;
-
-            if let Some(forces) = weak_path_pressures.get(id) {
-                let pressure_at_segment =
-                    if let Some(p) = forces.get(i) { p } else { forces.get(i - 1).unwrap_or(&0.0) };
-
-                thickness += thickness * pressure_at_segment;
-            }
+            let pressure = weak_path_pressures
+                .get(id)
+                .and_then(|forces| {
+                    forces
+                        .get(i)
+                        .or_else(|| i.checked_sub(1).and_then(|previous| forces.get(previous)))
+                })
+                .copied()
+                .unwrap_or(0.0);
+            let mut thickness = stroke_width(stroke, p.transform, pressure) * viewport_transform.sx;
 
             if master_transform != viewport_transform {
                 thickness = thickness.max(0.3);

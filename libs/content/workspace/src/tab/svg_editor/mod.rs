@@ -1,5 +1,6 @@
 mod background;
 mod clip;
+pub mod drawing;
 mod element;
 mod history;
 pub(super) mod keyboard_shortcuts;
@@ -65,6 +66,8 @@ pub struct SVGEditor {
     input_ctx: InputContext,
 
     read_only: bool,
+    image_writes: lb_rs::service::events::Receiver<lb_rs::service::events::Event>,
+    pub(super) retry_images: bool,
 }
 #[derive(Debug, Clone, Copy)]
 pub struct ViewportSettings {
@@ -154,9 +157,10 @@ impl SVGEditor {
         bytes: &[u8], ctx: &egui::Context, lb: lb_rs::blocking::Lb, open_file: Uuid,
         hmac: Option<DocumentHmac>, cfg: &WsPersistentStore, read_only: bool,
     ) -> Self {
-        let content = std::str::from_utf8(bytes).unwrap();
+        let content = String::from_utf8_lossy(bytes);
 
-        let mut buffer = Buffer::new(content);
+        let mut buffer = Buffer::new(&content);
+        let opened_content = buffer.clone();
         let mut viewport_settings = ViewportSettings::from(buffer.weak_viewport_settings);
 
         for (_, el) in buffer.elements.iter_mut() {
@@ -189,10 +193,12 @@ impl SVGEditor {
         Self {
             embedded: false,
             buffer,
-            opened_content: Buffer::new(content),
+            opened_content,
             open_file_hmac: hmac,
             history: History::default(),
             toolbar,
+            image_writes: lb.subscribe(),
+            retry_images: true,
             lb,
             open_file,
             last_render: Instant::now(),
@@ -215,6 +221,43 @@ impl SVGEditor {
         }
     }
 
+    /// Failed references stay in the buffer. Retry on a relevant write,
+    /// rather than reading the same missing file on every painted frame.
+    fn load_pending_images(&mut self) -> bool {
+        use lb_rs::service::events::{Event, broadcast::error::TryRecvError};
+
+        loop {
+            match self.image_writes.try_recv() {
+                Ok(Event::DocumentWritten(id, _)) => {
+                    self.retry_images |= id == self.open_file
+                        || self
+                            .buffer
+                            .weak_images
+                            .values()
+                            .any(|image| image.href == id);
+                }
+                Ok(Event::IpcChangesApplied) | Err(TryRecvError::Lagged(_)) => {
+                    self.retry_images = true;
+                }
+                Ok(_) => {}
+                Err(_) => break,
+            }
+        }
+        if !std::mem::take(&mut self.retry_images) || self.buffer.weak_images.is_empty() {
+            return false;
+        }
+        match self
+            .buffer
+            .promote_weak_images(self.viewport_settings.master_transform, &self.lb)
+        {
+            Ok(()) => true,
+            Err(err) => {
+                tracing::warn!(%err, "could not load drawing images");
+                false
+            }
+        }
+    }
+
     pub fn show(&mut self, ui: &mut egui::Ui) -> Response {
         set_style(ui);
 
@@ -222,9 +265,7 @@ impl SVGEditor {
         self.input_ctx.update(ui);
         self.buffer.weak_viewport_settings = self.viewport_settings.into();
 
-        let non_empty_weak_imaegs = !self.buffer.weak_images.is_empty();
-        self.buffer
-            .promote_weak_images(self.viewport_settings.master_transform, &self.lb);
+        let images_loaded = self.load_pending_images();
 
         let request_diff_change = !self.embedded && self.show_toolbar(ui);
 
@@ -265,7 +306,7 @@ impl SVGEditor {
             self.toolbar.hide_overlay || self.embedded,
         );
 
-        if non_empty_weak_imaegs {
+        if images_loaded {
             self.has_queued_save_request = true;
         }
         if global_diff.is_dirty() {

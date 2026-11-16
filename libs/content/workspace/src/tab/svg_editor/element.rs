@@ -2,7 +2,7 @@ use lb_rs::blocking::Lb;
 use lb_rs::model::svg::WeakTransform;
 use lb_rs::model::svg::buffer::{Buffer, WeakViewportSettings};
 use lb_rs::model::svg::diff::DiffState;
-use lb_rs::model::svg::element::{Element, Image, Path, WeakImage};
+use lb_rs::model::svg::element::{Element, Image, Path, Stroke, WeakImage};
 use resvg::usvg::{NonZeroRect, Transform};
 
 use super::ViewportSettings;
@@ -50,16 +50,31 @@ impl BoundedElement for Path {
     }
 }
 
+/// Stroke width in drawing coordinates, including stylus pressure.
+pub fn stroke_width(stroke: Stroke, transform: Transform, pressure: f32) -> f32 {
+    stroke.width * (transform.sx + transform.sy) / 2.0 * (1.0 + pressure)
+}
+
+/// Include the widest stroke when measuring a path for rendering or export.
+pub fn stroked_path_bounds(path: &Path, pressures: &[f32], viewport_scale: f32) -> egui::Rect {
+    let bounds = path.bounding_box();
+    let Some(stroke) = path.stroke else { return bounds };
+    let pressure = pressures.iter().copied().fold(0.0_f32, f32::max);
+    bounds.expand((stroke_width(stroke, path.transform, pressure) * viewport_scale).abs() / 2.0)
+}
+
 pub trait PromoteWeakImage {
-    fn from_weak(value: WeakImage, lb: &Lb) -> Image;
+    fn from_weak(value: WeakImage, lb: &Lb) -> Result<Image, String>;
 }
 impl PromoteWeakImage for Image {
-    fn from_weak(value: WeakImage, lb: &Lb) -> Self {
+    fn from_weak(value: WeakImage, lb: &Lb) -> Result<Self, String> {
         let data = lb
             .read_document(value.href, false)
-            .expect("could not read image");
+            .map_err(|e| e.to_string())?;
+        // Validate on the loading thread rather than panic during painting.
+        image::load_from_memory(&data).map_err(|e| e.to_string())?;
 
-        Image {
+        Ok(Image {
             data: resvg::usvg::ImageKind::PNG(data.into()),
             visible: true,
             transform: Transform::from_row(
@@ -70,12 +85,13 @@ impl PromoteWeakImage for Image {
                 value.transform.tx,
                 value.transform.ty,
             ),
-            view_box: NonZeroRect::from_xywh(value.x, value.y, value.width, value.height).unwrap(),
+            view_box: NonZeroRect::from_xywh(value.x, value.y, value.width, value.height)
+                .ok_or("invalid drawing image bounds")?,
             href: value.href,
             opacity: value.opacity,
             diff_state: DiffState::new(),
             deleted: false,
-        }
+        })
     }
 }
 
@@ -110,24 +126,64 @@ impl From<WeakViewportSettings> for ViewportSettings {
 }
 
 pub trait PromoteBufferWeakImages {
-    fn promote_weak_images(&mut self, master_transform: Transform, lb: &Lb);
+    fn promote_weak_images(&mut self, master_transform: Transform, lb: &Lb) -> Result<(), String>;
 }
 
 impl PromoteBufferWeakImages for Buffer {
-    fn promote_weak_images(&mut self, master_transform: Transform, lb: &Lb) {
-        self.weak_images.drain().for_each(|(id, mut weak_image)| {
+    fn promote_weak_images(&mut self, master_transform: Transform, lb: &Lb) -> Result<(), String> {
+        // Resolve every reference before changing the buffer, so a failed read
+        // leaves the original drawing intact and can be retried later.
+        let mut images = Vec::with_capacity(self.weak_images.len());
+        for (id, weak_image) in self.weak_images.iter() {
+            let mut weak_image = *weak_image;
             weak_image.transform(master_transform);
-
-            let mut image = Image::from_weak(weak_image, lb);
-
+            let mut image = Image::from_weak(weak_image, lb)?;
             image.diff_state.transformed = None;
+            images.push((*id, weak_image.z_index, image));
+        }
+        images.sort_by_key(|(_, z_index, _)| *z_index);
+        for (id, z_index, image) in images {
+            self.elements.shift_insert(
+                z_index.min(self.elements.len()),
+                id,
+                Element::Image(Box::new(image)),
+            );
+        }
+        self.weak_images.clear();
+        Ok(())
+    }
+}
 
-            if weak_image.z_index >= self.elements.len() {
-                self.elements.insert(id, Element::Image(Box::new(image)));
-            } else {
-                self.elements
-                    .shift_insert(weak_image.z_index, id, Element::Image(Box::new(image)));
-            };
-        });
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use lb_rs::Uuid;
+
+    #[test]
+    fn failed_image_promotion_preserves_the_drawing() {
+        let core = crate::tab::markdown_editor::tests::harness::build_lb();
+        let mut buffer = Buffer::new(
+            r##"<svg xmlns="http://www.w3.org/2000/svg"><path d="M0 0 L100 100" stroke="#000000"/></svg>"##,
+        );
+        buffer.weak_images.insert(
+            Uuid::new_v4(),
+            WeakImage {
+                href: Uuid::new_v4(),
+                transform: Default::default(),
+                opacity: 1.0,
+                width: 100.0,
+                height: 100.0,
+                x: 20.0,
+                y: 30.0,
+                z_index: 0,
+            },
+        );
+        let before = buffer.serialize();
+        assert!(
+            buffer
+                .promote_weak_images(Transform::from_scale(2.0, 2.0), &core)
+                .is_err()
+        );
+        assert_eq!(buffer.serialize(), before);
     }
 }
