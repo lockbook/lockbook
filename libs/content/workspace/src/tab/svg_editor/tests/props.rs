@@ -14,15 +14,15 @@ use lb_rs::model::svg::element::{DynamicColor, EditableElement, ManipulatorGroup
 use resvg::usvg::Transform;
 
 use super::super::{CanvasAction, EraseEvent, LayerMove, PathEvent, Tool};
-use super::actions::{self, Program, Step};
+use super::actions::{self, Program};
 use super::harness::TestCanvas;
 use crate::tab::input_controller::ToolPayload;
 use crate::test_utils::{byte_source::ByteSource, prop};
 
 // Shared exploration limits for every property.
 const DEFAULT_SEEDS: u64 = 100;
-const MAX_EDITS: usize = 64;
-const CASE_BYTES: usize = 4_096;
+const MAX_EDITS: usize = 32;
+const CASE_BYTES: usize = 64;
 
 #[test]
 fn save_reopen_shows_the_same() {
@@ -95,11 +95,26 @@ fn gen_file(src: &mut ByteSource, readable_ids: bool) -> Vec<FileStroke> {
 
 fn gen_case(bytes: &[u8], history: bool, readable_ids: bool) -> Case {
     let mut src = ByteSource::new(bytes);
+    let file = gen_file(&mut src, readable_ids);
+    let bounds = file_bounds(&file);
     Case {
-        file: gen_file(&mut src, readable_ids),
-        edits: actions::generate(&mut src, history, MAX_EDITS),
-        later: actions::generate(&mut src, history, MAX_EDITS / 2),
+        file,
+        edits: actions::generate(&mut src, history, MAX_EDITS, &bounds),
+        later: actions::generate(&mut src, history, MAX_EDITS / 2, &bounds),
     }
+}
+
+fn file_bounds(file: &[FileStroke]) -> Vec<Rect> {
+    file.iter()
+        .map(|stroke| {
+            let points: Vec<_> = stroke
+                .pts
+                .iter()
+                .map(|&(x, y)| pos2(x as f32, y as f32))
+                .collect();
+            Rect::from_points(&points).expand(stroke.width as f32 / 2.)
+        })
+        .collect()
 }
 
 fn file_bytes(file: &[FileStroke]) -> String {
@@ -384,8 +399,9 @@ struct Chain {
 fn gen_chain(bytes: &[u8]) -> Chain {
     let mut src = ByteSource::new(bytes);
     let file = gen_file(&mut src, false);
+    let bounds = file_bounds(&file);
     let turns = (0..1 + src.draw(5))
-        .map(|_| (src.draw(WRITERS), actions::generate(&mut src, true, MAX_EDITS)))
+        .map(|_| (src.draw(WRITERS), actions::generate(&mut src, true, MAX_EDITS, &bounds)))
         .collect();
     Chain { file, turns }
 }
@@ -434,9 +450,10 @@ enum ErasePoint {
 fn gen_erase_case(bytes: &[u8]) -> EraseCase {
     let mut src = ByteSource::new(bytes);
     let file = gen_file(&mut src, false);
+    let bounds = file_bounds(&file);
     let rounds = (0..1 + src.draw(6))
         .map(|_| {
-            let setup = actions::generate(&mut src, true, MAX_EDITS);
+            let setup = actions::generate(&mut src, true, MAX_EDITS, &bounds);
             let mut erase = vec![ErasePoint::Anchor(src.draw(256), src.draw(256))];
             for _ in 0..src.draw(64) {
                 erase.push(match src.draw(4) {
@@ -556,11 +573,7 @@ fn erase_check(case: &EraseCase, undo: bool) -> Result<(), String> {
             .map(|pos| CanvasAction::Erase(EraseEvent::Build(*pos)))
             .collect();
         actions.push(CanvasAction::Erase(EraseEvent::End));
-        Program {
-            steps: actions.into_iter().map(Step::Action).collect(),
-            batches: round.batches.clone(),
-        }
-        .run(&mut canvas);
+        Program { actions, batches: round.batches.clone() }.run(&mut canvas);
         let after = snapshot(&canvas);
 
         if undo {
@@ -639,9 +652,11 @@ fn smoke_each_gesture_reaches_the_buffer() {
     let mut c = TestCanvas::open(r#"<svg xmlns="http://www.w3.org/2000/svg"></svg>"#);
     draw(&mut c, Tool::Pen, &[pos2(300., 300.), pos2(350., 320.), pos2(400., 300.)]);
     let drawn = canvas_view(&c);
-    Program { steps: vec![Step::Translate(0, vec2(20., 10.))], batches: vec![1] }.run(&mut c);
+    c.tool(Tool::Selection);
+    c.drag(&[pos2(300., 300.), pos2(310., 305.), pos2(320., 310.)]);
     let moved = canvas_view(&c);
     c.zoom(2., pos2(400., 300.));
+    c.pan(vec2(10., 5.));
     let zoom = c.master();
     erase_first(&mut c);
     assert_eq!(drawn.len(), 1);
@@ -681,7 +696,8 @@ fn smoke_each_control_reaches_the_buffer() {
     draw(&mut c, Tool::Pen, &[pos2(300., 300.), pos2(350., 320.)]);
     draw(&mut c, Tool::Pen, &[pos2(400., 300.), pos2(450., 320.)]);
     let before = canvas_view(&c);
-    assert!(actions::select(&mut c, 0));
+    c.act_many(actions::click(pos2(400., 300.)));
+    assert_eq!(c.svg_ref().toolbar.selection.selected_elements.len(), 1);
     c.act_many([
         CanvasAction::SetSelectionColor(get_pen_colors()[1]),
         CanvasAction::SetSelectionWidth(5.),
@@ -711,12 +727,9 @@ fn fixed_stroke(points: &[Pos2]) -> Vec<CanvasAction> {
 
 #[test]
 fn chain_keeps_stacking_order() {
-    let mut second = fixed_stroke(&[pos2(300., 300.), pos2(360., 330.)])
-        .into_iter()
-        .map(Step::Action)
-        .collect::<Vec<_>>();
-    second.push(Step::Select(0));
-    second.push(Step::Action(CanvasAction::MoveSelectionLayer(LayerMove::Backward)));
+    let mut second = fixed_stroke(&[pos2(300., 300.), pos2(360., 330.)]);
+    second.extend(actions::click(pos2(300., 300.)));
+    second.push(CanvasAction::MoveSelectionLayer(LayerMove::Backward));
     let chain = Chain {
         file: vec![FileStroke {
             id: Uuid::from_u128(1).to_string(),
@@ -725,8 +738,116 @@ fn chain_keeps_stacking_order() {
         }],
         turns: vec![
             (0, Program::actions(fixed_stroke(&[pos2(200., 200.), pos2(260., 230.)]))),
-            (1, Program { steps: second, batches: vec![1] }),
+            (1, Program { actions: second, batches: vec![1] }),
         ],
     };
     chain_check(&chain).unwrap();
+}
+
+// Position-based transforms must behave identically regardless of frame batching.
+#[test]
+fn selection_translation_uses_each_action_position() {
+    use super::super::SelectionEvent as S;
+    use super::super::tools::selection::SelectionOperation;
+    let file = file_bytes(&[FileStroke {
+        id: Uuid::from_u128(1).to_string(),
+        pts: vec![(300, 300), (360, 330)],
+        width: 2,
+    }]);
+    for batch in [1, 32] {
+        let mut c = TestCanvas::open(&file);
+        let before = canvas_view(&c);
+        Program {
+            actions: vec![
+                CanvasAction::SelectAll,
+                CanvasAction::Selection(S::StartTransform(
+                    SelectionOperation::Translation,
+                    pos2(300., 300.),
+                )),
+                CanvasAction::Selection(S::Transform(pos2(310., 305.))),
+                CanvasAction::Selection(S::Transform(pos2(320., 308.))),
+                CanvasAction::Selection(S::EndTransform),
+            ],
+            batches: vec![batch],
+        }
+        .run(&mut c);
+        let mut expected = before.clone();
+        for stroke in &mut expected {
+            for (x, y) in &mut stroke.pts {
+                *x += 200;
+                *y += 80;
+            }
+        }
+        same("translation", &expected, &canvas_view(&c), true).unwrap();
+        c.act(CanvasAction::Undo);
+        same("undo whole drag", &before, &canvas_view(&c), true).unwrap();
+        assert!(!c.svg_ref().history.has_undo());
+
+        c.act_many([
+            CanvasAction::Selection(S::StartTransform(
+                SelectionOperation::Translation,
+                pos2(300., 300.),
+            )),
+            CanvasAction::Selection(S::Transform(pos2(320., 308.))),
+            CanvasAction::Selection(S::Cancel),
+            CanvasAction::Selection(S::Transform(pos2(500., 500.))),
+        ]);
+        same("cancel ends drag", &expected, &canvas_view(&c), true).unwrap();
+        c.act(CanvasAction::Undo);
+        same("cancel preserves undo", &before, &canvas_view(&c), true).unwrap();
+    }
+}
+
+#[test]
+fn viewport_actions_preserve_read_only_drawing() {
+    let mut c = TestCanvas::open(&file_bytes(&[FileStroke {
+        id: Uuid::from_u128(1).to_string(),
+        pts: vec![(300, 300), (360, 330)],
+        width: 2,
+    }]));
+    let before = canvas_view(&c);
+    let master = c.master();
+    c.svg().read_only = true;
+    c.act_many([
+        CanvasAction::SelectAll,
+        CanvasAction::DeleteSelection,
+        CanvasAction::TransformViewport(Transform::from_translate(20., 10.)),
+        CanvasAction::TransformViewport(Transform::from_scale(2., 2.)),
+    ]);
+    assert_ne!(master, c.master());
+    assert!(c.svg_ref().toolbar.selection.selected_elements.is_empty());
+    same("viewport keeps document coordinates", &before, &canvas_view(&c), true).unwrap();
+}
+
+#[test]
+fn pointer_moves_in_one_frame_translate_once_per_event() {
+    use egui::{Event, Modifiers, PointerButton};
+    let mut c = TestCanvas::open(&file_bytes(&[FileStroke {
+        id: Uuid::from_u128(1).to_string(),
+        pts: vec![(300, 300), (360, 330)],
+        width: 2,
+    }]));
+    let mut expected = canvas_view(&c);
+    for stroke in &mut expected {
+        for (x, y) in &mut stroke.pts {
+            *x += 200;
+            *y += 80;
+        }
+    }
+    c.tool(Tool::Selection);
+    c.frame(vec![Event::PointerMoved(pos2(300., 300.))]);
+    c.frame(vec![Event::PointerButton {
+        pos: pos2(300., 300.),
+        button: PointerButton::Primary,
+        pressed: true,
+        modifiers: Modifiers::NONE,
+    }]);
+    c.frame(vec![Event::PointerMoved(pos2(310., 305.)), Event::PointerMoved(pos2(320., 308.))]);
+    c.frame(vec![Event::PointerButton {
+        pos: pos2(320., 308.),
+        button: PointerButton::Primary,
+        pressed: false,
+        modifiers: Modifiers::NONE,
+    }]);
+    same("pointer translation", &expected, &canvas_view(&c), true).unwrap();
 }

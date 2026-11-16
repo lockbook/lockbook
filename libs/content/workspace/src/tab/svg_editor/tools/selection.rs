@@ -35,6 +35,7 @@ use crate::widgets::Button;
 pub struct Selection {
     pub selected_elements: Vec<SelectedElement>,
     current_op: SelectionOperation,
+    last_pos: Option<egui::Pos2>,
     laso_rect: Option<egui::Rect>,
     pub layout: Layout,
     show_selection_popover: bool,
@@ -196,9 +197,10 @@ pub enum SelectionEvent {
     LasoBuild(BuildPayload),
     EndLaso,
     SelectAll,
-    StartTransform(SelectionOperation),
+    StartTransform(SelectionOperation, egui::Pos2),
     Transform(egui::Pos2),
     EndTransform,
+    Cancel,
     Delete,
     Copy,
     Cut,
@@ -221,7 +223,10 @@ impl InputControllerTool for Selection {
                 let suggested_op = self.compute_suggested_op(payload.pos);
 
                 if let Some(op) = suggested_op {
-                    return Some(CanvasAction::Selection(SelectionEvent::StartTransform(op)));
+                    return Some(CanvasAction::Selection(SelectionEvent::StartTransform(
+                        op,
+                        payload.pos,
+                    )));
                 }
 
                 Some(SelectionEvent::StartLaso(BuildPayload {
@@ -240,6 +245,8 @@ impl InputControllerTool for Selection {
                 SelectionOperation::LasoBuild(_) => Some(SelectionEvent::EndLaso),
                 _ => Some(SelectionEvent::EndTransform),
             },
+            InputControllerEvent::ToolCancel
+            | InputControllerEvent::ViewportChangeWithToolCancel => Some(SelectionEvent::Cancel),
             _ => None,
         }
         .map(CanvasAction::Selection)
@@ -249,10 +256,21 @@ impl InputControllerTool for Selection {
         &mut self, ui: &mut egui::Ui, event: Self::ToolEvent, selection_ctx: &mut ToolContext,
     ) {
         match event {
-            SelectionEvent::StartTransform(op) => {
+            SelectionEvent::StartTransform(op, pos) => {
                 self.current_op = op;
+                self.last_pos = Some(pos);
             }
             SelectionEvent::Transform(pos) => {
+                if matches!(
+                    self.current_op,
+                    SelectionOperation::Idle | SelectionOperation::LasoBuild(_)
+                ) {
+                    return;
+                }
+                let delta = self
+                    .last_pos
+                    .replace(pos)
+                    .map_or(egui::Vec2::ZERO, |previous| pos - previous);
                 let container_rect = self.get_container_rect(selection_ctx.buffer);
 
                 let min_allowed = egui::vec2(10.0, 10.0);
@@ -261,8 +279,7 @@ impl InputControllerTool for Selection {
                     // see what edge
                     let transform = match self.current_op {
                         SelectionOperation::Translation => {
-                            let pointer_delta = ui.input(|r| r.pointer.delta());
-                            Transform::identity().post_translate(pointer_delta.x, pointer_delta.y)
+                            Transform::identity().post_translate(delta.x, delta.y)
                         }
                         SelectionOperation::Idle => Transform::identity(),
                         SelectionOperation::EastScale => {
@@ -401,8 +418,10 @@ impl InputControllerTool for Selection {
                     }
                 }
             }
-            SelectionEvent::EndTransform => {
+            SelectionEvent::EndTransform | SelectionEvent::Cancel => {
                 self.current_op = SelectionOperation::Idle;
+                self.last_pos = None;
+                self.laso_rect = None;
 
                 // save to history
                 let events: Vec<TransformElement> = self
@@ -433,6 +452,7 @@ impl InputControllerTool for Selection {
                 }
             }
             SelectionEvent::StartLaso(build_payload) => {
+                self.last_pos = Some(build_payload.pos);
                 if build_payload.modifiers.alt {
                     let iter = self.selected_elements.iter().filter_map(|s_el| {
                         selection_ctx
@@ -496,6 +516,7 @@ impl InputControllerTool for Selection {
             }
             SelectionEvent::EndLaso => {
                 self.current_op = SelectionOperation::Idle;
+                self.last_pos = None;
                 self.laso_rect = None;
             }
             SelectionEvent::SelectAll => {

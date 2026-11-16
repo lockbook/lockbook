@@ -1,9 +1,10 @@
 //! Shared action corpus and replay for every canvas property. Interactions are
 //! generated as complete transactions; frame boundaries vary independently.
 
-use egui::{Modifiers, Pos2, Vec2, pos2, vec2};
+use egui::{Modifiers, Pos2, Rect, pos2, vec2};
 use lb_rs::model::svg::buffer::get_pen_colors;
 use lb_rs::model::svg::element::EditableElement;
+use resvg::usvg::Transform;
 
 use super::super::tools::selection::{BuildPayload, SelectionOperation};
 use super::super::{
@@ -15,68 +16,24 @@ use crate::test_utils::byte_source::ByteSource;
 
 #[derive(Debug)]
 pub(super) struct Program {
-    pub steps: Vec<Step>,
+    pub actions: Vec<A>,
     pub batches: Vec<usize>,
-}
-
-#[derive(Debug)]
-pub(super) enum Step {
-    Action(A),
-    Select(usize),
-    // Translation still needs egui's pointer delta. Viewport commands have not
-    // been migrated to CanvasAction either, so retain their real input paths.
-    Translate(usize, Vec2),
-    Zoom(f32, Pos2),
-    Pan(Vec2),
 }
 
 impl Program {
     pub fn actions(actions: impl IntoIterator<Item = A>) -> Self {
-        Self { steps: actions.into_iter().map(Step::Action).collect(), batches: vec![1] }
+        Self { actions: actions.into_iter().collect(), batches: vec![1] }
     }
 
     pub fn run(&self, canvas: &mut TestCanvas) {
-        let mut pending = Vec::new();
-        let mut batch = 0;
-        for step in &self.steps {
-            if let Step::Action(action) = step {
-                pending.push(*action);
-                if pending.len() >= self.batches[batch % self.batches.len()] {
-                    canvas.act_many(pending.drain(..));
-                    batch += 1;
-                }
-                continue;
+        let mut offset = 0;
+        for size in self.batches.iter().cycle() {
+            if offset == self.actions.len() {
+                break;
             }
-            if !pending.is_empty() {
-                canvas.act_many(pending.drain(..));
-                batch += 1;
-            }
-            match *step {
-                Step::Action(_) => unreachable!(),
-                Step::Select(index) => {
-                    select(canvas, index);
-                }
-                Step::Translate(index, delta) => {
-                    let points = live_points(canvas);
-                    if points.is_empty() {
-                        continue;
-                    }
-                    let at = points[index % points.len()];
-                    if !on_canvas(canvas, at) || !on_canvas(canvas, at + delta) {
-                        continue;
-                    }
-                    canvas.tool(Tool::Selection);
-                    canvas.drag(&[at, at + delta * 0.5, at + delta]);
-                    if std::env::var("CANVAS_PROPS_PEN_AFTER_SELECTING").is_ok() {
-                        canvas.tool(Tool::Pen);
-                    }
-                }
-                Step::Zoom(factor, at) => canvas.zoom(factor, at),
-                Step::Pan(delta) => canvas.pan(delta),
-            }
-        }
-        if !pending.is_empty() {
-            canvas.act_many(pending);
+            let end = (offset + size).min(self.actions.len());
+            canvas.act_many(self.actions[offset..end].iter().copied());
+            offset = end;
         }
     }
 }
@@ -99,61 +56,84 @@ pub(super) fn live_points(canvas: &TestCanvas) -> Vec<Pos2> {
         .collect()
 }
 
-fn on_canvas(canvas: &TestCanvas, at: Pos2) -> bool {
-    canvas
-        .svg_ref()
-        .viewport_settings
-        .working_rect
-        .shrink(10.)
-        .contains(at)
-        && !canvas
-            .svg_ref()
-            .toolbar
-            .get_rects()
-            .iter()
-            .any(|rect| rect.expand(10.).contains(at))
-}
-
-pub(super) fn select(canvas: &mut TestCanvas, index: usize) -> bool {
-    let points = live_points(canvas);
-    if points.is_empty() {
-        canvas.act(A::Selection(SelectionEvent::SelectAll));
-        return false;
-    }
-    canvas.act_many([
+pub(super) fn click(at: Pos2) -> [A; 2] {
+    [
         A::Selection(SelectionEvent::StartLaso(BuildPayload {
-            pos: points[index % points.len()],
+            pos: at,
             modifiers: Modifiers::NONE,
         })),
         A::Selection(SelectionEvent::EndTransform),
-    ]);
-    !canvas
-        .svg_ref()
-        .toolbar
-        .selection
-        .selected_elements
-        .is_empty()
+    ]
 }
 
-pub(super) fn generate(src: &mut ByteSource, history: bool, max_edits: usize) -> Program {
-    let mut steps = Vec::new();
+// Bounds are hints from the initial drawing, not targets resolved during replay.
+// They can become stale after edits, just like any generated screen position.
+fn select(src: &mut ByteSource, actions: &mut Vec<A>, bounds: &[Rect]) {
+    actions.push(A::SetTool(Tool::Selection));
+    if !bounds.is_empty() && src.draw(3) != 0 {
+        let rect = bounds[src.draw(bounds.len())].expand(20.);
+        actions.extend([
+            A::Selection(SelectionEvent::StartLaso(BuildPayload {
+                pos: rect.min,
+                modifiers: Modifiers::NONE,
+            })),
+            A::Selection(SelectionEvent::LasoBuild(BuildPayload {
+                pos: rect.max,
+                modifiers: Modifiers::NONE,
+            })),
+            A::Selection(SelectionEvent::EndLaso),
+        ]);
+    } else {
+        actions.extend(click(point(src)));
+    }
+}
+
+pub(super) fn generate(
+    src: &mut ByteSource, history: bool, max_edits: usize, bounds: &[Rect],
+) -> Program {
+    let mut actions = Vec::new();
     for _ in 0..src.draw(max_edits + 1) {
-        let step = match src.draw(14) {
-            10 => Step::Select(src.draw(256)),
-            11 => Step::Translate(
-                src.draw(256),
-                vec2(src.draw(81) as f32 - 40., src.draw(81) as f32 - 40.),
-            ),
-            12 => Step::Zoom([1.25, 0.8, 2., 0.5][src.draw(4)], point(src)),
-            13 => Step::Pan(vec2(src.draw(101) as f32 - 50., src.draw(101) as f32 - 50.)),
+        match src.draw(14) {
+            10 => select(src, &mut actions, bounds),
+            11 => {
+                if src.draw(4) == 0 {
+                    actions.push(A::SelectAll);
+                } else {
+                    select(src, &mut actions, bounds);
+                }
+                let start = point(src);
+                actions.push(A::Selection(SelectionEvent::StartTransform(
+                    SelectionOperation::Translation,
+                    start,
+                )));
+                let end = start + vec2(src.draw(81) as f32 - 40., src.draw(81) as f32 - 40.);
+                actions.push(A::Selection(SelectionEvent::Transform(start + (end - start) * 0.5)));
+                actions.push(A::Selection(SelectionEvent::Transform(end)));
+                actions.push(A::Selection(if src.draw(5) == 0 {
+                    SelectionEvent::Cancel
+                } else {
+                    SelectionEvent::EndTransform
+                }));
+            }
+            12 => {
+                let factor = [1.25, 0.8, 2., 0.5][src.draw(4)];
+                let at = point(src);
+                actions.push(A::TransformViewport(
+                    Transform::identity()
+                        .post_scale(factor, factor)
+                        .post_translate((1. - factor) * at.x, (1. - factor) * at.y),
+                ));
+            }
+            13 => actions.push(A::TransformViewport(Transform::from_translate(
+                src.draw(101) as f32 - 50.,
+                src.draw(101) as f32 - 50.,
+            ))),
             _ => {
-                let mut actions = Vec::new();
-                edit(src, &mut actions, history);
-                // Exercise individual strokes as well as whole-selection edits.
-                // Moving all strokes to the front/back would always be a no-op.
-                if matches!(actions.first(), Some(A::Selection(SelectionEvent::SelectAll)))
+                let mut edit_actions = Vec::new();
+                edit(src, &mut edit_actions, history);
+                if matches!(edit_actions.first(), Some(A::Selection(SelectionEvent::SelectAll)))
                     && matches!(
-                        actions.last(),
+                        edit_actions.last(),
                         Some(
                             A::SetSelectionColor(_)
                                 | A::SetSelectionWidth(_)
@@ -163,18 +143,16 @@ pub(super) fn generate(src: &mut ByteSource, history: bool, max_edits: usize) ->
                     )
                     && src.draw(4) != 0
                 {
-                    steps.push(Step::Select(src.draw(256)));
-                    steps.extend(actions.into_iter().skip(1).map(Step::Action));
-                    continue;
+                    select(src, &mut actions, bounds);
+                    actions.extend(edit_actions.into_iter().skip(1));
+                } else {
+                    actions.extend(edit_actions);
                 }
-                steps.extend(actions.into_iter().map(Step::Action));
-                continue;
             }
-        };
-        steps.push(step);
+        }
     }
-    let batches = (0..1 + src.draw(8)).map(|_| 1 + src.draw(32)).collect();
-    Program { steps, batches }
+    let batches = (0..1 + src.draw(8)).map(|_| 1 + src.draw(16)).collect();
+    Program { actions, batches }
 }
 
 pub(super) fn point(src: &mut ByteSource) -> Pos2 {
@@ -258,7 +236,11 @@ fn edit(src: &mut ByteSource, actions: &mut Vec<A>, history: bool) {
                     modifiers: Modifiers::NONE,
                 })));
             }
-            actions.push(A::Selection(SelectionEvent::EndLaso));
+            actions.push(A::Selection(if src.draw(5) == 0 {
+                SelectionEvent::Cancel
+            } else {
+                SelectionEvent::EndLaso
+            }));
         }
         5 => {
             actions.push(A::Selection(SelectionEvent::SelectAll));
@@ -273,11 +255,16 @@ fn edit(src: &mut ByteSource, actions: &mut Vec<A>, history: bool) {
                     SelectionOperation::SouthEastScale,
                     SelectionOperation::SouthWestScale,
                 ][src.draw(8)],
+                point(src),
             )));
             for _ in 0..1 + src.draw(16) {
                 actions.push(A::Selection(SelectionEvent::Transform(point(src))));
             }
-            actions.push(A::Selection(SelectionEvent::EndTransform));
+            actions.push(A::Selection(if src.draw(5) == 0 {
+                SelectionEvent::Cancel
+            } else {
+                SelectionEvent::EndTransform
+            }));
         }
         6 => {
             for _ in 0..1 + src.draw(16) {

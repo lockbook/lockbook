@@ -399,6 +399,11 @@ impl ShellApp {
             sheets::show_modals(self, ctx, &t, &mut queue);
         }
 
+        let background_enabled = self.modal.is_none();
+        if !background_enabled {
+            ctx.root_ui(|root| root.disable());
+        }
+
         let show_side = self.product_open() && self.sidebar_open && !self.defaults_zen();
 
         // One SidePanel: slide its contents (right edge glued to visible width).
@@ -425,7 +430,9 @@ impl ShellApp {
                         sidebar::show_sliding(self, ui, &t, &mut queue, ui.max_rect().width());
                     });
             });
-            sidebar::resize_over_workspace(ctx, &t, titlebar::HEADER_H);
+            if background_enabled {
+                sidebar::resize_over_workspace(ctx, &t, titlebar::HEADER_H);
+            }
             if let Some(state) =
                 egui::containers::panel::PanelState::load(ctx, sidebar::panel_id(ctx))
             {

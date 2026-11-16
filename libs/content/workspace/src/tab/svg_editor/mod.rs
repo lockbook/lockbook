@@ -18,7 +18,7 @@ use web_time::Instant;
 use self::history::History;
 use crate::tab::ExtendedInput;
 use crate::tab::input_controller::{
-    self, InputController, InputControllerConfig, InputControllerEvent, LayoutContext,
+    InputController, InputControllerConfig, InputControllerEvent, LayoutContext,
 };
 use crate::tab::svg_editor::toolbar::Toolbar;
 use crate::tab::svg_editor::viewport::transform_canvas;
@@ -371,51 +371,32 @@ impl SVGEditor {
             .active_tool_mut()
             .show_tool_ui(ui, &mut tool_context);
 
-        let mut selection_seen_tool_run = false;
-
         let events = self.input_controller.process(ui, &layout_ctx);
-        let active_tool = self.toolbar.active_tool;
 
         for event in events {
-            if let InputControllerEvent::Action(action) = event {
-                execute_action(ui, action, &mut self.toolbar, &mut tool_context, &mut self.cfg);
-                continue;
-            }
-
-            // todo: this is a bit hacky. selection_seen_tool_run needs to be gone
-            if selection_seen_tool_run && matches!(event, InputControllerEvent::ToolRun(..)) {
-                continue;
-            }
-
-            if let InputControllerEvent::ViewportChange(transform) = event {
-                transform_canvas(tool_context.buffer, tool_context.viewport_settings, transform);
-            } else if let InputControllerEvent::Gesture(num_touches) = event {
-                if num_touches == 2 {
-                    tool_context.history.undo(tool_context.buffer)
-                } else if num_touches == 3 {
-                    tool_context.history.redo(tool_context.buffer)
+            let action = match event {
+                InputControllerEvent::Action(action) => Some(action),
+                InputControllerEvent::ViewportChange(transform) => {
+                    Some(CanvasAction::TransformViewport(transform))
                 }
-            } else {
-                let action = self
+                InputControllerEvent::Gesture(2) => Some(CanvasAction::Undo),
+                InputControllerEvent::Gesture(3) => Some(CanvasAction::Redo),
+                InputControllerEvent::Gesture(_) => None,
+                _ => self
                     .toolbar
                     .active_tool_mut()
-                    .controller_event_to_tool_event(event);
-                if let Some(action) = action {
-                    execute_action(ui, action, &mut self.toolbar, &mut tool_context, &mut self.cfg);
-                }
-            }
-
-            if active_tool == Tool::Selection && matches!(event, InputControllerEvent::ToolRun(..))
-            {
-                selection_seen_tool_run = true;
+                    .controller_event_to_tool_event(event),
+            };
+            if let Some(action) = action {
+                execute_action(ui, action, &mut self.toolbar, &mut tool_context, &mut self.cfg);
             }
         }
 
         // Toolbar controls already produce canvas commands; execute them here
         // after input events, alongside commands from keyboard shortcuts.
-        if !self.read_only {
-            for event in ui.ctx().read_events() {
-                if let crate::tab::Event::Canvas(action) = event {
+        for event in ui.ctx().read_events() {
+            if let crate::tab::Event::Canvas(action) = event {
+                if !self.read_only || matches!(action, CanvasAction::TransformViewport(_)) {
                     execute_action(ui, action, &mut self.toolbar, &mut tool_context, &mut self.cfg);
                 }
             }
@@ -481,6 +462,7 @@ pub enum CanvasAction {
     Erase(EraseEvent),
     Shape(ShapeEvent),
     Selection(SelectionEvent),
+    TransformViewport(Transform),
     DeleteSelection,
     CutSelection,
     CopySelection,
@@ -519,6 +501,11 @@ fn execute_action(
         A::Erase(event) => toolbar.eraser.handle_tool_event(ui, event, ctx),
         A::Shape(event) => toolbar.shapes_tool.handle_tool_event(ui, event, ctx),
         A::Selection(event) => toolbar.selection.handle_tool_event(ui, event, ctx),
+        A::TransformViewport(transform) => {
+            if ui.is_enabled() {
+                transform_canvas(ctx.buffer, ctx.viewport_settings, transform);
+            }
+        }
         A::Undo => ctx.history.undo(ctx.buffer),
         A::Redo => ctx.history.redo(ctx.buffer),
         A::SetTool(tool) => toolbar.set_tool(tool, ctx.settings, cfg),
