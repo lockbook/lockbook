@@ -1534,10 +1534,7 @@ impl<S: Server, D: LocalDocuments> Lb<S, D> {
     }
 }
 
-/// Whether this device may still change `id` or what's in it: write is granted at the nearest file
-/// `remote` has, at or above `id` in this device's tree, by a share this device hasn't declined,
-/// and in this device's own tree. `remote` is the server's tree, with this device's kept moves
-/// applied once they are, so shares are read where each file ends up, not the merge's.
+/// A copy of a metadata tree, to merge from without holding a lock.
 fn snapshot(
     metadata: &DbHashMap<Uuid, SignedMeta, UuidIdentityHasherBuilder>,
 ) -> HashMap<Uuid, SignedMeta> {
@@ -1552,6 +1549,10 @@ fn metadata_version(db: &CoreV5) -> (u64, u64) {
     (db.base_metadata.last_modified(), db.local_metadata.last_modified())
 }
 
+/// Whether this device may still change `id` or what's in it: write is granted at the nearest file
+/// `remote` has, at or above `id` in this device's tree, by a share this device hasn't declined,
+/// and in this device's own tree. `remote` is the server's tree, with this device's kept moves
+/// applied once they are, so shares are read where each file ends up, not the merge's.
 fn may_write_in<L: TreeLike, R: TreeLike<F = L::F>>(
     local: &LazyTree<L>, remote: &LazyTree<R>, me: Owner, id: &Uuid,
 ) -> LbResult<bool> {
