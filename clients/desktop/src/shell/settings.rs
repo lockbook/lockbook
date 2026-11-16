@@ -328,7 +328,7 @@ pub fn show(app: &mut ShellApp, ctx: &egui::Context, t: &Theme, queue: &mut Vec<
     ctx.data_mut(|d| d.insert_temp(layout_readout_id(), readout));
 }
 
-/// Theme and window prefs.
+/// Theme, tab and window prefs.
 fn page_app(app: &mut ShellApp, ui: &mut Ui, t: &Theme, queue: &mut Vec<Action>) {
     section_label(ui, t, "Appearance");
     form_group(ui, t, |ui| {
@@ -377,12 +377,6 @@ fn page_app(app: &mut ShellApp, ui: &mut Ui, t: &Theme, queue: &mut Vec<Action>)
                 }
             }
         });
-        if let Some(family) = text_font_picker(ui, t, &app.settings.text_font) {
-            queue.push(A::SetTextFont(family));
-        }
-        if let Some(family) = code_font_picker(ui, t, &app.settings.code_font) {
-            queue.push(A::SetCodeFont(family));
-        }
     });
 
     ui.add(Spacer::new(Space::Lg));
@@ -555,7 +549,7 @@ fn chosen_font(family: &str) -> crate::components::atoms::picker::OptionFont {
     }
 }
 
-/// Note-adjacent prefs — workspace.cfg only.
+/// Note-adjacent prefs: links, spelling, text width and fonts.
 fn page_editor(app: &mut ShellApp, ui: &mut Ui, t: &Theme, queue: &mut Vec<Action>) {
     section_label(ui, t, "Links");
     form_group(ui, t, |ui| {
@@ -602,6 +596,12 @@ fn page_editor(app: &mut ShellApp, ui: &mut Ui, t: &Theme, queue: &mut Vec<Actio
         let mut pick = COLUMN_WIDTHS.iter().position(|w| *w == width).unwrap_or(0);
         if form_segmented(ui, t, "Text width", &["Narrow", "Medium", "Wide"], &mut pick).changed() {
             queue.push(A::SetPrefColumnWidth(COLUMN_WIDTHS[pick]));
+        }
+        if let Some(family) = text_font_picker(ui, t, &app.settings.text_font) {
+            queue.push(A::SetTextFont(family));
+        }
+        if let Some(family) = code_font_picker(ui, t, &app.settings.code_font) {
+            queue.push(A::SetCodeFont(family));
         }
     });
 }
