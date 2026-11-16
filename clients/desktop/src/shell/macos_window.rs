@@ -222,9 +222,15 @@ pub fn pick_files_and_folders() -> Option<Vec<std::path::PathBuf>> {
     })
 }
 
-/// AppKit's quit (⌘Q, the app menu's Quit, the Dock's, logging out of the Mac) calls `on_quit`
-/// instead of ending the process, so the window closes the way its close button does: the edits
-/// are saved first. Call once, after the event loop exists.
+/// A quit [quit_closes] holds: AppKit waits for [quit_settled] to answer it.
+static QUIT_HELD: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+/// [quit_settled] has sent AppKit its answer.
+static QUIT_ANSWERED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+/// AppKit's quit (⌘Q, the app menu's Quit, the Dock's, a logout, restart or shutdown of the Mac)
+/// calls `on_quit` and waits, so the window closes the way its close button does: the edits are
+/// saved first. The quit goes on when the app calls [quit_settled]; a logout waits for it rather
+/// than being cancelled. Call once, after the event loop exists.
 pub fn quit_closes(on_quit: impl Fn() + Send + Sync + 'static) {
     use objc2::ffi;
     use objc2::runtime::{AnyClass, AnyObject, Sel};
@@ -240,8 +246,9 @@ pub fn quit_closes(on_quit: impl Fn() + Send + Sync + 'static) {
     ) -> NSApplicationTerminateReply {
         match ON_QUIT.get() {
             Some(on_quit) => {
+                QUIT_HELD.store(true, std::sync::atomic::Ordering::SeqCst);
                 on_quit();
-                NSApplicationTerminateReply::NSTerminateCancel
+                NSApplicationTerminateReply::NSTerminateLater
             }
             None => NSApplicationTerminateReply::NSTerminateNow,
         }
@@ -272,6 +279,32 @@ pub fn quit_closes(on_quit: impl Fn() + Send + Sync + 'static) {
             c"Q@:@".as_ptr(),
         );
     }
+}
+
+/// Lets a quit [quit_closes] holds go on, now that the app has saved; AppKit then ends the process.
+/// Returns whether one was held: if not, ending the process is the caller's to do.
+///
+/// The answer goes from the main queue: AppKit ends the quit by telling winit the app is
+/// terminating, which winit refuses while it is handling an event, as the caller may be.
+pub fn quit_settled() -> bool {
+    use objc2_app_kit::NSApplication;
+    use objc2_foundation::MainThreadMarker;
+    use std::sync::atomic::Ordering;
+
+    if !QUIT_HELD.load(Ordering::SeqCst) {
+        return false;
+    }
+    if !QUIT_ANSWERED.swap(true, Ordering::SeqCst) {
+        dispatch2::DispatchQueue::main().exec_async(|| {
+            // SAFETY: the main queue runs on the main thread.
+            let mtm = unsafe { MainThreadMarker::new_unchecked() };
+            // SAFETY: AppKit is waiting on this answer, since `should_terminate` held the quit.
+            unsafe {
+                NSApplication::sharedApplication(mtm).replyToApplicationShouldTerminate(true)
+            };
+        });
+    }
+    true
 }
 
 #[cfg(test)]

@@ -238,7 +238,7 @@ impl<S: Server> ApplicationHandler<UserEvent> for App<S> {
                     if let Some(shell) = &mut self.shell {
                         shell.exiting();
                     }
-                    std::process::exit(0);
+                    end();
                 }
                 UserEvent::RepaintRequested { .. } => {}
             }
@@ -354,7 +354,8 @@ impl<S: Server> AppState<S> {
         if self.close_requested {
             if self.lb.app.saves_settled() {
                 self.lb.app.exiting();
-                std::process::exit(0);
+                end();
+                return;
             }
             self.window.request_redraw();
         }
@@ -869,6 +870,16 @@ fn open<S: Server>(
     }
     let mut app = App { state: None, shell: Some(shell), proxy: event_loop.create_proxy(), links };
     event_loop.run_app(&mut app).expect("event loop failed");
+}
+
+/// Ends the process, once the shell has exited. A quit AppKit holds goes on instead, so it ends
+/// the process: a logout, restart or shutdown of the Mac carries on.
+fn end() {
+    #[cfg(target_os = "macos")]
+    if crate::shell::macos_window::quit_settled() {
+        return;
+    }
+    std::process::exit(0);
 }
 
 fn pixels_hash(bytes: &[u8]) -> u64 {
