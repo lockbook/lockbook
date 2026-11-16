@@ -510,9 +510,17 @@ fn polyline(points: &[Pos2], closed: bool) -> Option<Path> {
 
 #[cfg(test)]
 mod tests {
+    use std::sync::RwLock;
+
+    use lb_rs::model::account::Account;
+
     use super::*;
+    use crate::open_guard::OpenGuard;
     use crate::preview::print::for_each_shape;
-    use crate::test_utils::ws::TestWs;
+    use crate::tab::markdown_editor::tests::harness::store_and_previews;
+    use crate::test_utils::files::{at, cache, tree};
+    use crate::test_utils::ws::{TestWs, test_ctx};
+    use crate::widgets::image_cache::ImageCache;
 
     /// Pages hold at most a page each, run from the top to the bottom, and
     /// cut no span shorter than a page, for spans that nest or stand apart
@@ -612,5 +620,61 @@ mod tests {
 
         let pdf = render_pdf(&live, id, None, Paper::LETTER).unwrap();
         assert!(pdf.starts_with(b"%PDF"));
+    }
+
+    /// Resources for a note at `/note.md`, on no server.
+    fn note() -> (TabResources, Uuid) {
+        let files = Arc::new(RwLock::new(cache(tree("alice", &["/note.md"]))));
+        let id = at(&*files.read().unwrap(), "/note.md");
+        let ctx = test_ctx();
+        let (persistence, previews) = store_and_previews(&ctx);
+        let core = crate::test_utils::in_memory_core();
+        let images = ImageCache::new(
+            ctx.clone(),
+            Default::default(),
+            core.clone(),
+            files.clone(),
+            persistence.clone(),
+        );
+        let res = TabResources {
+            ctx,
+            core,
+            files,
+            images,
+            previews,
+            persistence,
+            account: Account::new("alice".into(), String::new()),
+            guard: Arc::new(OpenGuard::new(std::path::Path::new(""), false, None)),
+            watched: false,
+        };
+        (res, id)
+    }
+
+    /// Pages run from a note's first line to past its last: every line the
+    /// frame draws lies between the first cut and the last, for a note
+    /// shorter than a page as for one of several.
+    #[test]
+    fn pages_hold_every_line() {
+        let (res, id) = note();
+        let paper = Paper::LETTER;
+        let size = Vec2::new(paper.note_width(), paper.note_height());
+        let notes = [
+            "*hell yeah*, **PDF** it `up`".to_string(),
+            "*hell yeah*, **PDF** it `up`\n".to_string(),
+            "# Big\n\nbody".to_string(),
+            format!("{}the `last` line", "a line\n\n".repeat(120)),
+        ];
+        for text in notes {
+            let frame = print_frame(&res, id, Some(text.clone()), size).unwrap();
+            let cuts = page_cuts(&frame.unbreakable, paper.note_height(), frame.height);
+            let (first, last) = (cuts[0], *cuts.last().unwrap());
+            for &(top, bottom) in &frame.unbreakable {
+                assert!(
+                    first <= top && bottom <= last,
+                    "{top}..{bottom} past the pages {first}..{last} of {text:?}"
+                );
+            }
+            assert!(!frame.unbreakable.is_empty(), "{text:?} draws its lines");
+        }
     }
 }

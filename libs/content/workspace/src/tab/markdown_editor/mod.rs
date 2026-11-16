@@ -3207,6 +3207,10 @@ impl Editor {
             return;
         }
         let state = &mut self.edit.scroll_area.state;
+        // clamped to this frame's view, not the last one's: a view resized to
+        // its region couldn't reach the region's start under a taller one
+        use crate::widgets::affine_scroll::Action;
+        state.handle(&rows, Action::Resize(canvas.height()));
         let room = (height - canvas.height()).max(0.0);
         let into = state
             .offset(&rows)

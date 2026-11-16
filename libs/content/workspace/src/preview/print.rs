@@ -26,7 +26,8 @@ pub struct PrintFrame {
     pub height: f32,
 }
 
-/// Draws the note `id` whole, `size.x` wide and at least `size.y` tall.
+/// Draws the note `id` whole, `size.x` wide and as tall as it measures, from
+/// its first line to its last.
 /// `text` is an open note's text, unsaved edits and all, instead of what's
 /// saved.
 pub fn print_frame(
@@ -51,7 +52,8 @@ pub fn print_frame(
     headless.tab.presentation = Presentation::Print;
 
     // grow to the note's height until what loads at that height, images and
-    // embeds, stops growing it
+    // embeds, stops growing it; no taller, as an embed stands, so the view
+    // lands on the note's first line and not the pad above it
     let mut height = 0.0;
     loop {
         if !headless.settle() {
@@ -62,7 +64,7 @@ pub fn print_frame(
             break;
         }
         height = measured;
-        headless.points.y = headless.points.y.max(height);
+        headless.points.y = height;
     }
     let renderer_spans = match &headless.tab.content {
         ContentState::Open(TabContent::Markdown(md)) => md.edit.renderer.unbreakable.clone(),
