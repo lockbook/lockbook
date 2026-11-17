@@ -8,6 +8,7 @@ use std::fmt::Write;
 use super::errors::{LbErrKind, LbResult};
 
 pub const MAX_USERNAME_LENGTH: usize = 32;
+pub const SUB_ACCOUNT_SEPARATOR: char = '+';
 
 /// A flag for which users have volunteers as beta testers.
 ///
@@ -57,6 +58,11 @@ impl Account {
 
     pub fn public_key(&self) -> PublicKey {
         PublicKey::from_secret_key(&self.private_key)
+    }
+
+    pub fn sub_account(&self, username: Username, counter: u32) -> LbResult<Self> {
+        let private_key = pubkey::derive_key(&self.private_key, counter)?;
+        Ok(Self { username, api_url: self.api_url.clone(), private_key })
     }
 
     pub fn get_phrase(&self) -> LbResult<[&'static str; 24]> {

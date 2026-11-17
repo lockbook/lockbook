@@ -3,8 +3,8 @@ use crate::io::docs::LocalDocuments;
 use crate::io::network::ApiError;
 use crate::io::server::Server;
 use crate::model::api::{
-    CancelSubscriptionError, CancelSubscriptionRequest, GetSubscriptionInfoRequestV2,
-    StripeAccountTier, SubscriptionInfo, UpgradeAccountAppStoreError,
+    CancelSubscriptionError, CancelSubscriptionRequest, GetSubscriptionInfoError,
+    GetSubscriptionInfoRequestV2, StripeAccountTier, SubscriptionInfo, UpgradeAccountAppStoreError,
     UpgradeAccountAppStoreRequest, UpgradeAccountGooglePlayError, UpgradeAccountGooglePlayRequest,
     UpgradeAccountStripeError, UpgradeAccountStripeRequest,
 };
@@ -42,6 +42,7 @@ impl<S: Server, D: LocalDocuments> Lb<S, D> {
                         LbErrKind::ExistingRequestPending
                     }
                     UpgradeAccountStripeError::UserNotFound => LbErrKind::AccountNonexistent,
+                    UpgradeAccountStripeError::NotPermissioned => LbErrKind::InsufficientPermission,
                 },
                 ApiError::SendFailed(_) => LbErrKind::ServerUnreachable,
                 ApiError::ClientUpdateRequired => LbErrKind::ClientUpdateRequired,
@@ -76,6 +77,9 @@ impl<S: Server, D: LocalDocuments> Lb<S, D> {
                         LbErrKind::ExistingRequestPending
                     }
                     UpgradeAccountGooglePlayError::UserNotFound => core_err_unexpected(err),
+                    UpgradeAccountGooglePlayError::NotPermissioned => {
+                        LbErrKind::InsufficientPermission
+                    }
                 },
                 ApiError::SendFailed(_) => LbErrKind::ServerUnreachable,
                 ApiError::ClientUpdateRequired => LbErrKind::ClientUpdateRequired,
@@ -110,6 +114,9 @@ impl<S: Server, D: LocalDocuments> Lb<S, D> {
                         LbErrKind::AppStoreAccountAlreadyLinked
                     }
                     UpgradeAccountAppStoreError::UserNotFound => core_err_unexpected(err),
+                    UpgradeAccountAppStoreError::NotPermissioned => {
+                        LbErrKind::InsufficientPermission
+                    }
                 },
                 ApiError::SendFailed(_) => LbErrKind::ServerUnreachable,
                 ApiError::ClientUpdateRequired => LbErrKind::ClientUpdateRequired,
@@ -140,6 +147,9 @@ impl<S: Server, D: LocalDocuments> Lb<S, D> {
                 ApiError::Endpoint(CancelSubscriptionError::CannotCancelForAppStore) => {
                     LbErrKind::CannotCancelSubscriptionForAppStore
                 }
+                ApiError::Endpoint(CancelSubscriptionError::NotPermissioned) => {
+                    LbErrKind::InsufficientPermission
+                }
                 ApiError::SendFailed(_) => LbErrKind::ServerUnreachable,
                 ApiError::ClientUpdateRequired => LbErrKind::ClientUpdateRequired,
                 _ => core_err_unexpected(err),
@@ -157,6 +167,9 @@ impl<S: Server, D: LocalDocuments> Lb<S, D> {
             .get_subscription_info_v2(account, GetSubscriptionInfoRequestV2 {})
             .await
             .map_err(|err| match err {
+                ApiError::Endpoint(GetSubscriptionInfoError::NotPermissioned) => {
+                    LbErrKind::InsufficientPermission
+                }
                 ApiError::SendFailed(_) => LbErrKind::ServerUnreachable,
                 ApiError::ClientUpdateRequired => LbErrKind::ClientUpdateRequired,
                 _ => core_err_unexpected(err),

@@ -194,7 +194,7 @@ where
     ) -> Result<u64, ServerError<GetUsageHelperError>> {
         Ok(db
             .accounts
-            .get(&Owner(*public_key))
+            .get(&Self::billed_owner(db, Owner(*public_key)))
             .ok_or(ServerError::ClientError(GetUsageHelperError::UserNotFound))?
             .billing_info
             .data_cap())
@@ -399,50 +399,67 @@ where
             let mut tx = ServerTx::begin(&mut lock)?;
             let db = &mut *tx;
 
-            let mut tree = ServerTree::new(
-                Owner(*public_key),
-                &mut db.owned_files,
-                &mut db.shared_files,
-                &mut db.file_children,
-                &mut db.metas,
-            )?
-            .to_lazy();
-            let metas_to_delete = tree.ids();
+            let mut owners = vec![Owner(*public_key)];
+            owners.extend(Self::live_sub_accounts(db, Owner(*public_key)));
 
-            for id in metas_to_delete.clone() {
-                if !tree.calculate_deleted(&id)? {
-                    let meta = tree.find(&id)?;
-                    if meta.is_document() && &(meta.owner().0) == public_key {
-                        if let Some(hmac) = meta.document_hmac() {
-                            docs_to_delete.push((*meta.id(), *hmac));
+            for Owner(public_key) in &owners {
+                let mut tree = ServerTree::new(
+                    Owner(*public_key),
+                    &mut db.owned_files,
+                    &mut db.shared_files,
+                    &mut db.file_children,
+                    &mut db.metas,
+                )?
+                .to_lazy();
+                let metas_to_delete = tree.ids();
+
+                for id in metas_to_delete.clone() {
+                    if !tree.calculate_deleted(&id)? {
+                        let meta = tree.find(&id)?;
+                        if meta.is_document() && &(meta.owner().0) == public_key {
+                            if let Some(hmac) = meta.document_hmac() {
+                                docs_to_delete.push((*meta.id(), *hmac));
+                            }
                         }
                     }
                 }
-            }
-            db.owned_files.clear_key(&Owner(*public_key))?;
-            db.shared_files.clear_key(&Owner(*public_key))?;
-            db.last_seen.remove(&Owner(*public_key))?;
+                db.owned_files.clear_key(&Owner(*public_key))?;
+                db.shared_files.clear_key(&Owner(*public_key))?;
+                db.last_seen.remove(&Owner(*public_key))?;
 
-            for id in metas_to_delete {
-                if let Some(meta) = db.metas.get(&id) {
-                    if &(meta.owner().0) == public_key {
-                        for user_access_key in meta.user_access_keys() {
-                            let sharee = Owner(user_access_key.encrypted_for);
-                            db.shared_files.remove(&sharee, meta.id())?;
+                for id in metas_to_delete {
+                    if let Some(meta) = db.metas.get(&id) {
+                        if &(meta.owner().0) == public_key {
+                            for user_access_key in meta.user_access_keys() {
+                                let sharee = Owner(user_access_key.encrypted_for);
+                                db.shared_files.remove(&sharee, meta.id())?;
+                            }
+                            db.metas.remove(&id)?;
+                            db.file_children.clear_key(&id)?;
                         }
-                        db.metas.remove(&id)?;
-                        db.file_children.clear_key(&id)?;
                     }
                 }
-            }
 
-            if free_username {
-                let username = db
-                    .accounts
-                    .remove(&Owner(*public_key))?
-                    .ok_or(ClientError(DeleteAccountHelperError::UserNotFound))?
-                    .username;
-                db.usernames.remove(&username)?;
+                if free_username {
+                    let username = db
+                        .accounts
+                        .remove(&Owner(*public_key))?
+                        .ok_or(ClientError(DeleteAccountHelperError::UserNotFound))?
+                        .username;
+                    db.usernames.remove(&username)?;
+                }
+
+                if let Some(mut sub_account) = db.sub_accounts.get(&Owner(*public_key)).cloned() {
+                    sub_account.deleted = true;
+                    db.sub_accounts.insert(Owner(*public_key), sub_account)?;
+                }
+                if free_username {
+                    let sub_accounts = db.sub_accounts_by_parent.get(&Owner(*public_key));
+                    for sub_account in sub_accounts.cloned().unwrap_or_default() {
+                        db.sub_accounts.remove(&sub_account)?;
+                    }
+                    db.sub_accounts_by_parent.clear_key(&Owner(*public_key))?;
+                }
             }
 
             tx.end()?;

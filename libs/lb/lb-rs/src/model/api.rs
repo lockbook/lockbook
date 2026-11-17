@@ -312,6 +312,81 @@ pub enum NewAccountError {
     RateLimited,
 }
 
+#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
+pub struct NewSubAccountRequest {
+    pub username: Username,
+    pub public_key: PublicKey,
+    pub root_folder: SignedMeta,
+    pub counter: u32,
+}
+
+impl Request for NewSubAccountRequest {
+    type Response = ();
+    type Error = NewSubAccountError;
+    const METHOD: Method = Method::POST;
+    const ROUTE: &'static str = "/new-sub-account";
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
+pub enum NewSubAccountError {
+    UsernameTaken,
+    PublicKeyTaken,
+    InvalidUsername,
+    FileIdTaken,
+    Disabled,
+    RateLimited,
+    NotPremium,
+    NotPermissioned,
+    CounterIncorrect,
+    RootInvalid,
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
+pub struct ListSubAccountsRequest {}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
+pub struct ListSubAccountsResponse {
+    pub sub_accounts: Vec<SubAccountInfo>,
+    pub next_counter: u32,
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
+pub struct SubAccountInfo {
+    pub username: Username,
+    pub public_key: PublicKey,
+    pub counter: u32,
+    pub usage: u64,
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
+pub enum ListSubAccountsError {
+    UserNotFound,
+}
+
+impl Request for ListSubAccountsRequest {
+    type Response = ListSubAccountsResponse;
+    type Error = ListSubAccountsError;
+    const METHOD: Method = Method::GET;
+    const ROUTE: &'static str = "/list-sub-accounts";
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
+pub struct DeleteSubAccountRequest {
+    pub username: Username,
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
+pub enum DeleteSubAccountError {
+    UserNotFound,
+}
+
+impl Request for DeleteSubAccountRequest {
+    type Response = ();
+    type Error = DeleteSubAccountError;
+    const METHOD: Method = Method::DELETE;
+    const ROUTE: &'static str = "/delete-sub-account";
+}
+
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
 pub struct GetBuildInfoRequest {}
 
@@ -380,6 +455,7 @@ pub enum UpgradeAccountStripeError {
     InvalidCardCvc,
     ExistingRequestPending,
     UserNotFound,
+    NotPermissioned,
 }
 
 impl Request for UpgradeAccountStripeRequest {
@@ -404,6 +480,7 @@ pub enum UpgradeAccountGooglePlayError {
     InvalidPurchaseToken,
     ExistingRequestPending,
     UserNotFound,
+    NotPermissioned,
 }
 
 impl Request for UpgradeAccountGooglePlayRequest {
@@ -429,6 +506,7 @@ pub enum UpgradeAccountAppStoreError {
     InvalidAuthDetails,
     ExistingRequestPending,
     UserNotFound,
+    NotPermissioned,
 }
 
 impl Request for UpgradeAccountAppStoreRequest {
@@ -452,6 +530,7 @@ pub enum CancelSubscriptionError {
     UserNotFound,
     ExistingRequestPending,
     CannotCancelForAppStore,
+    NotPermissioned,
 }
 
 impl Request for CancelSubscriptionRequest {
@@ -486,6 +565,7 @@ pub struct GetSubscriptionInfoResponse {
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
 pub enum GetSubscriptionInfoError {
     UserNotFound,
+    NotPermissioned,
 }
 
 impl Request for GetSubscriptionInfoRequest {

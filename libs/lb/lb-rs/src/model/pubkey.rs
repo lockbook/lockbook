@@ -1,5 +1,7 @@
 use crate::model::clock::{TimeGetter, timestamp};
 use crate::model::crypto::*;
+use crate::model::secret_filename::HmacSha256;
+use hmac::{Mac, NewMac};
 use libsecp256k1::{Message, PublicKey, SecretKey, SharedSecret, Signature};
 use rand::rngs::OsRng;
 use serde::Serialize;
@@ -10,6 +12,20 @@ use super::errors::{LbErrKind, LbResult, SignError, Unexpected};
 
 pub fn generate_key() -> SecretKey {
     SecretKey::random(&mut OsRng)
+}
+
+pub fn derive_key(parent: &SecretKey, counter: u32) -> LbResult<SecretKey> {
+    let mut attempt: u32 = 0;
+    loop {
+        let mut mac = HmacSha256::new_from_slice(&parent.serialize()).map_unexpected()?;
+        mac.update(b"lockbook sub-account");
+        mac.update(&counter.to_be_bytes());
+        mac.update(&attempt.to_be_bytes());
+        if let Ok(key) = SecretKey::parse_slice(&mac.finalize().into_bytes()) {
+            return Ok(key);
+        }
+        attempt += 1;
+    }
 }
 
 pub fn sign<T: Serialize>(

@@ -119,4 +119,5 @@ pub mod loggers;
 pub mod metrics;
 pub mod router_service;
 pub mod schema;
+pub mod sub_account_service;
 pub mod utils;
