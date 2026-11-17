@@ -78,6 +78,43 @@ class LastEditorFilterTest {
         assertEquals(listOf("me", "zoe"), state.recentUsernames(files))
     }
 
+    @Test
+    fun `document types combine with OR and editors combine with AND`() {
+        val files =
+            listOf(
+                file("note", "me", 40),
+                file("image", "zoe", 30).apply { name = "photo.PNG" },
+                file("drawing", "zoe", 20).apply { name = "sketch.svg" },
+                file("pdf", "zoe", 10).apply { name = "report.pdf" },
+            )
+        val all = LastEditorFilterState(listOf("me", "zoe"))
+        assertEquals(files, all.filterRecents(files))
+        val types =
+            all
+                .withDocumentTypeToggled(RecentDocumentType.Notes)
+                .withDocumentTypeToggled(RecentDocumentType.Images)
+        assertEquals(listOf("note", "image"), types.filterRecents(files).map { it.id })
+        val editors = types.withUserEnabled("me", false)
+        assertEquals(listOf("image"), editors.filterRecents(files).map { it.id })
+        assertEquals(listOf("me", "zoe"), editors.recentUsernames(files))
+        assertEquals(
+            files,
+            types
+                .withDocumentTypeToggled(RecentDocumentType.Notes)
+                .withDocumentTypeToggled(RecentDocumentType.Images)
+                .filterRecents(files),
+        )
+        // The welcome screen continues sharing editor selection, without the Recents-only types.
+        assertEquals(listOf("image", "drawing", "pdf"), editors.filter(files).map { it.id })
+    }
+
+    @Test
+    fun `document type filters work when there are no other contacts`() {
+        val state = LastEditorFilterState(listOf("me")).withDocumentTypeToggled(RecentDocumentType.Drawings)
+        val files = listOf(file("note", "me", 20), file("sketch", "me", 10).apply { name = "sketch.svg" })
+        assertEquals(listOf("sketch"), state.filterRecents(files).map { it.id })
+    }
+
     private fun file(
         id: String,
         editor: String,

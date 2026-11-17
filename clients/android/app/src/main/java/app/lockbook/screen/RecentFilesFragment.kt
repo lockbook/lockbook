@@ -84,7 +84,7 @@ class RecentFilesFragment :
         val state = editorFilter.state.value!!
         val recentFiles = fileTreeModel.recentFiles.value.orEmpty()
         filterChips?.submitState(state, recentFiles)
-        val files = state.filter(recentFiles)
+        val files = state.filterRecents(recentFiles)
         selectionModel.reconcile(FileSelectionSource.Recents, files)
         adapter.submitRecentFiles(files, fileTreeModel.fileModel?.idsAndFiles.orEmpty())
         adapter.setSelectedFileIds(selectionModel.uiState.value.selectedIdsFor(FileSelectionSource.Recents))
@@ -96,7 +96,7 @@ class RecentFilesFragment :
             ) {
                 R.string.no_recent_documents
             } else {
-                R.string.last_editor_filter_empty
+                R.string.recent_filters_empty
             },
         )
     }

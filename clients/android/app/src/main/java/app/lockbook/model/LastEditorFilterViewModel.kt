@@ -8,6 +8,7 @@ import net.lockbook.File
 internal data class LastEditorFilterState(
     val usernames: List<String> = emptyList(),
     val selected: Set<String>? = null,
+    val documentTypes: Set<RecentDocumentType> = emptySet(),
 ) {
     val isVisible: Boolean get() = usernames.size > 1
 
@@ -32,6 +33,14 @@ internal data class LastEditorFilterState(
         return usernames.filter { it in editors }
     }
 
+    fun withDocumentTypeToggled(type: RecentDocumentType): LastEditorFilterState =
+        copy(documentTypes = if (type in documentTypes) documentTypes - type else documentTypes + type)
+
+    fun filterRecents(files: List<File>): List<File> =
+        files.filter { file ->
+            includes(file.lastModifiedBy) && (documentTypes.isEmpty() || documentTypes.any { it.matches(file.name) })
+        }
+
     fun filter(files: List<File>): List<File> = files.filter { includes(it.lastModifiedBy) }
 }
 
@@ -50,6 +59,10 @@ internal class LastEditorFilterViewModel : ViewModel() {
     fun toggle(username: String) {
         val current = mutableState.value!!
         setEnabled(username, current.selected?.contains(username) == false)
+    }
+
+    fun toggleDocumentType(type: RecentDocumentType) {
+        mutableState.value = mutableState.value!!.withDocumentTypeToggled(type)
     }
 
     fun setEnabled(

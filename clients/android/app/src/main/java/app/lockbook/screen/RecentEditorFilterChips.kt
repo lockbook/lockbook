@@ -4,11 +4,13 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import androidx.core.view.doOnLayout
+import androidx.core.view.isVisible
 import androidx.recyclerview.widget.RecyclerView
 import app.lockbook.R
 import app.lockbook.databinding.RecentEditorFiltersBinding
 import app.lockbook.model.LastEditorFilterState
 import app.lockbook.model.LastEditorFilterViewModel
+import app.lockbook.model.RecentDocumentType
 import app.lockbook.ui.UsernameChip
 import com.google.android.material.chip.Chip
 import com.google.android.material.chip.ChipGroup
@@ -21,25 +23,19 @@ internal class RecentEditorFilterAdapter(
     private var state = LastEditorFilterState()
     private var horizontalOffset = 0
     private var usernames: List<String> = emptyList()
-    private val visible get() = state.isVisible && usernames.isNotEmpty()
 
     fun submitState(
         updated: LastEditorFilterState,
         files: List<File>,
     ) {
-        val updatedUsernames = updated.recentUsernames(files)
+        val updatedUsernames = if (updated.isVisible) updated.recentUsernames(files) else emptyList()
         if (state == updated && usernames == updatedUsernames) return
-        val wasVisible = visible
         state = updated
         usernames = updatedUsernames
-        when {
-            !wasVisible && visible -> notifyItemInserted(0)
-            wasVisible && !visible -> notifyItemRemoved(0)
-            visible -> notifyItemChanged(0)
-        }
+        notifyItemChanged(0)
     }
 
-    override fun getItemCount(): Int = if (visible) 1 else 0
+    override fun getItemCount(): Int = 1
 
     override fun onCreateViewHolder(
         parent: ViewGroup,
@@ -71,10 +67,26 @@ internal class RecentEditorFilterChips(
     private val binding: RecentEditorFiltersBinding,
     private val model: LastEditorFilterViewModel,
 ) {
+    init {
+        binding.recentFilterNotes.setOnClickListener { model.toggleDocumentType(RecentDocumentType.Notes) }
+        binding.recentFilterDrawings.setOnClickListener { model.toggleDocumentType(RecentDocumentType.Drawings) }
+        binding.recentFilterImages.setOnClickListener { model.toggleDocumentType(RecentDocumentType.Images) }
+    }
+
     fun render(
         state: LastEditorFilterState,
         editors: List<String>,
     ) {
+        for ((chip, type) in listOf(
+            binding.recentFilterNotes to RecentDocumentType.Notes,
+            binding.recentFilterDrawings to RecentDocumentType.Drawings,
+            binding.recentFilterImages to RecentDocumentType.Images,
+        )) {
+            chip.isChecked = type in state.documentTypes
+            chip.isChipIconVisible = !chip.isChecked
+        }
+        binding.filterCategoryDivider.isVisible = editors.isNotEmpty()
+        binding.recentEditorChips.isVisible = editors.isNotEmpty()
         val group = binding.recentEditorChips
         val usernames = (0 until group.childCount).map { group.getChildAt(it).tag }
         if (usernames != editors) {

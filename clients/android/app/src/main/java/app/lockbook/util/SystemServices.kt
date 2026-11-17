@@ -70,25 +70,9 @@ fun getString(
 class ExtensionHelper(
     val fileName: String,
 ) {
-    private val extension: String
-        get() {
-            val indexOfDot = fileName.lastIndexOf('.')
+    private val extension: String get() = fileExtension(fileName)
 
-            if (indexOfDot == -1) {
-                return ""
-            }
-
-            return fileName.substring(indexOfDot + 1)
-        }
-
-    val isImage: Boolean
-        get() =
-            extension in
-                setOf(
-                    "jpeg",
-                    "jpg",
-                    "png",
-                )
+    val isImage: Boolean get() = isImageFileName(fileName)
 
     val isDrawing: Boolean get() = extension == "svg"
 
