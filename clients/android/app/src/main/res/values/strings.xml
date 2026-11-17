@@ -373,5 +373,4 @@
     <string name="last_editor_filter_select_all">Select all</string>
     <string name="last_editor_filter_deselect_all">Deselect all</string>
     <string name="last_editor_filter_empty">No files from these editors</string>
-    <string name="recent_editor_filter_yourself">Yourself</string>
 </resources>

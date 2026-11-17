@@ -34,7 +34,7 @@ internal class RecentEditorFilterChips(
             group.removeAllViews()
             state.usernames.forEach { username ->
                 group.addView(
-                    createChip(group, state, username).apply {
+                    createChip(group, username).apply {
                         tag = username
                         setOnClickListener { model.toggle(username) }
                     },
@@ -52,15 +52,11 @@ internal class RecentEditorFilterChips(
 
 private fun createChip(
     group: ChipGroup,
-    state: LastEditorFilterState,
     username: String,
 ): Chip =
     (LayoutInflater.from(group.context).inflate(R.layout.last_editor_filter_chip, group, false) as Chip).apply {
         id = View.generateViewId()
-        text = if (username == state.usernames.firstOrNull()) context.getString(R.string.recent_editor_filter_yourself) else username
-        if (username == state.usernames.firstOrNull()) {
-            contentDescription = context.getString(R.string.last_editor_filter_yourself, username)
-        }
+        text = username
         chipIcon = EditorAvatar(context, username)
         chipIconTint = null
         val colors = harmonizedIdentityColors(context, username)
