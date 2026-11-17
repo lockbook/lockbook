@@ -25,6 +25,7 @@ import app.lockbook.util.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
@@ -89,7 +90,6 @@ class FileTreeViewModel(
     var fileModel: FileModel? = null
         private set
 
-    private var sharingContactsJob: Job? = null
     private val _sharingContacts = MutableLiveData<List<SharingContact>>(emptyList())
     val sharingContacts: LiveData<List<SharingContact>> = _sharingContacts
 
@@ -140,51 +140,34 @@ class FileTreeViewModel(
     init {
         if (FileMetadataStore.snapshots.value == null) FileMetadataStore.requestRefresh()
         viewModelScope.launch {
-            FileMetadataStore.snapshots.collect { snapshot ->
+            FileMetadataStore.snapshots.collectLatest { snapshot ->
                 val previous = fileModel
                 if (snapshot == null) {
                     fileModel = null
                     _files.value = emptyList()
                     _recentFiles.value = emptyList()
+                    _sharingContacts.value = emptyList()
                 } else if (previous?.idsAndFiles !== snapshot.idsAndFiles) {
                     val previousPath = previous?.getFileDir()?.map { it.id to it.name }
-                    fileModel =
-                        if (previous == null || previous.root.id != snapshot.root.id) {
-                            FileModel.createAtRoot(snapshot)
-                        } else {
-                            previous.apply { refreshFiles(snapshot) }
-                        }
+                    fileModel = previous?.apply { refreshFiles(snapshot) } ?: FileModel.createAtRoot(snapshot)
                     refreshFilesDataSource()
-                    refreshSharingContacts()
                     if (previousPath != fileModel?.getFileDir()?.map { it.id to it.name }) {
                         _notifyUpdateFilesUI.value = UpdateFilesUI.UpdateBreadcrumbBar
                     }
+                    refreshSharingContacts()
                 }
             }
         }
-        refreshSharingContacts()
         loadPinnedFiles()
-        viewModelScope.launch {
-            try {
-                val status = withContext(Dispatchers.IO) { Lb.getStatus() }
-                hydrateStatusUpdate(status)
-            } catch (error: LbError) {
-                Timber.e(error, "Unable to load account status.")
-            }
-        }
     }
 
-    private fun refreshSharingContacts() {
-        sharingContactsJob?.cancel()
-        sharingContactsJob =
-            viewModelScope.launch {
-                try {
-                    val contacts: List<SharingContact> = withContext(Dispatchers.IO) { Lb.getSharingContacts().toList() }
-                    _sharingContacts.value = contacts
-                } catch (error: LbError) {
-                    Timber.e(error, "Unable to load sharing contacts")
-                }
-            }
+    private suspend fun refreshSharingContacts() {
+        try {
+            val contacts = withContext(Dispatchers.IO) { Lb.getSharingContacts().toList() }
+            _sharingContacts.value = contacts
+        } catch (error: LbError) {
+            Timber.e(error, "Unable to load sharing contacts")
+        }
     }
 
     private fun checkUsage() {
