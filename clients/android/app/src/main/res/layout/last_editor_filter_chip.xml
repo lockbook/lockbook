@@ -5,7 +5,8 @@
     android:layout_width="wrap_content"
     android:layout_height="wrap_content"
     android:checkable="true"
-    app:checkedIconVisible="true"
+    app:checkedIconVisible="false"
+    app:chipStrokeColor="@color/recent_editor_chip_stroke"
     app:chipIconSize="24dp"
     app:chipIconVisible="true"
     app:ensureMinTouchTargetSize="true" />

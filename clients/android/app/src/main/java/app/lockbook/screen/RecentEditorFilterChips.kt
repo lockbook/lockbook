@@ -43,8 +43,6 @@ internal class RecentEditorFilterChips(
             val chip = group.getChildAt(index) as Chip
             val selected = state.selected == null || chip.tag in state.selected
             chip.isChecked = selected
-            chip.isChipIconVisible = !selected
-            chip.chipIconSize = (if (selected) 18f else 24f) * chip.resources.displayMetrics.density
         }
     }
 }
