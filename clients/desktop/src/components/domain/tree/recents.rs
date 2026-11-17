@@ -167,6 +167,7 @@ pub fn show_recents(app: &mut ShellApp, ui: &mut Ui, t: &Theme, queue: &mut Vec<
                                 e.separator();
                                 e.item(phosphor::NOTE_PENCIL, "Create…", FileCmd::Create);
                                 e.separator();
+                                e.item(phosphor::INFO, "Get Info", FileCmd::GetInfo);
                                 e.item(phosphor::PENCIL, "Rename…", FileCmd::Rename);
                                 e.item(
                                     phosphor::PUSH_PIN,
@@ -199,6 +200,7 @@ pub fn show_recents(app: &mut ShellApp, ui: &mut Ui, t: &Theme, queue: &mut Vec<
                                         is_folder: false,
                                     }),
                                     FileCmd::Rename => queue.push(Action::OpenRename(*id)),
+                                    FileCmd::GetInfo => queue.push(Action::GetInfo(*id)),
                                     FileCmd::Pin => queue.push(Action::TogglePin(*id)),
                                     FileCmd::Move => queue.push(Action::OpenMove(vec![*id])),
                                     FileCmd::Duplicate => queue.push(Action::Duplicate(vec![*id])),

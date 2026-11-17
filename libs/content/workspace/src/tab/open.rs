@@ -21,6 +21,7 @@ use crate::show::DocType;
 use crate::space_inspector::show::SpaceInspector;
 #[cfg(not(target_family = "wasm"))]
 use crate::tab::chat::Chat;
+use crate::tab::file_info::FileInfo;
 use crate::tab::image_viewer::ImageViewer;
 use crate::tab::markdown_editor::{Editor as Markdown, MdConfig, MdResources};
 use crate::tab::pdf_viewer::PdfViewer;
@@ -142,6 +143,12 @@ impl TabContent {
                 let file = res.files.read().unwrap().get_by_id(*root).cloned();
                 let inspector = SpaceInspector::new(&res.core, file, res.ctx.clone());
                 return Ok(TabContent::SpaceInspector(inspector));
+            }
+            Destination::Info(id) => {
+                let files = Arc::clone(&res.files);
+                let info =
+                    FileInfo::new(*id, &res.core, files, res.account.clone(), res.ctx.clone());
+                return Ok(TabContent::Info(info));
             }
             Destination::Search(state) => {
                 return Ok(TabContent::Search(Search::new(&res.core, &res.ctx, state)));

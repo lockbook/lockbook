@@ -402,6 +402,7 @@ pub enum Action {
     CopyLink(workspace_rs::tab::Place),
     /// Show the Files pane with the file selected and scrolled into view.
     RevealInFiles(Uuid),
+    GetInfo(Uuid),
     Import,
     ImportPaths {
         paths: Vec<PathBuf>,
@@ -558,6 +559,7 @@ impl Action {
             Self::ExportPdf(_) => "ExportPdf",
             Self::CopyLink(_) => "CopyLink",
             Self::RevealInFiles(_) => "RevealInFiles",
+            Self::GetInfo(_) => "GetInfo",
             Self::Import => "Import",
             Self::ImportPaths { .. } => "ImportPaths",
             Self::OpenImportParent { .. } => "OpenImportParent",

@@ -130,6 +130,7 @@ impl Workspace {
         let cluster = Rect::from_min_size(pos2(left, top), vec2(col_w, cluster_h));
 
         let mut file_cmd: Option<(Uuid, RecentCmd)> = None;
+        let get_info = self.get_info;
         if shown_lower > 0.5 && !recents.is_empty() {
             let lower_top = hairline_y - lower_h * (1.0 - motion.slide);
             let lower_full = Rect::from_min_size(pos2(left, lower_top), vec2(col_w, lower_h));
@@ -157,6 +158,9 @@ impl Workspace {
                         e.item(phosphor::ARROW_SQUARE_OUT, "Open", RecentCmd::Open);
                         e.item(phosphor::APP_WINDOW, "Open in New Tab", RecentCmd::OpenNewTab);
                         e.item(phosphor::LINK, "Copy Link", RecentCmd::CopyLink);
+                        if get_info {
+                            e.item(phosphor::INFO, "Get Info", RecentCmd::GetInfo);
+                        }
                         if r.own {
                             e.separator();
                             e.item(
@@ -221,6 +225,7 @@ impl Workspace {
                 }
                 RecentCmd::Pin => self.toggle_pin(id),
                 RecentCmd::Duplicate => self.duplicate_doc(id),
+                RecentCmd::GetInfo => self.open_info(id, false),
             }
         }
     }
@@ -233,6 +238,7 @@ enum RecentCmd {
     CopyLink,
     Pin,
     Duplicate,
+    GetInfo,
 }
 
 impl Workspace {

@@ -25,6 +25,7 @@ pub fn current_tab_type(ws: &Workspace) -> i32 {
                 #[cfg(not(target_family = "wasm"))]
                 TabContent::Chat(_) => 9,
                 TabContent::Search(_) => 10,
+                TabContent::Info(_) => 11,
             },
             _ => 1,
         },

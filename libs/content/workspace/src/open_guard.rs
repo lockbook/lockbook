@@ -17,7 +17,7 @@ use tracing::warn;
 use web_time::{Duration, Instant};
 
 use crate::style::{Button, Space, Spacer, ThemeExt as _, TypeRole, control_height, phosphor};
-use crate::tab::{ContentState, Tab};
+use crate::tab::{ContentState, Destination, Tab};
 
 /// Editor frame time grows ~60ms per MB of ordinary text.
 const MAX_TEXT_BYTES: usize = 1_000_000;
@@ -306,7 +306,11 @@ impl OpenGuard {
         if open && tab.first_draw {
             tab.watch = Some(Instant::now());
         }
-        let Some(id) = tab.id().filter(|_| open && tab.watch.is_some()) else {
+        let file = match tab.destination {
+            Destination::File(id) => Some(id),
+            _ => None,
+        };
+        let Some(id) = file.filter(|_| open && tab.watch.is_some()) else {
             return show(tab);
         };
         self.enter(id);
