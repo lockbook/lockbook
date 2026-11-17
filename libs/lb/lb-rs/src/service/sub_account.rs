@@ -23,7 +23,8 @@ impl<S: Server> Lb<S> {
             .await?
             .next_counter;
         let sub_account = account.sub_account(username.clone(), counter)?;
-        let root_folder = Meta::create_root(&sub_account)?.sign_with(&sub_account)?;
+        let root_folder =
+            Meta::create_root(&sub_account, &self.entropy)?.sign_with(&sub_account)?;
 
         self.client
             .new_sub_account(
