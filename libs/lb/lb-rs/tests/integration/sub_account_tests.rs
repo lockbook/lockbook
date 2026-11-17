@@ -306,10 +306,5 @@ async fn deleting_the_parent_deletes_its_sub_accounts() {
             .get(&owner)
             .is_none_or(|ids| ids.is_empty())
     );
-    assert!(
-        db.schema
-            .sub_accounts_by_parent
-            .get(&Owner(parent.get_account().unwrap().public_key()))
-            .is_none_or(|s| s.is_empty())
-    );
+    assert!(db.schema.sub_accounts.get(&owner).unwrap().deleted);
 }

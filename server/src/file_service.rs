@@ -110,7 +110,7 @@ where
                 let (old, new) = match usages.get(&member) {
                     Some(usage) => *usage,
                     None => {
-                        let usage = Self::cached_usage(db, member)?;
+                        let usage = Self::usage(db, member)?;
                         (usage, usage)
                     }
                 };
@@ -159,12 +159,6 @@ where
                     db.shared_files
                         .remove(&Owner(user_access_info.encrypted_for), id)?;
                 }
-            }
-        }
-
-        for (owner, (_, usage)) in usages {
-            if db.usage_by_owner.contains_key(&owner) {
-                db.usage_by_owner.insert(owner, usage)?;
             }
         }
 
@@ -314,9 +308,6 @@ where
                 return Err(ClientError(UsageIsOverDataCap));
             }
             tree.promote()?;
-            if db.usage_by_owner.contains_key(&tree_owner) {
-                db.usage_by_owner.remove(&tree_owner)?;
-            }
             db.scheduled_file_cleanups.remove(&(id, hmac_bytes))?;
 
             if let Some(old_hmac) = diff.old.and_then(|old| old.document_hmac().copied()) {
@@ -611,8 +602,6 @@ where
                     );
                 }
             }
-
-            db.usage_by_owner.remove(&owner)?;
 
             let username = db
                 .accounts

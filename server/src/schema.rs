@@ -36,6 +36,7 @@ pub struct Account {
 pub struct SubAccount {
     pub parent: Owner,
     pub counter: u32,
+    pub deleted: bool,
 }
 
 pub type ServerDb = Composite<ServerV6>;
@@ -58,13 +59,11 @@ pub struct ServerV6 {
     pub debug_info: DbHashMapMap<Owner, LbID, DebugInfo>,
     pub sub_accounts: DbHashMap<Owner, SubAccount>,
     pub sub_accounts_by_parent: DbHashMapSet<Owner, Owner>,
-    pub sub_account_counters: DbHashMap<Owner, u32>,
-    pub usage_by_owner: DbHashMap<Owner, u64>,
 }
 
 impl Schema for ServerV6 {
     fn views_mut(&mut self) -> impl AsMut<[&mut dyn View]> {
-        let views: [&mut dyn View; 18] = [
+        let views: [&mut dyn View; 16] = [
             &mut self.usernames,
             &mut self.metas,
             &mut self.google_play_ids,
@@ -81,8 +80,6 @@ impl Schema for ServerV6 {
             &mut self.debug_info,
             &mut self.sub_accounts,
             &mut self.sub_accounts_by_parent,
-            &mut self.sub_account_counters,
-            &mut self.usage_by_owner,
         ];
         views
     }

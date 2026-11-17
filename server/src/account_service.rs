@@ -395,9 +395,7 @@ where
             let db = &mut *tx;
 
             let mut owners = vec![Owner(*public_key)];
-            if let Some(sub_accounts) = db.sub_accounts_by_parent.get(&Owner(*public_key)) {
-                owners.extend(sub_accounts.iter().copied());
-            }
+            owners.extend(Self::live_sub_accounts(db, Owner(*public_key)));
 
             for Owner(public_key) in &owners {
                 let mut tree = ServerTree::new(
@@ -446,18 +444,16 @@ where
                     db.usernames.remove(&username)?;
                 }
 
-                db.usage_by_owner.remove(&Owner(*public_key))?;
-                let parent = db
-                    .sub_accounts
-                    .get(&Owner(*public_key))
-                    .map(|sub_account| sub_account.parent);
-                if let Some(parent) = parent {
-                    db.sub_accounts_by_parent
-                        .remove(&parent, &Owner(*public_key))?;
+                if let Some(mut sub_account) = db.sub_accounts.get(&Owner(*public_key)).cloned() {
+                    sub_account.deleted = true;
+                    db.sub_accounts.insert(Owner(*public_key), sub_account)?;
                 }
                 if free_username {
-                    db.sub_accounts.remove(&Owner(*public_key))?;
-                    db.sub_account_counters.remove(&Owner(*public_key))?;
+                    let sub_accounts = db.sub_accounts_by_parent.get(&Owner(*public_key));
+                    for sub_account in sub_accounts.cloned().unwrap_or_default() {
+                        db.sub_accounts.remove(&sub_account)?;
+                    }
+                    db.sub_accounts_by_parent.clear_key(&Owner(*public_key))?;
                 }
             }
 

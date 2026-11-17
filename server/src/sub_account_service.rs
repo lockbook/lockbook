@@ -67,11 +67,7 @@ where
             return Err(ClientError(InvalidUsername));
         }
 
-        let counter = db
-            .sub_account_counters
-            .get(&parent)
-            .copied()
-            .unwrap_or_default();
+        let counter = Self::next_counter(db, parent);
         if request.counter != counter {
             return Err(ClientError(CounterIncorrect));
         }
@@ -112,9 +108,8 @@ where
         db.file_children.create_key(*root.id())?;
         db.metas.insert(*root.id(), root)?;
         db.sub_accounts
-            .insert(owner, SubAccount { parent, counter })?;
+            .insert(owner, SubAccount { parent, counter, deleted: false })?;
         db.sub_accounts_by_parent.insert(parent, owner)?;
-        db.sub_account_counters.insert(parent, counter + 1)?;
 
         tx.end()?;
 
@@ -134,27 +129,17 @@ where
             return Err(ClientError(ListSubAccountsError::UserNotFound));
         }
 
-        let next_counter = db
-            .sub_account_counters
-            .get(&parent)
-            .copied()
-            .unwrap_or_default();
-
-        let owners: Vec<Owner> = db
-            .sub_accounts_by_parent
-            .get(&parent)
-            .map(|sub_accounts| sub_accounts.iter().copied().collect())
-            .unwrap_or_default();
+        let next_counter = Self::next_counter(db, parent);
 
         let mut sub_accounts = Vec::new();
-        for owner in owners {
+        for owner in Self::live_sub_accounts(db, parent) {
             let (Some(account), Some(sub_account)) =
                 (db.accounts.get(&owner), db.sub_accounts.get(&owner))
             else {
                 continue;
             };
             let (username, counter) = (account.username.clone(), sub_account.counter);
-            let usage = Self::cached_usage(db, owner)?;
+            let usage = Self::usage(db, owner)?;
             sub_accounts.push(SubAccountInfo { username, public_key: owner.0, counter, usage });
         }
         sub_accounts.sort_by_key(|sub_account| sub_account.counter);
@@ -173,11 +158,7 @@ where
             db.usernames
                 .get(&context.request.username.to_lowercase())
                 .copied()
-                .filter(|owner| {
-                    db.sub_accounts_by_parent
-                        .get(&parent)
-                        .is_some_and(|sub_accounts| sub_accounts.contains(owner))
-                })
+                .filter(|owner| Self::live_sub_accounts(db, parent).contains(owner))
                 .ok_or(ClientError(DeleteSubAccountError::UserNotFound))?
         };
 
@@ -205,18 +186,34 @@ where
     pub fn family(db: &ServerV6, owner: Owner) -> Vec<Owner> {
         let parent = Self::billed_owner(db, owner);
         let mut family = vec![parent];
-        if let Some(sub_accounts) = db.sub_accounts_by_parent.get(&parent) {
-            family.extend(sub_accounts.iter().copied());
-        }
+        family.extend(Self::live_sub_accounts(db, parent));
         family
     }
 
-    pub fn cached_usage<E: Debug>(db: &mut ServerV6, owner: Owner) -> Result<u64, ServerError<E>> {
-        if let Some(usage) = db.usage_by_owner.get(&owner) {
-            return Ok(*usage);
-        }
+    fn sub_accounts_of(db: &ServerV6, parent: Owner) -> impl Iterator<Item = (Owner, &SubAccount)> {
+        db.sub_accounts_by_parent
+            .get(&parent)
+            .into_iter()
+            .flatten()
+            .filter_map(|owner| Some((*owner, db.sub_accounts.get(owner)?)))
+    }
 
-        let usage = ServerTree::new(
+    pub fn live_sub_accounts(db: &ServerV6, parent: Owner) -> Vec<Owner> {
+        Self::sub_accounts_of(db, parent)
+            .filter(|(_, sub_account)| !sub_account.deleted)
+            .map(|(owner, _)| owner)
+            .collect()
+    }
+
+    fn next_counter(db: &ServerV6, parent: Owner) -> u32 {
+        Self::sub_accounts_of(db, parent)
+            .map(|(_, sub_account)| sub_account.counter + 1)
+            .max()
+            .unwrap_or_default()
+    }
+
+    pub fn usage<E: Debug>(db: &mut ServerV6, owner: Owner) -> Result<u64, ServerError<E>> {
+        ServerTree::new(
             owner,
             &mut db.owned_files,
             &mut db.shared_files,
@@ -224,10 +221,7 @@ where
             &mut db.metas,
         )
         .and_then(|tree| tree.to_lazy().calculate_usage(owner))
-        .map_err(|err| internal!("{:?}", err))?;
-        db.usage_by_owner.insert(owner, usage)?;
-
-        Ok(usage)
+        .map_err(|err| internal!("{:?}", err))
     }
 
     pub fn other_family_usage<E: Debug>(
@@ -236,7 +230,7 @@ where
         let mut usage = 0;
         for member in Self::family(db, owner) {
             if member != owner {
-                usage += Self::cached_usage(db, member)?;
+                usage += Self::usage(db, member)?;
             }
         }
         Ok(usage)
