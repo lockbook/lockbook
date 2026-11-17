@@ -33,21 +33,23 @@ impl SidebarPane {
     }
 }
 
-/// Settings rail — Account · App · Editor · Debug.
+/// Settings rail — Account · Storage · App · Editor · Debug.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum SettingsCat {
     Account,
+    Storage,
     App,
     Editor,
     Debug,
 }
 
 impl SettingsCat {
-    pub const ALL: [Self; 4] = [Self::Account, Self::App, Self::Editor, Self::Debug];
+    pub const ALL: [Self; 5] = [Self::Account, Self::Storage, Self::App, Self::Editor, Self::Debug];
 
     pub fn title(self) -> &'static str {
         match self {
             Self::Account => "Account",
+            Self::Storage => "Storage",
             Self::App => "App",
             Self::Editor => "Editor",
             Self::Debug => "Debug",
@@ -58,6 +60,7 @@ impl SettingsCat {
         use crate::components::phosphor;
         match self {
             Self::Account => phosphor::USER,
+            Self::Storage => phosphor::CHART_PIE_SLICE,
             Self::App => phosphor::GEAR,
             Self::Editor => phosphor::MARKDOWN_LOGO,
             Self::Debug => phosphor::CODE,

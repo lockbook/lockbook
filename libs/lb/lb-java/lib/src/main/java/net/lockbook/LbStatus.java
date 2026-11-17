@@ -9,7 +9,7 @@ public class LbStatus {
     public String[] pushingFiles;
     public String[] dirtyLocally;
     public String[] pullingFiles;
-    public Usage spaceUsed;
+    public Usage usage;
     public String syncStatus;
     public String unexpectedSyncProblem;
 }

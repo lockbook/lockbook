@@ -169,9 +169,11 @@ pub async fn status() -> Result<(), CliError> {
         n => println!("unsynced changes: {n} files"),
     }
 
-    let cap = lb.get_usage().await?;
-    let pct = (cap.server_usage.exact * 100)
-        .checked_div(cap.data_cap.exact)
+    let usage = lb.refresh_usage().await?;
+    let pct = usage
+        .data_cap
+        .as_ref()
+        .and_then(|cap| (usage.local.exact * 100).checked_div(cap.exact))
         .unwrap_or(0);
 
     if lb.get_account()?.username.contains(SUB_ACCOUNT_SEPARATOR) {
@@ -199,11 +201,25 @@ pub async fn status() -> Result<(), CliError> {
     } else {
         println!("type: trial tier");
     }
-    println!(
-        "usage: {} / {} ({}% utilized)",
-        cap.server_usage.readable, cap.data_cap.readable, pct
-    );
-    if pct >= 90 {
+    match &usage.data_cap {
+        Some(cap) => {
+            println!("usage: {} / {} ({}% utilized)", usage.local.readable, cap.readable, pct)
+        }
+        None => println!("usage: {}", usage.local.readable),
+    }
+    let mut unsynced = vec![];
+    if usage.added.exact > 0 {
+        unsynced.push(format!("+{}", usage.added.readable));
+    }
+    if usage.freed.exact > 0 {
+        unsynced.push(format!("-{}", usage.freed.readable));
+    }
+    if !unsynced.is_empty() {
+        println!("unsynced usage: {} (synced: {})", unsynced.join(" / "), usage.synced.readable);
+    }
+    if usage.over_cap() {
+        println!("warning: over the data cap, sync will fail until space is freed");
+    } else if pct >= 90 {
         println!("warning: storage is nearly full");
     }
     Ok(())

@@ -193,7 +193,13 @@ impl<T: TreeLike> LazyTree<T> {
     /// This includes the document size plus METADATA_FEE for each file.
     /// Files shared with this owner (but owned by others) are excluded.
     pub fn calculate_usage(&mut self, owner: Owner) -> LbResult<u64> {
-        let mut total: u64 = 0;
+        Ok(self.usage_by_file(owner)?.values().sum())
+    }
+
+    pub fn usage_by_file(
+        &mut self, owner: Owner,
+    ) -> LbResult<HashMap<Uuid, u64, UuidIdentityHasherBuilder>> {
+        let mut usage = uuid_map();
         for id in self.ids() {
             // Check owner first
             let file_owner = self.find(&id)?.owner();
@@ -205,9 +211,9 @@ impl<T: TreeLike> LazyTree<T> {
                 continue;
             }
             let file_size = self.find(&id)?.doc_size().unwrap_or(0) as u64;
-            total += file_size + METADATA_FEE;
+            usage.insert(id, file_size + METADATA_FEE);
         }
-        Ok(total)
+        Ok(usage)
     }
 
     pub fn decrypt_key(&mut self, id: &Uuid, keychain: &Keychain) -> LbResult<AESKey> {

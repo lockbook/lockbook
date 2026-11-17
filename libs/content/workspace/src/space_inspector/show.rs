@@ -72,17 +72,13 @@ impl SpaceInspector {
 
     #[tracing::instrument(name = "SpaceInspector::load", level = "trace", skip_all)]
     fn load(bg_lb: Lb, bg_state: Arc<Mutex<AppState>>, potential_root: Option<File>, ctx: Context) {
-        let usage = bg_lb.get_usage();
+        let usage = bg_lb.get_usage_breakdown();
         let meta_data = bg_lb.list_metadatas();
 
         match (usage, meta_data) {
             (Ok(usage_result), Ok(metadata_result)) => {
                 let mut lock = bg_state.lock().unwrap();
-                *lock = AppState::Ready(Data::init(
-                    potential_root,
-                    usage_result.usages,
-                    metadata_result,
-                ));
+                *lock = AppState::Ready(Data::init(potential_root, usage_result, metadata_result));
             }
             (Err(err), _) | (_, Err(err)) => {
                 let mut lock = bg_state.lock().unwrap();

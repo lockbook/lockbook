@@ -305,6 +305,9 @@ pub fn show(app: &mut ShellApp, ctx: &egui::Context, t: &Theme, queue: &mut Vec<
                                     SettingsCat::Account => {
                                         super::settings_account::page_account(app, ui, t, queue)
                                     }
+                                    SettingsCat::Storage => {
+                                        super::settings_storage::page_storage(app, ui, t, queue)
+                                    }
                                     SettingsCat::App => page_app(app, ui, t, queue),
                                     SettingsCat::Editor => page_editor(app, ui, t, queue),
                                     SettingsCat::Debug => page_debug(app, ui, t, queue),

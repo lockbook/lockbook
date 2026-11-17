@@ -285,8 +285,7 @@ async fn downgrade_denied() {
 
         rand::thread_rng().fill_bytes(&mut bytes);
 
-        if core.get_usage().await.unwrap().server_usage.exact
-            > (FREE_TIER_USAGE_SIZE as f64 * 0.5) as u64
+        if core.get_usage().await.unwrap().synced.exact > (FREE_TIER_USAGE_SIZE as f64 * 0.5) as u64
         {
             break;
         }
@@ -342,7 +341,7 @@ async fn downgrade_denied() {
 
         core.sync().await.unwrap();
 
-        if core.get_usage().await.unwrap().server_usage.exact < FREE_TIER_USAGE_SIZE {
+        if core.get_usage().await.unwrap().synced.exact < FREE_TIER_USAGE_SIZE {
             break;
         }
     }

@@ -180,7 +180,7 @@ class FileTreeViewModel(
     }
 
     private fun checkUsage() {
-        if (usage.value == null || _usage.value?.serverUsage == null) {
+        if (usage.value == null || _usage.value?.dataCap == null) {
             return
         }
 
@@ -189,13 +189,13 @@ class FileTreeViewModel(
                 ?.dataCap
                 ?.exact
                 ?.toFloat() ?: 1f
-        val serverUsage =
+        val localUsage =
             usage.value
-                ?.serverUsage
+                ?.local
                 ?.exact
                 ?.toFloat() ?: 1f
 
-        val usageRatio = serverUsage / dataCap
+        val usageRatio = localUsage / dataCap
 
         val pref = PreferenceManager.getDefaultSharedPreferences(getContext())
 
@@ -383,7 +383,7 @@ class FileTreeViewModel(
 
         _files.value = fileModel?.children.orEmpty().intoViewHolderInfo(dirtyLocally.value, pullingFiles.value)
 
-        _usage.value = status.spaceUsed
+        _usage.value = status.usage
         checkUsage()
     }
 }

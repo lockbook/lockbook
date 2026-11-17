@@ -8,7 +8,7 @@ use crate::components::{
     sheet_band_centered, sheet_footer, shortcut_enter, shortcut_return, ui_width,
 };
 use crate::shell::ShellApp;
-use crate::shell::action::{Action, Action as A, UpgradeStage};
+use crate::shell::action::{Action, Action as A, SettingsCat, UpgradeStage};
 use crate::shell::prefs::AccountPanel;
 
 fn plan_standing(app: &ShellApp) -> super::account_plan::AccountStanding {
@@ -16,8 +16,8 @@ fn plan_standing(app: &ShellApp) -> super::account_plan::AccountStanding {
     let cap = app
         .session
         .ready()
-        .and_then(|r| r.status.space_used.as_ref())
-        .map(|u| u.data_cap.exact);
+        .and_then(|r| r.status.usage.data_cap.as_ref())
+        .map(|cap| cap.exact);
     let info = app.session.ready().and_then(|r| r.sub_info.as_ref());
     AccountStanding::from_subscription_and_cap(info, cap)
 }
@@ -616,8 +616,11 @@ fn page_plan_body(app: &mut ShellApp, ui: &mut Ui, t: &Theme, queue: &mut Vec<Ac
     let storage = app
         .session
         .ready()
-        .and_then(|r| r.status.space_used.as_ref())
-        .map(|u| format!("{} of {}", u.server_usage.readable, u.data_cap.readable))
+        .and_then(|r| {
+            let usage = &r.status.usage;
+            let cap = usage.data_cap.as_ref()?;
+            Some(format!("{} of {}", usage.local.readable, cap.readable))
+        })
         .unwrap_or_else(|| "—".into());
     let standing = plan_standing(app);
     let tier = standing.tier.label();
@@ -626,7 +629,17 @@ fn page_plan_body(app: &mut ShellApp, ui: &mut Ui, t: &Theme, queue: &mut Vec<Ac
     section_label(ui, t, "Plan & storage");
     form_group(ui, t, |ui| {
         form_value(ui, t, "Tier", tier);
-        form_value(ui, t, "Storage", &storage);
+        form_row(ui, t, "Storage", |ui| {
+            if Button::quiet(t, "Details").show(ui).clicked() {
+                queue.push(A::SetSettingsCat(SettingsCat::Storage));
+            }
+            ui.add(Spacer::new(Space::Sm).fill_cross(control_height()));
+            ui.label(
+                TypeRole::Body
+                    .rich(&storage)
+                    .color(t.neutral_fg_secondary()),
+            );
+        });
         if paying {
             // Standing detail (renew / access until) + source line.
             if let Some(detail) = standing.detail.as_deref() {

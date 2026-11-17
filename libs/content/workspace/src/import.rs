@@ -95,24 +95,14 @@ pub struct Room {
 }
 
 impl Room {
-    /// Asks the server, falling back to the last sync's numbers, then adds what
-    /// local changes hold, at stored size. Edits count whole, so they overestimate.
     pub fn measure(core: &Lb, status: &Status) -> Option<Self> {
-        let (server, cap) = match core.get_usage() {
-            Ok(u) => (u.server_usage.exact, u.data_cap.exact),
-            Err(_) => {
-                let u = status.space_used.as_ref()?;
-                (u.server_usage.exact, u.data_cap.exact)
-            }
+        let usage = match core.get_usage() {
+            Ok(usage) if usage.data_cap.is_some() => usage,
+            _ => core
+                .refresh_usage()
+                .unwrap_or_else(|_| status.usage.clone()),
         };
-        let pending: u64 = core
-            .get_local_changes()
-            .unwrap_or_default()
-            .iter()
-            .filter_map(|id| core.get_file_by_id(*id).ok())
-            .map(|f| f.size_bytes)
-            .sum();
-        Some(Self { used: server + pending, cap })
+        Some(Self { used: usage.local.exact, cap: usage.data_cap?.exact })
     }
 
     pub fn premium(&self) -> bool {

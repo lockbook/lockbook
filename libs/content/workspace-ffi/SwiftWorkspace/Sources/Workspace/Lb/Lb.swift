@@ -37,6 +37,8 @@ public protocol LbAPI {
     func unpinFile(id: UUID) -> Result<Void, LbError>
     func listPinned() -> Result<[UUID], LbError>
     func getUsage() -> Result<UsageMetrics, LbError>
+    func refreshUsage() -> Result<UsageMetrics, LbError>
+    func getUsageBreakdown() -> Result<[UsageEntry], LbError>
     func importFiles(sources: [String], dest: UUID) -> Result<Void, LbError>
     func exportFile(sourceId: UUID, dest: String, edit: Bool) -> Result<Void, LbError>
     func getFileLinkUrl(id: UUID) -> Result<String, LbError>
@@ -428,6 +430,30 @@ public class Lb: LbAPI {
         return .success(UsageMetrics(res.usages))
     }
 
+    public func refreshUsage() -> Result<UsageMetrics, LbError> {
+        let res = lb_refresh_usage(lb)
+        defer { lb_free_usage_metrics(res) }
+
+        guard res.err == nil else {
+            return .failure(LbError(res.err.pointee))
+        }
+
+        return .success(UsageMetrics(res.usages))
+    }
+
+    public func getUsageBreakdown() -> Result<[UsageEntry], LbError> {
+        let res = lb_get_usage_breakdown(lb)
+        defer { lb_free_usage_breakdown(res) }
+
+        guard res.err == nil else {
+            return .failure(LbError(res.err.pointee))
+        }
+
+        return .success(Array(UnsafeBufferPointer(start: res.entries, count: Int(res.len))).map {
+            UsageEntry(id: $0.id.toUUID(), synced: $0.synced, local: $0.local)
+        })
+    }
+
     public func importFiles(sources: [String], dest: UUID) -> Result<Void, LbError> {
         let sourcesLen = UInt(sources.count)
         let sources = sources.map { strdup($0) }
@@ -556,6 +582,14 @@ public class Lb: LbAPI {
 }
 
 public class MockLb: LbAPI {
+    static let usage = UsageMetrics(
+        synced: UsageItem(exact: 100, human: "100 B"),
+        local: UsageItem(exact: 100, human: "100 B"),
+        added: .zero,
+        freed: .zero,
+        dataCap: UsageItem(exact: 1000, human: "1 KB")
+    )
+
     public var lbUnsafeRawPtr: UnsafeMutableRawPointer?
     public var events: Events = .init()
 
@@ -630,7 +664,9 @@ public class MockLb: LbAPI {
     public func searchAccepted(id _: UUID) -> Result<Void, LbError> { .success(()) }
     public func unpinFile(id: UUID) -> Result<Void, LbError> { .success(()) }
     public func listPinned() -> Result<[UUID], LbError> { .success([file1.id]) }
-    public func getUsage() -> Result<UsageMetrics, LbError> { .success(UsageMetrics(serverUsedExact: 100, serverUsedHuman: "100B", serverCapExact: 1000, serverCapHuman: "1000B")) }
+    public func getUsage() -> Result<UsageMetrics, LbError> { .success(MockLb.usage) }
+    public func refreshUsage() -> Result<UsageMetrics, LbError> { .success(MockLb.usage) }
+    public func getUsageBreakdown() -> Result<[UsageEntry], LbError> { .success([UsageEntry(id: file1.id, synced: 100, local: 100)]) }
     public func importFiles(sources: [String], dest: UUID) -> Result<Void, LbError> { .success(()) }
     public func exportFile(sourceId: UUID, dest: String, edit: Bool) -> Result<Void, LbError> { .success(()) }
     public func getFileLinkUrl(id: UUID) -> Result<String, LbError> {

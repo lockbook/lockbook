@@ -18,7 +18,7 @@ use crate::model::path_ops::Filter;
 
 use crate::service::events::Event;
 use crate::service::import_export::{Existing, ExportFileInfo, ImportPlan, ImportStatus};
-use crate::service::usage::UsageMetrics;
+use crate::service::usage::{UsageEntry, UsageMetrics};
 use crate::subscribers::status::Status;
 
 #[cfg(not(target_family = "wasm"))]
@@ -307,9 +307,16 @@ impl Lb {
         self.block_on(self.lb.list_pinned())
     }
 
-    // TODO: examine why the old get_usage does a bunch of things
     pub fn get_usage(&self) -> LbResult<UsageMetrics> {
         self.block_on(self.lb.get_usage())
+    }
+
+    pub fn get_usage_breakdown(&self) -> LbResult<Vec<UsageEntry>> {
+        self.block_on(self.lb.get_usage_breakdown())
+    }
+
+    pub fn refresh_usage(&self) -> LbResult<UsageMetrics> {
+        self.block_on(self.lb.refresh_usage())
     }
 
     pub fn import_files<F: Fn(ImportStatus)>(

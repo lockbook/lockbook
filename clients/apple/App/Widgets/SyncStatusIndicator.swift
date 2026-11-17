@@ -76,11 +76,15 @@ struct UsageBar: View {
     private static let halfThreshold = 0.5
     private static let warnThreshold = 0.7
 
+    private var usage: UsageMetrics {
+        AppState.lb.events.status.usage
+    }
+
     var body: some View {
-        if let usage = AppState.lb.events.status.spaceUsed, shouldShow(usage) {
+        if let cap = usage.dataCap, shouldShow(usage) {
             ProgressView(value: min(fraction(usage), 1))
                 .tint(fraction(usage) >= Self.warnThreshold ? .yellow : .accentColor)
-                .help("\(usage.serverUsedHuman) / \(usage.serverCapHuman)")
+                .help("\(usage.local.human) / \(cap.human)")
                 .padding(.horizontal, 12)
                 .padding(.top, 10)
         }
@@ -95,9 +99,9 @@ struct UsageBar: View {
     }
 
     private func fraction(_ usage: UsageMetrics) -> Double {
-        guard usage.serverCapExact > 0 else { return 0 }
+        guard let cap = usage.dataCap, cap.exact > 0 else { return 0 }
 
-        return Double(usage.serverUsedExact) / Double(usage.serverCapExact)
+        return Double(usage.local.exact) / Double(cap.exact)
     }
 }
 

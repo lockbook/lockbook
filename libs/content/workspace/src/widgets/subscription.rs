@@ -68,8 +68,9 @@ fn draw_app_store(
 }
 
 fn usage_bar(ui: &mut egui::Ui, metrics: &UsageMetrics) {
-    let used = metrics.server_usage.exact as f32;
-    let available = metrics.data_cap.exact as f32;
+    let Some(cap) = &metrics.data_cap else { return };
+    let used = metrics.local.exact as f32;
+    let available = cap.exact as f32;
     let human_usage = bytes_to_human(used as u64);
     let percent = used / available;
 

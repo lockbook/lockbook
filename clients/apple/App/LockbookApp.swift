@@ -105,6 +105,7 @@ extension Notification.Name {
     static let closeActiveTab = Notification.Name("closeActiveTab")
     static let focusSearchField = Notification.Name("focusSearchField")
     static let openByName = Notification.Name("openByName")
+    static let showFromStorage = Notification.Name("showFromStorage")
 }
 
 struct ContentView: View {

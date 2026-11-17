@@ -151,8 +151,7 @@ impl<S: Server, D: LocalDocuments> Lb<S, D> {
 
         let panics = panics?.into_iter().map(|panic| panic.content).collect();
 
-        let mut status = self.status().await;
-        status.space_used = None;
+        let status = self.status().await;
         let status = format!("{status:?}");
         let is_syncing = self.syncer.try_lock().is_err();
 

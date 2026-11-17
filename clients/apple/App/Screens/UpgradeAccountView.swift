@@ -11,18 +11,18 @@ struct UpgradeAccountView: View {
             Text("Expand your storage to **30GB** for **\(billingState.subProduct?.displayPrice ?? "$2.99")** a month.")
                 .padding(.bottom, 30)
 
-            if let usage = settingsModel.usage {
+            if let usage = settingsModel.usage, let cap = usage.dataCap {
                 VStack(alignment: .leading, spacing: 15) {
                     Text("Current Usage:")
 
-                    ProgressView(value: Double(usage.serverUsedExact), total: Double(usage.serverCapExact))
+                    ProgressView(value: Double(min(usage.local.exact, cap.exact)), total: Double(cap.exact))
                 }
                 .padding(.vertical, 15)
 
                 VStack(alignment: .leading, spacing: 15) {
                     Text("If you upgraded, your usage would be:")
 
-                    ProgressView(value: Double(usage.serverUsedExact), total: BillingState.PREMIUM_DATA_CAP)
+                    ProgressView(value: Double(usage.local.exact), total: BillingState.PREMIUM_DATA_CAP)
                 }
                 .padding(.vertical, 15)
             } else {

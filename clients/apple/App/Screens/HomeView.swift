@@ -29,6 +29,7 @@ struct HomeView: View {
         @State private var showSearchOptions = false
     #else
         @State private var showImporter = false
+        @State private var hostWindow = HostWindow()
     #endif
 
     @State private var filesModel: FilesModel
@@ -350,6 +351,32 @@ struct HomeView: View {
                 homeState.splitViewVisibility = homeState.splitViewVisibility == .detailOnly ? .all : .detailOnly
             }
         }
+        .onReceive(NotificationCenter.default.publisher(for: .showFromStorage)) { note in
+            guard let id = note.object as? UUID, let file = filesModel.idsToFiles[id] else { return }
+            #if os(macOS)
+                guard let window = hostWindow.window, HostWindow.frontmost === window else { return }
+                window.makeKeyAndOrderFront(nil)
+            #else
+                showSettings = false
+            #endif
+            guard file.isFolder else {
+                fileTreeModel.open(file, workspaceInput: workspaceInput, homeState: homeState)
+                return
+            }
+            #if os(iOS)
+                homeState.compactColumn = .sidebar
+            #endif
+            selectedTab = .files
+            if homeState.splitViewVisibility == .detailOnly {
+                withAnimation {
+                    homeState.splitViewVisibility = .all
+                }
+            }
+            fileTreeModel.reveal(file)
+        }
+        #if os(macOS)
+            .background(HostWindowReader(host: hostWindow))
+        #endif
         #if os(iOS)
             .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillShowNotification)) { _ in
                 keyboardVisible = true
@@ -1022,6 +1049,48 @@ private extension View {
     private extension View {
         func cappedWidth(_ width: CGFloat?) -> some View {
             CappedWidthLayout(width: width) { self }
+        }
+    }
+
+    final class HostWindow {
+        static let all = NSHashTable<NSWindow>.weakObjects()
+
+        static var frontmost: NSWindow? {
+            NSApp.orderedWindows.first { all.contains($0) }
+        }
+
+        weak var window: NSWindow?
+    }
+
+    private struct HostWindowReader: NSViewRepresentable {
+        let host: HostWindow
+
+        func makeNSView(context: Context) -> ReaderView {
+            ReaderView(host: host)
+        }
+
+        func updateNSView(_ nsView: ReaderView, context: Context) {}
+
+        final class ReaderView: NSView {
+            let host: HostWindow
+
+            init(host: HostWindow) {
+                self.host = host
+                super.init(frame: .zero)
+            }
+
+            @available(*, unavailable)
+            required init?(coder: NSCoder) {
+                fatalError("init(coder:) has not been implemented")
+            }
+
+            override func viewDidMoveToWindow() {
+                super.viewDidMoveToWindow()
+                host.window = window
+                if let window {
+                    HostWindow.all.add(window)
+                }
+            }
         }
     }
 
