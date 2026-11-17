@@ -164,5 +164,8 @@ impl<S: Server> Server for GatedServer<S> {
         admin_file_info: AdminFileInfoRequest,
         admin_set_user_tier: AdminSetUserTierRequest,
         admin_rebuild_index: AdminRebuildIndexRequest,
+        new_sub_account: NewSubAccountRequest,
+        list_sub_accounts: ListSubAccountsRequest,
+        delete_sub_account: DeleteSubAccountRequest,
     }
 }
