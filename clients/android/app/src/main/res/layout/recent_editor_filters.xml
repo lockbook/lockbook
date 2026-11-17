@@ -6,14 +6,14 @@
     android:clipToPadding="false"
     android:fadingEdgeLength="32dp"
     android:requiresFadingEdge="horizontal"
-    android:paddingStart="16dp"
-    android:paddingEnd="16dp"
     android:scrollbars="none">
 
     <com.google.android.material.chip.ChipGroup
         android:id="@+id/recent_editor_chips"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
+        android:paddingStart="16dp"
+        android:paddingEnd="16dp"
         app:chipSpacingHorizontal="8dp"
         app:singleLine="true"
         app:singleSelection="false" />
