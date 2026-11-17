@@ -50,5 +50,5 @@ pub fn resolve(event: &egui::Event) -> Option<CanvasAction> {
     BINDINGS
         .iter()
         .find(|binding| binding.matches(event))
-        .map(|binding| binding.action)
+        .map(|binding| binding.action.clone())
 }

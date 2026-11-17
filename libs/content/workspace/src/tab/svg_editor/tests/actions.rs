@@ -2,9 +2,11 @@
 //! generated as complete transactions; frame boundaries vary independently.
 
 use egui::{Modifiers, Pos2, Rect, pos2, vec2};
+use lb_rs::Uuid;
 use lb_rs::model::svg::buffer::get_pen_colors;
 use lb_rs::model::svg::element::EditableElement;
 use resvg::usvg::Transform;
+use std::io::Cursor;
 
 use super::super::tools::selection::{BuildPayload, SelectionOperation};
 use super::super::{
@@ -25,6 +27,11 @@ impl Program {
         Self { actions: actions.into_iter().collect(), batches: vec![1] }
     }
 
+    pub fn with_batches(mut self, batches: Vec<usize>) -> Self {
+        self.batches = batches;
+        self
+    }
+
     pub fn run(&self, canvas: &mut TestCanvas) {
         let mut offset = 0;
         for size in self.batches.iter().cycle() {
@@ -32,7 +39,7 @@ impl Program {
                 break;
             }
             let end = (offset + size).min(self.actions.len());
-            canvas.act_many(self.actions[offset..end].iter().copied());
+            canvas.act_many(self.actions[offset..end].iter().cloned());
             offset = end;
         }
     }
@@ -98,7 +105,8 @@ pub(super) fn generate(
 ) -> Program {
     let mut actions = Vec::new();
     for _ in 0..src.draw(max_edits + 1) {
-        match src.draw(14) {
+        match src.draw(15) {
+            14 => actions.push(paste(src)),
             10 => select(src, &mut actions, bounds),
             11 => {
                 if src.draw(4) == 0 {
@@ -290,4 +298,24 @@ fn edit(src: &mut ByteSource, actions: &mut Vec<A>, history: bool) {
         _ if history => actions.push(if src.draw(2) == 0 { A::Undo } else { A::Redo }),
         _ => stroke(src, actions, false, false),
     }
+}
+
+pub(super) fn paste(src: &mut ByteSource) -> A {
+    let count = 1 + src.draw(3);
+    let images = (0..count)
+        .map(|_| {
+            let width = 16 + src.draw(512) as u32;
+            let height = 16 + src.draw(256) as u32;
+            let mut bytes = Cursor::new(Vec::new());
+            image::DynamicImage::ImageRgba8(image::RgbaImage::from_pixel(
+                width,
+                height,
+                image::Rgba([90, 140, 210, 255]),
+            ))
+            .write_to(&mut bytes, image::ImageFormat::Png)
+            .unwrap();
+            (Uuid::new_v4(), bytes.into_inner().into())
+        })
+        .collect();
+    A::PasteImages { images, position: point(src) }
 }

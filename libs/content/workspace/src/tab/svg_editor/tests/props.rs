@@ -11,9 +11,10 @@ use lb_rs::model::svg::buffer::{Buffer, get_pen_colors};
 use lb_rs::model::svg::element::{DynamicColor, EditableElement, ManipulatorGroupId};
 use resvg::usvg::Transform;
 
+use super::super::element::PromoteBufferWeakImages as _;
 use super::super::{CanvasAction, EraseEvent, LayerMove, PathEvent, Tool};
 use super::actions::{self, Program};
-use super::harness::TestCanvas;
+use super::harness::{TestCanvas, TestImages};
 use crate::tab::input_controller::ToolPayload;
 use crate::test_utils::{byte_source::ByteSource, prop};
 
@@ -132,6 +133,7 @@ struct Seen {
     rgb: (u8, u8, u8),
     width: i64,
     opacity: i64,
+    image: Option<Uuid>,
 }
 
 type View = Vec<Seen>;
@@ -156,8 +158,26 @@ fn view(b: &Buffer) -> View {
                     rgb: (s.color.light.red, s.color.light.green, s.color.light.blue),
                     width: (s.width * p.stroke_scale() * 100.).round() as i64,
                     opacity: (s.opacity * 255.).round() as i64,
+                    image: None,
                 })
             }
+            EditableElement::Image(image) if !image.deleted => Some(Seen {
+                id: b.id_map.get(id).cloned().unwrap_or(id.to_string()),
+                pts: vec![
+                    (
+                        (image.view_box.x() * 10.).round() as i64,
+                        (image.view_box.y() * 10.).round() as i64,
+                    ),
+                    (
+                        (image.view_box.width() * 10.).round() as i64,
+                        (image.view_box.height() * 10.).round() as i64,
+                    ),
+                ],
+                rgb: (0, 0, 0),
+                width: 0,
+                opacity: (image.opacity * 255.).round() as i64,
+                image: Some(image.href),
+            }),
             _ => None,
         })
         .collect()
@@ -167,8 +187,10 @@ fn canvas_view(c: &TestCanvas) -> View {
     view(&c.svg_ref().buffer)
 }
 
-fn file_view(bytes: &str) -> View {
-    view(&Buffer::new(bytes))
+fn file_view(bytes: &str, images: &TestImages) -> View {
+    let mut buffer = Buffer::new(bytes);
+    buffer.promote_weak_images(images);
+    view(&buffer)
 }
 
 fn same(what: &str, a: &View, b: &View, ordered: bool) -> Result<(), String> {
@@ -188,7 +210,12 @@ fn same(what: &str, a: &View, b: &View, ordered: bool) -> Result<(), String> {
                 .iter()
                 .zip(&y.pts)
                 .all(|(p, q)| (p.0 - q.0).abs() <= 1 && (p.1 - q.1).abs() <= 1);
-        if !near || x.rgb != y.rgb || (x.width - y.width).abs() > 1 || x.opacity != y.opacity {
+        if !near
+            || x.rgb != y.rgb
+            || (x.width - y.width).abs() > 1
+            || x.opacity != y.opacity
+            || x.image != y.image
+        {
             return Err(format!("{what}: {x:?} vs {y:?}"));
         }
     }
@@ -226,12 +253,61 @@ fn save_reopen_check(c: &Case) -> Result<(), String> {
     let mut canvas = TestCanvas::open(&file_bytes(&c.file));
     c.edits.run(&mut canvas);
     let saved = canvas.save();
-    let mut reopened = TestCanvas::open(&saved);
+    let mut reopened = TestCanvas::open_with_images(&saved, canvas.images.clone());
     // View state is local: compare rendering through the same viewport.
     reopened.set_viewport(canvas.master());
     same("reopened", &canvas_view(&canvas), &canvas_view(&reopened), true)?;
     let (a, b) = (canvas_mask(&canvas), canvas_mask(&reopened));
     differs("reopened canvas", &a, &b)
+}
+
+/// A paste after arbitrary edits replaces selection and is one undo transaction.
+#[test]
+fn image_paste_selects_the_batch_and_undoes_once() {
+    check(
+        |bytes| {
+            let mut src = ByteSource::new(bytes);
+            (gen_case(bytes, true), actions::paste(&mut src))
+        },
+        |(case, paste)| {
+            let mut canvas = TestCanvas::open(&file_bytes(&case.file));
+            case.edits.run(&mut canvas);
+            let before = canvas_view(&canvas);
+            let before_ids: Vec<_> = canvas.svg_ref().buffer.elements.keys().copied().collect();
+            canvas.act(paste.clone());
+            let inserted: Vec<_> = canvas
+                .svg_ref()
+                .buffer
+                .elements
+                .keys()
+                .filter(|id| !before_ids.contains(id))
+                .copied()
+                .collect();
+            let selected: Vec<_> = canvas
+                .svg_ref()
+                .toolbar
+                .selection
+                .selected_elements
+                .iter()
+                .map(|element| element.id)
+                .collect();
+            let CanvasAction::PasteImages { images, .. } = paste else { unreachable!() };
+            let expected_count = images.len();
+            if inserted.len() != expected_count
+                || selected != inserted
+                || canvas.svg_ref().toolbar.active_tool != Tool::Selection
+            {
+                return Err(format!(
+                    "paste selection: inserted {inserted:?}, selected {selected:?}"
+                ));
+            }
+            let after = canvas_view(&canvas);
+            canvas.act(CanvasAction::Undo);
+            same("undo paste batch", &before, &canvas_view(&canvas), true)?;
+            canvas.act(CanvasAction::Redo);
+            same("redo paste batch", &after, &canvas_view(&canvas), true)
+        },
+    );
 }
 
 /// Undoing every gesture gives back the opened drawing; redoing them all
@@ -268,11 +344,16 @@ fn reload_own_save_check(c: &Case) -> Result<(), String> {
 fn reload_other_check(c: &Case) -> Result<(), String> {
     let bytes = file_bytes(&c.file);
     let mut first = TestCanvas::open(&bytes);
-    let mut second = TestCanvas::open(&bytes);
+    let mut second = TestCanvas::open_with_images(&bytes, first.images.clone());
     c.edits.run(&mut first);
     let saved = first.save();
     second.reload(&saved);
-    same("second editor after reload", &file_view(&saved), &canvas_view(&second), false)
+    same(
+        "second editor after reload",
+        &file_view(&saved, &second.images),
+        &canvas_view(&second),
+        false,
+    )
 }
 
 // ════════════════════════ rendering ════════════════════════
@@ -386,8 +467,11 @@ fn gen_chain(bytes: &[u8]) -> Chain {
 
 fn chain_check(chain: &Chain) -> Result<(), String> {
     let mut latest = file_bytes(&chain.file);
-    let mut writers: Vec<TestCanvas> = (0..WRITERS).map(|_| TestCanvas::open(&latest)).collect();
-    let mut watcher = TestCanvas::open(&latest);
+    let images = TestImages::default();
+    let mut writers: Vec<TestCanvas> = (0..WRITERS)
+        .map(|_| TestCanvas::open_with_images(&latest, images.clone()))
+        .collect();
+    let mut watcher = TestCanvas::open_with_images(&latest, images.clone());
     for (turn, (writer, edits)) in chain.turns.iter().enumerate() {
         let writer = &mut writers[*writer];
         writer.reload(&latest);
@@ -396,7 +480,7 @@ fn chain_check(chain: &Chain) -> Result<(), String> {
         watcher.reload(&latest);
         same(
             &format!("untouched editor after turn {turn}"),
-            &file_view(&latest),
+            &file_view(&latest, &images),
             &canvas_view(&watcher),
             true,
         )?;
@@ -554,7 +638,9 @@ fn erase_check(case: &EraseCase, undo: bool) -> Result<(), String> {
             .map(|pos| CanvasAction::Erase(EraseEvent::Build(*pos)))
             .collect();
         actions.push(CanvasAction::Erase(EraseEvent::End));
-        Program { actions, batches: round.batches.clone() }.run(&mut canvas);
+        Program::actions(actions)
+            .with_batches(round.batches.clone())
+            .run(&mut canvas);
         let after = snapshot(&canvas);
 
         if undo {
@@ -641,7 +727,7 @@ fn selection_opacity_survives_save_reopen_and_undo() {
         let edited = canvas_view(&canvas);
         assert_eq!(edited[0].opacity, 128);
         let saved = canvas.save();
-        same("saved stroke opacity", &edited, &file_view(&saved), true).unwrap();
+        same("saved stroke opacity", &edited, &file_view(&saved, &canvas.images), true).unwrap();
         let reopened = TestCanvas::open(&saved);
         same("reopened stroke opacity", &edited, &canvas_view(&reopened), true).unwrap();
         canvas.act(CanvasAction::Undo);
@@ -677,7 +763,7 @@ fn chain_keeps_stacking_order() {
         }],
         turns: vec![
             (0, Program::actions(fixed_stroke(&[pos2(200., 200.), pos2(260., 230.)]))),
-            (1, Program { actions: second, batches: vec![1] }),
+            (1, Program::actions(second)),
         ],
     };
     chain_check(&chain).unwrap();
@@ -693,7 +779,9 @@ fn save_reopen_after_zoom_and_drawing_in_one_frame() {
             Transform::from_scale(2., 2.).post_translate(-100., -100.),
         )];
         actions.extend(fixed_stroke(&[pos2(300., 300.), pos2(400., 400.)]));
-        Program { actions, batches: vec![batch] }.run(&mut canvas);
+        Program::actions(actions)
+            .with_batches(vec![batch])
+            .run(&mut canvas);
         let drawing = canvas_view(&canvas);
         assert_eq!(drawing.len(), 1);
         assert_eq!(drawing[0].pts.first(), Some(&(2000, 2000)));
@@ -703,7 +791,7 @@ fn save_reopen_after_zoom_and_drawing_in_one_frame() {
         let saved = canvas.save();
         assert!(!saved.contains("lb_viewport_settings"));
         assert!(!saved.contains("lb_master_transform"));
-        let mut reopened = TestCanvas::open(&saved);
+        let mut reopened = TestCanvas::open_with_images(&saved, canvas.images.clone());
         reopened.set_viewport(canvas.master());
         same("zoom then draw", &drawing, &canvas_view(&reopened), true).unwrap();
         differs("zoom then draw", &canvas_mask(&canvas), &canvas_mask(&reopened)).unwrap();
@@ -725,19 +813,17 @@ fn selection_translation_uses_each_action_position() {
         // Fixed screen positions below use a one-to-one document view.
         c.set_viewport(Transform::identity());
         let before = canvas_view(&c);
-        Program {
-            actions: vec![
-                CanvasAction::SelectAll,
-                CanvasAction::Selection(S::StartTransform(
-                    SelectionOperation::Translation,
-                    pos2(300., 300.),
-                )),
-                CanvasAction::Selection(S::Transform(pos2(310., 305.))),
-                CanvasAction::Selection(S::Transform(pos2(320., 308.))),
-                CanvasAction::Selection(S::EndTransform),
-            ],
-            batches: vec![batch],
-        }
+        Program::actions([
+            CanvasAction::SelectAll,
+            CanvasAction::Selection(S::StartTransform(
+                SelectionOperation::Translation,
+                pos2(300., 300.),
+            )),
+            CanvasAction::Selection(S::Transform(pos2(310., 305.))),
+            CanvasAction::Selection(S::Transform(pos2(320., 308.))),
+            CanvasAction::Selection(S::EndTransform),
+        ])
+        .with_batches(vec![batch])
         .run(&mut c);
         let mut expected = before.clone();
         for stroke in &mut expected {
@@ -938,7 +1024,7 @@ fn taps_are_centered_dots_and_survive_prediction_save_and_history() {
             differs("SVG tap", &mask, &viewer_mask(&saved, canvas.master(), false)).unwrap();
             differs("round-capped SVG tap", &mask, &viewer_mask(&saved, canvas.master(), true))
                 .unwrap();
-            let mut reopened = TestCanvas::open(&saved);
+            let mut reopened = TestCanvas::open_with_images(&saved, canvas.images.clone());
             reopened.set_viewport(canvas.master());
             same("reopened tap", &drawn, &canvas_view(&reopened), true).unwrap();
             differs("reopened tap", &mask, &canvas_mask(&reopened)).unwrap();

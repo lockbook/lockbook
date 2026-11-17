@@ -545,8 +545,12 @@ impl SVGEditor {
 }
 
 /// A command or tool interaction executed by the canvas.
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum CanvasAction {
+    PasteImages {
+        images: Vec<(Uuid, std::sync::Arc<Vec<u8>>)>,
+        position: egui::Pos2,
+    },
     Pen(PathEvent),
     Highlighter(PathEvent),
     Erase(EraseEvent),
@@ -592,6 +596,9 @@ fn execute_action(
         toolbar.eraser.cancel_preview();
     }
     match action {
+        A::PasteImages { images, position } => {
+            clip::paste_images(ui, images, position, toolbar, ctx)
+        }
         A::Pen(event) => toolbar.pen.handle_tool_event(ui, event, ctx),
         A::Highlighter(event) => toolbar.highlighter.handle_tool_event(ui, event, ctx),
         A::Erase(event) => toolbar.eraser.handle_tool_event(ui, event, ctx),

@@ -13,7 +13,7 @@
 //! What it produces: the buffer, the bytes a save writes, and the meshes it paints.
 
 use std::collections::HashMap;
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 
 use egui::{Event, Key, Modifiers, PointerButton, Pos2, RawInput, Rect, Vec2};
 use lb_rs::Uuid;
@@ -30,8 +30,8 @@ use crate::workspace::WsPersistentStore;
 pub const SCREEN: Vec2 = Vec2::new(800., 600.);
 
 /// Images kept in memory: what a paste stores, a promote reads back.
-#[derive(Default)]
-pub struct TestImages(Mutex<HashMap<Uuid, Vec<u8>>>);
+#[derive(Clone, Default)]
+pub struct TestImages(Arc<Mutex<HashMap<Uuid, Vec<u8>>>>);
 
 impl CanvasImages for TestImages {
     fn read(&self, id: Uuid) -> LbResult<Vec<u8>> {
@@ -52,6 +52,7 @@ impl CanvasImages for TestImages {
 
 pub struct TestCanvas {
     pub tab: TabContent,
+    pub images: TestImages,
     ctx: egui::Context,
     time: f64,
     /// What the last frame painted.
@@ -60,11 +61,15 @@ pub struct TestCanvas {
 
 impl TestCanvas {
     pub fn open(bytes: &str) -> Self {
+        Self::open_with_images(bytes, TestImages::default())
+    }
+
+    pub fn open_with_images(bytes: &str, images: TestImages) -> Self {
         let ctx = crate::tab::markdown_editor::test_egui_ctx();
         let mut editor = SVGEditor::new(
             bytes.as_bytes(),
             &ctx,
-            Box::new(TestImages::default()),
+            Box::new(images.clone()),
             Uuid::new_v4(),
             None,
             &WsPersistentStore::in_memory(),
@@ -72,7 +77,8 @@ impl TestCanvas {
         );
         // the minimap paints the strokes again, smaller
         editor.settings.show_mini_map = false;
-        let mut canvas = Self { tab: TabContent::Svg(editor), ctx, time: 0., shapes: vec![] };
+        let mut canvas =
+            Self { tab: TabContent::Svg(editor), images, ctx, time: 0., shapes: vec![] };
         // the first frame lays the canvas out, the second paints it
         canvas.frame(vec![]);
         canvas.frame(vec![]);
@@ -130,6 +136,11 @@ impl TestCanvas {
     /// Several commands can arrive before the next frame is rendered.
     pub fn act_many(&mut self, actions: impl IntoIterator<Item = CanvasAction>) {
         for action in actions {
+            if let CanvasAction::PasteImages { images, .. } = &action {
+                for (id, bytes) in images {
+                    self.images.0.lock().unwrap().insert(*id, bytes.to_vec());
+                }
+            }
             self.ctx.push_event(crate::tab::Event::Canvas(action));
         }
         self.frame(vec![]);
