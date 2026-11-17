@@ -37,7 +37,7 @@ class RecentFilesFragment :
     private val selectionModel: FileSelectionViewModel by activityViewModels()
     private var fileActionDispatcher: FileSelectionActionDispatcher? = null
     private val editorFilter: LastEditorFilterViewModel by activityViewModels()
-    private var filterPopup: android.widget.PopupWindow? = null
+    private var filterChips: RecentEditorFilterChips? = null
     private var originalListPaddingBottom = 0
     private var bottomNavigationInset = 0
     private var selectionBottomBarInset = 0
@@ -66,10 +66,13 @@ class RecentFilesFragment :
             updateListBottomPadding()
         }
 
-        binding.recentEditorFilter.setOnClickListener {
-            filterPopup?.dismiss()
-            filterPopup = showLastEditorFilterMenu(it, editorFilter)
-        }
+        filterChips =
+            RecentEditorFilterChips(
+                binding,
+                editorFilter,
+                viewLifecycleOwner,
+                (requireActivity() as MainScreenActivity).fileActionSnackbarAnchorView,
+            )
         fileTreeModel.sharingContacts.observe(viewLifecycleOwner) { contacts ->
             runCatching { Lb.getAccount().username }.getOrNull()?.let { me ->
                 editorFilter.updateContacts(contacts.map { it.username }, me)
@@ -77,9 +80,7 @@ class RecentFilesFragment :
         }
         fileTreeModel.recentFiles.observe(viewLifecycleOwner) { renderFiles() }
         editorFilter.state.observe(viewLifecycleOwner) { state ->
-            binding.recentEditorFilter.isVisible = state.isVisible
-            binding.recentEditorFilter.isSelected = state.selected != null
-            if (!state.isVisible) filterPopup?.dismiss()
+            filterChips?.render(state)
             renderFiles()
         }
 
@@ -125,8 +126,8 @@ class RecentFilesFragment :
     }
 
     override fun onDestroyView() {
-        filterPopup?.dismiss()
-        filterPopup = null
+        filterChips?.dispose()
+        filterChips = null
         fileActionDispatcher = null
         binding.recentFilesList.adapter = null
         _binding = null

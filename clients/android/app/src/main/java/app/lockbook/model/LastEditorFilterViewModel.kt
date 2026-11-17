@@ -13,6 +13,20 @@ internal data class LastEditorFilterState(
 
     fun includes(username: String): Boolean = !isVisible || selected == null || username in selected
 
+    fun withContacts(
+        contacts: List<String>,
+        yourself: String,
+    ): LastEditorFilterState = copy(usernames = listOf(yourself) + contacts.filter { it.isNotBlank() && it != yourself }.distinct())
+
+    fun withUserEnabled(
+        username: String,
+        enabled: Boolean,
+    ): LastEditorFilterState {
+        val users = (selected ?: usernames.toSet()).toMutableSet()
+        if (enabled) users.add(username) else users.remove(username)
+        return copy(selected = users)
+    }
+
     fun filter(files: List<File>): List<File> = files.filter { includes(it.lastModifiedBy) }
 }
 
@@ -24,8 +38,8 @@ internal class LastEditorFilterViewModel : ViewModel() {
         usernames: List<String>,
         yourself: String,
     ) {
-        val users = listOf(yourself) + usernames.filter { it.isNotBlank() && it != yourself }.distinct().sorted()
-        mutableState.value = mutableState.value!!.copy(usernames = users)
+        val updated = mutableState.value!!.withContacts(usernames, yourself)
+        if (updated != mutableState.value) mutableState.value = updated
     }
 
     fun selectAll() {
@@ -38,8 +52,13 @@ internal class LastEditorFilterViewModel : ViewModel() {
 
     fun toggle(username: String) {
         val current = mutableState.value!!
-        val selected = (current.selected ?: current.usernames.toSet()).toMutableSet()
-        if (!selected.remove(username)) selected.add(username)
-        mutableState.value = current.copy(selected = selected)
+        setEnabled(username, current.selected?.contains(username) == false)
+    }
+
+    fun setEnabled(
+        username: String,
+        enabled: Boolean,
+    ) {
+        mutableState.value = mutableState.value!!.withUserEnabled(username, enabled)
     }
 }

@@ -39,6 +39,29 @@ class LastEditorFilterTest {
         assertEquals("15", items[1].file.id)
     }
 
+    @Test
+    fun `yourself stays first and contact ranking is preserved`() {
+        val state = LastEditorFilterState().withContacts(listOf("zoe", "me", "amy", "zoe", ""), "me")
+        assertEquals(listOf("me", "zoe", "amy"), state.usernames)
+    }
+
+    @Test
+    fun `undo restores only the removed editor without undoing later filters`() {
+        val initial = LastEditorFilterState(listOf("me", "zoe", "amy"))
+        val hidden = initial.withUserEnabled("zoe", false).withUserEnabled("amy", false)
+        assertEquals(listOf("me"), hidden.usernames.filter(hidden::includes))
+        val undone = hidden.withUserEnabled("zoe", true)
+        assertEquals(listOf("me", "zoe"), undone.usernames.filter(undone::includes))
+        assertEquals(undone, undone.withUserEnabled("zoe", true))
+    }
+
+    @Test
+    fun `modal can enable one user after deselecting everyone`() {
+        val state = LastEditorFilterState(listOf("me", "zoe"), emptySet()).withUserEnabled("zoe", true)
+        assertFalse(state.includes("me"))
+        assertTrue(state.includes("zoe"))
+    }
+
     private fun file(
         id: String,
         editor: String,
