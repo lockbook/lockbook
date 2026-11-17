@@ -40,23 +40,23 @@ class LastEditorFilterTest {
     }
 
     @Test
-    fun `yourself stays first and contact ranking is preserved`() {
+    fun `account username stays first and contact ranking is preserved`() {
         val state = LastEditorFilterState().withContacts(listOf("zoe", "me", "amy", "zoe", ""), "me")
         assertEquals(listOf("me", "zoe", "amy"), state.usernames)
     }
 
     @Test
-    fun `undo restores only the removed editor without undoing later filters`() {
+    fun `reenabling one editor preserves other editor selections`() {
         val initial = LastEditorFilterState(listOf("me", "zoe", "amy"))
         val hidden = initial.withUserEnabled("zoe", false).withUserEnabled("amy", false)
         assertEquals(listOf("me"), hidden.usernames.filter(hidden::includes))
-        val undone = hidden.withUserEnabled("zoe", true)
-        assertEquals(listOf("me", "zoe"), undone.usernames.filter(undone::includes))
-        assertEquals(undone, undone.withUserEnabled("zoe", true))
+        val restored = hidden.withUserEnabled("zoe", true)
+        assertEquals(listOf("me", "zoe"), restored.usernames.filter(restored::includes))
+        assertEquals(restored, restored.withUserEnabled("zoe", true))
     }
 
     @Test
-    fun `modal can enable one user after deselecting everyone`() {
+    fun `one editor can be enabled when all editors are deselected`() {
         val state = LastEditorFilterState(listOf("me", "zoe"), emptySet()).withUserEnabled("zoe", true)
         assertFalse(state.includes("me"))
         assertTrue(state.includes("zoe"))

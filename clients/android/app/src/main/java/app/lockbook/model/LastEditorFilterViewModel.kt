@@ -58,17 +58,10 @@ internal class LastEditorFilterViewModel : ViewModel() {
 
     fun toggle(username: String) {
         val current = mutableState.value!!
-        setEnabled(username, current.selected?.contains(username) == false)
+        mutableState.value = current.withUserEnabled(username, current.selected?.contains(username) == false)
     }
 
     fun toggleDocumentType(type: RecentDocumentType) {
         mutableState.value = mutableState.value!!.withDocumentTypeToggled(type)
-    }
-
-    fun setEnabled(
-        username: String,
-        enabled: Boolean,
-    ) {
-        mutableState.value = mutableState.value!!.withUserEnabled(username, enabled)
     }
 }

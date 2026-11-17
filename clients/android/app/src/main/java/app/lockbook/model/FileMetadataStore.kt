@@ -15,7 +15,6 @@ import kotlinx.coroutines.launch
 import net.lockbook.File
 import net.lockbook.Lb
 import net.lockbook.LbError
-import timber.log.Timber
 
 sealed interface MetadataLoadState {
     data object Loading : MetadataLoadState
@@ -54,7 +53,6 @@ class FileMetadataSnapshot(
 object FileMetadataStore {
     private val lock = Any()
     private var generation = 0L
-    private var refreshSequence = 0L
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val requests = Channel<Unit>(Channel.CONFLATED)
     private val refreshWaiters = mutableListOf<CompletableDeferred<FileMetadataSnapshot>>()
@@ -122,9 +120,6 @@ object FileMetadataStore {
             synchronized(lock) {
                 generation to refreshWaiters.toList().also { refreshWaiters.clear() }
             }
-        val sequence = ++refreshSequence
-        val started = System.nanoTime()
-        Timber.tag("UsernameDebug").d("metadata refresh=%d start generation=%d cached=%s", sequence, version, state.value != null)
         try {
             val previous = state.value?.idsAndFiles.orEmpty()
 
@@ -134,45 +129,22 @@ object FileMetadataStore {
             val files = if (listed.any { it.id == root.id }) listed else listed + root
             val shares = Lb.getPendingShareFiles().map(::retainUnchanged).sortedBy { it.id }
             val snapshot = FileMetadataSnapshot(root, files, shares)
-            val all = files + shares
-            val unknownEditors = all.filter { it.lastModifiedBy.isUnresolvedUsername() }
-            val unknownSharers = all.filter { file -> file.shares.any { it.sharedBy.isUnresolvedUsername() } }
-            val recoveredEditors =
-                all.count { file ->
-                    previous[file.id]?.lastModifiedBy?.isUnresolvedUsername() == true && !file.lastModifiedBy.isUnresolvedUsername()
-                }
-            Timber.tag("UsernameDebug").d(
-                "metadata refresh=%d loaded files=%d pending=%d unknownEditors=%d unknownSharers=%d recoveredEditors=%d elapsedMs=%d editorSample=%s sharerSample=%s",
-                sequence,
-                files.size,
-                shares.size,
-                unknownEditors.size,
-                unknownSharers.size,
-                recoveredEditors,
-                (System.nanoTime() - started) / 1_000_000,
-                unknownEditors.take(5).map { it.id },
-                unknownSharers.take(5).map { it.id },
-            )
             synchronized(lock) {
                 if (version == generation) {
-                    Timber.tag("UsernameDebug").d("metadata refresh=%d published generation=%d", sequence, version)
                     state.value = snapshot
                     loading.value = MetadataLoadState.Ready
                     waiters.forEach { it.complete(snapshot) }
                 } else {
-                    Timber.tag("UsernameDebug").d("metadata refresh=%d discarded generation=%d current=%d", sequence, version, generation)
                     waiters.forEach { it.cancel() }
                 }
             }
         } catch (error: LbError) {
-            Timber.tag("UsernameDebug").d(error, "metadata refresh=%d failed generation=%d", sequence, version)
             synchronized(lock) {
                 if (version == generation) {
                     if (error.kind == LbError.LbEC.AccountNonexistent || error.kind == LbError.LbEC.RootNonexistent) state.value = null
                     loading.value = MetadataLoadState.Failed(error)
                     waiters.forEach { it.completeExceptionally(error) }
                 } else {
-                    Timber.tag("UsernameDebug").d("metadata refresh=%d discarded generation=%d current=%d", sequence, version, generation)
                     waiters.forEach { it.cancel() }
                 }
             }
@@ -188,7 +160,6 @@ object FileMetadataStore {
 
     fun clear() {
         synchronized(lock) {
-            Timber.tag("UsernameDebug").d("metadata clear generation=%d", generation)
             generation++
             requests.tryReceive()
             refreshWaiters.forEach { it.cancel() }
@@ -209,6 +180,3 @@ private fun File.sameMetadataAs(other: File): Boolean =
             val right = other.shares[index]
             left.mode == right.mode && left.sharedBy == right.sharedBy && left.sharedWith == right.sharedWith
         }
-
-/** Core uses this sentinel when a public key has no resolved username. */
-internal fun String.isUnresolvedUsername(): Boolean = isBlank() || equals("<unknown>", ignoreCase = true)

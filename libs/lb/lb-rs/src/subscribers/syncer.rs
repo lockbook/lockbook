@@ -1193,20 +1193,11 @@ impl<S: Server, D: LocalDocuments> Lb<S, D> {
 
     async fn populate_pk_cache(&self) -> LbResult<()> {
         // todo: is this the move?
-        let started = Instant::now();
         let mut missing_owners = HashSet::new();
         {
             let tx = self.ro_tx().await;
             let db = tx.db();
-            let mut missing_editors = HashSet::new();
-            let mut missing_file_owners = HashSet::new();
             for file in db.base_metadata.iter().map(|(_, value)| value) {
-                if !db.pub_key_lookup.contains_key(&Owner(file.public_key)) {
-                    missing_editors.insert(Owner(file.public_key));
-                }
-                if !db.pub_key_lookup.contains_key(&file.owner()) {
-                    missing_file_owners.insert(file.owner());
-                }
                 for user_access_key in file.user_access_keys() {
                     let enc_by = Owner(user_access_key.encrypted_by);
                     let enc_for = Owner(user_access_key.encrypted_for);
@@ -1220,34 +1211,15 @@ impl<S: Server, D: LocalDocuments> Lb<S, D> {
                     }
                 }
             }
-            tracing::debug!(
-                cached = db.pub_key_lookup.iter().count(),
-                cached_unknown = db
-                    .pub_key_lookup
-                    .iter()
-                    .filter(|(_, name)| name.as_str() == "<unknown>")
-                    .count(),
-                missing_access_keys = missing_owners.len(),
-                missing_editors = missing_editors.len(),
-                missing_file_owners = missing_file_owners.len(),
-                "UsernameDebug: username cache scan"
-            );
         }
 
         let mut new_owners = HashMap::new();
         {
-            for (lookup, owner) in missing_owners.into_iter().enumerate() {
-                tracing::debug!(lookup, "UsernameDebug: username lookup starting");
+            for owner in missing_owners {
                 let username_result = self
                     .client
                     .get_username(self.get_account().unwrap(), GetUsernameRequest { key: owner.0 })
                     .await;
-                match &username_result {
-                    Ok(_) => tracing::debug!(lookup, "UsernameDebug: username lookup resolved"),
-                    Err(err) => {
-                        tracing::debug!(lookup, ?err, "UsernameDebug: username lookup failed")
-                    }
-                }
                 new_owners.insert(owner, username_result);
             }
         }
@@ -1256,36 +1228,16 @@ impl<S: Server, D: LocalDocuments> Lb<S, D> {
         let db = tx.db();
 
         let have_updates = !new_owners.is_empty();
-        let mut resolved = 0;
-        let mut not_found = 0;
-        let mut failed = 0;
         for (owner, username) in new_owners {
             let username = match username {
-                Err(ApiError::Endpoint(GetUsernameError::UserNotFound)) => {
-                    not_found += 1;
-                    "<unknown>".to_string()
-                }
-                Ok(username) => {
-                    resolved += 1;
-                    username.username
-                }
-                _ => {
-                    failed += 1;
-                    continue;
-                }
+                Err(ApiError::Endpoint(GetUsernameError::UserNotFound)) => "<unknown>".to_string(),
+                Ok(username) => username.username,
+                _ => continue, // todo: possibly add some logging here
             };
 
             db.pub_key_lookup.insert(owner, username).unwrap();
         }
 
-        tracing::debug!(
-            resolved,
-            not_found,
-            failed,
-            emit_metadata_changed = have_updates,
-            elapsed_ms = started.elapsed().as_millis(),
-            "UsernameDebug: username cache population complete"
-        );
         if have_updates {
             self.events.meta_changed(Actor::Sync);
         }
@@ -1622,15 +1574,7 @@ impl<S: Server, D: LocalDocuments> Lb<S, D> {
                 // possibly among them; the work after a sync is idempotent, so it runs again.
                 match events.recv().await {
                     Ok(Event::Sync(SyncIncrement::SyncFinished(_))) | Err(RecvError::Lagged(_)) => {
-                        tracing::debug!(
-                            "UsernameDebug: post-sync worker starting document fetch before username cache population"
-                        );
-                        let fetch_started = Instant::now();
                         self.fetcher().await.map_unexpected().log_and_ignore();
-                        tracing::debug!(
-                            elapsed_ms = fetch_started.elapsed().as_millis(),
-                            "UsernameDebug: post-sync document fetch finished; populating username cache"
-                        );
                         self.populate_pk_cache()
                             .await
                             .map_unexpected()
