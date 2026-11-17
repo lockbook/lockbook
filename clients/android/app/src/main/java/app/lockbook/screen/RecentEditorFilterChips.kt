@@ -1,6 +1,7 @@
 package app.lockbook.screen
 
 import android.content.Context
+import android.content.res.ColorStateList
 import android.graphics.Canvas
 import android.graphics.ColorFilter
 import android.graphics.Paint
@@ -9,6 +10,7 @@ import android.graphics.Typeface
 import android.graphics.drawable.Drawable
 import android.view.LayoutInflater
 import android.view.View
+import androidx.core.graphics.ColorUtils
 import androidx.core.view.isVisible
 import app.lockbook.R
 import app.lockbook.databinding.FragmentRecentFilesBinding
@@ -17,6 +19,7 @@ import app.lockbook.model.LastEditorFilterViewModel
 import app.lockbook.util.harmonizedIdentityColors
 import com.google.android.material.chip.Chip
 import com.google.android.material.chip.ChipGroup
+import com.google.android.material.color.MaterialColors
 
 /** All editors stay in the row, with Material's checked state indicating included files. */
 internal class RecentEditorFilterChips(
@@ -60,6 +63,43 @@ private fun createChip(
         }
         chipIcon = EditorAvatar(context, username)
         chipIconTint = null
+        val colors = harmonizedIdentityColors(context, username)
+        val surface = MaterialColors.getColor(this, com.google.android.material.R.attr.colorSurface)
+        val foreground = MaterialColors.getColor(this, com.google.android.material.R.attr.colorOnSurface)
+        val secondary = MaterialColors.getColor(this, com.google.android.material.R.attr.colorOnSurfaceVariant)
+        // Reuse the avatar's harmonized hue as a quiet wash over the page surface.
+        val selectedFill =
+            ColorUtils.blendARGB(
+                surface,
+                colors.accentContainer,
+                if (MaterialColors.isColorLight(surface)) 0.5f else 0.35f,
+            )
+        val states =
+            arrayOf(
+                intArrayOf(-android.R.attr.state_enabled),
+                intArrayOf(android.R.attr.state_checked),
+                intArrayOf(),
+            )
+        chipBackgroundColor = ColorStateList(states, intArrayOf(surface, selectedFill, surface))
+        setTextColor(
+            ColorStateList(
+                states,
+                intArrayOf(
+                    ColorUtils.setAlphaComponent(foreground, 97),
+                    colors.onAccentContainer,
+                    secondary,
+                ),
+            ),
+        )
+        rippleColor =
+            ColorStateList(
+                states,
+                intArrayOf(
+                    android.graphics.Color.TRANSPARENT,
+                    ColorUtils.setAlphaComponent(colors.onAccentContainer, 31),
+                    ColorUtils.setAlphaComponent(secondary, 31),
+                ),
+            )
     }
 
 private class EditorAvatar(

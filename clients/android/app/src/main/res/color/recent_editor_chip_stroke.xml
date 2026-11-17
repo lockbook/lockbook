@@ -4,5 +4,5 @@
     <item android:state_checked="true" android:color="@android:color/transparent" />
     <item android:state_selected="true" android:color="@android:color/transparent" />
     <item android:state_focused="true" android:color="?attr/colorOnSurfaceVariant" />
-    <item android:color="?attr/colorOutlineVariant" />
+    <item android:color="?attr/colorOutlineVariant" android:alpha="0.4" />
 </selector>
