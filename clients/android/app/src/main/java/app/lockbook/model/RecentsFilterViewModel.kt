@@ -3,6 +3,7 @@ package app.lockbook.model
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ViewModel
+import app.lockbook.util.ExtensionHelper
 import net.lockbook.File
 
 internal data class RecentsFilterState(
@@ -63,5 +64,21 @@ internal class RecentsFilterViewModel : ViewModel() {
 
     fun toggleDocumentType(type: RecentDocumentType) {
         mutableState.value = mutableState.value!!.withDocumentTypeToggled(type)
+    }
+}
+
+internal enum class RecentDocumentType {
+    Notes,
+    Drawings,
+    Images,
+    ;
+
+    fun matches(name: String): Boolean {
+        val extension = ExtensionHelper(name)
+        return when (this) {
+            Notes -> extension.isNote
+            Drawings -> extension.isDrawing
+            Images -> extension.isImage
+        }
     }
 }
