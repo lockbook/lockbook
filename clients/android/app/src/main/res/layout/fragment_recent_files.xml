@@ -26,22 +26,7 @@
                 android:layout_height="wrap_content"
                 app:chipSpacingHorizontal="8dp"
                 app:singleLine="true"
-                app:singleSelection="false">
-
-                <com.google.android.material.chip.Chip
-                    android:id="@+id/recent_editor_filter"
-                    style="@style/Widget.Material3.Chip.Assist"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:contentDescription="@string/recent_editor_filter_heading"
-                    app:chipIcon="@drawable/ic_baseline_tune_24"
-                    app:chipIconVisible="true"
-                    app:iconStartPadding="8dp"
-                    app:iconEndPadding="8dp"
-                    app:textStartPadding="0dp"
-                    app:textEndPadding="0dp"
-                    app:ensureMinTouchTargetSize="true" />
-            </com.google.android.material.chip.ChipGroup>
+                app:singleSelection="false" />
         </HorizontalScrollView>
 
         <androidx.recyclerview.widget.RecyclerView

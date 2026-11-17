@@ -5,7 +5,7 @@
     android:layout_width="wrap_content"
     android:layout_height="wrap_content"
     android:checkable="true"
-    app:checkedIconVisible="false"
+    app:checkedIconVisible="true"
     app:chipIconSize="24dp"
     app:chipIconVisible="true"
     app:ensureMinTouchTargetSize="true" />

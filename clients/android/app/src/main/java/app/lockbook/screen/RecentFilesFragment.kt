@@ -66,13 +66,7 @@ class RecentFilesFragment :
             updateListBottomPadding()
         }
 
-        filterChips =
-            RecentEditorFilterChips(
-                binding,
-                editorFilter,
-                viewLifecycleOwner,
-                (requireActivity() as MainScreenActivity).fileActionSnackbarAnchorView,
-            )
+        filterChips = RecentEditorFilterChips(binding, editorFilter)
         fileTreeModel.sharingContacts.observe(viewLifecycleOwner) { contacts ->
             runCatching { Lb.getAccount().username }.getOrNull()?.let { me ->
                 editorFilter.updateContacts(contacts.map { it.username }, me)
@@ -126,7 +120,6 @@ class RecentFilesFragment :
     }
 
     override fun onDestroyView() {
-        filterChips?.dispose()
         filterChips = null
         fileActionDispatcher = null
         binding.recentFilesList.adapter = null

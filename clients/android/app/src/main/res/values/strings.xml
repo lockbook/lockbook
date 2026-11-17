@@ -373,8 +373,5 @@
     <string name="last_editor_filter_select_all">Select all</string>
     <string name="last_editor_filter_deselect_all">Deselect all</string>
     <string name="last_editor_filter_empty">No files from these editors</string>
-    <string name="recent_editor_filter_heading">Filter by modified</string>
     <string name="recent_editor_filter_yourself">Yourself</string>
-    <string name="recent_editor_filter_hide">Hide content edited by %1$s</string>
-    <string name="recent_editor_filter_hidden">Content edited by “%1$s” has been hidden</string>
 </resources>
