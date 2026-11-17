@@ -155,14 +155,14 @@ class FileTreeViewModel(
                             previous.apply { refreshFiles(snapshot) }
                         }
                     refreshFilesDataSource()
-                    refreshSharingContacts()
+                    refreshSharingContacts("metadata snapshot")
                     if (previousPath != fileModel?.getFileDir()?.map { it.id to it.name }) {
                         _notifyUpdateFilesUI.value = UpdateFilesUI.UpdateBreadcrumbBar
                     }
                 }
             }
         }
-        refreshSharingContacts()
+        refreshSharingContacts("startup")
         loadPinnedFiles()
         viewModelScope.launch {
             try {
@@ -174,14 +174,29 @@ class FileTreeViewModel(
         }
     }
 
-    private fun refreshSharingContacts() {
+    private fun refreshSharingContacts(reason: String) {
+        Timber
+            .tag(
+                "UsernameDebug",
+            ).d("contacts refresh requested reason=%s previousActive=%s", reason, sharingContactsJob?.isActive == true)
         sharingContactsJob?.cancel()
         sharingContactsJob =
             viewModelScope.launch {
                 try {
                     val contacts: List<SharingContact> = withContext(Dispatchers.IO) { Lb.getSharingContacts().toList() }
+                    Timber.tag("UsernameDebug").d(
+                        "contacts loaded count=%d outgoing=%d incoming=%d unresolved=%d",
+                        contacts.size,
+                        contacts.count { it.outgoingFileCount > 0 },
+                        contacts.count { it.incomingFileCount > 0 },
+                        contacts.count { it.username.isUnresolvedUsername() },
+                    )
                     _sharingContacts.value = contacts
+                } catch (cancelled: kotlinx.coroutines.CancellationException) {
+                    Timber.tag("UsernameDebug").d("contacts refresh cancelled reason=%s", reason)
+                    throw cancelled
                 } catch (error: LbError) {
+                    Timber.tag("UsernameDebug").d(error, "contacts refresh failed")
                     Timber.e(error, "Unable to load sharing contacts")
                 }
             }
@@ -266,7 +281,14 @@ class FileTreeViewModel(
     private fun refreshFilesDataSource() {
         val fileModel = fileModel ?: return
         _files.value = fileModel.children.intoViewHolderInfo(dirtyLocally.value, pullingFiles.value)
-        _recentFiles.value = recentDocuments(fileModel.idsAndFiles.values)
+        val recent = recentDocuments(fileModel.idsAndFiles.values)
+        Timber.tag("UsernameDebug").d(
+            "recents source files=%d unknownEditors=%d contacts=%d",
+            recent.size,
+            recent.count { it.lastModifiedBy.isUnresolvedUsername() },
+            _sharingContacts.value.orEmpty().size,
+        )
+        _recentFiles.value = recent
         refreshPinnedFiles()
     }
 

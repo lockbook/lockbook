@@ -27,6 +27,7 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import net.lockbook.File
 import net.lockbook.File.FileType
+import timber.log.Timber
 import java.util.Locale
 import kotlin.collections.component1
 import kotlin.collections.component2
@@ -81,6 +82,17 @@ class PendingSharesFragment : Fragment() {
                         }.distinct()
                         .toMutableList()
 
+                Timber.tag("UsernameDebug").d(
+                    "shared view files=%d groups=%d unresolvedGroups=%d sample=%s",
+                    it.size,
+                    sharers.size,
+                    sharers.count { name -> name.isUnresolvedUsername() },
+                    it.values
+                        .filter { file ->
+                            file.shares.any { share -> share.sharedBy.isUnresolvedUsername() }
+                        }.take(5)
+                        .map { file -> file.id },
+                )
                 if (sharers.isEmpty()) {
                     binding.pendingSharesEmptyState.visibility = View.VISIBLE
                     binding.tabLayout.visibility = View.GONE
