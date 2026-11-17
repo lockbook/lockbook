@@ -7,6 +7,8 @@ use lb_rs::model::svg::element::{DynamicColor, ManipulatorGroupId};
 use lyon::tessellation::{BuffersBuilder, FillOptions, FillTessellator, VertexBuffers};
 
 use crate::set_tool;
+use crate::tab::ExtendedInput as _;
+use crate::tab::svg_editor::CanvasAction;
 use crate::tab::svg_editor::renderer::VertexConstructor;
 use crate::tab::svg_editor::toolbar::{show_color_btn, show_opacity_slider, show_thickness_slider};
 use crate::tab::svg_editor::tools::eraser::DEFAULT_ERASER_RADIUS;
@@ -22,7 +24,7 @@ use crate::theme::palette::ThemePalette;
 use crate::widgets::{Button, switch};
 use crate::workspace::WsPersistentStore;
 
-use super::{SCREEN_PADDING, Toolbar, ToolbarContext};
+use super::{BRUSH_THICKNESS_STEP, SCREEN_PADDING, Toolbar, ToolbarContext};
 
 impl Toolbar {
     pub fn show_tools_island(
@@ -170,7 +172,7 @@ impl Toolbar {
                         Some(8.0),
                     );
                     if res.clicked() || res.drag_started() {
-                        change_pen_color(&mut self.pen, color);
+                        self.pen.change_color(color);
                     }
                 }
             }
@@ -356,7 +358,7 @@ impl Toolbar {
             ui,
             &mut self.eraser.radius,
             DEFAULT_ERASER_RADIUS..=DEFAULT_ERASER_RADIUS * 20.0,
-            1.0,
+            BRUSH_THICKNESS_STEP,
         );
         ui.add_space(10.0);
     }
@@ -442,7 +444,12 @@ fn show_pen_popover(ui: &mut egui::Ui, pen: &mut Pen, tlbr_ctx: &mut ToolbarCont
     // thickness hints.
     ui.add_space(20.0);
 
-    show_thickness_slider(ui, &mut pen.active_stroke_width, DEFAULT_PEN_STROKE_WIDTH..=10.0, 1.0);
+    show_thickness_slider(
+        ui,
+        &mut pen.active_stroke_width,
+        DEFAULT_PEN_STROKE_WIDTH..=10.0,
+        BRUSH_THICKNESS_STEP,
+    );
 
     if cfg!(target_os = "ios") || cfg!(target_os = "android") {
         ui.add_space(10.0);
@@ -495,7 +502,7 @@ fn show_highlighter_popover(ui: &mut egui::Ui, pen: &mut Pen, tlbr_ctx: &mut Too
         ui,
         &mut pen.active_stroke_width,
         DEFAULT_HIGHLIGHTER_STROKE_WIDTH..=40.0,
-        1.0,
+        BRUSH_THICKNESS_STEP,
     );
 
     ui.add_space(10.0);
@@ -514,19 +521,10 @@ fn show_color_swatches(ui: &mut egui::Ui, colors: Vec<DynamicColor>, pen: &mut P
             ThemePalette::resolve_dynamic_color(pen.active_color, ui.visuals().dark_mode);
         let color_btn = show_color_btn(ui, color, active_color, None);
         if color_btn.clicked() || color_btn.drag_started() {
-            change_pen_color(pen, c);
+            ui.ctx()
+                .push_event(crate::tab::Event::Canvas(CanvasAction::SetPenColor(c)));
         }
     });
-}
-
-fn change_pen_color(pen: &mut Pen, new_color: DynamicColor) {
-    if new_color == pen.active_color {
-        return;
-    }
-
-    pen.colors_history[1] = pen.colors_history[0];
-    pen.colors_history[0] = pen.active_color;
-    pen.active_color = new_color;
 }
 
 fn show_stroke_preview(ui: &mut egui::Ui, pen: &mut Pen, tlbr_ctx: &mut ToolbarContext) {
@@ -555,14 +553,10 @@ fn show_stroke_preview(ui: &mut egui::Ui, pen: &mut Pen, tlbr_ctx: &mut ToolbarC
         ThemePalette::resolve_dynamic_color(pen.active_color, ui.visuals().dark_mode)
             .linear_multiply(pen.active_opacity);
 
-    let mut thickness = pen.active_stroke_width;
-    if !pen.has_inf_thick {
-        thickness *= tlbr_ctx.viewport_settings.master_transform.sx;
-    }
-
+    let coordinates = tlbr_ctx.viewport_settings.coordinates();
     let subapth: Subpath<ManipulatorGroupId> = bez.graduated_outline(
-        (thickness + thickness * pen.pressure_alpha) as f64,
-        (thickness - thickness * pen.pressure_alpha) as f64,
+        pen.screen_radius(coordinates, 1.0).into_inner() as f64,
+        pen.screen_radius(coordinates, 0.0).into_inner() as f64,
         Cap::Round,
     );
 

@@ -9,8 +9,7 @@ use crate::tab::svg_editor::toolbar::get_non_additive;
 use crate::tab::svg_editor::toolbar::show_section_header;
 use crate::tab::svg_editor::util::draw_dashed_line;
 use crate::tab::svg_editor::viewport::{
-    MIN_ZOOM_LEVEL, get_rect_identity_transform, get_zoom_fit_transform, transform_canvas,
-    zoom_percentage_to_transform,
+    MIN_ZOOM_LEVEL, get_zoom_fit_transform, transform_canvas, zoom_percentage_to_transform,
 };
 use crate::tab::svg_editor::{BackgroundOverlay, get_secondary_color};
 use crate::theme::icons::Icon;
@@ -160,7 +159,7 @@ impl Toolbar {
             };
 
             if let Some(t) = transform {
-                transform_canvas(tlbr_ctx.buffer, tlbr_ctx.viewport_settings, t);
+                transform_canvas(tlbr_ctx.viewport_settings, t);
             };
 
             // fixes the jitter
@@ -254,7 +253,7 @@ impl Toolbar {
         if Button::default().text("FIT").show(ui).clicked() {
             let transform = get_zoom_fit_transform(tlbr_ctx.viewport_settings).unwrap_or_default();
 
-            transform_canvas(tlbr_ctx.buffer, tlbr_ctx.viewport_settings, transform);
+            transform_canvas(tlbr_ctx.viewport_settings, transform);
         }
 
         for zoom_percentage in [120.0, 100.0, 80.0] {
@@ -265,7 +264,7 @@ impl Toolbar {
             {
                 let transform =
                     zoom_percentage_to_transform(zoom_percentage, tlbr_ctx.viewport_settings, ui);
-                transform_canvas(tlbr_ctx.buffer, tlbr_ctx.viewport_settings, transform);
+                transform_canvas(tlbr_ctx.viewport_settings, transform);
             }
         }
     }
@@ -386,7 +385,11 @@ impl Toolbar {
                 if res.clicked() || res.drag_started() {
                     mode.set_active(tlbr_ctx);
 
-                    tlbr_ctx.viewport_settings.bounded_rect = Some(tlbr_ctx.painter.clip_rect());
+                    tlbr_ctx.viewport_settings.bounded_rect = Some(
+                        tlbr_ctx
+                            .viewport_settings
+                            .screen_rect_to_document(tlbr_ctx.painter.clip_rect()),
+                    );
 
                     tlbr_ctx
                         .settings
@@ -452,7 +455,9 @@ impl Toolbar {
         &self, ui: &mut egui::Ui, tlbr_ctx: &mut ToolbarContext<'_>,
         viewport_island_rect: egui::Rect,
     ) -> Option<Response> {
-        let elements_bound = tlbr_ctx.viewport_settings.bounded_rect?;
+        let elements_bound = tlbr_ctx
+            .viewport_settings
+            .document_rect_to_screen(tlbr_ctx.viewport_settings.bounded_rect?);
 
         if tlbr_ctx
             .buffer
@@ -505,19 +510,10 @@ impl Toolbar {
                                 .show(ui)
                                 .clicked()
                             {
-                                let transform = get_rect_identity_transform(
-                                    tlbr_ctx.viewport_settings.container_rect,
-                                    elements_bound,
-                                    0.7,
-                                    tlbr_ctx.viewport_settings.container_rect.center(),
-                                )
-                                .unwrap_or_default();
+                                let transform = get_zoom_fit_transform(tlbr_ctx.viewport_settings)
+                                    .unwrap_or_default();
 
-                                transform_canvas(
-                                    tlbr_ctx.buffer,
-                                    tlbr_ctx.viewport_settings,
-                                    transform,
-                                );
+                                transform_canvas(tlbr_ctx.viewport_settings, transform);
                             }
                         })
                     })

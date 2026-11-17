@@ -11,25 +11,95 @@ use super::buffer::u_transform_to_bezier;
 use super::diff::DiffState;
 
 #[derive(Clone)]
-pub enum Element {
+pub enum EditableElement {
     Path(Path),
     Image(Box<Image>),
     Text(Text),
 }
 
+/// Document information needed to serialize an element. Images are collected
+/// separately because they are stored in the drawing's shared metadata.
+pub struct SvgSerializationContext<'a> {
+    pub id: Uuid,
+    pub svg_id: &'a str,
+    pub z_index: usize,
+    pub weak_images: &'a mut WeakImages,
+}
+
+/// Serializes an editable element in document coordinates.
+pub trait SvgSerialize {
+    fn to_string(&self, context: &mut SvgSerializationContext<'_>) -> String;
+}
+
+impl SvgSerialize for EditableElement {
+    fn to_string(&self, context: &mut SvgSerializationContext<'_>) -> String {
+        match self {
+            Self::Path(path) => path.to_string(context),
+            Self::Image(image) => image.to_string(context),
+            Self::Text(text) => SvgSerialize::to_string(text, context),
+        }
+    }
+}
+
+impl SvgSerialize for Path {
+    fn to_string(&self, context: &mut SvgSerializationContext<'_>) -> String {
+        if self.deleted {
+            return String::new();
+        }
+        let mut curve_attrs = " ".to_string();
+        if let Some(stroke) = self.stroke {
+            curve_attrs = format!(
+                "stroke-width='{}' stroke='rgba({},{},{},{})' stroke-linecap='round' stroke-linejoin='round' fill='none' id='{}'",
+                stroke.width * self.stroke_scale(),
+                stroke.color.light.red,
+                stroke.color.light.green,
+                stroke.color.light.blue,
+                stroke.opacity,
+                context.svg_id
+            );
+        }
+
+        let data = &self.data;
+        let mut svg = String::new();
+        if data.len() > 1 {
+            data.to_svg(&mut svg, curve_attrs, "".into(), "".into(), "".into());
+        }
+        svg
+    }
+}
+
+impl SvgSerialize for Image {
+    fn to_string(&self, context: &mut SvgSerializationContext<'_>) -> String {
+        if !self.deleted {
+            let image = self.into_weak(context.z_index);
+            context.weak_images.insert(context.id, image);
+        }
+        String::new()
+    }
+}
+
+impl SvgSerialize for Text {
+    fn to_string(&self, _context: &mut SvgSerializationContext<'_>) -> String {
+        // Text serialization is not supported by the editor yet.
+        String::new()
+    }
+}
+
 #[derive(Clone)]
 pub struct Path {
+    /// Geometry in document coordinates; independent of every editor viewport.
     pub data: Subpath<ManipulatorGroupId>,
     pub visible: bool,
     pub fill: Option<Fill>,
     pub stroke: Option<Stroke>,
+    /// Accumulated element edits, used to scale stroke width. Geometry already
+    /// contains these edits; rendering must not apply this matrix again.
     pub transform: Transform,
     pub diff_state: DiffState,
     pub deleted: bool,
-    pub opacity: f32,
 }
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Stroke {
     pub color: DynamicColor,
     pub opacity: f32,
@@ -77,10 +147,18 @@ impl Default for DynamicColor {
 
 impl PartialEq for Path {
     fn eq(&self, other: &Self) -> bool {
-        self.data.len() == other.data.len()
+        self.data == other.data
             && self.visible == other.visible
             && self.transform == other.transform
             && self.deleted == other.deleted
+            && self.stroke == other.stroke
+    }
+}
+
+impl Path {
+    pub fn stroke_scale(&self) -> f32 {
+        (self.transform.sx.hypot(self.transform.ky) + self.transform.kx.hypot(self.transform.sy))
+            / 2.0
     }
 }
 
@@ -162,8 +240,11 @@ impl PartialEq for WeakImage {
     fn eq(&self, other: &Self) -> bool {
         self.href == other.href
             && self.transform == other.transform
-            && self.opacity == other.opacity
             && self.z_index == other.z_index
+            && self.x == other.x
+            && self.y == other.y
+            && self.width == other.width
+            && self.height == other.height
     }
 }
 
@@ -219,109 +300,113 @@ impl Identifier for ManipulatorGroupId {
 #[derive(Clone, PartialEq, Eq, Hash, Debug)]
 pub struct ManipulatorGroupId;
 
-impl Element {
+impl EditableElement {
     pub fn opacity_changed(&self) -> bool {
         match self {
-            Element::Path(p) => p.diff_state.opacity_changed,
-            Element::Image(i) => i.diff_state.opacity_changed,
-            Element::Text(_) => todo!(),
+            EditableElement::Path(p) => p.diff_state.opacity_changed,
+            EditableElement::Image(i) => i.diff_state.opacity_changed,
+            EditableElement::Text(_) => todo!(),
         }
     }
     pub fn delete_changed(&self) -> bool {
         match self {
-            Element::Path(p) => p.diff_state.delete_changed,
-            Element::Image(i) => i.diff_state.delete_changed,
-            Element::Text(_) => todo!(),
+            EditableElement::Path(p) => p.diff_state.delete_changed,
+            EditableElement::Image(i) => i.diff_state.delete_changed,
+            EditableElement::Text(_) => todo!(),
         }
     }
     pub fn data_changed(&self) -> bool {
         match self {
-            Element::Path(p) => p.diff_state.data_changed,
-            Element::Image(i) => i.diff_state.data_changed,
-            Element::Text(_) => todo!(),
+            EditableElement::Path(p) => p.diff_state.data_changed,
+            EditableElement::Image(i) => i.diff_state.data_changed,
+            EditableElement::Text(_) => todo!(),
         }
     }
     pub fn mark_data_change(&mut self) {
         match self {
-            Element::Path(p) => p.diff_state.data_changed = true,
-            Element::Image(i) => i.diff_state.data_changed = true,
-            Element::Text(_) => todo!(),
+            EditableElement::Path(p) => p.diff_state.data_changed = true,
+            EditableElement::Image(i) => i.diff_state.data_changed = true,
+            EditableElement::Text(_) => todo!(),
         }
     }
     pub fn deleted(&self) -> bool {
         match self {
-            Element::Path(p) => p.deleted,
-            Element::Image(i) => i.deleted,
-            Element::Text(_) => todo!(),
+            EditableElement::Path(p) => p.deleted,
+            EditableElement::Image(i) => i.deleted,
+            EditableElement::Text(_) => todo!(),
         }
     }
     pub fn transformed(&self) -> Option<Transform> {
         match self {
-            Element::Path(p) => p.diff_state.transformed,
-            Element::Image(i) => i.diff_state.transformed,
-            Element::Text(_) => todo!(),
+            EditableElement::Path(p) => p.diff_state.transformed,
+            EditableElement::Image(i) => i.diff_state.transformed,
+            EditableElement::Text(_) => todo!(),
         }
     }
     pub fn transform(&mut self, transform: Transform) {
         match self {
-            Element::Path(path) => {
+            EditableElement::Path(path) => {
                 path.diff_state.transformed = Some(transform);
                 path.transform = path.transform.post_concat(transform);
                 path.data.apply_transform(u_transform_to_bezier(&transform));
             }
-            Element::Image(img) => {
+            EditableElement::Image(img) => {
                 img.diff_state.transformed = Some(transform);
                 img.transform = img.transform.post_concat(transform);
                 if let Some(new_vbox) = img.view_box.transform(transform) {
                     img.view_box = new_vbox;
                 }
             }
-            Element::Text(_) => todo!(),
+            EditableElement::Text(_) => todo!(),
         }
     }
 
     pub fn get_transform(&self) -> Transform {
         match self {
-            Element::Path(path) => path.transform,
-            Element::Image(img) => img.transform,
-            Element::Text(_) => todo!(),
+            EditableElement::Path(path) => path.transform,
+            EditableElement::Image(img) => img.transform,
+            EditableElement::Text(_) => todo!(),
         }
     }
 
     pub fn opacity(&self) -> f32 {
         match self {
-            Element::Path(path) => path.opacity,
-            Element::Image(image) => image.opacity,
-            Element::Text(_) => todo!(),
+            EditableElement::Path(path) => path.stroke.map_or(1.0, |stroke| stroke.opacity),
+            EditableElement::Image(image) => image.opacity,
+            EditableElement::Text(_) => todo!(),
         }
     }
 
     pub fn set_opacity(&mut self, opacity: f32) {
         match self {
-            Element::Path(path) => path.opacity = opacity,
-            Element::Image(image) => image.opacity = opacity,
-            Element::Text(_) => todo!(),
+            EditableElement::Path(path) => {
+                if let Some(stroke) = &mut path.stroke {
+                    stroke.opacity = opacity;
+                }
+            }
+            EditableElement::Image(image) => image.opacity = opacity,
+            EditableElement::Text(_) => todo!(),
         }
         match self {
-            Element::Path(path) => path.diff_state.opacity_changed = true,
-            Element::Image(image) => image.diff_state.opacity_changed = true,
-            Element::Text(_) => todo!(),
+            EditableElement::Path(path) => path.diff_state.opacity_changed = true,
+            EditableElement::Image(image) => image.diff_state.opacity_changed = true,
+            EditableElement::Text(_) => todo!(),
         }
     }
 
     pub fn stroke(&self) -> Option<Stroke> {
         match self {
-            Element::Path(path) => path.stroke,
-            Element::Image(_) => None,
-            Element::Text(_) => todo!(),
+            EditableElement::Path(path) => path.stroke,
+            EditableElement::Image(_) => None,
+            EditableElement::Text(_) => todo!(),
         }
     }
 
     pub fn set_stroke(&mut self, stroke: Stroke) {
         match self {
-            Element::Path(path) => path.stroke = Some(stroke),
-            Element::Image(_) => {}
-            Element::Text(_) => {}
+            EditableElement::Path(path) => path.stroke = Some(stroke),
+            EditableElement::Image(_) => {}
+            EditableElement::Text(_) => {}
         }
         self.mark_data_change();
     }

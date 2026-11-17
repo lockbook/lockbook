@@ -77,7 +77,9 @@ impl ImageViewer {
             picture,
             embedded: false,
             images,
-            input_controller: InputController::new(InputControllerConfig::new(true, true), &[]),
+            input_controller: InputController::new(InputControllerConfig::new(true, true, |_| {
+                None
+            })),
             master_transform: Transform::identity(),
             islands: Vec::new(),
             menu_open: false,

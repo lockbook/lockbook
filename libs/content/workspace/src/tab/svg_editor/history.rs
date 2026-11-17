@@ -3,7 +3,7 @@ use std::fmt::Debug;
 
 use lb_rs::Uuid;
 use lb_rs::model::svg::buffer::Buffer;
-use lb_rs::model::svg::element::{Element, Stroke};
+use lb_rs::model::svg::element::{EditableElement, Stroke};
 use resvg::usvg::Transform;
 
 #[derive(Default, Debug)]
@@ -66,15 +66,15 @@ impl History {
                 payload.iter().for_each(|insert_payload| {
                     if let Some(el) = buffer.elements.get_mut(&insert_payload.id) {
                         match el {
-                            Element::Path(p) => {
+                            EditableElement::Path(p) => {
                                 p.deleted = false;
                                 p.diff_state.delete_changed = true;
                             }
-                            Element::Image(i) => {
+                            EditableElement::Image(i) => {
                                 i.deleted = false;
                                 i.diff_state.delete_changed = true;
                             }
-                            Element::Text(_) => todo!(),
+                            EditableElement::Text(_) => todo!(),
                         }
                     }
                 });
@@ -83,15 +83,15 @@ impl History {
                 payload.iter().for_each(|delete_payload| {
                     if let Some(el) = buffer.elements.get_mut(&delete_payload.id) {
                         match el {
-                            Element::Path(p) => {
+                            EditableElement::Path(p) => {
                                 p.deleted = true;
                                 p.diff_state.delete_changed = true;
                             }
-                            Element::Image(i) => {
+                            EditableElement::Image(i) => {
                                 i.deleted = true;
                                 i.diff_state.delete_changed = true;
                             }
-                            Element::Text(_) => todo!(),
+                            EditableElement::Text(_) => todo!(),
                         }
                     }
                 });

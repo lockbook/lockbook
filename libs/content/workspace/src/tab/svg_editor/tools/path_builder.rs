@@ -1,18 +1,14 @@
-use std::collections::VecDeque;
-
 use bezier_rs::{Bezier, Subpath};
 use glam::DVec2;
 
 use lb_rs::model::svg::element::ManipulatorGroupId;
-use resvg::usvg::Transform;
 
-/// Build a cubic bézier path with Catmull-Rom smoothing and Ramer–Douglas–Peucker compression
+/// Builds a sampled path, filtering redundant points and preserving tap geometry.
 #[derive(Debug)]
 pub struct PathBuilder {
-    /// store the 4 past points
-    pub prev_points_window: VecDeque<egui::Pos2>,
-    pub is_canceled_path: bool,
     pub first_predicted_mg: Option<usize>,
+    /// Screen sampling threshold expressed in document units.
+    pub tolerance: f64,
 }
 
 impl Default for PathBuilder {
@@ -23,11 +19,7 @@ impl Default for PathBuilder {
 
 impl PathBuilder {
     pub fn new() -> Self {
-        PathBuilder {
-            prev_points_window: VecDeque::from(vec![]),
-            is_canceled_path: false,
-            first_predicted_mg: None,
-        }
+        PathBuilder { first_predicted_mg: None, tolerance: 0.5 }
     }
 
     pub fn line_to(
@@ -43,13 +35,21 @@ impl PathBuilder {
                 dest.x.into(),
                 dest.y.into(),
             );
+            // A tap starts as two coincident anchors. Its provisional endpoint
+            // is replaced by the first real movement, rather than kept as a kink.
+            if path.len() == 2
+                && path.manipulator_groups()[0].anchor == path.manipulator_groups()[1].anchor
+            {
+                path.remove_manipulator_group(1);
+            }
             path.append_bezier(&bez, bezier_rs::AppendType::IgnoreStart);
             Some(path.manipulator_groups().len() - 1)
         } else {
+            // A zero-length round-capped segment is a dot at the actual touch.
             path.append_bezier(
                 &Bezier::from_linear_dvec2(
                     DVec2 { x: dest.x.into(), y: dest.y.into() },
-                    DVec2 { x: dest.x as f64 + 1.0, y: dest.y as f64 + 1.0 },
+                    DVec2 { x: dest.x.into(), y: dest.y.into() },
                 ),
                 bezier_rs::AppendType::IgnoreStart,
             );
@@ -58,8 +58,7 @@ impl PathBuilder {
     }
 
     pub fn clear(&mut self) {
-        self.prev_points_window.clear();
-        self.is_canceled_path = false;
+        self.first_predicted_mg = None;
     }
 
     fn is_redundant_point(&self, path: &Subpath<ManipulatorGroupId>, point: egui::Pos2) -> bool {
@@ -71,133 +70,29 @@ impl PathBuilder {
         let distance = last_point
             .anchor
             .distance(glam::DVec2 { x: point.x as f64, y: point.y as f64 });
-        let tolerance = 0.5;
-        distance < tolerance
-    }
-
-    pub fn snap(&mut self, master_transform: Transform, path: &mut Subpath<ManipulatorGroupId>) {
-        let perim = path.length(None) as f32;
-        let tolerance = perim * 0.04 * master_transform.sx;
-
-        let maybe_simple_points = self.simplify(tolerance, path);
-
-        for i in (0..path.manipulator_groups().len()).rev() {
-            path.remove_manipulator_group(i);
-        }
-        self.clear();
-
-        if let Some(simple_points) = maybe_simple_points {
-            simple_points.iter().for_each(|p| {
-                self.line_to(*p, path);
-            });
-        }
-    }
-
-    /// Ramer–Douglas–Peucker algorithm courtesy of @author: Michael-F-Bryan
-    /// https://github.com/Michael-F-Bryan/arcs/blob/master/core/src/algorithms/line_simplification.rs
-    fn simplify(
-        &mut self, tolerance: f32, path: &Subpath<ManipulatorGroupId>,
-    ) -> Option<Vec<egui::Pos2>> {
-        let mut simplified_points = Vec::new();
-
-        // push the first point
-        let mut points = vec![];
-        path.iter().for_each(|b| {
-            points.push(egui::pos2(b.start().x as f32, b.start().y as f32));
-            points.push(egui::pos2(b.end().x as f32, b.end().y as f32));
-        });
-
-        simplified_points.push(points[0]);
-
-        // then simplify every point in between the start and end
-        self.simplify_points(&points, tolerance, &mut simplified_points);
-        // and finally the last one
-        simplified_points.push(*points.last().unwrap());
-
-        Some(simplified_points)
-    }
-
-    fn simplify_points(&self, points: &[egui::Pos2], tolerance: f32, buffer: &mut Vec<egui::Pos2>) {
-        if points.len() < 2 {
-            return;
-        }
-        let first = points.first().unwrap();
-        let last = points.last().unwrap();
-        let rest = &points[1..points.len() - 1];
-
-        let line_segment = Line::new(*first, *last);
-
-        if let Some((ix, distance)) =
-            self.max_by_key(rest, |p| line_segment.perpendicular_distance_to(*p))
-        {
-            if distance > tolerance {
-                // note: index is the index into `rest`, but we want it relative
-                // to `point`
-                let ix = ix + 1;
-
-                self.simplify_points(&points[..=ix], tolerance, buffer);
-                buffer.push(points[ix]);
-                self.simplify_points(&points[ix..], tolerance, buffer);
-            }
-        }
-    }
-
-    fn max_by_key<T, F, K>(&self, items: &[T], mut key_func: F) -> Option<(usize, K)>
-    where
-        F: FnMut(&T) -> K,
-        K: PartialOrd,
-    {
-        let mut best_so_far = None;
-
-        for (i, item) in items.iter().enumerate() {
-            let key = key_func(item);
-
-            let is_better = match best_so_far {
-                Some((_, ref best_key)) => key > *best_key,
-                None => true,
-            };
-
-            if is_better {
-                best_so_far = Some((i, key));
-            }
-        }
-        best_so_far
+        distance < self.tolerance
     }
 }
 
-struct Line {
-    start: egui::Pos2,
-    end: egui::Pos2,
-}
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use egui::pos2;
 
-impl Line {
-    fn new(start: egui::Pos2, end: egui::Pos2) -> Self {
-        Line { start, end }
-    }
-
-    fn length(&self) -> f32 {
-        let dx = self.end.x - self.start.x;
-        let dy = self.end.y - self.start.y;
-
-        // Using the Pythagorean theorem to calculate the length
-        (dx * dx + dy * dy).sqrt()
-    }
-
-    fn perpendicular_distance_to(&self, point: egui::Pos2) -> f32 {
-        const SOME_SMALL_NUMBER: f32 = f32::EPSILON * 100.0;
-
-        let side_a = self.start - point;
-        let side_b = self.end - point;
-
-        let area = (side_a.x * side_b.y - side_a.y * side_b.x) / 2.0;
-
-        // area = base * height / 2
-        let base_length = self.length();
-
-        if base_length.abs() < SOME_SMALL_NUMBER {
-            side_a.length()
-        } else {
-            area.abs() * 2.0 / base_length
+    #[test]
+    fn stroke_starts_with_real_samples_without_an_offset_point() {
+        let mut builder = PathBuilder::new();
+        let mut path: Subpath<ManipulatorGroupId> = Subpath::new(vec![], false);
+        let points =
+            [pos2(552.23254, 425.79202), pos2(554.72473, 426.4561), pos2(556.2169, 427.2061)];
+        for point in points {
+            builder.line_to(point, &mut path);
         }
+        let anchors: Vec<_> = path
+            .manipulator_groups()
+            .iter()
+            .map(|group| pos2(group.anchor.x as f32, group.anchor.y as f32))
+            .collect();
+        assert_eq!(anchors, points);
     }
 }

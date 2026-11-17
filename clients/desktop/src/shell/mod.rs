@@ -438,6 +438,10 @@ impl ShellApp {
             sheets::show_modals(self, ctx, &t, &mut queue);
         }
 
+        if self.modal.is_some() {
+            ctx.root_ui(|root| root.disable());
+        }
+
         let show_side = self.product_open() && self.sidebar_open && !self.defaults_zen();
 
         // One SidePanel: slide its contents (right edge glued to visible width).

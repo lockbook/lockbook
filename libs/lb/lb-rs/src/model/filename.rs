@@ -1,8 +1,5 @@
 use crate::model::file::File;
-use crate::model::svg::buffer::u_transform_to_bezier;
-use crate::model::svg::element::Element;
 use crate::model::{chat, json, svg, text};
-use usvg::Transform;
 
 pub const MAX_FILENAME_LENGTH: usize = 230;
 pub const MAX_ENCRYPTED_FILENAME_LENGTH: usize = MAX_FILENAME_LENGTH + 24;
@@ -42,19 +39,10 @@ impl DocumentType {
                 let base_buffer = svg::buffer::Buffer::new(&text(base));
                 let remote_buffer = svg::buffer::Buffer::new(&text(remote));
                 let mut local_buffer = svg::buffer::Buffer::new(&text(local));
-                for (_, el) in local_buffer.elements.iter_mut() {
-                    if let Element::Path(path) = el {
-                        path.data
-                            .apply_transform(u_transform_to_bezier(&Transform::from(
-                                local_buffer.weak_viewport_settings.master_transform,
-                            )));
-                    }
-                }
                 svg::buffer::Buffer::reload(
                     &mut local_buffer.elements,
                     &mut local_buffer.weak_images,
                     &mut local_buffer.weak_path_pressures,
-                    &mut local_buffer.weak_viewport_settings,
                     &base_buffer,
                     &remote_buffer,
                 );

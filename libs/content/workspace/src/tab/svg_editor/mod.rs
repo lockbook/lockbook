@@ -1,8 +1,11 @@
 mod background;
 mod clip;
+mod coordinates;
 mod element;
 mod history;
-pub(super) mod keyboard_shortcuts;
+mod keyboard_shortcuts;
+#[cfg(test)]
+mod tests;
 mod viewport;
 
 mod renderer;
@@ -16,7 +19,7 @@ use web_time::Instant;
 use self::history::History;
 use crate::tab::ExtendedInput;
 use crate::tab::input_controller::{
-    self, InputController, InputControllerConfig, InputControllerEvent, LayoutContext,
+    InputController, InputControllerConfig, InputControllerEvent, LayoutContext,
 };
 use crate::tab::svg_editor::toolbar::Toolbar;
 use crate::tab::svg_editor::viewport::transform_canvas;
@@ -24,20 +27,24 @@ use crate::theme::palette::ThemePalette;
 use crate::workspace::WsPersistentStore;
 
 use colors_transform::Color;
+pub use element::CanvasImages;
 use element::PromoteBufferWeakImages;
 pub use history::{DeleteElement, Event, InsertElement};
 use lb_rs::Uuid;
-use lb_rs::blocking::Lb;
 use lb_rs::model::file_metadata::DocumentHmac;
-use lb_rs::model::svg::buffer::{Buffer, u_transform_to_bezier};
+use lb_rs::model::svg::buffer::Buffer;
 use lb_rs::model::svg::diff::DiffState;
-use lb_rs::model::svg::element::{DynamicColor, Element};
+use lb_rs::model::svg::element::{DynamicColor, EditableElement};
 use renderer::Renderer;
 use resvg::usvg::Transform;
 use serde::{Deserialize, Serialize};
 pub use toolbar::Tool;
 use toolbar::{ToolContext, ToolbarContext};
+use tools::InputControllerTool;
 use tools::pen::PenSettings;
+pub use tools::{
+    eraser::EraseEvent, pen::PathEvent, selection::SelectionEvent, shapes::ShapeEvent,
+};
 use tracing::info;
 
 pub struct SVGEditor {
@@ -53,8 +60,8 @@ pub struct SVGEditor {
     history: History,
     pub toolbar: Toolbar,
 
-    input_controller: InputController,
-    lb: Lb,
+    input_controller: InputController<CanvasAction>,
+    images: Box<dyn CanvasImages>,
     pub open_file: Uuid,
     last_render: Instant,
     renderer: Renderer,
@@ -65,15 +72,17 @@ pub struct SVGEditor {
     input_ctx: InputContext,
 
     read_only: bool,
+    viewport_initialized: bool,
+    pending_viewport: Option<Transform>,
+    viewport_write_pending: Option<Instant>,
 }
 #[derive(Debug, Clone, Copy)]
 pub struct ViewportSettings {
-    /// the drawable rect in the viewport-transformed plane.
+    /// The drawable bounds in document coordinates.
     /// **only defined if there's a lock**
     pub bounded_rect: Option<egui::Rect>,
     /// the intersection of the bounded rect and the current screen rect
     pub working_rect: egui::Rect,
-    pub viewport_transform: Option<Transform>,
     pub master_transform: Transform,
     container_rect: egui::Rect,
     pub left_locked: bool,
@@ -87,7 +96,6 @@ impl Default for ViewportSettings {
         Self {
             bounded_rect: None,
             working_rect: egui::Rect::ZERO,
-            viewport_transform: None,
             master_transform: Transform::identity(),
             left_locked: false,
             right_locked: false,
@@ -150,37 +158,89 @@ enum BackgroundOverlay {
 }
 
 impl SVGEditor {
+    pub(crate) fn reload_document(&mut self, content: &str, hmac: Option<DocumentHmac>) {
+        let remote = Buffer::new(content);
+        Buffer::reload(
+            &mut self.buffer.elements,
+            &mut self.buffer.weak_images,
+            &mut self.buffer.weak_path_pressures,
+            &self.opened_content,
+            &remote,
+        );
+        self.buffer.promote_weak_images(&*self.images);
+        self.viewport_settings.update_working_rect(
+            self.settings,
+            &self.buffer,
+            &DiffState::new(),
+            self.toolbar.hide_overlay,
+        );
+        self.renderer.request_rerender = true;
+        self.toolbar.invalidate_document();
+        self.opened_content = remote;
+        self.open_file_hmac = hmac;
+    }
+
+    fn persist_viewport(&mut self, ctx: &egui::Context) {
+        if !self.viewport_initialized {
+            return;
+        }
+        let transform = self.viewport_settings.viewport_transform();
+        if !viewport::is_valid_transform(&transform) {
+            return;
+        }
+        {
+            let transform = transform.into();
+            let mut data = self.cfg.data.write().unwrap();
+            if data.canvas_transforms.get(&self.open_file) != Some(&transform) {
+                data.canvas_transforms.insert(self.open_file, transform);
+                self.viewport_write_pending = Some(Instant::now());
+            }
+        }
+        if let Some(changed) = self.viewport_write_pending {
+            let debounce = std::time::Duration::from_millis(150);
+            if changed.elapsed() >= debounce {
+                self.flush_viewport();
+            } else {
+                ctx.request_repaint_after(debounce.saturating_sub(changed.elapsed()));
+            }
+        }
+    }
+
+    pub(crate) fn flush_viewport(&mut self) {
+        if self.viewport_write_pending.take().is_some() {
+            self.cfg.write_to_file();
+        }
+    }
+
     pub fn new(
-        bytes: &[u8], ctx: &egui::Context, lb: lb_rs::blocking::Lb, open_file: Uuid,
+        bytes: &[u8], ctx: &egui::Context, images: Box<dyn CanvasImages>, open_file: Uuid,
         hmac: Option<DocumentHmac>, cfg: &WsPersistentStore, read_only: bool,
     ) -> Self {
         let content = std::str::from_utf8(bytes).unwrap();
 
-        let mut buffer = Buffer::new(content);
-        let mut viewport_settings = ViewportSettings::from(buffer.weak_viewport_settings);
-
-        for (_, el) in buffer.elements.iter_mut() {
-            if let Element::Path(path) = el {
-                path.data
-                    .apply_transform(u_transform_to_bezier(&viewport_settings.master_transform));
-            }
-        }
+        let buffer = Buffer::new(content);
+        let mut viewport_settings = ViewportSettings::default();
 
         let elements_count = buffer.elements.len();
 
         let mut cfg = cfg.clone();
         let settings = cfg.get_canvas_settings();
+        let pending_viewport = cfg
+            .data
+            .read()
+            .unwrap()
+            .canvas_transforms
+            .get(&open_file)
+            .copied()
+            .map(Transform::from)
+            .filter(viewport::is_valid_transform);
 
         let toolbar = Toolbar::new(elements_count, &settings);
 
-        if viewport_settings.master_transform == Transform::identity() && buffer.elements.is_empty()
-        {
-            viewport_settings.bottom_locked = settings.bottom_locked;
-            viewport_settings.left_locked = settings.left_locked;
-            viewport_settings.right_locked = settings.right_locked;
-            viewport_settings.top_locked = settings.top_locked;
-            viewport_settings.bounded_rect = Some(ctx.content_rect());
-        }
+        viewport_settings.bottom_locked = settings.bottom_locked;
+        viewport_settings.left_locked = settings.left_locked;
+        viewport_settings.right_locked = settings.right_locked;
+        viewport_settings.top_locked = settings.top_locked;
 
         if read_only {
             info!(id=?open_file, "creating canvas with read only mode");
@@ -193,7 +253,7 @@ impl SVGEditor {
             open_file_hmac: hmac,
             history: History::default(),
             toolbar,
-            lb,
+            images,
             open_file,
             last_render: Instant::now(),
             painter: egui::Painter::new(
@@ -208,40 +268,70 @@ impl SVGEditor {
             viewport_settings,
             cfg,
             read_only,
-            input_controller: InputController::new(
-                InputControllerConfig::new(settings.pencil_only_drawing, read_only),
-                keyboard_shortcuts::BINDINGS,
-            ),
+            input_controller: InputController::new(InputControllerConfig::new(
+                settings.pencil_only_drawing,
+                read_only,
+                keyboard_shortcuts::resolve,
+            )),
+            viewport_initialized: false,
+            pending_viewport,
+            viewport_write_pending: None,
         }
     }
 
     pub fn show(&mut self, ui: &mut egui::Ui) -> Response {
         set_style(ui);
 
-        self.viewport_settings.container_rect = ui.available_rect_before_wrap();
-        self.input_ctx.update(ui);
-        self.buffer.weak_viewport_settings = self.viewport_settings.into();
-
-        let non_empty_weak_imaegs = !self.buffer.weak_images.is_empty();
-        self.buffer
-            .promote_weak_images(self.viewport_settings.master_transform, &self.lb);
-
-        let request_diff_change = !self.embedded && self.show_toolbar(ui);
-
-        if !request_diff_change {
-            for (_, el) in &mut self.buffer.elements {
-                match el {
-                    Element::Path(p) => p.diff_state = DiffState::default(),
-                    Element::Image(i) => i.diff_state = DiffState::default(),
-                    Element::Text(_) => todo!(),
-                }
+        self.buffer.promote_weak_images(&*self.images);
+        let container = ui.available_rect_before_wrap();
+        if container.is_finite() && container.is_positive() {
+            if !self.viewport_initialized {
+                self.viewport_settings.initialize(
+                    container,
+                    &self.buffer,
+                    self.pending_viewport.take(),
+                );
+                self.viewport_initialized = true;
+            } else {
+                self.viewport_settings.update_container(container);
             }
+        }
+        self.input_ctx.update(ui);
+        if !ui.is_enabled() {
+            self.toolbar.selection.cancel_opacity_preview();
+            self.toolbar.eraser.cancel_preview();
+        }
+
+        self.viewport_settings.update_working_rect(
+            self.settings,
+            &self.buffer,
+            &DiffState::default(),
+            self.toolbar.hide_overlay,
+        );
+
+        for el in self.buffer.elements.values_mut() {
+            match el {
+                EditableElement::Path(p) => p.diff_state = DiffState::default(),
+                EditableElement::Image(i) => i.diff_state = DiffState::default(),
+                EditableElement::Text(_) => todo!(),
+            }
+        }
+        let previous_brush_size = self.toolbar.active_brush_size();
+        if !self.embedded {
+            self.show_toolbar(ui);
         }
         self.input_controller.sync_canvas_settings(&self.settings);
         // an embed's host scrolls by the wheel
         self.input_controller.pan_on_wheel = !self.embedded;
 
-        self.process_events(ui);
+        self.process_events(ui, previous_brush_size);
+
+        self.viewport_settings.update_working_rect(
+            self.settings,
+            &self.buffer,
+            &DiffState::default(),
+            self.toolbar.hide_overlay,
+        );
 
         self.painter = ui.painter_at(self.viewport_settings.working_rect);
 
@@ -265,10 +355,11 @@ impl SVGEditor {
             self.toolbar.hide_overlay || self.embedded,
         );
 
-        if non_empty_weak_imaegs {
-            self.has_queued_save_request = true;
-        }
         if global_diff.is_dirty() {
+            // The minimap paints before tool input. Keep it invalidated for
+            // the next frame, when these edit flags have been cleared.
+            self.toolbar.invalidate_document();
+            ui.ctx().request_repaint();
             self.has_queued_save_request = true;
         }
 
@@ -280,7 +371,7 @@ impl SVGEditor {
                 false
             };
 
-        self.buffer.master_transform_changed = false;
+        self.persist_viewport(ui.ctx());
         if !self.embedded {
             ui.ctx().pop_events();
         }
@@ -316,7 +407,7 @@ impl SVGEditor {
         .inner
     }
 
-    fn process_events(&mut self, ui: &mut egui::Ui) {
+    fn process_events(&mut self, ui: &mut egui::Ui, previous_brush_size: Option<f32>) {
         if !ui.is_enabled() {
             return;
         }
@@ -359,45 +450,42 @@ impl SVGEditor {
         self.toolbar
             .active_tool_mut()
             .show_tool_ui(ui, &mut tool_context);
-        let mut selection_seen_tool_run = false;
-        for event in self.input_controller.process(ui, &layout_ctx) {
-            if let InputControllerEvent::KeyboardAction(action) = event {
-                execute_keyboard_action(
-                    ui,
-                    action,
-                    &mut self.toolbar,
-                    &mut tool_context,
-                    &mut self.cfg,
-                );
-                continue;
-            }
-            let active_tool = self.toolbar.active_tool;
-            if selection_seen_tool_run && matches!(event, InputControllerEvent::ToolRun(..)) {
-                continue;
-            }
 
-            if let input_controller::InputControllerEvent::ViewportChange(transform) = event {
-                transform_canvas(tool_context.buffer, tool_context.viewport_settings, transform);
-            } else if let input_controller::InputControllerEvent::Gesture(num_touches) = event {
-                if num_touches == 2 {
-                    tool_context.history.undo(tool_context.buffer)
-                } else if num_touches == 3 {
-                    tool_context.history.redo(tool_context.buffer)
+        let events = self.input_controller.process(ui, &layout_ctx);
+
+        for event in events {
+            let action = match event {
+                InputControllerEvent::Action(action) => Some(action),
+                InputControllerEvent::ViewportChange(transform) => {
+                    Some(CanvasAction::TransformViewport(transform))
                 }
-            } else {
-                self.toolbar.active_tool_mut().process_controller_event(
-                    ui,
-                    event,
-                    &mut tool_context,
-                );
-            }
-
-            if active_tool == Tool::Selection && matches!(event, InputControllerEvent::ToolRun(..))
-            {
-                selection_seen_tool_run = true;
+                InputControllerEvent::Gesture(2) => Some(CanvasAction::Undo),
+                InputControllerEvent::Gesture(3) => Some(CanvasAction::Redo),
+                InputControllerEvent::Gesture(_) => None,
+                _ => self
+                    .toolbar
+                    .active_tool_mut()
+                    .controller_event_to_tool_event(event),
+            };
+            if let Some(action) = action {
+                execute_action(ui, action, &mut self.toolbar, &mut tool_context, &mut self.cfg);
             }
         }
 
+        // Toolbar controls already produce canvas commands; execute them here
+        // after input events, alongside commands from keyboard shortcuts.
+        for event in ui.ctx().read_events() {
+            if let crate::tab::Event::Canvas(action) = event {
+                if !self.read_only || matches!(action, CanvasAction::TransformViewport(_)) {
+                    execute_action(ui, action, &mut self.toolbar, &mut tool_context, &mut self.cfg);
+                }
+            }
+        }
+
+        if previous_brush_size != self.toolbar.active_brush_size() {
+            self.input_controller
+                .refresh_hover_indicator(ui.ctx(), &layout_ctx);
+        }
         self.input_controller.show_hover_indicator(
             ui,
             &mut tool_context,
@@ -411,14 +499,20 @@ impl SVGEditor {
         ui.vertical(|ui| {
             self.renderer.render_svg(
                 ui,
-                &mut self.buffer,
+                coordinates::CanvasView::new(&self.buffer, self.viewport_settings.coordinates()),
                 &mut self.painter,
-                Default::default(),
-                self.viewport_settings.master_transform,
+                |id, opacity| {
+                    self.toolbar.eraser.preview_opacity(
+                        id,
+                        self.toolbar
+                            .selection
+                            .preview_opacity(id)
+                            .unwrap_or(opacity),
+                    )
+                },
             )
         })
         .inner
-        .diff_state
     }
 
     fn show_debug_info(&mut self, ui: &mut egui::Ui) {
@@ -430,7 +524,7 @@ impl SVGEditor {
             .iter()
             .filter(|(_, el)| !el.deleted())
             .for_each(|(_, el)| {
-                if let Element::Path(p) = el {
+                if let EditableElement::Path(p) = el {
                     anchor_count += p.data.len()
                 }
             });
@@ -450,13 +544,64 @@ impl SVGEditor {
     }
 }
 
-fn execute_keyboard_action(
-    ui: &mut egui::Ui, action: keyboard_shortcuts::CanvasAction, toolbar: &mut Toolbar,
-    ctx: &mut ToolContext, cfg: &mut WsPersistentStore,
+/// A command or tool interaction executed by the canvas.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum CanvasAction {
+    Pen(PathEvent),
+    Highlighter(PathEvent),
+    Erase(EraseEvent),
+    Shape(ShapeEvent),
+    Selection(SelectionEvent),
+    TransformViewport(Transform),
+    DeleteSelection,
+    CutSelection,
+    CopySelection,
+    SelectAll,
+    Undo,
+    Redo,
+    SetTool(Tool),
+    ToggleToolPopover,
+    SetSelectionColor(DynamicColor),
+    SetSelectionWidth(f32),
+    SetSelectionOpacity(f32),
+    MoveSelectionLayer(LayerMove),
+    /// for the pen or highlighter, whichever is active
+    SetPenColor(DynamicColor),
+    SetPenWidth(f32),
+    /// Step the active pen/highlighter width or eraser radius.
+    AdjustBrushSize(f32),
+    SetPenOpacity(f32),
+}
+
+/// Index 0 is drawn on top.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum LayerMove {
+    ToBack,
+    Backward,
+    Forward,
+    ToFront,
+}
+
+fn execute_action(
+    ui: &mut egui::Ui, action: CanvasAction, toolbar: &mut Toolbar, ctx: &mut ToolContext,
+    cfg: &mut WsPersistentStore,
 ) {
-    use keyboard_shortcuts::CanvasAction as A;
-    use tools::{InputControllerTool, selection::SelectionEvent};
+    use CanvasAction as A;
+    if matches!(action, A::Undo | A::Redo) {
+        toolbar.selection.cancel_opacity_preview();
+        toolbar.eraser.cancel_preview();
+    }
     match action {
+        A::Pen(event) => toolbar.pen.handle_tool_event(ui, event, ctx),
+        A::Highlighter(event) => toolbar.highlighter.handle_tool_event(ui, event, ctx),
+        A::Erase(event) => toolbar.eraser.handle_tool_event(ui, event, ctx),
+        A::Shape(event) => toolbar.shapes_tool.handle_tool_event(ui, event, ctx),
+        A::Selection(event) => toolbar.selection.handle_tool_event(ui, event, ctx),
+        A::TransformViewport(transform) => {
+            if ui.is_enabled() {
+                transform_canvas(ctx.viewport_settings, transform);
+            }
+        }
         A::Undo => ctx.history.undo(ctx.buffer),
         A::Redo => ctx.history.redo(ctx.buffer),
         A::SetTool(tool) => toolbar.set_tool(tool, ctx.settings, cfg),
@@ -478,6 +623,22 @@ fn execute_keyboard_action(
                 .selection
                 .handle_tool_event(ui, SelectionEvent::SelectAll, ctx);
         }
+        A::SetSelectionColor(color) => toolbar.selection.set_color(ctx, color),
+        A::SetSelectionWidth(width) => toolbar.selection.set_width(ctx, width),
+        A::SetSelectionOpacity(opacity) => toolbar.selection.set_opacity(ctx, opacity),
+        A::MoveSelectionLayer(layer) => toolbar.selection.move_layer(ctx, layer),
+        A::SetPenColor(color) => toolbar.active_pen().change_color(color),
+        A::SetPenWidth(width) => toolbar.active_pen().active_stroke_width = width,
+        A::AdjustBrushSize(steps) => {
+            toolbar.adjust_brush_size(steps, ctx.viewport_settings.coordinates().zoom());
+        }
+        A::SetPenOpacity(opacity) => toolbar.active_pen().active_opacity = opacity,
+    }
+}
+
+impl Drop for SVGEditor {
+    fn drop(&mut self) {
+        self.flush_viewport();
     }
 }
 

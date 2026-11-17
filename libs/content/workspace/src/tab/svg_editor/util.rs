@@ -4,23 +4,25 @@ use super::{CanvasSettings, ViewportSettings};
 use bezier_rs::{Bezier, Subpath};
 use glam::DVec2;
 use lb_rs::model::svg::WeakRect;
-use lb_rs::model::svg::element::{Element, ManipulatorGroupId};
+use lb_rs::model::svg::element::{EditableElement, ManipulatorGroupId};
 use lyon::math::Point;
 use resvg::usvg::Transform;
 
 pub fn pointer_intersects_element(
-    el: &Element, pos: egui::Pos2, last_pos: Option<egui::Pos2>, error_radius: f64,
+    el: &EditableElement, pos: egui::Pos2, last_pos: Option<egui::Pos2>, error_radius: f64,
 ) -> bool {
     match el {
-        Element::Path(p) => pointer_intersects_outline(&p.data, pos, last_pos, error_radius),
-        Element::Image(img) => {
+        EditableElement::Path(p) => {
+            pointer_intersects_outline(&p.data, pos, last_pos, error_radius)
+        }
+        EditableElement::Image(img) => {
             let rect = img.bounding_box().expand(error_radius as f32);
 
             let last_pos = last_pos.unwrap_or(pos.round());
 
             rect.contains(pos) || rect.contains(last_pos)
         }
-        Element::Text(_) => todo!(),
+        EditableElement::Text(_) => todo!(),
     }
 }
 
@@ -79,11 +81,21 @@ pub fn pointer_intersects_outline(
 }
 
 pub fn transform_point(point: egui::Pos2, t: Transform) -> egui::Pos2 {
-    egui::Pos2 { x: t.sx * point.x + t.tx, y: t.sy * point.y + t.ty }
+    egui::Pos2 {
+        x: t.sx * point.x + t.kx * point.y + t.tx,
+        y: t.ky * point.x + t.sy * point.y + t.ty,
+    }
 }
 
 pub fn transform_rect(rect: egui::Rect, t: Transform) -> egui::Rect {
-    egui::Rect { min: transform_point(rect.min, t), max: transform_point(rect.max, t) }
+    if !rect.is_finite() {
+        return rect;
+    }
+    let mut transformed = egui::Rect::NOTHING;
+    for corner in [rect.min, rect.max, rect.right_top(), rect.left_bottom()] {
+        transformed.extend_with(transform_point(corner, t));
+    }
+    transformed
 }
 
 pub fn devc_to_point(dvec: DVec2) -> Point {
@@ -104,10 +116,6 @@ pub fn bb_to_rect(bb: [DVec2; 2]) -> egui::Rect {
 pub fn promote_weak_rect(wk: WeakRect) -> egui::Rect {
     egui::Rect::from_min_max(egui::pos2(wk.min.0, wk.min.1), egui::pos2(wk.max.0, wk.max.1))
 }
-pub fn demote_to_weak_rect(src: egui::Rect) -> WeakRect {
-    WeakRect { min: (src.min.x, src.min.y), max: (src.max.x, src.max.y) }
-}
-
 impl CanvasSettings {
     pub fn update_viewport_settings(&mut self, vs: &ViewportSettings) {
         self.bottom_locked = vs.bottom_locked;

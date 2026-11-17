@@ -260,6 +260,7 @@ fn floating_toolbar(app: &mut ShellApp, ctx: &egui::Context, t: &Theme, queue: &
         .is_some_and(|r| r.workspace.has_unseen_shares());
 
     Area::new(Id::unique("shell_sidebar_toolbar"))
+        .enabled(app.modal.is_none())
         .order(Order::Foreground)
         .fixed_pos(pos2(TOGGLE_X, y))
         .show(ctx, |ui| {
@@ -324,6 +325,7 @@ fn sidecar_toggle(app: &mut ShellApp, ctx: &egui::Context, t: &Theme, queue: &mu
         .unwrap_or_default();
     let ground = t.neutral_bg_secondary();
     Area::new(Id::unique("shell_sidecar_toggle"))
+        .enabled(app.modal.is_none())
         .order(Order::Foreground)
         .fixed_pos(rect.min)
         .show(ctx, |ui| {
@@ -349,6 +351,7 @@ fn source_toggle(app: &mut ShellApp, ctx: &egui::Context, t: &Theme, queue: &mut
         .unwrap_or_default();
     let ground = t.neutral_bg_secondary();
     Area::new(Id::unique("shell_source_toggle"))
+        .enabled(app.modal.is_none())
         .order(Order::Foreground)
         .fixed_pos(rect.min)
         .show(ctx, |ui| {

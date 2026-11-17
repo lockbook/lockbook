@@ -24,12 +24,18 @@ use viewport_island::ViewportPopover;
 
 use super::history::History;
 use super::renderer::Renderer;
-use super::tools::{eraser::Eraser, pen::Pen};
+use super::tools::{
+    eraser::Eraser,
+    pen::{Pen, PenKind},
+};
 use super::{CanvasSettings, ViewportSettings};
 pub const MINI_MAP_WIDTH: f32 = 100.0;
 
 const COLOR_SWATCH_BTN_RADIUS: f32 = 11.0;
 const THICKNESS_BTN_WIDTH: f32 = 25.0;
+pub const BRUSH_THICKNESS_STEP: f64 = 1.0;
+const MIN_BRUSH_SIZE: f32 = 0.1;
+const MAX_BRUSH_SIZE: f32 = 1000.0;
 const SCREEN_PADDING: egui::Pos2 =
     if cfg!(target_os = "android") { egui::pos2(10.0, 10.0) } else { egui::pos2(20.0, 20.0) };
 
@@ -84,6 +90,12 @@ pub struct ToolContext<'a> {
     pub viewport_settings: &'a mut ViewportSettings,
 }
 
+impl ToolContext<'_> {
+    pub fn view(&self) -> super::coordinates::CanvasView<'_> {
+        super::coordinates::CanvasView::new(self.buffer, self.viewport_settings.coordinates())
+    }
+}
+
 pub struct ToolbarContext<'a> {
     pub controls_rect: egui::Rect,
     pub painter: &'a mut egui::Painter,
@@ -96,6 +108,12 @@ pub struct ToolbarContext<'a> {
     pub read_only: bool,
 }
 
+impl Toolbar {
+    pub(super) fn invalidate_document(&mut self) {
+        self.renderer.request_rerender = true;
+    }
+}
+
 impl ViewportSettings {
     pub fn update_working_rect(
         &mut self, settings: CanvasSettings, buffer: &Buffer, diff_state: &DiffState,
@@ -103,7 +121,7 @@ impl ViewportSettings {
     ) {
         let is_scroll_mode = self.is_scroll_mode();
         if let Some(mut new_bounded_rect) = self.bounded_rect {
-            if diff_state.is_dirty() && diff_state.transformed.is_none() {
+            if diff_state.is_dirty() {
                 if let Some(elements_bounds) = calc_elements_bounds(buffer) {
                     if is_scroll_mode {
                         new_bounded_rect.max.y = elements_bounds.max.y
@@ -112,6 +130,9 @@ impl ViewportSettings {
                     }
                 }
             }
+
+            self.bounded_rect = Some(new_bounded_rect);
+            let new_bounded_rect = self.document_rect_to_screen(new_bounded_rect);
 
             let min_x = if self.left_locked {
                 new_bounded_rect.left().max(self.container_rect.left())
@@ -145,9 +166,10 @@ impl ViewportSettings {
                 self.container_rect.bottom()
             };
 
-            self.bounded_rect = Some(new_bounded_rect);
-            self.working_rect =
-                egui::Rect::from_min_max(egui::pos2(min_x, min_y), egui::pos2(max_x, max_y));
+            self.working_rect = egui::Rect::from_min_max(
+                egui::pos2(min_x, min_y),
+                egui::pos2(max_x.max(min_x), max_y.max(min_y)),
+            );
         } else {
             self.working_rect = self.container_rect;
         };
@@ -199,6 +221,8 @@ impl ViewportSettings {
 #[macro_export]
 macro_rules! set_tool {
     ($obj:expr, $new_tool:expr) => {
+        $obj.selection.cancel_opacity_preview();
+        $obj.eraser.cancel_preview();
         if $obj.active_tool != $new_tool {
             $obj.show_tool_popover = false;
             $obj.layout.tool_popover = None;
@@ -219,6 +243,42 @@ macro_rules! set_tool {
 }
 
 impl Toolbar {
+    pub fn active_brush_size(&self) -> Option<f32> {
+        match self.active_tool {
+            Tool::Pen => Some(self.pen.active_stroke_width),
+            Tool::Highlighter => Some(self.highlighter.active_stroke_width),
+            Tool::Eraser => Some(self.eraser.radius),
+            Tool::Selection | Tool::Shapes => None,
+        }
+    }
+
+    pub fn adjust_brush_size(&mut self, steps: f32, zoom: f32) {
+        if !steps.is_finite() || !zoom.is_finite() || zoom <= 0.0 {
+            return;
+        }
+        let size = match self.active_tool {
+            Tool::Pen => &mut self.pen.active_stroke_width,
+            Tool::Highlighter => &mut self.highlighter.active_stroke_width,
+            Tool::Eraser => &mut self.eraser.radius,
+            Tool::Selection | Tool::Shapes => return,
+        };
+        let current = if size.is_finite() {
+            size.clamp(MIN_BRUSH_SIZE, MAX_BRUSH_SIZE)
+        } else {
+            MIN_BRUSH_SIZE
+        };
+        // Add rather than snap to a grid: zoom changes must not snap the
+        // existing size. Calculate in f64 to keep extreme zoom values finite.
+        let step = BRUSH_THICKNESS_STEP / f64::from(zoom);
+        *size = (f64::from(current) + f64::from(steps) * step)
+            .clamp(f64::from(MIN_BRUSH_SIZE), f64::from(MAX_BRUSH_SIZE)) as f32;
+    }
+
+    /// The pen a pen setting applies to: the highlighter's while it's active.
+    pub fn active_pen(&mut self) -> &mut Pen {
+        if self.active_tool == Tool::Highlighter { &mut self.highlighter } else { &mut self.pen }
+    }
+
     pub fn set_tool(
         &mut self, new_tool: Tool, settings: &mut CanvasSettings, cfg: &mut WsPersistentStore,
     ) {
@@ -252,8 +312,8 @@ impl Toolbar {
 
     pub fn new(elements_count: usize, settings: &CanvasSettings) -> Self {
         Toolbar {
-            pen: Pen::new(settings.pen),
-            highlighter: Pen::new(PenSettings::default_highlighter()),
+            pen: Pen::new(settings.pen, PenKind::Pen),
+            highlighter: Pen::new(PenSettings::default_highlighter(), PenKind::Highlighter),
             renderer: Renderer::new(elements_count),
             active_tool: Default::default(),
             eraser: Default::default(),
@@ -507,6 +567,8 @@ pub fn show_thickness_slider(
     let width = ui.available_width();
     let mut slider_res = ui.add(
         egui::Slider::new(value, value_range.clone())
+            // Preserve shortcut-selected sizes outside the slider's range until edited.
+            .clamping(egui::SliderClamping::Edits)
             .show_value(false)
             .step_by(step_size)
             .handle_shape(egui::style::HandleShape::Rect { aspect_ratio: 0.5 }),
