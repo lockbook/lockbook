@@ -62,6 +62,22 @@ class LastEditorFilterTest {
         assertTrue(state.includes("zoe"))
     }
 
+    @Test
+    fun `chips show only editors present in recents while retaining contact order`() {
+        val state = LastEditorFilterState(listOf("me", "zoe", "amy", "unused"))
+        val files = listOf(file("a", "amy", 20), file("b", "zoe", 10))
+        assertEquals(listOf("zoe", "amy"), state.recentUsernames(files))
+        assertEquals(emptyList<String>(), state.recentUsernames(emptyList()))
+    }
+
+    @Test
+    fun `deselecting an editor leaves its chip available in the full recents list`() {
+        val files = listOf(file("a", "me", 20), file("b", "zoe", 10))
+        val state = LastEditorFilterState(listOf("me", "zoe")).withUserEnabled("zoe", false)
+        assertEquals(listOf("a"), state.filter(files).map { it.id })
+        assertEquals(listOf("me", "zoe"), state.recentUsernames(files))
+    }
+
     private fun file(
         id: String,
         editor: String,

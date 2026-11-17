@@ -12,6 +12,7 @@ import app.lockbook.model.LastEditorFilterViewModel
 import app.lockbook.ui.UsernameChip
 import com.google.android.material.chip.Chip
 import com.google.android.material.chip.ChipGroup
+import net.lockbook.File
 
 /** A list header so editor filters scroll vertically with the date groups. */
 internal class RecentEditorFilterAdapter(
@@ -19,19 +20,26 @@ internal class RecentEditorFilterAdapter(
 ) : RecyclerView.Adapter<RecentEditorFilterAdapter.Holder>() {
     private var state = LastEditorFilterState()
     private var horizontalOffset = 0
+    private var usernames: List<String> = emptyList()
+    private val visible get() = state.isVisible && usernames.isNotEmpty()
 
-    fun submitState(updated: LastEditorFilterState) {
-        if (state == updated) return
-        val wasVisible = state.isVisible
+    fun submitState(
+        updated: LastEditorFilterState,
+        files: List<File>,
+    ) {
+        val updatedUsernames = updated.recentUsernames(files)
+        if (state == updated && usernames == updatedUsernames) return
+        val wasVisible = visible
         state = updated
+        usernames = updatedUsernames
         when {
-            !wasVisible && updated.isVisible -> notifyItemInserted(0)
-            wasVisible && !updated.isVisible -> notifyItemRemoved(0)
-            updated.isVisible -> notifyItemChanged(0)
+            !wasVisible && visible -> notifyItemInserted(0)
+            wasVisible && !visible -> notifyItemRemoved(0)
+            visible -> notifyItemChanged(0)
         }
     }
 
-    override fun getItemCount(): Int = if (state.isVisible) 1 else 0
+    override fun getItemCount(): Int = if (visible) 1 else 0
 
     override fun onCreateViewHolder(
         parent: ViewGroup,
@@ -45,7 +53,7 @@ internal class RecentEditorFilterAdapter(
         holder: Holder,
         position: Int,
     ) {
-        holder.chips.render(state)
+        holder.chips.render(state, usernames)
         holder.binding.root.doOnLayout { it.scrollTo(horizontalOffset, 0) }
         holder.binding.root.setOnScrollChangeListener { _, x, _, _, _ -> horizontalOffset = x }
     }
@@ -63,12 +71,15 @@ internal class RecentEditorFilterChips(
     private val binding: RecentEditorFiltersBinding,
     private val model: LastEditorFilterViewModel,
 ) {
-    fun render(state: LastEditorFilterState) {
+    fun render(
+        state: LastEditorFilterState,
+        editors: List<String>,
+    ) {
         val group = binding.recentEditorChips
         val usernames = (0 until group.childCount).map { group.getChildAt(it).tag }
-        if (usernames != state.usernames) {
+        if (usernames != editors) {
             group.removeAllViews()
-            state.usernames.forEach { username ->
+            editors.forEach { username ->
                 group.addView(
                     createChip(group, username).apply {
                         tag = username

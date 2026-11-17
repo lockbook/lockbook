@@ -27,6 +27,11 @@ internal data class LastEditorFilterState(
         return copy(selected = users)
     }
 
+    fun recentUsernames(files: List<File>): List<String> {
+        val editors = files.mapTo(mutableSetOf()) { it.lastModifiedBy }
+        return usernames.filter { it in editors }
+    }
+
     fun filter(files: List<File>): List<File> = files.filter { includes(it.lastModifiedBy) }
 }
 

@@ -75,16 +75,16 @@ class RecentFilesFragment :
             }
         }
         fileTreeModel.recentFiles.observe(viewLifecycleOwner) { renderFiles() }
-        editorFilter.state.observe(viewLifecycleOwner) { state ->
-            filterChips?.submitState(state)
-            renderFiles()
-        }
+        editorFilter.state.observe(viewLifecycleOwner) { renderFiles() }
 
         return binding.root
     }
 
     private fun renderFiles() {
-        val files = editorFilter.state.value!!.filter(fileTreeModel.recentFiles.value.orEmpty())
+        val state = editorFilter.state.value!!
+        val recentFiles = fileTreeModel.recentFiles.value.orEmpty()
+        filterChips?.submitState(state, recentFiles)
+        val files = state.filter(recentFiles)
         selectionModel.reconcile(FileSelectionSource.Recents, files)
         adapter.submitRecentFiles(files, fileTreeModel.fileModel?.idsAndFiles.orEmpty())
         adapter.setSelectedFileIds(selectionModel.uiState.value.selectedIdsFor(FileSelectionSource.Recents))
