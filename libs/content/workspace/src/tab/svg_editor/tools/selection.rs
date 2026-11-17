@@ -348,62 +348,26 @@ impl InputControllerTool for Selection {
                                     .post_translate(0.0, anchor * (1. - sy))
                             }
                         }
-                        SelectionOperation::SouthWestScale => {
-                            let new_height =
-                                container_rect.height() + (pos.y - container_rect.bottom());
-                            let new_width =
-                                container_rect.width() + (container_rect.left() - pos.x);
-
-                            let sy = new_height / container_rect.height();
-                            let sx = new_width / container_rect.width();
-
-                            let anchor = container_rect.right_top();
-                            Transform::identity()
-                                .post_scale(sx, sy)
-                                .post_translate(anchor.x * (1. - sx), anchor.y * (1. - sy))
-                        }
-                        SelectionOperation::NorthWestScale => {
-                            let new_height =
-                                container_rect.height() + (container_rect.top() - pos.y);
-                            let new_width =
-                                container_rect.width() + (container_rect.left() - pos.x);
-
-                            let sy = new_height / container_rect.height();
-                            let sx = new_width / container_rect.width();
-
-                            let anchor = container_rect.right_bottom();
-                            Transform::identity()
-                                .post_scale(sx, sy)
-                                .post_translate(anchor.x * (1. - sx), anchor.y * (1. - sy))
-                        }
-                        SelectionOperation::NorthEastScale => {
-                            let new_height =
-                                container_rect.height() + (container_rect.top() - pos.y);
-                            let new_width =
-                                container_rect.width() + (pos.x - container_rect.right());
-
-                            let sy = new_height / container_rect.height();
-                            let sx = new_width / container_rect.width();
-
-                            let anchor = container_rect.left_bottom();
-                            Transform::identity()
-                                .post_scale(sx, sy)
-                                .post_translate(anchor.x * (1. - sx), anchor.y * (1. - sy))
-                        }
-                        SelectionOperation::SouthEastScale => {
-                            let new_height =
-                                container_rect.height() + (pos.y - container_rect.bottom());
-                            let new_width =
-                                container_rect.width() + (pos.x - container_rect.right());
-
-                            let sy = new_height / container_rect.height();
-                            let sx = new_width / container_rect.width();
-
-                            let anchor = container_rect.left_top();
-                            Transform::identity()
-                                .post_scale(sx, sy)
-                                .post_translate(anchor.x * (1. - sx), anchor.y * (1. - sy))
-                        }
+                        SelectionOperation::SouthWestScale => corner_scale(
+                            pos,
+                            container_rect.left_bottom(),
+                            container_rect.right_top(),
+                        ),
+                        SelectionOperation::NorthWestScale => corner_scale(
+                            pos,
+                            container_rect.left_top(),
+                            container_rect.right_bottom(),
+                        ),
+                        SelectionOperation::NorthEastScale => corner_scale(
+                            pos,
+                            container_rect.right_top(),
+                            container_rect.left_bottom(),
+                        ),
+                        SelectionOperation::SouthEastScale => corner_scale(
+                            pos,
+                            container_rect.right_bottom(),
+                            container_rect.left_top(),
+                        ),
                         _ => snap_scale(pos, container_rect), // todod: figure out if this can be removed
                     };
 
@@ -938,7 +902,7 @@ impl Selection {
         ui.add_space(20.0);
 
         show_section_header(ui, "layer");
-        ui.add_space(5.0);
+        ui.add_space(10.0);
         ui.horizontal(|ui| {
             self.show_layer_controls(selection_ctx, ui);
         });
@@ -1281,6 +1245,16 @@ fn get_laso_rect(current: egui::Pos2, drag_origin: egui::Pos2) -> egui::Rect {
         std::mem::swap(&mut laso_rect.min.x, &mut laso_rect.max.x)
     }
     laso_rect
+}
+
+/// Project the pointer onto the corner's diagonal, keeping the opposite
+/// corner fixed and applying the same scale on both axes.
+fn corner_scale(pos: egui::Pos2, corner: egui::Pos2, anchor: egui::Pos2) -> Transform {
+    let diagonal = corner - anchor;
+    let scale = ((pos - anchor).dot(diagonal) / diagonal.length_sq()).max(0.0);
+    Transform::identity()
+        .post_scale(scale, scale)
+        .post_translate(anchor.x * (1.0 - scale), anchor.y * (1.0 - scale))
 }
 
 pub fn scale_from_center(factor: f32, selected_rect: egui::Rect) -> Transform {

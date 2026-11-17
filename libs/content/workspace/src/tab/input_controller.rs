@@ -693,6 +693,21 @@ impl<A> InputController<A> {
         None
     }
 
+    /// Show the indicator again at the last valid pointer position, even if
+    /// the pointer has been stationary long enough for it to fade away.
+    pub fn refresh_hover_indicator(&mut self, ctx: &egui::Context, layout: &LayoutContext) {
+        let Some(pos) = ctx.input(|input| input.pointer.hover_pos()) else { return };
+        if self.tool_running.is_none()
+            && pos.is_finite()
+            && layout.draw_area.contains(pos)
+            && !pos_collides_with_layout(pos, layout)
+        {
+            self.tool_hover_pos = (pos, Instant::now());
+            ctx.animate_value_with_time(egui::Id::unique("tool_hover_indicator_ui"), 1.0, 0.0);
+            ctx.request_repaint();
+        }
+    }
+
     pub fn show_hover_indicator<T: DynInputControllerTool + ?Sized>(
         &self, ui: &mut egui::Ui, ctx: &mut ToolContext, tool: &mut T,
     ) {
@@ -704,8 +719,12 @@ impl<A> InputController<A> {
                 id: egui::Id::unique("pen_overlay"),
             });
 
-            let elpased = Instant::now() - self.tool_hover_pos.1;
-            let target_opacity = if elpased > Duration::from_millis(300) { 0.0 } else { 1.0 };
+            let elapsed = Instant::now() - self.tool_hover_pos.1;
+            let hover_duration = Duration::from_millis(300);
+            if elapsed < hover_duration {
+                ui.ctx().request_repaint_after(hover_duration - elapsed);
+            }
+            let target_opacity = if elapsed >= hover_duration { 0.0 } else { 1.0 };
 
             let opacity = ui.ctx().animate_value_with_time(
                 egui::Id::unique("tool_hover_indicator_ui"),

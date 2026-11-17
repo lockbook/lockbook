@@ -316,6 +316,7 @@ impl SVGEditor {
                 EditableElement::Text(_) => todo!(),
             }
         }
+        let previous_brush_size = self.toolbar.active_brush_size();
         if !self.embedded {
             self.show_toolbar(ui);
         }
@@ -323,7 +324,7 @@ impl SVGEditor {
         // an embed's host scrolls by the wheel
         self.input_controller.pan_on_wheel = !self.embedded;
 
-        self.process_events(ui);
+        self.process_events(ui, previous_brush_size);
 
         self.viewport_settings.update_working_rect(
             self.settings,
@@ -406,7 +407,7 @@ impl SVGEditor {
         .inner
     }
 
-    fn process_events(&mut self, ui: &mut egui::Ui) {
+    fn process_events(&mut self, ui: &mut egui::Ui, previous_brush_size: Option<f32>) {
         if !ui.is_enabled() {
             return;
         }
@@ -481,6 +482,10 @@ impl SVGEditor {
             }
         }
 
+        if previous_brush_size != self.toolbar.active_brush_size() {
+            self.input_controller
+                .refresh_hover_indicator(ui.ctx(), &layout_ctx);
+        }
         self.input_controller.show_hover_indicator(
             ui,
             &mut tool_context,
@@ -563,6 +568,8 @@ pub enum CanvasAction {
     /// for the pen or highlighter, whichever is active
     SetPenColor(DynamicColor),
     SetPenWidth(f32),
+    /// Step the active pen/highlighter width or eraser radius.
+    AdjustBrushSize(f32),
     SetPenOpacity(f32),
 }
 
@@ -622,6 +629,9 @@ fn execute_action(
         A::MoveSelectionLayer(layer) => toolbar.selection.move_layer(ctx, layer),
         A::SetPenColor(color) => toolbar.active_pen().change_color(color),
         A::SetPenWidth(width) => toolbar.active_pen().active_stroke_width = width,
+        A::AdjustBrushSize(steps) => {
+            toolbar.adjust_brush_size(steps, ctx.viewport_settings.coordinates().zoom());
+        }
         A::SetPenOpacity(opacity) => toolbar.active_pen().active_opacity = opacity,
     }
 }

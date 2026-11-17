@@ -24,7 +24,7 @@ use crate::theme::palette::ThemePalette;
 use crate::widgets::{Button, switch};
 use crate::workspace::WsPersistentStore;
 
-use super::{SCREEN_PADDING, Toolbar, ToolbarContext};
+use super::{BRUSH_THICKNESS_STEP, SCREEN_PADDING, Toolbar, ToolbarContext};
 
 impl Toolbar {
     pub fn show_tools_island(
@@ -358,7 +358,7 @@ impl Toolbar {
             ui,
             &mut self.eraser.radius,
             DEFAULT_ERASER_RADIUS..=DEFAULT_ERASER_RADIUS * 20.0,
-            1.0,
+            BRUSH_THICKNESS_STEP,
         );
         ui.add_space(10.0);
     }
@@ -444,7 +444,12 @@ fn show_pen_popover(ui: &mut egui::Ui, pen: &mut Pen, tlbr_ctx: &mut ToolbarCont
     // thickness hints.
     ui.add_space(20.0);
 
-    show_thickness_slider(ui, &mut pen.active_stroke_width, DEFAULT_PEN_STROKE_WIDTH..=10.0, 1.0);
+    show_thickness_slider(
+        ui,
+        &mut pen.active_stroke_width,
+        DEFAULT_PEN_STROKE_WIDTH..=10.0,
+        BRUSH_THICKNESS_STEP,
+    );
 
     if cfg!(target_os = "ios") || cfg!(target_os = "android") {
         ui.add_space(10.0);
@@ -497,7 +502,7 @@ fn show_highlighter_popover(ui: &mut egui::Ui, pen: &mut Pen, tlbr_ctx: &mut Too
         ui,
         &mut pen.active_stroke_width,
         DEFAULT_HIGHLIGHTER_STROKE_WIDTH..=40.0,
-        1.0,
+        BRUSH_THICKNESS_STEP,
     );
 
     ui.add_space(10.0);

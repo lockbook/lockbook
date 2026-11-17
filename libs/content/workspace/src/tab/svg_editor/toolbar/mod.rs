@@ -33,6 +33,9 @@ pub const MINI_MAP_WIDTH: f32 = 100.0;
 
 const COLOR_SWATCH_BTN_RADIUS: f32 = 11.0;
 const THICKNESS_BTN_WIDTH: f32 = 25.0;
+pub const BRUSH_THICKNESS_STEP: f64 = 1.0;
+const MIN_BRUSH_SIZE: f32 = 0.1;
+const MAX_BRUSH_SIZE: f32 = 1000.0;
 const SCREEN_PADDING: egui::Pos2 =
     if cfg!(target_os = "android") { egui::pos2(10.0, 10.0) } else { egui::pos2(20.0, 20.0) };
 
@@ -240,6 +243,37 @@ macro_rules! set_tool {
 }
 
 impl Toolbar {
+    pub fn active_brush_size(&self) -> Option<f32> {
+        match self.active_tool {
+            Tool::Pen => Some(self.pen.active_stroke_width),
+            Tool::Highlighter => Some(self.highlighter.active_stroke_width),
+            Tool::Eraser => Some(self.eraser.radius),
+            Tool::Selection | Tool::Shapes => None,
+        }
+    }
+
+    pub fn adjust_brush_size(&mut self, steps: f32, zoom: f32) {
+        if !steps.is_finite() || !zoom.is_finite() || zoom <= 0.0 {
+            return;
+        }
+        let size = match self.active_tool {
+            Tool::Pen => &mut self.pen.active_stroke_width,
+            Tool::Highlighter => &mut self.highlighter.active_stroke_width,
+            Tool::Eraser => &mut self.eraser.radius,
+            Tool::Selection | Tool::Shapes => return,
+        };
+        let current = if size.is_finite() {
+            size.clamp(MIN_BRUSH_SIZE, MAX_BRUSH_SIZE)
+        } else {
+            MIN_BRUSH_SIZE
+        };
+        // Add rather than snap to a grid: zoom changes must not snap the
+        // existing size. Calculate in f64 to keep extreme zoom values finite.
+        let step = BRUSH_THICKNESS_STEP / f64::from(zoom);
+        *size = (f64::from(current) + f64::from(steps) * step)
+            .clamp(f64::from(MIN_BRUSH_SIZE), f64::from(MAX_BRUSH_SIZE)) as f32;
+    }
+
     /// The pen a pen setting applies to: the highlighter's while it's active.
     pub fn active_pen(&mut self) -> &mut Pen {
         if self.active_tool == Tool::Highlighter { &mut self.highlighter } else { &mut self.pen }
@@ -533,6 +567,8 @@ pub fn show_thickness_slider(
     let width = ui.available_width();
     let mut slider_res = ui.add(
         egui::Slider::new(value, value_range.clone())
+            // Preserve shortcut-selected sizes outside the slider's range until edited.
+            .clamping(egui::SliderClamping::Edits)
             .show_value(false)
             .step_by(step_size)
             .handle_shape(egui::style::HandleShape::Rect { aspect_ratio: 0.5 }),
