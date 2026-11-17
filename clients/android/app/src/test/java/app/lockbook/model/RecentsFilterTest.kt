@@ -11,28 +11,28 @@ class RecentsFilterTest {
     fun `filter is hidden without another account and never hides files`() {
         val state = RecentsFilterState(listOf("me"), emptySet())
         assertFalse(state.isVisible)
-        assertTrue(state.includes("me"))
+        assertTrue(state.includesEditor("me"))
     }
 
     @Test
     fun `all and none are different selections`() {
         val users = listOf("me", "friend")
-        assertTrue(RecentsFilterState(users).includes("friend"))
-        assertFalse(RecentsFilterState(users, emptySet()).includes("friend"))
+        assertTrue(RecentsFilterState(users).includesEditor("friend"))
+        assertFalse(RecentsFilterState(users, emptySet()).includesEditor("friend"))
     }
 
     @Test
     fun `filter uses last editor rather than file owner`() {
         val files = listOf(file("mine", "me", 20), file("theirs", "friend", 10))
         val state = RecentsFilterState(listOf("me", "friend"), setOf("friend"))
-        assertEquals(listOf("theirs"), state.filter(files).map { it.id })
+        assertEquals(listOf("theirs"), state.filterByEditor(files).map { it.id })
     }
 
     @Test
     fun `welcome filter runs before recent limit and includes matching pins`() {
         val files = (1..30).map { file("$it", if (it > 15) "me" else "friend", it.toLong()) }
         val state = RecentsFilterState(listOf("me", "friend"), setOf("friend"))
-        val items = workspaceDocumentItems(listOf(PinnedFile("1"), PinnedFile("30")), state.filter(files))
+        val items = workspaceDocumentItems(listOf(PinnedFile("1"), PinnedFile("30")), state.filterByEditor(files))
         assertEquals("1", items.first().file.id)
         assertEquals(13, items.size)
         assertTrue(items.all { it.file.lastModifiedBy == "friend" })
@@ -49,17 +49,17 @@ class RecentsFilterTest {
     fun `reenabling one editor preserves other editor selections`() {
         val initial = RecentsFilterState(listOf("me", "zoe", "amy"))
         val hidden = initial.withUserEnabled("zoe", false).withUserEnabled("amy", false)
-        assertEquals(listOf("me"), hidden.usernames.filter(hidden::includes))
+        assertEquals(listOf("me"), hidden.usernames.filter(hidden::includesEditor))
         val restored = hidden.withUserEnabled("zoe", true)
-        assertEquals(listOf("me", "zoe"), restored.usernames.filter(restored::includes))
+        assertEquals(listOf("me", "zoe"), restored.usernames.filter(restored::includesEditor))
         assertEquals(restored, restored.withUserEnabled("zoe", true))
     }
 
     @Test
     fun `one editor can be enabled when all editors are deselected`() {
         val state = RecentsFilterState(listOf("me", "zoe"), emptySet()).withUserEnabled("zoe", true)
-        assertFalse(state.includes("me"))
-        assertTrue(state.includes("zoe"))
+        assertFalse(state.includesEditor("me"))
+        assertTrue(state.includesEditor("zoe"))
     }
 
     @Test
@@ -74,7 +74,7 @@ class RecentsFilterTest {
     fun `deselecting an editor leaves its chip available in the full recents list`() {
         val files = listOf(file("a", "me", 20), file("b", "zoe", 10))
         val state = RecentsFilterState(listOf("me", "zoe")).withUserEnabled("zoe", false)
-        assertEquals(listOf("a"), state.filter(files).map { it.id })
+        assertEquals(listOf("a"), state.filterByEditor(files).map { it.id })
         assertEquals(listOf("me", "zoe"), state.recentUsernames(files))
     }
 
@@ -105,7 +105,7 @@ class RecentsFilterTest {
                 .filterRecents(files),
         )
         // The welcome screen continues sharing editor selection, without the Recents-only types.
-        assertEquals(listOf("image", "drawing", "pdf"), editors.filter(files).map { it.id })
+        assertEquals(listOf("image", "drawing", "pdf"), editors.filterByEditor(files).map { it.id })
     }
 
     @Test
