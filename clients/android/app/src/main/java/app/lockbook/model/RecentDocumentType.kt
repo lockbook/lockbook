@@ -1,7 +1,6 @@
 package app.lockbook.model
 
-import app.lockbook.util.fileExtension
-import app.lockbook.util.isImageFileName
+import app.lockbook.util.ExtensionHelper
 
 internal enum class RecentDocumentType {
     Notes,
@@ -9,10 +8,12 @@ internal enum class RecentDocumentType {
     Images,
     ;
 
-    fun matches(name: String): Boolean =
-        when (this) {
-            Notes -> fileExtension(name) == "md"
-            Drawings -> fileExtension(name) == "svg"
-            Images -> isImageFileName(name)
+    fun matches(name: String): Boolean {
+        val extension = ExtensionHelper(name)
+        return when (this) {
+            Notes -> extension.isNote
+            Drawings -> extension.isDrawing
+            Images -> extension.isImage
         }
+    }
 }

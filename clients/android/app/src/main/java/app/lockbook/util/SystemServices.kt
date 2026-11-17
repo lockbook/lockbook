@@ -67,18 +67,6 @@ fun getString(
     vararg formatArgs: Any = emptyArray(),
 ): String = res.getString(stringRes, *formatArgs)
 
-class ExtensionHelper(
-    val fileName: String,
-) {
-    private val extension: String get() = fileExtension(fileName)
-
-    val isImage: Boolean get() = isImageFileName(fileName)
-
-    val isDrawing: Boolean get() = extension == "svg"
-
-    val isPdf: Boolean get() = extension == "pdf"
-}
-
 fun File.getIconResource(): Int =
     when (this.type) {
         File.FileType.Folder -> {

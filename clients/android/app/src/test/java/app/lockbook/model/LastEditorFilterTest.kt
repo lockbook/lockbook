@@ -115,6 +115,21 @@ class LastEditorFilterTest {
         assertEquals(listOf("sketch"), state.filterRecents(files).map { it.id })
     }
 
+    @Test
+    fun `notes include markdown and plain text and respect editor selection`() {
+        val files =
+            listOf(
+                file("md", "me", 30),
+                file("text", "zoe", 20).apply { name = "notes.TXT" },
+                file("image", "zoe", 10).apply { name = "photo.png" },
+            )
+        val notes =
+            LastEditorFilterState(listOf("me", "zoe"))
+                .withDocumentTypeToggled(RecentDocumentType.Notes)
+        assertEquals(listOf("md", "text"), notes.filterRecents(files).map { it.id })
+        assertEquals(listOf("text"), notes.withUserEnabled("me", false).filterRecents(files).map { it.id })
+    }
+
     private fun file(
         id: String,
         editor: String,

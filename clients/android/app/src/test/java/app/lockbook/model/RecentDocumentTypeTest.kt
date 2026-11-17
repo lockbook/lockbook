@@ -9,6 +9,10 @@ class RecentDocumentTypeTest {
     @Test
     fun `notes and drawings use exact case insensitive extensions`() {
         assertTrue(RecentDocumentType.Notes.matches("project.notes.MD"))
+        assertTrue(RecentDocumentType.Notes.matches("plain.TXT"))
+        assertTrue(ExtensionHelper("plain.TXT").isNote)
+        assertTrue(ExtensionHelper("project.notes.MD").isNote)
+        assertFalse(ExtensionHelper("code.rs").isNote)
         assertTrue(RecentDocumentType.Drawings.matches("sketch.SVG"))
         assertFalse(RecentDocumentType.Images.matches("sketch.svg"))
         assertFalse(RecentDocumentType.Notes.matches("notes.md.backup"))
