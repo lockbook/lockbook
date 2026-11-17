@@ -367,10 +367,5 @@
     <string name="metadata_loading">Loading your files…</string>
     <string name="metadata_retry">Try again</string>
     <string name="create_file_choose_another_location">%1$s Choose another location.</string>
-    <string name="last_editor_filter">Filter by last editor</string>
-    <string name="last_editor_filter_heading">Last edited by</string>
-    <string name="last_editor_filter_yourself">Yourself (%1$s)</string>
-    <string name="last_editor_filter_select_all">Select all</string>
-    <string name="last_editor_filter_deselect_all">Deselect all</string>
     <string name="last_editor_filter_empty">No files from these editors</string>
 </resources>

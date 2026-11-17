@@ -54,7 +54,6 @@ internal class WorkspaceWelcomeScreen(
 
     private val fileTreeModel: FileTreeViewModel by fragment.activityViewModels()
     private val editorFilter: LastEditorFilterViewModel by fragment.activityViewModels()
-    private var filterPopup: android.widget.PopupWindow? = null
 
     private var viewBinding: WorkspaceEmptyBinding? = null
     private val binding get() = viewBinding!!
@@ -168,10 +167,6 @@ internal class WorkspaceWelcomeScreen(
             val columns = (view.width / (180 * fragment.resources.displayMetrics.density)).toInt().coerceIn(2, 4)
             if (grid.spanCount != columns) grid.spanCount = columns
         }
-        empty.documentEditorFilter.setOnClickListener {
-            filterPopup?.dismiss()
-            filterPopup = showLastEditorFilterMenu(it, editorFilter)
-        }
         fileTreeModel.sharingContacts.observe(fragment.viewLifecycleOwner) { contacts ->
             runCatching {
                 net.lockbook.Lb
@@ -182,9 +177,6 @@ internal class WorkspaceWelcomeScreen(
             }
         }
         editorFilter.state.observe(fragment.viewLifecycleOwner) { state ->
-            empty.documentEditorFilter.isVisible = state.isVisible
-            empty.documentEditorFilter.isSelected = state.selected != null
-            if (!state.isVisible) filterPopup?.dismiss()
             workspaceDocuments.setEditorFilter(state)
             empty.documentSection.isVisible = state.isVisible || !workspaceDocuments.documents.value.isNullOrEmpty()
         }
@@ -305,8 +297,6 @@ internal class WorkspaceWelcomeScreen(
     }
 
     fun unbind() {
-        filterPopup?.dismiss()
-        filterPopup = null
         captureStart?.let { binding.captureText.removeCallbacks(it) }
         captureStart = null
         captureExpansion?.cancel()

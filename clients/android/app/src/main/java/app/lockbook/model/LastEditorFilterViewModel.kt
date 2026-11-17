@@ -42,14 +42,6 @@ internal class LastEditorFilterViewModel : ViewModel() {
         if (updated != mutableState.value) mutableState.value = updated
     }
 
-    fun selectAll() {
-        mutableState.value = mutableState.value!!.copy(selected = null)
-    }
-
-    fun deselectAll() {
-        mutableState.value = mutableState.value!!.copy(selected = emptySet())
-    }
-
     fun toggle(username: String) {
         val current = mutableState.value!!
         setEnabled(username, current.selected?.contains(username) == false)
