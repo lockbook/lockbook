@@ -19,9 +19,9 @@ import androidx.recyclerview.widget.LinearLayoutManager
 import app.lockbook.R
 import app.lockbook.databinding.FragmentRecentFilesBinding
 import app.lockbook.model.FileTreeViewModel
-import app.lockbook.model.LastEditorFilterViewModel
 import app.lockbook.model.MainNavigationAction
 import app.lockbook.model.MainScreenViewModel
+import app.lockbook.model.RecentsFilterViewModel
 import app.lockbook.util.FilesFragment
 import kotlinx.coroutines.launch
 import net.lockbook.File
@@ -37,7 +37,7 @@ class RecentFilesFragment :
     private val mainScreenModel: MainScreenViewModel by activityViewModels()
     private val selectionModel: FileSelectionViewModel by activityViewModels()
     private var fileActionDispatcher: FileSelectionActionDispatcher? = null
-    private val editorFilter: LastEditorFilterViewModel by activityViewModels()
+    private val editorFilter: RecentsFilterViewModel by activityViewModels()
     private var filterChips: RecentEditorFilterAdapter? = null
     private var originalListPaddingBottom = 0
     private var bottomNavigationInset = 0

@@ -8,9 +8,9 @@ import androidx.core.view.isVisible
 import androidx.recyclerview.widget.RecyclerView
 import app.lockbook.R
 import app.lockbook.databinding.RecentEditorFiltersBinding
-import app.lockbook.model.LastEditorFilterState
-import app.lockbook.model.LastEditorFilterViewModel
 import app.lockbook.model.RecentDocumentType
+import app.lockbook.model.RecentsFilterState
+import app.lockbook.model.RecentsFilterViewModel
 import app.lockbook.ui.UsernameChip
 import com.google.android.material.chip.Chip
 import com.google.android.material.chip.ChipGroup
@@ -18,14 +18,14 @@ import net.lockbook.File
 
 /** A list header so editor filters scroll vertically with the date groups. */
 internal class RecentEditorFilterAdapter(
-    private val model: LastEditorFilterViewModel,
+    private val model: RecentsFilterViewModel,
 ) : RecyclerView.Adapter<RecentEditorFilterAdapter.Holder>() {
-    private var state = LastEditorFilterState()
+    private var state = RecentsFilterState()
     private var horizontalOffset = 0
     private var usernames: List<String> = emptyList()
 
     fun submitState(
-        updated: LastEditorFilterState,
+        updated: RecentsFilterState,
         files: List<File>,
     ) {
         val updatedUsernames = if (updated.isVisible) updated.recentUsernames(files) else emptyList()
@@ -56,7 +56,7 @@ internal class RecentEditorFilterAdapter(
 
     class Holder(
         val binding: RecentEditorFiltersBinding,
-        model: LastEditorFilterViewModel,
+        model: RecentsFilterViewModel,
     ) : RecyclerView.ViewHolder(binding.root) {
         val chips = RecentEditorFilterChips(binding, model)
     }
@@ -65,7 +65,7 @@ internal class RecentEditorFilterAdapter(
 /** All editors stay in the row, with Material's checked state indicating included files. */
 internal class RecentEditorFilterChips(
     private val binding: RecentEditorFiltersBinding,
-    private val model: LastEditorFilterViewModel,
+    private val model: RecentsFilterViewModel,
 ) {
     init {
         binding.recentFilterNotes.setOnClickListener { model.toggleDocumentType(RecentDocumentType.Notes) }
@@ -74,7 +74,7 @@ internal class RecentEditorFilterChips(
     }
 
     fun render(
-        state: LastEditorFilterState,
+        state: RecentsFilterState,
         editors: List<String>,
     ) {
         for ((chip, type) in listOf(

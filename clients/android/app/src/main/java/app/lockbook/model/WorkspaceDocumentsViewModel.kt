@@ -21,9 +21,9 @@ import timber.log.Timber
 internal class WorkspaceDocumentsViewModel(
     application: Application,
 ) : AndroidViewModel(application) {
-    private val editorFilter = MutableStateFlow(LastEditorFilterState())
+    private val editorFilter = MutableStateFlow(RecentsFilterState())
 
-    fun setEditorFilter(state: LastEditorFilterState) {
+    fun setEditorFilter(state: RecentsFilterState) {
         editorFilter.value = state
     }
 

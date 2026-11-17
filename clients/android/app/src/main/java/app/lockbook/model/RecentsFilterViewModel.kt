@@ -5,7 +5,7 @@ import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ViewModel
 import net.lockbook.File
 
-internal data class LastEditorFilterState(
+internal data class RecentsFilterState(
     val usernames: List<String> = emptyList(),
     val selected: Set<String>? = null,
     val documentTypes: Set<RecentDocumentType> = emptySet(),
@@ -17,12 +17,12 @@ internal data class LastEditorFilterState(
     fun withContacts(
         contacts: List<String>,
         yourself: String,
-    ): LastEditorFilterState = copy(usernames = listOf(yourself) + contacts.filter { it.isNotBlank() && it != yourself }.distinct())
+    ): RecentsFilterState = copy(usernames = listOf(yourself) + contacts.filter { it.isNotBlank() && it != yourself }.distinct())
 
     fun withUserEnabled(
         username: String,
         enabled: Boolean,
-    ): LastEditorFilterState {
+    ): RecentsFilterState {
         val users = (selected ?: usernames.toSet()).toMutableSet()
         if (enabled) users.add(username) else users.remove(username)
         return copy(selected = users)
@@ -33,7 +33,7 @@ internal data class LastEditorFilterState(
         return usernames.filter { it in editors }
     }
 
-    fun withDocumentTypeToggled(type: RecentDocumentType): LastEditorFilterState =
+    fun withDocumentTypeToggled(type: RecentDocumentType): RecentsFilterState =
         copy(documentTypes = if (type in documentTypes) documentTypes - type else documentTypes + type)
 
     fun filterRecents(files: List<File>): List<File> =
@@ -44,9 +44,9 @@ internal data class LastEditorFilterState(
     fun filter(files: List<File>): List<File> = files.filter { includes(it.lastModifiedBy) }
 }
 
-internal class LastEditorFilterViewModel : ViewModel() {
-    private val mutableState = MutableLiveData(LastEditorFilterState())
-    val state: LiveData<LastEditorFilterState> = mutableState
+internal class RecentsFilterViewModel : ViewModel() {
+    private val mutableState = MutableLiveData(RecentsFilterState())
+    val state: LiveData<RecentsFilterState> = mutableState
 
     fun updateContacts(
         usernames: List<String>,

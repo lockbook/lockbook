@@ -23,10 +23,10 @@ import androidx.recyclerview.widget.StaggeredGridLayoutManager
 import app.lockbook.R
 import app.lockbook.databinding.WorkspaceEmptyBinding
 import app.lockbook.model.FileTreeViewModel
-import app.lockbook.model.LastEditorFilterViewModel
 import app.lockbook.model.MainNavigationAction
 import app.lockbook.model.MainScreenViewModel
 import app.lockbook.model.QuickCaptureViewModel
+import app.lockbook.model.RecentsFilterViewModel
 import app.lockbook.model.WorkspaceDocumentsViewModel
 import app.lockbook.model.WorkspaceTab
 import app.lockbook.model.WorkspaceTabType
@@ -53,7 +53,7 @@ internal class WorkspaceWelcomeScreen(
     private val mainScreenModel: MainScreenViewModel by fragment.activityViewModels()
 
     private val fileTreeModel: FileTreeViewModel by fragment.activityViewModels()
-    private val editorFilter: LastEditorFilterViewModel by fragment.activityViewModels()
+    private val editorFilter: RecentsFilterViewModel by fragment.activityViewModels()
 
     private var viewBinding: WorkspaceEmptyBinding? = null
     private val binding get() = viewBinding!!
