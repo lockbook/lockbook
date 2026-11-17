@@ -10,10 +10,12 @@ import android.graphics.Typeface
 import android.graphics.drawable.Drawable
 import android.view.LayoutInflater
 import android.view.View
+import android.view.ViewGroup
 import androidx.core.graphics.ColorUtils
-import androidx.core.view.isVisible
+import androidx.core.view.doOnLayout
+import androidx.recyclerview.widget.RecyclerView
 import app.lockbook.R
-import app.lockbook.databinding.FragmentRecentFilesBinding
+import app.lockbook.databinding.RecentEditorFiltersBinding
 import app.lockbook.model.LastEditorFilterState
 import app.lockbook.model.LastEditorFilterViewModel
 import app.lockbook.util.harmonizedIdentityColors
@@ -21,13 +23,57 @@ import com.google.android.material.chip.Chip
 import com.google.android.material.chip.ChipGroup
 import com.google.android.material.color.MaterialColors
 
+/** A list header so editor filters scroll vertically with the date groups. */
+internal class RecentEditorFilterAdapter(
+    private val model: LastEditorFilterViewModel,
+) : RecyclerView.Adapter<RecentEditorFilterAdapter.Holder>() {
+    private var state = LastEditorFilterState()
+    private var horizontalOffset = 0
+
+    fun submitState(updated: LastEditorFilterState) {
+        if (state == updated) return
+        val wasVisible = state.isVisible
+        state = updated
+        when {
+            !wasVisible && updated.isVisible -> notifyItemInserted(0)
+            wasVisible && !updated.isVisible -> notifyItemRemoved(0)
+            updated.isVisible -> notifyItemChanged(0)
+        }
+    }
+
+    override fun getItemCount(): Int = if (state.isVisible) 1 else 0
+
+    override fun onCreateViewHolder(
+        parent: ViewGroup,
+        viewType: Int,
+    ): Holder {
+        val binding = RecentEditorFiltersBinding.inflate(LayoutInflater.from(parent.context), parent, false)
+        return Holder(binding, model)
+    }
+
+    override fun onBindViewHolder(
+        holder: Holder,
+        position: Int,
+    ) {
+        holder.chips.render(state)
+        holder.binding.root.doOnLayout { it.scrollTo(horizontalOffset, 0) }
+        holder.binding.root.setOnScrollChangeListener { _, x, _, _, _ -> horizontalOffset = x }
+    }
+
+    class Holder(
+        val binding: RecentEditorFiltersBinding,
+        model: LastEditorFilterViewModel,
+    ) : RecyclerView.ViewHolder(binding.root) {
+        val chips = RecentEditorFilterChips(binding, model)
+    }
+}
+
 /** All editors stay in the row, with Material's checked state indicating included files. */
 internal class RecentEditorFilterChips(
-    private val binding: FragmentRecentFilesBinding,
+    private val binding: RecentEditorFiltersBinding,
     private val model: LastEditorFilterViewModel,
 ) {
     fun render(state: LastEditorFilterState) {
-        binding.recentEditorFilters.isVisible = state.isVisible
         val group = binding.recentEditorChips
         val usernames = (0 until group.childCount).map { group.getChildAt(it).tag }
         if (usernames != state.usernames) {

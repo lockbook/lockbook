@@ -5,39 +5,13 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent">
 
-    <LinearLayout
+    <androidx.recyclerview.widget.RecyclerView
+        android:id="@+id/recent_files_list"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:orientation="vertical">
-
-        <HorizontalScrollView
-            android:id="@+id/recent_editor_filters"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:clipToPadding="false"
-            android:paddingStart="16dp"
-            android:paddingEnd="16dp"
-            android:scrollbars="none"
-            android:visibility="gone">
-
-            <com.google.android.material.chip.ChipGroup
-                android:id="@+id/recent_editor_chips"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                app:chipSpacingHorizontal="8dp"
-                app:singleLine="true"
-                app:singleSelection="false" />
-        </HorizontalScrollView>
-
-        <androidx.recyclerview.widget.RecyclerView
-            android:id="@+id/recent_files_list"
-            android:layout_width="match_parent"
-            android:layout_height="0dp"
-            android:layout_weight="1"
-            android:clipToPadding="false"
-            android:paddingBottom="24dp"
-            android:scrollbars="vertical" />
-    </LinearLayout>
+        android:clipToPadding="false"
+        android:paddingBottom="24dp"
+        android:scrollbars="vertical" />
 
     <com.google.android.material.textview.MaterialTextView
         android:id="@+id/recent_files_empty"

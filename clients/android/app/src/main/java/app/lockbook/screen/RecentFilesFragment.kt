@@ -14,6 +14,7 @@ import androidx.fragment.app.activityViewModels
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
+import androidx.recyclerview.widget.ConcatAdapter
 import androidx.recyclerview.widget.LinearLayoutManager
 import app.lockbook.R
 import app.lockbook.databinding.FragmentRecentFilesBinding
@@ -37,7 +38,7 @@ class RecentFilesFragment :
     private val selectionModel: FileSelectionViewModel by activityViewModels()
     private var fileActionDispatcher: FileSelectionActionDispatcher? = null
     private val editorFilter: LastEditorFilterViewModel by activityViewModels()
-    private var filterChips: RecentEditorFilterChips? = null
+    private var filterChips: RecentEditorFilterAdapter? = null
     private var originalListPaddingBottom = 0
     private var bottomNavigationInset = 0
     private var selectionBottomBarInset = 0
@@ -57,7 +58,9 @@ class RecentFilesFragment :
         _binding = FragmentRecentFilesBinding.inflate(inflater, container, false)
 
         binding.recentFilesList.layoutManager = LinearLayoutManager(requireContext())
-        binding.recentFilesList.adapter = adapter
+        val filters = RecentEditorFilterAdapter(editorFilter)
+        filterChips = filters
+        binding.recentFilesList.adapter = ConcatAdapter(filters, adapter)
         binding.recentFilesList.itemAnimator = null
         originalListPaddingBottom = binding.recentFilesList.paddingBottom
         (requireActivity() as MainScreenActivity).configureBottomNavigationFor(binding.recentFilesList) { height ->
@@ -66,7 +69,6 @@ class RecentFilesFragment :
             updateListBottomPadding()
         }
 
-        filterChips = RecentEditorFilterChips(binding, editorFilter)
         fileTreeModel.sharingContacts.observe(viewLifecycleOwner) { contacts ->
             runCatching { Lb.getAccount().username }.getOrNull()?.let { me ->
                 editorFilter.updateContacts(contacts.map { it.username }, me)
@@ -74,7 +76,7 @@ class RecentFilesFragment :
         }
         fileTreeModel.recentFiles.observe(viewLifecycleOwner) { renderFiles() }
         editorFilter.state.observe(viewLifecycleOwner) { state ->
-            filterChips?.render(state)
+            filterChips?.submitState(state)
             renderFiles()
         }
 
