@@ -1,9 +1,12 @@
+use std::sync::{Arc, LazyLock};
 use web_time::{Duration, Instant};
 
 #[cfg(not(target_family = "wasm"))]
 use bytes::Bytes;
 #[cfg(not(target_family = "wasm"))]
 use futures::stream;
+#[cfg(not(target_family = "wasm"))]
+use reqwest::Certificate;
 use reqwest::{Body, Client};
 
 use crate::get_code_version;
@@ -49,10 +52,29 @@ pub enum ApiError<E> {
     Deserialize(String),
 }
 
+#[cfg(not(target_family = "wasm"))]
+static SYSTEM_ROOTS: LazyLock<Vec<Certificate>> = LazyLock::new(|| {
+    rustls_native_certs::load_native_certs()
+        .unwrap_or_default()
+        .iter()
+        .filter_map(|root| Certificate::from_der(&root.0).ok())
+        .collect()
+});
+
+fn client() -> Client {
+    let builder = Client::builder();
+    #[cfg(not(target_family = "wasm"))]
+    let builder = SYSTEM_ROOTS
+        .iter()
+        .cloned()
+        .fold(builder, |builder, root| builder.add_root_certificate(root));
+    builder.build().unwrap_or_default()
+}
+
 #[derive(Debug, Clone)]
 #[repr(C)]
 pub struct Network {
-    pub client: Client,
+    pub client: Arc<LazyLock<Client>>,
     pub get_code_version: fn() -> &'static str,
     pub get_time: fn() -> Timestamp,
     pub client_type: ClientType,
@@ -61,7 +83,7 @@ pub struct Network {
 impl Default for Network {
     fn default() -> Self {
         Self {
-            client: Default::default(),
+            client: Arc::new(LazyLock::new(client)),
             get_code_version,
             get_time,
             client_type: ClientType::Unknown,

@@ -4489,6 +4489,7 @@ dependencies = [
  "qrcode-generator",
  "rand 0.8.7",
  "reqwest",
+ "rustls-native-certs",
  "serde",
  "serde_bytes",
  "serde_json",
