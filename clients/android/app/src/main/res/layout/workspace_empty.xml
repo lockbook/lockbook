@@ -112,15 +112,41 @@
                 android:paddingBottom="112dp"
                 android:visibility="gone">
 
-                <com.google.android.material.textview.MaterialTextView
-                    android:id="@+id/continue_heading"
+                <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_marginHorizontal="6dp"
-                    android:text="@string/workspace_continue_heading"
-                    android:textAppearance="@style/TextAppearance.Lockbook.WelcomeHeading"
-                    android:textColor="?attr/colorOnSurface"
-                    android:textStyle="normal" />
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal">
+
+                    <com.google.android.material.textview.MaterialTextView
+                        android:id="@+id/continue_heading"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:layout_marginHorizontal="6dp"
+                        android:text="@string/workspace_continue_heading"
+                        android:textAppearance="@style/TextAppearance.Lockbook.WelcomeHeading"
+                        android:textColor="?attr/colorOnSurface"
+                        android:textStyle="normal" />
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/document_editor_filter"
+                        style="@style/Widget.Material3.Button.IconButton"
+                        android:layout_width="48dp"
+                        android:layout_height="48dp"
+                        android:contentDescription="@string/last_editor_filter"
+                        android:visibility="gone"
+                        app:icon="@drawable/ic_baseline_more_vert_24" />
+                </LinearLayout>
+
+                <com.google.android.material.textview.MaterialTextView
+                    android:id="@+id/document_filter_empty"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="16dp"
+                    android:text="@string/last_editor_filter_empty"
+                    android:textAppearance="?attr/textAppearanceBodyMedium"
+                    android:visibility="gone" />
 
                 <androidx.recyclerview.widget.RecyclerView
                     android:id="@+id/document_grid"

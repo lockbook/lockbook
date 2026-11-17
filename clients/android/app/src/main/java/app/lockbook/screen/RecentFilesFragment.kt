@@ -15,8 +15,10 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
 import androidx.recyclerview.widget.LinearLayoutManager
+import app.lockbook.R
 import app.lockbook.databinding.FragmentRecentFilesBinding
 import app.lockbook.model.FileTreeViewModel
+import app.lockbook.model.LastEditorFilterViewModel
 import app.lockbook.model.MainNavigationAction
 import app.lockbook.model.MainScreenViewModel
 import app.lockbook.util.FilesFragment
@@ -34,6 +36,8 @@ class RecentFilesFragment :
     private val mainScreenModel: MainScreenViewModel by activityViewModels()
     private val selectionModel: FileSelectionViewModel by activityViewModels()
     private var fileActionDispatcher: FileSelectionActionDispatcher? = null
+    private val editorFilter: LastEditorFilterViewModel by activityViewModels()
+    private var filterPopup: android.widget.PopupWindow? = null
     private var originalListPaddingBottom = 0
     private var bottomNavigationInset = 0
     private var selectionBottomBarInset = 0
@@ -62,18 +66,42 @@ class RecentFilesFragment :
             updateListBottomPadding()
         }
 
-        fileTreeModel.recentFiles.observe(viewLifecycleOwner) { files ->
-            val recentFiles = files.orEmpty()
-            selectionModel.reconcile(FileSelectionSource.Recents, recentFiles)
-            adapter.submitRecentFiles(
-                files = recentFiles,
-                filesById = fileTreeModel.fileModel?.idsAndFiles.orEmpty(),
-            )
-            adapter.setSelectedFileIds(selectionModel.uiState.value.selectedIdsFor(FileSelectionSource.Recents))
-            binding.recentFilesEmpty.isVisible = recentFiles.isEmpty()
+        binding.recentEditorFilter.setOnClickListener {
+            filterPopup?.dismiss()
+            filterPopup = showLastEditorFilterMenu(it, editorFilter)
+        }
+        fileTreeModel.sharingContacts.observe(viewLifecycleOwner) { contacts ->
+            runCatching { Lb.getAccount().username }.getOrNull()?.let { me ->
+                editorFilter.updateContacts(contacts.map { it.username }, me)
+            }
+        }
+        fileTreeModel.recentFiles.observe(viewLifecycleOwner) { renderFiles() }
+        editorFilter.state.observe(viewLifecycleOwner) { state ->
+            binding.recentEditorFilter.isVisible = state.isVisible
+            binding.recentEditorFilter.isSelected = state.selected != null
+            if (!state.isVisible) filterPopup?.dismiss()
+            renderFiles()
         }
 
         return binding.root
+    }
+
+    private fun renderFiles() {
+        val files = editorFilter.state.value!!.filter(fileTreeModel.recentFiles.value.orEmpty())
+        selectionModel.reconcile(FileSelectionSource.Recents, files)
+        adapter.submitRecentFiles(files, fileTreeModel.fileModel?.idsAndFiles.orEmpty())
+        adapter.setSelectedFileIds(selectionModel.uiState.value.selectedIdsFor(FileSelectionSource.Recents))
+        binding.recentFilesEmpty.isVisible = files.isEmpty()
+        binding.recentFilesEmpty.setText(
+            if (fileTreeModel.recentFiles.value
+                    .orEmpty()
+                    .isEmpty()
+            ) {
+                R.string.no_recent_documents
+            } else {
+                R.string.last_editor_filter_empty
+            },
+        )
     }
 
     override fun onViewCreated(
@@ -97,6 +125,8 @@ class RecentFilesFragment :
     }
 
     override fun onDestroyView() {
+        filterPopup?.dismiss()
+        filterPopup = null
         fileActionDispatcher = null
         binding.recentFilesList.adapter = null
         _binding = null

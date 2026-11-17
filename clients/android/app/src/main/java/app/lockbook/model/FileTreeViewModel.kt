@@ -89,6 +89,7 @@ class FileTreeViewModel(
     var fileModel: FileModel? = null
         private set
 
+    private var sharingContactsJob: Job? = null
     private val _sharingContacts = MutableLiveData<List<SharingContact>>(emptyList())
     val sharingContacts: LiveData<List<SharingContact>> = _sharingContacts
 
@@ -154,20 +155,14 @@ class FileTreeViewModel(
                             previous.apply { refreshFiles(snapshot) }
                         }
                     refreshFilesDataSource()
+                    refreshSharingContacts()
                     if (previousPath != fileModel?.getFileDir()?.map { it.id to it.name }) {
                         _notifyUpdateFilesUI.value = UpdateFilesUI.UpdateBreadcrumbBar
                     }
                 }
             }
         }
-        viewModelScope.launch {
-            try {
-                val contacts: List<SharingContact> = withContext(Dispatchers.IO) { Lb.getSharingContacts().toList() }
-                _sharingContacts.value = contacts
-            } catch (error: LbError) {
-                Timber.e(error, "Unable to load sharing contacts")
-            }
-        }
+        refreshSharingContacts()
         loadPinnedFiles()
         viewModelScope.launch {
             try {
@@ -177,6 +172,19 @@ class FileTreeViewModel(
                 Timber.e(error, "Unable to load account status.")
             }
         }
+    }
+
+    private fun refreshSharingContacts() {
+        sharingContactsJob?.cancel()
+        sharingContactsJob =
+            viewModelScope.launch {
+                try {
+                    val contacts: List<SharingContact> = withContext(Dispatchers.IO) { Lb.getSharingContacts().toList() }
+                    _sharingContacts.value = contacts
+                } catch (error: LbError) {
+                    Timber.e(error, "Unable to load sharing contacts")
+                }
+            }
     }
 
     private fun checkUsage() {

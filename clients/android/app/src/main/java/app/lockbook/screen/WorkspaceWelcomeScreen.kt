@@ -22,6 +22,8 @@ import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.StaggeredGridLayoutManager
 import app.lockbook.R
 import app.lockbook.databinding.WorkspaceEmptyBinding
+import app.lockbook.model.FileTreeViewModel
+import app.lockbook.model.LastEditorFilterViewModel
 import app.lockbook.model.MainNavigationAction
 import app.lockbook.model.MainScreenViewModel
 import app.lockbook.model.QuickCaptureViewModel
@@ -49,6 +51,10 @@ internal class WorkspaceWelcomeScreen(
     private val workspaceDocuments: WorkspaceDocumentsViewModel by fragment.viewModels()
     private val model: WorkspaceViewModel by fragment.activityViewModels()
     private val mainScreenModel: MainScreenViewModel by fragment.activityViewModels()
+
+    private val fileTreeModel: FileTreeViewModel by fragment.activityViewModels()
+    private val editorFilter: LastEditorFilterViewModel by fragment.activityViewModels()
+    private var filterPopup: android.widget.PopupWindow? = null
 
     private var viewBinding: WorkspaceEmptyBinding? = null
     private val binding get() = viewBinding!!
@@ -162,8 +168,29 @@ internal class WorkspaceWelcomeScreen(
             val columns = (view.width / (180 * fragment.resources.displayMetrics.density)).toInt().coerceIn(2, 4)
             if (grid.spanCount != columns) grid.spanCount = columns
         }
+        empty.documentEditorFilter.setOnClickListener {
+            filterPopup?.dismiss()
+            filterPopup = showLastEditorFilterMenu(it, editorFilter)
+        }
+        fileTreeModel.sharingContacts.observe(fragment.viewLifecycleOwner) { contacts ->
+            runCatching {
+                net.lockbook.Lb
+                    .getAccount()
+                    .username
+            }.getOrNull()?.let { me ->
+                editorFilter.updateContacts(contacts.map { it.username }, me)
+            }
+        }
+        editorFilter.state.observe(fragment.viewLifecycleOwner) { state ->
+            empty.documentEditorFilter.isVisible = state.isVisible
+            empty.documentEditorFilter.isSelected = state.selected != null
+            if (!state.isVisible) filterPopup?.dismiss()
+            workspaceDocuments.setEditorFilter(state)
+            empty.documentSection.isVisible = state.isVisible || !workspaceDocuments.documents.value.isNullOrEmpty()
+        }
         workspaceDocuments.documents.observe(fragment.viewLifecycleOwner) { items ->
-            empty.documentSection.isVisible = items.isNotEmpty()
+            empty.documentSection.isVisible = items.isNotEmpty() || editorFilter.state.value!!.isVisible
+            empty.documentFilterEmpty.isVisible = items.isEmpty() && editorFilter.state.value!!.isVisible
             adapter.submitList(items)
         }
         model.bottomInset.observe(fragment.viewLifecycleOwner) { inset ->
@@ -278,6 +305,8 @@ internal class WorkspaceWelcomeScreen(
     }
 
     fun unbind() {
+        filterPopup?.dismiss()
+        filterPopup = null
         captureStart?.let { binding.captureText.removeCallbacks(it) }
         captureStart = null
         captureExpansion?.cancel()
