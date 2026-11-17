@@ -5,6 +5,7 @@ use lb_rs::model::svg::diff::DiffState;
 use lb_rs::model::svg::element::{EditableElement, Image, WeakPathPressures};
 use resvg::usvg::{NonZeroRect, Transform};
 
+use crate::file_cache::link_id;
 use crate::tab::svg_editor::history::History;
 use crate::tab::svg_editor::tools::selection::SelectedElement;
 use crate::tab::{ClipContent, ExtendedInput as _};
@@ -13,15 +14,21 @@ use super::coordinates::{
     CanvasCoordinates, DocumentRect, DocumentTransform, ScreenPoint, ScreenRect, ScreenTransform,
 };
 use super::element::PromoteBufferWeakImages;
+use super::toolbar::{ToolContext, Toolbar};
 use super::util::transform_rect;
 use super::viewport::{calc_elements_bounds, get_rect_identity_transform};
-use super::{InsertElement, SVGEditor, Tool};
+use super::{CanvasAction, InsertElement, SVGEditor, Tool};
+use std::sync::Arc;
 
 impl SVGEditor {
     pub fn handle_clip_input(&mut self, ui: &mut egui::Ui) {
+        if self.read_only {
+            return;
+        }
         for custom_event in ui.ctx().read_events() {
             match custom_event {
                 crate::Event::Drop { content, .. } | crate::Event::Paste { content, .. } => {
+                    let mut images = Vec::new();
                     for clip in content {
                         let (name, data) = match clip {
                             ClipContent::Image(data) => (None, data),
@@ -33,88 +40,123 @@ impl SVGEditor {
                             continue;
                         };
 
-                        let img = image::load_from_memory(&data).unwrap();
-
-                        let paste_pos = ui.input(|r| {
-                            r.pointer.hover_pos().unwrap_or(
-                                self.input_ctx
-                                    .last_touch
-                                    .unwrap_or(ui.available_rect_before_wrap().center()),
-                            )
-                        });
-
-                        let (fitted_img_rect, transform) = image_paste_placement(
-                            self.viewport_settings.coordinates(),
-                            ScreenRect(ui.available_rect_before_wrap()),
-                            egui::vec2(img.width() as f32, img.height() as f32),
-                            ScreenPoint(paste_pos),
-                        );
-                        let fitted_img_rect = fitted_img_rect.into_inner();
-
-                        let id = Uuid::new_v4();
-                        self.buffer.elements.insert(
-                            id,
-                            EditableElement::Image(Box::new(Image {
-                                data: resvg::usvg::ImageKind::PNG(data.into()),
-                                visible: true,
-                                transform: transform.into_inner(),
-                                view_box: NonZeroRect::from_xywh(
-                                    fitted_img_rect.min.x,
-                                    fitted_img_rect.min.y,
-                                    fitted_img_rect.width(),
-                                    fitted_img_rect.height(),
-                                )
-                                .unwrap(),
-                                href,
-                                opacity: 1.0,
-                                diff_state: DiffState::new(),
-                                deleted: false,
-                            })),
-                        );
-
-                        // self.toolbar.active_tool = Tool::Selection;
-
-                        // self.toolbar.selection.selected_elements =
-                        //     vec![SelectedElement { id, transform: Transform::identity() }];
+                        images.push((href, Arc::from(data)));
+                    }
+                    if !images.is_empty() {
+                        ui.ctx()
+                            .push_event(crate::Event::Canvas(CanvasAction::PasteImages {
+                                images,
+                                position: self.paste_position(ui),
+                            }));
                     }
                 }
                 _ => {}
             }
         }
-        ui.input(|r| {
-            for event in &r.events {
-                if let egui::Event::Paste(payload) = event {
-                    if !payload.starts_with("<svg") {
-                        continue;
-                    }
-                    let mut pasted_buffer = Buffer::new(payload);
+        let events = ui.input(|r| r.events.clone());
+        for event in &events {
+            if let egui::Event::Paste(payload) = event {
+                if let Some(href) = link_id(payload.trim()) {
+                    let Ok(data) = self.images.read(href) else { continue };
+                    ui.ctx()
+                        .push_event(crate::Event::Canvas(CanvasAction::PasteImages {
+                            images: vec![(href, Arc::from(data))],
+                            position: self.paste_position(ui),
+                        }));
+                    continue;
+                }
+                if !payload.starts_with("<svg") {
+                    continue;
+                }
+                let mut pasted_buffer = Buffer::new(payload);
 
-                    pasted_buffer.promote_weak_images(&*self.images);
+                pasted_buffer.promote_weak_images(&*self.images);
 
-                    let paste_pos = r.pointer.hover_pos().unwrap_or(
+                let paste_pos = ui.input(|r| {
+                    r.pointer.hover_pos().unwrap_or(
                         self.input_ctx
                             .last_touch
                             .unwrap_or(ui.available_rect_before_wrap().center()),
-                    );
-                    let new_ids = paste_elements(
-                        pasted_buffer,
-                        &mut self.buffer,
-                        &mut self.history,
-                        self.viewport_settings.coordinates(),
-                        ScreenPoint(paste_pos),
-                    );
-                    if !new_ids.is_empty() {
-                        self.toolbar.active_tool = Tool::Selection;
+                    )
+                });
+                let new_ids = paste_elements(
+                    pasted_buffer,
+                    &mut self.buffer,
+                    &mut self.history,
+                    self.viewport_settings.coordinates(),
+                    ScreenPoint(paste_pos),
+                );
+                if !new_ids.is_empty() {
+                    self.toolbar.active_tool = Tool::Selection;
 
-                        self.toolbar.selection.selected_elements = new_ids
-                            .iter()
-                            .map(|&id| SelectedElement { id, transform: Default::default() })
-                            .collect();
-                    }
+                    self.toolbar.selection.selected_elements = new_ids
+                        .iter()
+                        .map(|&id| SelectedElement { id, transform: Default::default() })
+                        .collect();
                 }
             }
-        });
+        }
     }
+
+    fn paste_position(&self, ui: &egui::Ui) -> egui::Pos2 {
+        ui.input(|r| {
+            r.pointer.hover_pos().unwrap_or(
+                self.input_ctx
+                    .last_touch
+                    .unwrap_or(ui.available_rect_before_wrap().center()),
+            )
+        })
+    }
+}
+
+pub(super) fn paste_images(
+    ui: &egui::Ui, images: Vec<(Uuid, Arc<Vec<u8>>)>, position: egui::Pos2, toolbar: &mut Toolbar,
+    ctx: &mut ToolContext,
+) {
+    let ids: Vec<_> = images
+        .into_iter()
+        .filter_map(|(href, data)| paste_image(ui, href, data, position, ctx))
+        .collect();
+    if ids.is_empty() {
+        return;
+    }
+    ctx.history
+        .save(super::Event::Insert(ids.iter().map(|&id| InsertElement { id }).collect()));
+    toolbar.active_tool = Tool::Selection;
+    toolbar.selection.selected_elements = ids
+        .into_iter()
+        .map(|id| SelectedElement { id, transform: Default::default() })
+        .collect();
+    toolbar.selection.properties = None;
+}
+
+/// Place raster bytes using an existing file id (either linked or just imported).
+fn paste_image(
+    ui: &egui::Ui, href: Uuid, data: Arc<Vec<u8>>, position: egui::Pos2, ctx: &mut ToolContext,
+) -> Option<Uuid> {
+    let img = image::load_from_memory(&data).ok()?;
+    let (rect, transform) = image_paste_placement(
+        ctx.viewport_settings.coordinates(),
+        ScreenRect(ui.available_rect_before_wrap()),
+        egui::vec2(img.width() as f32, img.height() as f32),
+        ScreenPoint(position),
+    );
+    let rect = rect.into_inner();
+    let id = Uuid::new_v4();
+    ctx.buffer.elements.insert(
+        id,
+        EditableElement::Image(Box::new(Image {
+            data: resvg::usvg::ImageKind::PNG(data),
+            visible: true,
+            transform: transform.into_inner(),
+            view_box: NonZeroRect::from_xywh(rect.min.x, rect.min.y, rect.width(), rect.height())?,
+            href,
+            opacity: 1.0,
+            diff_state: DiffState::new(),
+            deleted: false,
+        })),
+    );
+    Some(id)
 }
 
 /// Raster imports retain their fitted screen size at the current zoom.

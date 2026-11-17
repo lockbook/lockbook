@@ -98,7 +98,9 @@ pub trait PromoteBufferWeakImages {
 
 impl PromoteBufferWeakImages for Buffer {
     fn promote_weak_images(&mut self, images: &dyn CanvasImages) {
-        self.weak_images.drain().for_each(|(id, weak_image)| {
+        let mut weak_images: Vec<_> = self.weak_images.drain().collect();
+        weak_images.sort_by_key(|(_, image)| image.z_index);
+        for (id, weak_image) in weak_images {
             let mut image = Image::from_weak(weak_image, images);
 
             image.diff_state.transformed = None;
@@ -113,6 +115,6 @@ impl PromoteBufferWeakImages for Buffer {
                     EditableElement::Image(Box::new(image)),
                 );
             };
-        });
+        }
     }
 }
