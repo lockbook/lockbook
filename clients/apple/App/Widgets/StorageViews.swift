@@ -305,8 +305,15 @@ struct StorageBreakdownRows: View {
                     fileRow(row, detail: items(row.count - 1), max: max, chevron: true)
                 }
                 .buttonStyle(.plain)
+                .contextMenu {
+                    Button("Locate in File Tree", systemImage: "scope") {
+                        show(row.id)
+                    }
+                }
             } else {
-                fileRow(row, detail: nil, max: max, chevron: hasFolders ? false : nil)
+                showable(row.id, isFolder: false) {
+                    fileRow(row, detail: nil, max: max, chevron: hasFolders ? false : nil)
+                }
             }
         }
     }
@@ -334,7 +341,9 @@ struct StorageBreakdownRows: View {
         }
         let max = report.largest.first?.size.local ?? 1
         ForEach(report.largest) { row in
-            fileRow(row, detail: "in \(report.parentPath(of: row.id))", max: max, chevron: nil)
+            showable(row.id, isFolder: false) {
+                fileRow(row, detail: "in \(report.parentPath(of: row.id))", max: max, chevron: nil)
+            }
         }
     }
 
@@ -344,21 +353,39 @@ struct StorageBreakdownRows: View {
         }
         let max = report.changes.map { $0.size.delta.magnitude }.max() ?? 1
         ForEach(report.changes) { row in
-            let detail: String =
-                if let id = row.fileId, row.change != .deleted {
-                    "\(row.change.label) · in \(report.parentPath(of: id))"
-                } else {
-                    "Space returns once the deletes sync"
+            if let id = row.fileId, row.change != .deleted {
+                showable(id, isFolder: row.isFolder) {
+                    changeRow(row, detail: "\(row.change.label) · in \(report.parentPath(of: id))", max: max)
                 }
-            StorageRowView(
-                systemImage: row.change == .deleted ? "trash" : icon(row.name, row.isFolder),
-                title: row.name,
-                detail: detail,
-                fraction: Double(row.size.delta.magnitude) / Double(Swift.max(max, 1)),
-                barColor: row.size.delta > 0 ? StorageInk.added : StorageInk.freed,
-                value: storageSigned(row.size.delta)
-            )
+            } else {
+                changeRow(row, detail: "Space returns once the deletes sync", max: max)
+            }
         }
+    }
+
+    private func changeRow(_ row: StorageChangeRow, detail: String, max: UInt64) -> some View {
+        StorageRowView(
+            systemImage: row.change == .deleted ? "trash" : icon(row.name, row.isFolder),
+            title: row.name,
+            detail: detail,
+            fraction: Double(row.size.delta.magnitude) / Double(Swift.max(max, 1)),
+            barColor: row.size.delta > 0 ? StorageInk.added : StorageInk.freed,
+            value: storageSigned(row.size.delta)
+        )
+    }
+
+    private func showable(_ id: UUID, isFolder: Bool, @ViewBuilder label: () -> some View) -> some View {
+        Button {
+            show(id)
+        } label: {
+            label()
+        }
+        .buttonStyle(.plain)
+        .help(isFolder ? "Locate in File Tree" : "Open")
+    }
+
+    private func show(_ id: UUID) {
+        NotificationCenter.default.post(name: .showFromStorage, object: id)
     }
 
     private func fileRow(_ row: StorageRow, detail: String?, max: UInt64, chevron: Bool?) -> some View {
