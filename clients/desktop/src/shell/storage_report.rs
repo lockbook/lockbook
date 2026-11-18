@@ -50,7 +50,7 @@ impl Kind {
             DocType::Image | DocType::ImageUnsupported => Self::Images,
             DocType::PDF => Self::Pdfs,
             DocType::PlainText | DocType::Code => Self::Text,
-            DocType::Chat | DocType::Unknown => Self::Other,
+            DocType::Chat | DocType::Voice | DocType::Unknown => Self::Other,
         }
     }
 

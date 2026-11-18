@@ -596,6 +596,7 @@ pub enum DocType {
     Code,
     PDF,
     Chat,
+    Voice,
     Unknown,
 }
 
@@ -610,6 +611,7 @@ impl Display for DocType {
             DocType::Code => write!(f, "Code"),
             DocType::PDF => write!(f, "PDF"),
             DocType::Chat => write!(f, "Chat"),
+            DocType::Voice => write!(f, "Voice"),
             DocType::Unknown => write!(f, "Unknown"),
         }
     }
@@ -629,6 +631,7 @@ impl DocType {
             "cr2" => Self::ImageUnsupported,
             "pdf" => Self::PDF,
             "chat" => Self::Chat,
+            "voice" => Self::Voice,
             _ if image_viewer::is_supported_image_fmt(&ext) => Self::Image,
             _ if crate::syntax::Lang::from_extension(&ext).is_some() => Self::Code,
             _ => Self::Unknown,
@@ -650,6 +653,7 @@ impl DocType {
             DocType::Code => false,
             DocType::PDF => true,
             DocType::Chat => true,
+            DocType::Voice => true,
             DocType::Unknown => false,
         }
     }
