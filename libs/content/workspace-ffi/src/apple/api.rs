@@ -52,6 +52,12 @@ pub extern "C" fn open_file(obj: *mut c_void, id: CUuid, new_tab: bool) {
 }
 
 #[no_mangle]
+pub extern "C" fn open_info(obj: *mut c_void, id: CUuid, new_tab: bool) {
+    let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
+    obj.workspace.open_info(id.into(), new_tab)
+}
+
+#[no_mangle]
 pub extern "C" fn activate_tab(obj: *mut c_void, id: CUuid) {
     let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
     obj.workspace

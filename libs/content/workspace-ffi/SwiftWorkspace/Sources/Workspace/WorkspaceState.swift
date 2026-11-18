@@ -101,6 +101,14 @@ import Observation
         //        focus.send(())
     }
 
+    public func openInfo(id: UUID, newTab: Bool = false) {
+        guard let wsHandle else { return }
+
+        no_folder_selected(wsHandle)
+        open_info(wsHandle, CUuid(_0: id.uuid), newTab)
+        redraw.send(())
+    }
+
     /// Opens a file at the heading a link's `#fragment` names.
     public func openFile(id: UUID, heading: String?) {
         guard let heading, !heading.isEmpty else {
@@ -335,6 +343,7 @@ public enum WorkspaceDestKind: Int32 {
     case spaceInspector = 3
     case diagram = 4
     case formula = 5
+    case info = 6
 }
 
 public struct WorkspaceTabInfo: Identifiable, Hashable {
@@ -356,6 +365,7 @@ public struct WorkspaceTabInfo: Identifiable, Hashable {
         case .spaceInspector: "Space Inspector"
         case .diagram: "Diagram"
         case .formula: "Formula"
+        case .info: "Info"
         case .file: "unknown"
         }
     }

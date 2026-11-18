@@ -39,7 +39,8 @@ pub unsafe extern "C" fn init_ws(
     let theme = Theme::apple(mode);
     renderer.context.set_lb_theme(theme);
 
-    let workspace = Workspace::new(core, &renderer.context, persist, None);
+    let mut workspace = Workspace::new(core, &renderer.context, persist, None);
+    workspace.get_info = true;
     let mut fonts = FontDefinitions::default();
     register_fonts(&mut fonts);
     renderer.context.set_fonts(fonts);
