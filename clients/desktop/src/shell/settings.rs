@@ -416,21 +416,6 @@ fn page_app(app: &mut ShellApp, ui: &mut Ui, t: &Theme, queue: &mut Vec<Action>)
         if form_toggle(ui, t, "Show usage in sidebar", &mut usage).changed() {
             queue.push(A::SetPrefSidebarUsage(usage));
         }
-        #[cfg(target_os = "linux")]
-        {
-            let mut wayland = app.settings.allow_wayland;
-            if form_toggle_detail(
-                ui,
-                t,
-                "Allow Wayland",
-                "Enables fractional scaling; disables drag-and-drop. Restart required.",
-                &mut wayland,
-            )
-            .changed()
-            {
-                queue.push(A::SetPrefAllowWayland(wayland));
-            }
-        }
     });
 }
 

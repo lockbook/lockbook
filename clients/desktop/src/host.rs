@@ -1,6 +1,7 @@
 //! Custom winit + wgpu host for the product shell.
 
 use std::sync::Arc;
+use std::sync::mpsc::{self, Receiver, Sender};
 use std::time::Instant;
 
 use egui::{Pos2, ViewportId};
@@ -9,23 +10,26 @@ use winit::application::ApplicationHandler;
 use winit::dpi::LogicalSize;
 use winit::event::{ElementState, WindowEvent};
 use winit::event_loop::{ActiveEventLoop, ControlFlow, EventLoop, EventLoopProxy};
-use winit::window::{Icon, Window, WindowId};
+use winit::icon::{Icon, RgbaIcon};
+use winit::window::{Window, WindowAttributes, WindowId};
 use workspace_rs::tab::{ClipContent, ExtendedInput, ExtendedOutput as _};
 
 use crate::{Output, ShellApp, WgpuLockbook};
 
 struct App {
     state: Option<AppState>,
-    proxy: EventLoopProxy<UserEvent>,
+    proxy: EventLoopProxy,
+    sender: Sender<UserEvent>,
+    events: Receiver<UserEvent>,
     /// Links that arrived before the window, opened once it exists.
     links: Vec<String>,
 }
 
 struct AppState {
-    window: Arc<Window>,
+    window: Arc<dyn Window>,
     lb: WgpuLockbook<'static>,
     egui_winit: egui_winit::State,
-    clipboard: arboard::Clipboard,
+    clipboard: Option<arboard::Clipboard>,
     /// The last gif copied, keyed by a hash of the pixels it put on the clipboard
     copied_gif: Option<(u64, Vec<u8>)>,
     pending_paste: bool,
@@ -39,8 +43,8 @@ struct AppState {
     ime_rect: Option<egui::Rect>,
 }
 
-impl ApplicationHandler<UserEvent> for App {
-    fn resumed(&mut self, event_loop: &ActiveEventLoop) {
+impl ApplicationHandler for App {
+    fn can_create_surfaces(&mut self, event_loop: &dyn ActiveEventLoop) {
         if self.state.is_some() {
             return;
         }
@@ -48,29 +52,32 @@ impl ApplicationHandler<UserEvent> for App {
         let icon_data = load_icon_data();
         let window_icon = icon_data
             .as_ref()
-            .and_then(|i| Icon::from_rgba(i.rgba.clone(), i.width, i.height).ok());
+            .and_then(|i| RgbaIcon::new(i.rgba.clone(), i.width, i.height).ok())
+            .map(Icon::from);
 
-        let mut window_attrs = Window::default_attributes()
+        let mut window_attrs = WindowAttributes::default()
             .with_title("Lockbook")
-            .with_inner_size(LogicalSize::new(1300, 800))
+            .with_surface_size(LogicalSize::new(1300, 800))
             .with_window_icon(window_icon);
 
         // Frameless product chrome: shell paints its own titlebar / controls.
         // macOS keeps native traffic lights over fullsize content.
         #[cfg(target_os = "macos")]
         {
-            use winit::platform::macos::WindowAttributesExtMacOS;
-            window_attrs = window_attrs
-                .with_fullsize_content_view(true)
-                .with_titlebar_transparent(true)
-                .with_title_hidden(true);
+            use winit::platform::macos::WindowAttributesMacOS;
+            window_attrs = window_attrs.with_platform_attributes(Box::new(
+                WindowAttributesMacOS::default()
+                    .with_fullsize_content_view(true)
+                    .with_titlebar_transparent(true)
+                    .with_title_hidden(true),
+            ));
         }
         #[cfg(not(target_os = "macos"))]
         {
             window_attrs = window_attrs.with_decorations(false);
         }
 
-        let window = Arc::new(
+        let window: Arc<dyn Window> = Arc::from(
             event_loop
                 .create_window(window_attrs)
                 .expect("failed to create window"),
@@ -83,33 +90,35 @@ impl ApplicationHandler<UserEvent> for App {
 
         #[cfg(target_os = "macos")]
         {
-            crate::shell::macos_window::disable_automatic_titlebar_drag(window.as_ref());
-            crate::shell::macos_window::pin_traffic_lights(window.as_ref());
+            crate::shell::macos_window::disable_automatic_titlebar_drag(&window);
+            crate::shell::macos_window::pin_traffic_lights(&window);
         }
 
         let mut lb = init_app(Arc::clone(&window));
 
         let proxy = self.proxy.clone();
+        let sender = self.sender.clone();
         lb.renderer
             .context
             .set_request_repaint_callback(move |info| {
                 let when = Instant::now() + info.delay;
-                let _ = proxy.send_event(UserEvent::RepaintRequested {
+                let _ = sender.send(UserEvent::RepaintRequested {
                     when,
                     cumulative_pass_nr: info.current_cumulative_pass_nr,
                     viewport_id: info.viewport_id,
                 });
+                proxy.wake_up();
             });
 
         let scale_factor = window.scale_factor() as f32;
-        let size = window.inner_size();
+        let size = window.surface_size();
         lb.renderer.set_native_pixels_per_point(scale_factor);
         lb.renderer.screen.size_in_pixels = [size.width, size.height];
 
         let egui_winit = egui_winit::State::new(
             lb.renderer.context.clone(),
             lb.renderer.context.viewport_id(),
-            &window,
+            window.rwh_06_display_handle(),
             Some(window.scale_factor() as f32),
             window.theme(),
             None,
@@ -119,7 +128,9 @@ impl ApplicationHandler<UserEvent> for App {
             lb.app.push(crate::shell::action::Action::OpenLink(url));
         }
 
-        let clipboard = arboard::Clipboard::new().expect("failed to initialize clipboard");
+        let clipboard = arboard::Clipboard::new()
+            .map_err(|err| log::warn!("arboard unavailable, using the winit clipboard: {err}"))
+            .ok();
 
         self.state = Some(AppState {
             window,
@@ -137,29 +148,24 @@ impl ApplicationHandler<UserEvent> for App {
         });
     }
 
-    fn window_event(&mut self, event_loop: &ActiveEventLoop, _id: WindowId, event: WindowEvent) {
+    fn window_event(
+        &mut self, event_loop: &dyn ActiveEventLoop, _id: WindowId, event: WindowEvent,
+    ) {
         let state = match &mut self.state {
             Some(s) => s,
             None => return,
         };
 
-        if let WindowEvent::CursorMoved { position, .. } = &event {
-            state.last_pointer_pos = Pos2::new(position.x as f32, position.y as f32);
-        }
-        if let WindowEvent::ModifiersChanged(modifiers) = &event {
-            state.modifiers = modifiers.state();
-        }
-
-        if let WindowEvent::DroppedFile(path) = &event {
-            let content = vec![ClipContent::Files(vec![path.clone()])];
-            state
-                .lb
-                .renderer
-                .context
-                .push_event(workspace_rs::Event::Drop {
-                    content,
-                    position: state.last_pointer_pos,
-                });
+        match &event {
+            WindowEvent::PointerMoved { position, .. }
+            | WindowEvent::DragPosition { position, .. }
+            | WindowEvent::DragEntered { position: Some(position), .. } => {
+                state.last_pointer_pos = Pos2::new(position.x as f32, position.y as f32);
+            }
+            WindowEvent::ModifiersChanged(modifiers) => {
+                state.modifiers = modifiers.state();
+            }
+            _ => {}
         }
 
         // fcitx5 on Wayland answers each caret report with an empty preedit,
@@ -179,7 +185,9 @@ impl ApplicationHandler<UserEvent> for App {
             state.pending_paste = true;
             state.window.request_redraw();
         } else if !idle_preedit {
-            let response = state.egui_winit.on_window_event(&state.window, &event);
+            let response = state
+                .egui_winit
+                .on_window_event(&*state.window, event_loop, &event);
 
             if response.repaint && !matches!(event, WindowEvent::RedrawRequested) {
                 state.window.request_redraw();
@@ -196,10 +204,10 @@ impl ApplicationHandler<UserEvent> for App {
                 state.close_requested = true;
                 state.window.request_redraw();
             }
-            WindowEvent::Resized(size) => {
+            WindowEvent::SurfaceResized(size) => {
                 state.lb.renderer.screen.size_in_pixels = [size.width, size.height];
                 #[cfg(target_os = "macos")]
-                crate::shell::macos_window::pin_traffic_lights(state.window.as_ref());
+                crate::shell::macos_window::pin_traffic_lights(&state.window);
                 // Nested WM_SIZE loop: paint now or the swapchain lags the HWND.
                 #[cfg(target_os = "windows")]
                 if size.width > 0 && size.height > 0 {
@@ -224,7 +232,32 @@ impl ApplicationHandler<UserEvent> for App {
         }
     }
 
-    fn user_event(&mut self, _event_loop: &ActiveEventLoop, event: UserEvent) {
+    fn proxy_wake_up(&mut self, _event_loop: &dyn ActiveEventLoop) {
+        while let Ok(event) = self.events.try_recv() {
+            self.user_event(event);
+        }
+    }
+
+    fn about_to_wait(&mut self, event_loop: &dyn ActiveEventLoop) {
+        let Some(state) = &mut self.state else { return };
+        match state.next_repaint {
+            Some(deadline) if deadline <= Instant::now() => {
+                state.next_repaint = None;
+                state.window.request_redraw();
+                event_loop.set_control_flow(ControlFlow::Wait);
+            }
+            Some(deadline) => {
+                event_loop.set_control_flow(ControlFlow::WaitUntil(deadline));
+            }
+            None => {
+                event_loop.set_control_flow(ControlFlow::Wait);
+            }
+        }
+    }
+}
+
+impl App {
+    fn user_event(&mut self, event: UserEvent) {
         let Some(state) = &mut self.state else {
             if let UserEvent::OpenLink(url) = event {
                 self.links.push(url);
@@ -260,36 +293,33 @@ impl ApplicationHandler<UserEvent> for App {
             }
         }
     }
-
-    fn about_to_wait(&mut self, event_loop: &ActiveEventLoop) {
-        let Some(state) = &mut self.state else { return };
-        match state.next_repaint {
-            Some(deadline) if deadline <= Instant::now() => {
-                state.next_repaint = None;
-                state.window.request_redraw();
-                event_loop.set_control_flow(ControlFlow::Wait);
-            }
-            Some(deadline) => {
-                event_loop.set_control_flow(ControlFlow::WaitUntil(deadline));
-            }
-            None => {
-                event_loop.set_control_flow(ControlFlow::Wait);
-            }
-        }
-    }
 }
 
 impl AppState {
-    fn render(&mut self, _event_loop: &ActiveEventLoop) {
-        let size = self.window.inner_size();
+    fn render(&mut self, event_loop: &dyn ActiveEventLoop) {
+        let size = self.window.surface_size();
         if size.width > 0 && size.height > 0 {
             self.lb.renderer.screen.size_in_pixels = [size.width, size.height];
         }
 
         #[cfg(target_os = "macos")]
-        crate::shell::macos_window::pin_traffic_lights(self.window.as_ref());
+        crate::shell::macos_window::pin_traffic_lights(&self.window);
 
-        let mut raw_input = self.egui_winit.take_egui_input(&self.window);
+        let mut raw_input = self.egui_winit.take_egui_input(&*self.window);
+        if !raw_input.dropped_files.is_empty() {
+            let paths = raw_input
+                .dropped_files
+                .iter()
+                .map(|f| f.path().to_path_buf())
+                .collect();
+            self.lb
+                .renderer
+                .context
+                .push_event(workspace_rs::Event::Drop {
+                    content: vec![ClipContent::Files(paths)],
+                    position: self.last_pointer_pos,
+                });
+        }
         // Frameless chrome reads `viewport.maximized` to toggle restore. Without
         // this, the flag stays unset and double-click / caption max always send
         // Maximized(true). Skipped on macOS inside the helper (AppKit deadlock).
@@ -298,17 +328,22 @@ impl AppState {
                 .viewports
                 .entry(raw_input.viewport_id)
                 .or_default();
-            egui_winit::update_viewport_info(info, &self.lb.renderer.context, &self.window, false);
+            egui_winit::update_viewport_info(info, &self.lb.renderer.context, &*self.window, false);
         }
 
         // Images/files are not in egui's clipboard; text goes through arboard too.
         if self.pending_paste {
             self.pending_paste = false;
             if !self.handle_image_paste() {
-                if let Ok(text) = self.clipboard.get_text() {
-                    if !text.is_empty() {
-                        raw_input.events.push(egui::Event::Paste(text));
+                match &mut self.clipboard {
+                    Some(clipboard) => {
+                        if let Ok(text) = clipboard.get_text() {
+                            if !text.is_empty() {
+                                raw_input.events.push(egui::Event::Paste(text));
+                            }
+                        }
                     }
+                    None => self.egui_winit.request_paste(event_loop),
                 }
             }
         }
@@ -340,45 +375,48 @@ impl AppState {
             self.window.request_redraw();
         }
 
-        for command in &platform.commands {
-            match command {
-                egui::OutputCommand::CopyText(text) => {
-                    let _ = self.clipboard.set_text(text.clone());
+        let copied_rendered = self.lb.renderer.context.pop_copied_rendered();
+        if let Some(clipboard) = &mut self.clipboard {
+            for command in &platform.commands {
+                match command {
+                    egui::OutputCommand::CopyText(text) => {
+                        let _ = clipboard.set_text(text.clone());
+                    }
+                    egui::OutputCommand::CopyImage(image) => {
+                        let bytes: Vec<u8> = image
+                            .pixels
+                            .iter()
+                            .flat_map(|px| px.to_srgba_unmultiplied())
+                            .collect();
+                        self.copied_gif = self
+                            .lb
+                            .renderer
+                            .context
+                            .pop_copied_gif()
+                            .map(|gif| (pixels_hash(&bytes), gif));
+                        let _ = clipboard.set_image(arboard::ImageData {
+                            width: image.width(),
+                            height: image.height(),
+                            bytes: std::borrow::Cow::Owned(bytes),
+                        });
+                    }
+                    _ => {}
                 }
-                egui::OutputCommand::CopyImage(image) => {
-                    let bytes: Vec<u8> = image
-                        .pixels
-                        .iter()
-                        .flat_map(|px| px.to_srgba_unmultiplied())
-                        .collect();
-                    self.copied_gif = self
-                        .lb
-                        .renderer
-                        .context
-                        .pop_copied_gif()
-                        .map(|gif| (pixels_hash(&bytes), gif));
-                    let _ = self.clipboard.set_image(arboard::ImageData {
-                        width: image.width(),
-                        height: image.height(),
-                        bytes: std::borrow::Cow::Owned(bytes),
-                    });
-                }
-                _ => {}
             }
-        }
-        platform.commands.retain(|c| {
-            !matches!(c, egui::OutputCommand::CopyText(_) | egui::OutputCommand::CopyImage(_))
-        });
-        if let Some(copied) = self.lb.renderer.context.pop_copied_rendered() {
-            let _ = self.clipboard.set_html(copied.html, Some(copied.plain));
+            platform.commands.retain(|c| {
+                !matches!(c, egui::OutputCommand::CopyText(_) | egui::OutputCommand::CopyImage(_))
+            });
+            if let Some(copied) = copied_rendered {
+                let _ = clipboard.set_html(copied.html, Some(copied.plain));
+            }
         }
 
         let ime_rect = platform.ime.as_ref().map(|ime| ime.cursor_rect);
         self.egui_winit
-            .handle_platform_output(&self.window, platform);
+            .handle_platform_output_with_event_loop(&*self.window, event_loop, platform);
         #[cfg(target_os = "linux")]
         if ime_rect.is_some() && ime_rect != self.ime_rect {
-            nudge_x11_ime(&self.window);
+            nudge_x11_ime(&*self.window);
         }
         self.ime_rect = ime_rect;
 
@@ -390,7 +428,7 @@ impl AppState {
                 &self.lb.renderer.context,
                 &mut info,
                 vp.commands.iter().cloned(),
-                &self.window,
+                &*self.window,
                 &mut actions,
             );
             #[cfg(target_os = "linux")]
@@ -408,25 +446,26 @@ impl AppState {
             .iter()
             .any(|a| matches!(a, egui_winit::ActionRequested::Paste))
         {
-            self.handle_paste();
+            self.handle_paste(event_loop);
         }
 
         if let Some(pos) =
             crate::shell::titlebar::take_window_menu_request(&self.lb.renderer.context)
         {
-            self.window
-                .show_window_menu(winit::dpi::LogicalPosition::new(pos.x as f64, pos.y as f64));
+            self.window.show_window_menu(
+                winit::dpi::LogicalPosition::new(pos.x as f64, pos.y as f64).into(),
+            );
         }
 
         #[cfg(target_os = "macos")]
         if crate::shell::titlebar::take_titlebar_double_click(&self.lb.renderer.context) {
-            crate::shell::macos_window::perform_titlebar_double_click(self.window.as_ref());
+            crate::shell::macos_window::perform_titlebar_double_click(&self.window);
         }
 
         // Title (and other viewport cmds) make AppKit re-layout the titlebar
         // after paint — Back is a common trigger. Re-pin after those cmds.
         #[cfg(target_os = "macos")]
-        crate::shell::macos_window::pin_traffic_lights(self.window.as_ref());
+        crate::shell::macos_window::pin_traffic_lights(&self.window);
 
         if info
             .events
@@ -439,7 +478,10 @@ impl AppState {
     }
 
     fn handle_image_paste(&mut self) -> bool {
-        if let Ok(paths) = self.clipboard.get().file_list() {
+        let Some(clipboard) = &mut self.clipboard else {
+            return false;
+        };
+        if let Ok(paths) = clipboard.get().file_list() {
             let images: Vec<ClipContent> = paths
                 .into_iter()
                 .filter_map(|p| {
@@ -460,7 +502,7 @@ impl AppState {
             }
         }
 
-        let Ok(img) = self.clipboard.get_image() else {
+        let Ok(img) = clipboard.get_image() else {
             return false;
         };
         // pixels we put there paste as the gif they came from
@@ -518,16 +560,21 @@ impl AppState {
         self.window.request_redraw();
     }
 
-    fn handle_paste(&mut self) {
+    fn handle_paste(&mut self, event_loop: &dyn ActiveEventLoop) {
         if self.handle_image_paste() {
             return;
         }
-        if let Ok(text) = self.clipboard.get_text() {
-            self.lb
-                .renderer
-                .raw_input
-                .events
-                .push(egui::Event::Paste(text));
+        match &mut self.clipboard {
+            Some(clipboard) => {
+                if let Ok(text) = clipboard.get_text() {
+                    self.lb
+                        .renderer
+                        .raw_input
+                        .events
+                        .push(egui::Event::Paste(text));
+                }
+            }
+            None => self.egui_winit.request_paste(event_loop),
         }
     }
 }
@@ -540,7 +587,7 @@ fn is_paste_shortcut(modifiers: winit::keyboard::ModifiersState, event: &WindowE
         return false;
     }
     let command =
-        if cfg!(target_os = "macos") { modifiers.super_key() } else { modifiers.control_key() };
+        if cfg!(target_os = "macos") { modifiers.meta_key() } else { modifiers.control_key() };
     if !command {
         return false;
     }
@@ -551,7 +598,7 @@ fn is_paste_shortcut(modifiers: winit::keyboard::ModifiersState, event: &WindowE
     }
 }
 
-fn init_app(window: Arc<Window>) -> WgpuLockbook<'static> {
+fn init_app(window: Arc<dyn Window>) -> WgpuLockbook<'static> {
     // Safety: window is kept alive in Arc for lifetime of app
     let renderer = unsafe {
         RendererState::from_surface(
@@ -671,7 +718,7 @@ fn set_macos_app_icon(rgba: &[u8], width: u32, height: u32) {
 /// for the mouse to move. A no-op message to our own window is that event.
 /// Remove once winit applies IME requests without one.
 #[cfg(target_os = "linux")]
-fn nudge_x11_ime(window: &Window) {
+fn nudge_x11_ime(window: &dyn Window) {
     use std::sync::OnceLock;
     use winit::raw_window_handle::{HasWindowHandle, RawWindowHandle};
     use x11rb::connection::Connection;
@@ -730,6 +777,22 @@ fn x11_dpi_configured() -> bool {
 }
 
 #[cfg(target_os = "linux")]
+fn wayland_reachable() -> bool {
+    if std::env::var_os("WAYLAND_SOCKET").is_some_and(|s| !s.is_empty()) {
+        return true;
+    }
+    let Some(display) = std::env::var_os("WAYLAND_DISPLAY").filter(|d| !d.is_empty()) else {
+        return false;
+    };
+    let socket = std::path::Path::new(&display);
+    if socket.is_absolute() {
+        return socket.exists();
+    }
+    std::env::var_os("XDG_RUNTIME_DIR")
+        .is_some_and(|dir| std::path::Path::new(&dir).join(socket).exists())
+}
+
+#[cfg(target_os = "linux")]
 fn resources_declare_xft_dpi(resources: &str) -> bool {
     resources
         .lines()
@@ -754,12 +817,10 @@ pub fn run() {
     lb::service::logging::init(&config).expect("install lockbook logging");
     crate::perf::install_exit_flush();
 
-    let mut builder = EventLoop::<UserEvent>::with_user_event();
+    let mut builder = EventLoop::builder();
 
     #[cfg(target_os = "linux")]
     {
-        // winit's Wayland backend doesn't deliver file drag-and-drop events. Default to X11
-        // unless the user has opted in via settings (or set WINIT_UNIX_BACKEND).
         use winit::platform::x11::EventLoopBuilderExtX11;
 
         if std::env::var_os("WINIT_X11_SCALE_FACTOR").is_none() && !x11_dpi_configured() {
@@ -769,11 +830,7 @@ pub fn run() {
             }
         }
 
-        let allow_wayland = crate::Settings::read_from_file()
-            .map(|s| s.allow_wayland)
-            .unwrap_or(false);
-
-        if !allow_wayland && std::env::var_os("WINIT_UNIX_BACKEND").is_none() {
+        if !wayland_reachable() && std::env::var_os("DISPLAY").is_some() {
             builder.with_x11();
         }
     }
@@ -781,13 +838,19 @@ pub fn run() {
     let event_loop = builder.build().expect("failed to create event loop");
     event_loop.set_control_flow(ControlFlow::Wait);
 
+    let (sender, events) = mpsc::channel();
     let proxy = event_loop.create_proxy();
-    crate::link_inbox::listen(move |url| {
-        let _ = proxy.send_event(UserEvent::OpenLink(url));
-    });
+    {
+        let proxy = proxy.clone();
+        let sender = sender.clone();
+        crate::link_inbox::listen(move |url| {
+            let _ = sender.send(UserEvent::OpenLink(url));
+            proxy.wake_up();
+        });
+    }
     let links = link.into_iter().collect();
-    let mut app = App { state: None, proxy: event_loop.create_proxy(), links };
-    event_loop.run_app(&mut app).expect("event loop failed");
+    let app = App { state: None, proxy, sender, events, links };
+    event_loop.run_app(app).expect("event loop failed");
 }
 
 fn pixels_hash(bytes: &[u8]) -> u64 {

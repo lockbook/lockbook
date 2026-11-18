@@ -447,8 +447,6 @@ pub enum Action {
     SetPrefOpenInNewTab(bool),
     SetPrefSidebarUsage(bool),
 
-    /// Linux only — persisted; takes effect after restart.
-    SetPrefAllowWayland(bool),
     /// The nudge card's button: it's done, and the sign-in QR code shows.
     NudgeAccept,
     /// The nudge card's X: it doesn't come back.
@@ -584,7 +582,6 @@ impl Action {
             Self::SetPrefUpdateLinks(_) => "SetPrefUpdateLinks",
             Self::SetPrefOpenInNewTab(_) => "SetPrefOpenInNewTab",
             Self::SetPrefSidebarUsage(_) => "SetPrefSidebarUsage",
-            Self::SetPrefAllowWayland(_) => "SetPrefAllowWayland",
             Self::NudgeAccept => "NudgeAccept",
             Self::NudgeDismiss => "NudgeDismiss",
             Self::RevealPhrase => "RevealPhrase",

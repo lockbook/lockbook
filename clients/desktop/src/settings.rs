@@ -17,8 +17,6 @@ pub struct Settings {
     /// installed family names; unset draws in the platform's
     pub text_font: Option<String>,
     pub code_font: Option<String>,
-    #[cfg(target_os = "linux")]
-    pub allow_wayland: bool,
     #[serde(skip_serializing, skip_deserializing)]
     path: String,
 }
@@ -86,8 +84,6 @@ impl Default for Settings {
             zen_mode: false,
             text_font: None,
             code_font: None,
-            #[cfg(target_os = "linux")]
-            allow_wayland: false,
         }
     }
 }
