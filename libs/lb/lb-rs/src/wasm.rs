@@ -1,35 +1,23 @@
-use std::sync::Arc;
-
 use db_rs::View;
 use db_rs::config::Config as DbConfig;
-use tokio::sync::RwLock;
-use web_time::Instant;
 
 use crate::Lb;
 use crate::io::CoreDb;
 use crate::io::docs::AsyncDocs;
+use crate::io::network::Network;
 use crate::model::core_config::Config;
 use crate::model::errors::LbResult;
 
 impl Lb {
+    /// An in-memory instance for the browser. Builds through [Lb::assemble] like every other
+    /// instance, so it gets each field a native one does; only the logging differs, since the page
+    /// installs its own subscriber and has no files to write logs or panic reports to.
     pub fn init_dummy(config: Config) -> LbResult<Self> {
         if config.logs {
             crate::service::logging::log_startup(&config);
         }
         let db = CoreDb::init(&DbConfig::in_memory())?;
-        let user_last_seen = Arc::new(RwLock::new(Instant::now()));
-
-        Ok(Self {
-            user_last_seen,
-            user_wake: Default::default(),
-            config: config.clone(),
-            keychain: Default::default(),
-            db: Arc::new(RwLock::new(db)),
-            docs: AsyncDocs::from(&config),
-            client: Default::default(),
-            syncer: Default::default(),
-            events: Default::default(),
-            status: Default::default(),
-        })
+        let docs = AsyncDocs::from(&config);
+        futures::executor::block_on(Self::assemble(config, db, docs, Network::default()))
     }
 }
