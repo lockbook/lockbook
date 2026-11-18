@@ -3649,7 +3649,7 @@ fn view_for(syntax: Syntax, persistence: &WsPersistentStore) -> View {
 const SIDECAR_W: f32 = 260.0;
 const SIDECAR_GAP: f32 = 24.0;
 
-const PLACEHOLDER: &str = "Type [[ to link a note";
+const PLACEHOLDER: &str = "Start writing";
 
 /// Where a landing puts text.
 #[derive(Clone, Copy)]
