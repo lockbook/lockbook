@@ -2232,28 +2232,6 @@ dependencies = [
 [[package]]
 name = "egui-winit"
 version = "0.37.0"
-dependencies = [
- "ashpd 0.11.1",
- "block2 0.6.2",
- "bytemuck",
- "egui",
- "log",
- "objc2 0.6.5",
- "objc2-app-kit 0.3.2",
- "pollster 0.2.5",
- "profiling",
- "raw-window-handle",
- "serde",
- "url 2.5.8",
- "web-time",
- "webbrowser",
- "windows-sys 0.61.2",
- "winit 0.31.0-beta.4",
-]
-
-[[package]]
-name = "egui-winit"
-version = "0.37.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e4e449f4c4a2a60c7ccb4ba7fa4078417bfe1f9ddc03b5e05ce75748e33a70de"
 dependencies = [
@@ -2275,6 +2253,31 @@ dependencies = [
  "webbrowser",
  "windows-sys 0.61.2",
  "winit 0.30.13",
+]
+
+[[package]]
+name = "egui-winit"
+version = "0.37.0"
+source = "git+https://github.com/lockbook/egui?rev=d453d0931b2ae021cdad314109aaba7a01693ff8#d453d0931b2ae021cdad314109aaba7a01693ff8"
+dependencies = [
+ "arboard",
+ "ashpd 0.11.1",
+ "block2 0.6.2",
+ "bytemuck",
+ "egui",
+ "log",
+ "objc2 0.6.5",
+ "objc2-app-kit 0.3.2",
+ "objc2-foundation 0.3.2",
+ "objc2-ui-kit 0.3.2",
+ "pollster 0.2.5",
+ "profiling",
+ "raw-window-handle",
+ "url 2.5.8",
+ "web-time",
+ "webbrowser",
+ "windows-sys 0.61.2",
+ "winit 0.31.0-beta.4",
 ]
 
 [[package]]
@@ -4786,7 +4789,7 @@ dependencies = [
  "dark-light",
  "dispatch2",
  "egui",
- "egui-winit 0.37.0",
+ "egui-winit 0.37.0 (git+https://github.com/lockbook/egui?rev=d453d0931b2ae021cdad314109aaba7a01693ff8)",
  "egui_extras",
  "egui_wgpu_renderer",
  "env_logger",

@@ -9,7 +9,7 @@ chrono = { version = "0.4", default-features = false, features = ["clock"] }
 dark-light = "2.0.0"
 egui = "0.37.0"
 egui_extras = { version = "0.37.0", features = ["image"] }
-egui-winit = { path = "vendor/egui-winit", default-features = false, features = ["links", "wayland", "x11"] }
+egui-winit = { git = "https://github.com/lockbook/egui", rev = "d453d0931b2ae021cdad314109aaba7a01693ff8", default-features = false, features = ["links", "wayland", "x11"] }
 egui_wgpu_renderer = { path = "../../libs/content/egui_wgpu_renderer" }
 env_logger = "0.10"
 image = { version = "0.25", default-features = false, features = [
