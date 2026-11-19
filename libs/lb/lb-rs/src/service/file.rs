@@ -241,8 +241,8 @@ impl<S: Server, D: LocalDocuments> Lb<S, D> {
         Ok(root)
     }
 
-    /// Every file this client lists: attachments folders and their contents only where the
-    /// config lists them.
+    /// All files as this client lists them: attachments hidden for desktop and mobile, shown for cli
+    /// and files integrations
     #[instrument(level = "debug", skip(self), err(Debug))]
     pub async fn list_metadatas(&self) -> LbResult<Vec<File>> {
         let tx = self.ro_tx().await;
@@ -252,7 +252,7 @@ impl<S: Server, D: LocalDocuments> Lb<S, D> {
 
         let mut ids = tree.ids();
         if !self.config.list_attachments {
-            ids = Self::omit_attachments(&tree, ids)?;
+            ids = Self::omit_attachments(&mut tree, ids)?;
         }
 
         tree.decrypt_all(&self.keychain, ids.into_iter(), &db.pub_key_lookup, true)
@@ -270,8 +270,8 @@ impl<S: Server, D: LocalDocuments> Lb<S, D> {
         tree.decrypt_all(&self.keychain, ids.into_iter(), &db.pub_key_lookup, true)
     }
 
-    /// `id`'s children as this client lists them: attachments folders only where the config
-    /// lists them.
+    /// A folder's children as this client lists them: attachments hidden for desktop and mobile,
+    /// shown for cli and files integrations
     #[instrument(level = "debug", skip(self), err(Debug))]
     pub async fn get_children(&self, id: &Uuid) -> LbResult<Vec<File>> {
         let tx = self.ro_tx().await;
@@ -281,22 +281,28 @@ impl<S: Server, D: LocalDocuments> Lb<S, D> {
 
         let mut ids = tree.children_using_links(id)?;
         if !self.config.list_attachments {
-            ids = Self::omit_attachments(&tree, ids)?;
+            ids = Self::omit_attachments(&mut tree, ids)?;
         }
 
         tree.decrypt_all(&self.keychain, ids.into_iter(), &db.pub_key_lookup, true)
     }
 
-    /// All of `id`'s children, attachments folders included, for lb's own walks and name checks.
+    /// All of `id`'s children that aren't deleted, including the ones listings leave out, for lb's
+    /// own walks and name checks.
     pub(crate) async fn all_children(&self, id: &Uuid) -> LbResult<Vec<File>> {
         let tx = self.ro_tx().await;
         let db = tx.db();
 
         let mut tree = (&db.base_metadata).to_staged(&db.local_metadata).to_lazy();
 
-        let ids = tree.children_using_links(id)?;
+        let mut ids = Vec::new();
+        for child in tree.children_using_links(id)? {
+            if !tree.calculate_deleted(&child)? {
+                ids.push(child);
+            }
+        }
 
-        tree.decrypt_all(&self.keychain, ids.into_iter(), &db.pub_key_lookup, true)
+        tree.decrypt_all(&self.keychain, ids.into_iter(), &db.pub_key_lookup, false)
     }
 
     #[instrument(level = "debug", skip(self), err(Debug))]
@@ -308,7 +314,7 @@ impl<S: Server, D: LocalDocuments> Lb<S, D> {
 
         let mut descendants = tree.descendants_using_links(id)?;
         if !self.config.list_attachments {
-            descendants = Self::omit_attachments(&tree, descendants)?;
+            descendants = Self::omit_attachments(&mut tree, descendants)?;
         }
 
         tree.decrypt_all(
@@ -360,7 +366,7 @@ impl<S: Server, D: LocalDocuments> Lb<S, D> {
 
     /// `ids` without attachments folders and their contents, for a listing on a client whose
     /// config doesn't list them.
-    pub(crate) fn omit_attachments<T, Ids>(tree: &LazyTree<T>, ids: Ids) -> LbResult<Ids>
+    pub(crate) fn omit_attachments<T, Ids>(tree: &mut LazyTree<T>, ids: Ids) -> LbResult<Ids>
     where
         T: TreeLike<F = SignedMeta>,
         Ids: IntoIterator<Item = Uuid> + FromIterator<Uuid>,

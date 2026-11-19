@@ -18,6 +18,7 @@ pub struct LazyTree<T: TreeLike> {
     pub tree: T,
     pub name: HashMap<Uuid, String, UuidIdentityHasherBuilder>,
     pub implicit_deleted: HashMap<Uuid, bool, UuidIdentityHasherBuilder>,
+    pub in_attachments: HashMap<Uuid, bool, UuidIdentityHasherBuilder>,
     pub linked_by: Option<HashMap<Uuid, Uuid, UuidIdentityHasherBuilder>>,
     pub attached_by: Option<HashMap<Uuid, Uuid, UuidIdentityHasherBuilder>>,
     pub children: HashMap<Uuid, Vec<Uuid>, UuidIdentityHasherBuilder>,
@@ -28,6 +29,7 @@ impl<T: TreeLike> LazyTree<T> {
         Self {
             name: uuid_map(),
             implicit_deleted: uuid_map(),
+            in_attachments: uuid_map(),
             children: uuid_map(),
             linked_by: None,
             attached_by: None,
@@ -68,21 +70,41 @@ impl<T: TreeLike> LazyTree<T> {
     }
 
     /// Whether `id` is an attachments folder or inside one.
-    pub fn in_attachments(&self, id: &Uuid) -> LbResult<bool> {
-        let mut file = self.find(id)?;
-        let mut visited = HashSet::new();
-        loop {
-            if file.attachment_of().is_some() {
-                return Ok(true);
+    pub fn in_attachments(&mut self, id: &Uuid) -> LbResult<bool> {
+        let (visited_ids, in_attachments) = {
+            let mut file = self.find(id)?;
+            let mut visited_ids = vec![];
+            let mut in_attachments = false;
+
+            while !visited_ids.contains(file.id()) {
+                visited_ids.push(*file.id());
+                if let Some(&cached) = self.in_attachments.get(file.id()) {
+                    in_attachments = cached;
+                    break;
+                }
+
+                if file.attachment_of().is_some() {
+                    in_attachments = true;
+                    break;
+                }
+
+                if file.is_root() {
+                    break;
+                }
+                file = match self.maybe_find_parent(file) {
+                    Some(file) => file,
+                    None => break,
+                }
             }
-            if file.is_root() || !visited.insert(*file.id()) {
-                return Ok(false);
-            }
-            match self.maybe_find_parent(file) {
-                Some(parent) => file = parent,
-                None => return Ok(false),
-            }
+
+            (visited_ids, in_attachments)
+        };
+
+        for id in visited_ids {
+            self.in_attachments.insert(id, in_attachments);
         }
+
+        Ok(in_attachments)
     }
 
     /// `document`'s attachments folder that isn't deleted, if this tree has one.
@@ -467,6 +489,7 @@ impl<T: TreeLike> LazyTree<T> {
             tree: StagedTree::new(self.tree, staged),
             name: uuid_map(),
             implicit_deleted: uuid_map(),
+            in_attachments: uuid_map(),
             children: uuid_map(),
             linked_by: None,
             attached_by: None,
@@ -567,6 +590,7 @@ where
         // todo: incremental cache update
         self.name = uuid_map();
         self.implicit_deleted = uuid_map();
+        self.in_attachments = uuid_map();
         self.children = uuid_map();
         self.linked_by = None;
         self.attached_by = None;
@@ -591,6 +615,7 @@ where
         // todo: incremental cache update
         self.name = uuid_map();
         self.implicit_deleted = uuid_map();
+        self.in_attachments = uuid_map();
         self.children = uuid_map();
         self.linked_by = None;
         self.attached_by = None;
@@ -620,6 +645,7 @@ where
             tree: base,
             name: uuid_map(),
             implicit_deleted: uuid_map(),
+            in_attachments: uuid_map(),
             children: uuid_map(),
             linked_by: None,
             attached_by: None,
@@ -639,6 +665,7 @@ where
                 tree: self.tree.base,
                 name: uuid_map(),
                 implicit_deleted: uuid_map(),
+                in_attachments: uuid_map(),
                 children: uuid_map(),
                 linked_by: None,
                 attached_by: None,

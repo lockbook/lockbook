@@ -395,6 +395,17 @@ async fn the_folder_of_a_note_shared_alone_has_no_path() {
         .map(|f| f.id)
         .collect();
     assert_eq!(children, [doc.id]);
+
+    // an export takes it with the note
+    let dest = std::env::temp_dir().join(uuid::Uuid::new_v4().to_string());
+    std::fs::create_dir_all(&dest).unwrap();
+    reader
+        .export_file(link.parent, dest.clone(), false, &Some(|_| {}))
+        .await
+        .unwrap();
+    assert!(dest.join("shared/renamed.md").exists());
+    assert_eq!(std::fs::read(dest.join("shared/plan-attachments/image.png")).unwrap(), b"pixels");
+    std::fs::remove_dir_all(dest).unwrap();
 }
 
 #[tokio::test]
