@@ -47,8 +47,6 @@
     <string name="debug_info_copy">Copy</string>
     <string name="settings_preference_debug">Debug</string>
     <string name="settings_preference_usage">Usage</string>
-    <string name="settings_usage_current">Usage:</string>
-    <string name="settings_usage_data_cap">Data Cap:</string>
     <string name="menu_list_files_rename">Rename</string>
     <string name="menu_list_files_delete">Delete</string>
     <string name="menu_list_files_info">File info</string>
@@ -367,4 +365,60 @@
     <string name="metadata_loading">Loading your files…</string>
     <string name="metadata_retry">Try again</string>
     <string name="create_file_choose_another_location">%1$s Choose another location.</string>
+
+    <string name="storage_title">Storage</string>
+    <string name="storage_of_cap">of %1$s</string>
+    <string name="storage_used">used</string>
+    <string name="storage_used_of_cap">%1$s of %2$s</string>
+    <string name="storage_cap_not_loaded">Cap not loaded</string>
+    <string name="storage_over_by">%1$s over</string>
+    <string name="storage_free">%1$s free</string>
+    <string name="storage_synced">Synced</string>
+    <string name="storage_unsynced">Unsynced</string>
+    <string name="storage_freed_on_sync">Freed on sync</string>
+    <string name="storage_over_cap">Over cap</string>
+    <string name="storage_over_title">Over your data cap</string>
+    <string name="storage_over_detail">Changes that add space won\'t sync until you free %1$s.</string>
+    <string name="storage_over_detail_free_tier">Changes that add space won\'t sync until you free %1$s or upgrade.</string>
+    <string name="storage_out_of_space_title">A sync ran out of space</string>
+    <string name="storage_out_of_space_detail">Your storage has room, so a folder someone shared with you may be full.</string>
+    <string name="storage_almost_full_title">Almost full</string>
+    <string name="storage_almost_full_detail">%1$s left before changes stop syncing.</string>
+    <string name="storage_tab_folders">Folders</string>
+    <string name="storage_tab_types">Types</string>
+    <string name="storage_tab_largest">Largest</string>
+    <string name="storage_tab_unsynced">Unsynced</string>
+    <string name="storage_loading">Loading…</string>
+    <string name="storage_back">Back to the folder above</string>
+    <string name="storage_empty_folder">Nothing stored here yet.</string>
+    <string name="storage_empty_account">Nothing stored yet.</string>
+    <string name="storage_no_documents">No documents yet.</string>
+    <string name="storage_all_synced">Everything is synced.</string>
+    <string name="storage_in_path">in %1$s</string>
+    <string name="storage_change_in_path">%1$s · in %2$s</string>
+    <string name="storage_deletes_pending">Space returns once the deletes sync</string>
+    <string name="storage_locate_in_files">Show in files</string>
+    <string name="storage_kind_notes">Notes</string>
+    <string name="storage_kind_drawings">Drawings</string>
+    <string name="storage_kind_images">Images</string>
+    <string name="storage_kind_pdfs">PDFs</string>
+    <string name="storage_kind_text">Text &amp; code</string>
+    <string name="storage_kind_other">Other files</string>
+    <string name="storage_kind_folders">Folders &amp; links</string>
+    <string name="storage_change_new">New</string>
+    <string name="storage_change_edited">Edited</string>
+    <string name="storage_change_moved_out">Moved to someone else\'s folder</string>
+    <string name="storage_change_deleted">Deleted</string>
+    <plurals name="storage_items">
+        <item quantity="one">%d item</item>
+        <item quantity="other">%d items</item>
+    </plurals>
+    <plurals name="storage_files">
+        <item quantity="one">%d file</item>
+        <item quantity="other">%d files</item>
+    </plurals>
+    <plurals name="storage_deleted_files">
+        <item quantity="one">%d deleted file</item>
+        <item quantity="other">%d deleted files</item>
+    </plurals>
 </resources>
