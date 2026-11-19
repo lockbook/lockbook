@@ -7,10 +7,10 @@
 use egui::{FontFamily, FontId, Id, Ui, pos2, vec2};
 use lb::Uuid;
 use workspace_rs::file_cache::FilesExt;
-use workspace_rs::style::file_row::CRUMB_SEP;
-use workspace_rs::style::{display_file_name, home_crumb};
+use workspace_rs::style::display_file_name;
 use workspace_rs::tab::{Destination, Place};
 
+use crate::components::atoms::name_trail::{disambiguating_folders, folder_crumbs};
 use crate::components::{
     EqualCells, FixedPadContent, LIST_PAD, QuietChipAlign, QuietChipLabel, Space, Spacer, Theme,
     TypeRole, context_menu, file_row_icon, phosphor, quiet_chip, quiet_chip_height, with_h_pad,
@@ -275,70 +275,5 @@ fn pin_chip(ui: &mut Ui, t: &Theme, row: &PinRow, queue: &mut Vec<Action>) {
             PinCmd::Export => queue.push(A::Export(vec![row.id])),
             PinCmd::Delete => queue.push(A::OpenDelete(vec![row.id])),
         }
-    }
-}
-
-/// A folder path's crumbs, outermost first; own-tree paths start at Home.
-fn folder_crumbs(path: &str) -> Vec<String> {
-    let home = path.starts_with('/').then(home_crumb);
-    home.into_iter()
-        .chain(path.split('/').filter(|p| !p.is_empty()).map(str::to_owned))
-        .collect()
-}
-
-/// For each `(name, folder crumbs)` pin, the fewest innermost crumbs that
-/// set it apart from every other pin of the same name; `None` when no
-/// same-named pin lives in another folder.
-fn disambiguating_folders(pins: &[(&str, Vec<String>)]) -> Vec<Option<String>> {
-    let trail = |crumbs: &[String], k: usize| crumbs[crumbs.len().saturating_sub(k)..].to_vec();
-    pins.iter()
-        .enumerate()
-        .map(|(i, (name, crumbs))| {
-            let twins: Vec<&Vec<String>> = pins
-                .iter()
-                .enumerate()
-                .filter(|(j, (other, c))| *j != i && other == name && c != crumbs)
-                .map(|(_, (_, c))| c)
-                .collect();
-            if twins.is_empty() {
-                return None;
-            }
-            let k = (1..=crumbs.len())
-                .find(|&k| twins.iter().all(|c| trail(c, k) != trail(crumbs, k)))
-                .unwrap_or(crumbs.len());
-            Some(trail(crumbs, k).join(CRUMB_SEP))
-        })
-        .collect()
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    fn pin<'a>(name: &'a str, folder: &str) -> (&'a str, Vec<String>) {
-        (name, folder_crumbs(folder))
-    }
-
-    #[test]
-    fn same_named_pins_walk_up_until_they_differ() {
-        let pins = [
-            pin("todo", "/"),
-            pin("todo", "/work/"),
-            pin("notes", "/a/x/y/"),
-            pin("notes", "/b/x/y/"),
-            pin("plan", "/work/"),
-            pin("plan", "/work/"), // plan.md beside plan.pdf
-        ];
-        assert_eq!(
-            disambiguating_folders(&pins),
-            [
-                Some(home_crumb()),
-                Some("work".into()),
-                Some("a/x/y".into()),
-                Some("b/x/y".into()),
-                None,
-                None,
-            ]
-        );
     }
 }

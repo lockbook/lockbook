@@ -6,6 +6,7 @@ pub use workspace_rs::style::file_name;
 pub use workspace_rs::style::file_row;
 pub mod chip;
 pub mod chip_layout;
+pub mod name_trail;
 pub mod nav_item;
 pub mod person_row;
 pub mod picker;
