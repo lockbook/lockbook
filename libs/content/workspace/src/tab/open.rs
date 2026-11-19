@@ -144,7 +144,12 @@ impl TabContent {
                 return Ok(TabContent::SpaceInspector(inspector));
             }
             Destination::Search(state) => {
-                return Ok(TabContent::Search(Search::new(&res.core, &res.ctx, state)));
+                return Ok(TabContent::Search(Search::new(
+                    &res.core,
+                    res.files.clone(),
+                    &res.ctx,
+                    state,
+                )));
             }
             Destination::Diagram(source) => {
                 return Ok(TabContent::Image(ImageViewer::diagram(
