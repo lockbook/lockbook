@@ -742,14 +742,6 @@ pub fn apply(app: &mut ShellApp, ctx: &Context, action: A) {
             let _ = app.settings.to_file();
         }
 
-        A::SetPrefAllowWayland(v) => {
-            #[cfg(target_os = "linux")]
-            {
-                app.settings.allow_wayland = v;
-                let _ = app.settings.to_file();
-            }
-            let _ = v;
-        }
         A::NudgeAccept => {
             if let Some(then) = app.nudges.as_mut().map(|n| n.accept()) {
                 apply(app, ctx, then);
