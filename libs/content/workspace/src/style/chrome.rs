@@ -550,6 +550,7 @@ pub fn phosphor_for_doc_type(dt: crate::show::DocType) -> &'static str {
         DocType::Code => phosphor::CODE,
         DocType::PDF => phosphor::FILE_PDF,
         DocType::Chat => phosphor::CHAT,
+        DocType::Voice => phosphor::MICROPHONE,
         DocType::Unknown => phosphor::FILE,
     }
 }

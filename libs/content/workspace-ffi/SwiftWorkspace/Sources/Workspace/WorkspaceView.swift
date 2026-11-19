@@ -284,7 +284,7 @@ import SwiftUI
                 }
 
                 switch newCurrentTab {
-                case .Welcome, .Pdf, .Loading, .SpaceInspector, .Search:
+                case .Welcome, .Pdf, .Loading, .SpaceInspector, .Search, .Voice:
                     if currentWrapper == nil {
                         return
                     }

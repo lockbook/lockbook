@@ -403,6 +403,9 @@
             if Spelling.answer(wsHandle, mode: keyboard) {
                 mtkView.requestFrame()
             }
+            if VoiceHost.shared.pump(wsHandle) {
+                mtkView.requestFrame()
+            }
         }
 
         /// A frame that consumes no queued input, so geometry reflects an edit
@@ -1298,10 +1301,11 @@ public enum WorkspaceTab: Int {
     case SpaceInspector = 8
     case Chat = 9
     case Search = 10
+    case Voice = 11
 
     func viewWrapperId() -> Int {
         switch self {
-        case .Welcome, .Pdf, .Loading, .SpaceInspector, .Search:
+        case .Welcome, .Pdf, .Loading, .SpaceInspector, .Search, .Voice:
             1
         case .Svg, .Image, .Graph:
             2

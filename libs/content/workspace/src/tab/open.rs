@@ -204,6 +204,9 @@ impl TabContent {
                 &res.persistence,
                 read_only,
             ))),
+            DocType::Voice => {
+                Ok(TabContent::Voice(crate::tab::voice::VoiceNote::new(&res.ctx, id, hmac, &bytes)))
+            }
             #[cfg(not(target_family = "wasm"))]
             DocType::Chat => {
                 let mut chat = Chat::new(
@@ -266,6 +269,7 @@ impl TabContent {
                 chat.reload(bytes, hmac);
                 true
             }
+            TabContent::Voice(voice) => voice.reload(bytes, hmac),
             _ => false,
         }
     }

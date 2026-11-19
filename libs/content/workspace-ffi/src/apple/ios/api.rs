@@ -1296,3 +1296,27 @@ pub unsafe extern "C" fn selection_misspelling(obj: *mut c_void) -> CTextRange {
     let Some(word) = md.renderer.selection_misspelling() else { return CTextRange::default() };
     CTextRange { none: false, start: position(md, word.start()), end: position(md, word.end()) }
 }
+
+/// # Safety
+/// obj must be a valid pointer to WgpuWorkspace; free the result with `free_text`.
+#[no_mangle]
+pub unsafe extern "C" fn voice_requests(obj: *mut c_void) -> *const c_char {
+    let obj = &mut *(obj as *mut WgpuWorkspace);
+    workspace_rs::tab::voice::host::requests_json(&obj.renderer.context)
+        .and_then(|json| CString::new(json).ok())
+        .map(|s| s.into_raw() as *const c_char)
+        .unwrap_or(std::ptr::null())
+}
+
+/// # Safety
+/// obj must be a valid pointer to WgpuWorkspace and json a valid C string.
+#[no_mangle]
+pub unsafe extern "C" fn voice_event(obj: *mut c_void, json: *const c_char) {
+    let obj = &mut *(obj as *mut WgpuWorkspace);
+    let Ok(json) = CStr::from_ptr(json).to_str() else { return };
+    let host = workspace_rs::tab::voice::host::get(&obj.renderer.context);
+    if let Err(err) = host.post_json(json) {
+        tracing::warn!(%err, "unreadable voice event");
+    }
+    obj.renderer.context.request_repaint();
+}
