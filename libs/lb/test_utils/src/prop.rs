@@ -1,6 +1,10 @@
 //! Shared seed loop for the byte-stream property tests. Runs `check`
-//! against seeds `0..seeds`; on the first failure it delta-debugs the
+//! against `seeds` seeds; on the first failure it delta-debugs the
 //! buffer and panics with a `repro`-formatted reproducer.
+//!
+//! `PROP_SLICE=n` moves every property to its nth range of seeds,
+//! `n*seeds..(n+1)*seeds`, so a repeat run on unchanged code covers new
+//! seeds. Unset is slice 0.
 //!
 //! On CI a slow run stops at [`budget`] rather than failing: a property
 //! test should report a *broken invariant*, not a slow machine. Coverage
@@ -43,7 +47,15 @@ where
     C: Fn(&[u8]) -> Result<(), E>,
     R: Fn(&[u8]) -> String,
 {
-    for seed in 0..seeds {
+    let slice = slice(std::env::var(SLICE));
+    let first = slice
+        .checked_mul(seeds)
+        .unwrap_or_else(|| panic!("{SLICE}={slice} overflows"));
+    let last = first
+        .checked_add(seeds)
+        .unwrap_or_else(|| panic!("{SLICE}={slice} overflows"));
+    let at = if slice == 0 { String::new() } else { format!(" ({SLICE}={slice})") };
+    for seed in first..last {
         if deadline.is_some_and(|deadline| Instant::now() >= deadline) {
             // Write straight to fd 2: libtest captures (hides) a passing
             // test's `eprintln!`, so a budget-truncated but green run would
@@ -53,8 +65,9 @@ where
             let name = thread.name().unwrap_or("?");
             let _ = writeln!(
                 std::io::stderr(),
-                "⚠ prop {name}: stopped after {seed}/{seeds} seeds (hit its budget) \
+                "⚠ prop {name}: stopped after {}/{seeds} seeds{at} (hit its budget) \
                  — coverage reduced this run",
+                seed - first,
             );
             break;
         }
@@ -68,10 +81,44 @@ where
             let shrink_deadline = Instant::now() + BUDGET;
             let shrunk = shrink(buf, |b| Instant::now() < shrink_deadline && check(b).is_err());
             panic!(
-                "seed {seed} {reason}\nshrunk ({} bytes): {shrunk:?}\n{}",
+                "seed {seed}{at} {reason}\nshrunk ({} bytes): {shrunk:?}\n{}",
                 shrunk.len(),
                 repro(&shrunk),
             );
         }
+    }
+}
+
+/// The variable naming the slice of seeds a run covers.
+const SLICE: &str = "PROP_SLICE";
+
+/// The slice `var` names: 0 when unset, and a failed test when it is not a number.
+fn slice(var: Result<String, std::env::VarError>) -> u64 {
+    match var {
+        Err(std::env::VarError::NotPresent) => 0,
+        Err(err) => panic!("{SLICE}: {err}"),
+        Ok(value) => value
+            .parse()
+            .unwrap_or_else(|_| panic!("{SLICE}={value:?} is not a slice number")),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::env::VarError;
+
+    use super::slice;
+
+    #[test]
+    fn unset_is_slice_zero() {
+        assert_eq!(slice(Err(VarError::NotPresent)), 0);
+        assert_eq!(slice(Ok("0".into())), 0);
+        assert_eq!(slice(Ok("7".into())), 7);
+    }
+
+    #[test]
+    #[should_panic(expected = "is not a slice number")]
+    fn a_word_is_not_a_slice() {
+        slice(Ok("next".into()));
     }
 }
