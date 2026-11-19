@@ -1,5 +1,3 @@
-use std::ops::RangeInclusive;
-
 use egui::text::LayoutJob;
 use egui::{
     Align2, Button, Color32, Event, FontFamily, FontId, Id, Key, Modifiers, Rect, RichText, Sense,
@@ -17,6 +15,9 @@ use super::{ExtendedOutput as _, Response, TabFailure};
 use crate::style::chrome::{phosphor, phosphor_font_id};
 use crate::theme::palette_v2::ThemeExt as _;
 
+mod grid;
+mod ranges;
+
 // Version 1 uses the workbook encoding of ironcalc_base 0.9.1.
 const HEADER: &[u8] = b"LBSHEET\0\x01";
 const ROWS: i32 = 1_048_576;
@@ -24,13 +25,15 @@ const COLUMNS: i32 = 16_384;
 const COLUMN_WIDTH: f32 = 112.0;
 const ROW_HEADER: f32 = 62.0;
 const COLUMN_HEADER: f32 = 26.0;
+// IronCalc creates one or more undo records per cell in rectangular edits.
+const MAX_EDIT_CELLS: i64 = 100_000;
 const ALIGNMENTS: [(HorizontalAlignment, &str, &str); 3] = [
     (HorizontalAlignment::Left, "Align left", phosphor::TEXT_ALIGN_LEFT),
     (HorizontalAlignment::Center, "Align center", phosphor::TEXT_ALIGN_CENTER),
     (HorizontalAlignment::Right, "Align right", phosphor::TEXT_ALIGN_RIGHT),
 ];
 
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 struct Cell {
     row: i32,
     column: i32,
@@ -43,11 +46,61 @@ impl Cell {
         format!("{}{}", column_label(self.column), self.row)
     }
 
-    fn rect(self, origin: egui::Pos2, height: f32) -> Rect {
-        Rect::from_min_size(
-            origin + vec2((self.column - 1) as f32 * COLUMN_WIDTH, (self.row - 1) as f32 * height),
-            vec2(COLUMN_WIDTH, height),
-        )
+    fn offset(self, rows: i32, columns: i32) -> Self {
+        Self { row: self.row + rows, column: self.column + columns }
+    }
+
+    fn clamped(self) -> Self {
+        Self { row: self.row.clamp(1, ROWS), column: self.column.clamp(1, COLUMNS) }
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct CellRange {
+    first: Cell,
+    last: Cell,
+}
+
+impl CellRange {
+    fn new(anchor: Cell, end: Cell) -> Self {
+        Self {
+            first: Cell { row: anchor.row.min(end.row), column: anchor.column.min(end.column) },
+            last: Cell { row: anchor.row.max(end.row), column: anchor.column.max(end.column) },
+        }
+    }
+
+    fn contains(self, cell: Cell) -> bool {
+        (self.first.row..=self.last.row).contains(&cell.row)
+            && (self.first.column..=self.last.column).contains(&cell.column)
+    }
+
+    fn intersects(self, other: Self) -> bool {
+        self.first.row <= other.last.row
+            && other.first.row <= self.last.row
+            && self.first.column <= other.last.column
+            && other.first.column <= self.last.column
+    }
+
+    fn area(self, sheet: u32) -> Area {
+        Area {
+            sheet,
+            row: self.first.row,
+            column: self.first.column,
+            width: self.last.column - self.first.column + 1,
+            height: self.last.row - self.first.row + 1,
+        }
+    }
+
+    fn address(self) -> String {
+        if self.first == self.last {
+            self.first.address()
+        } else if self.first.row == 1 && self.last.row == ROWS {
+            format!("{}:{}", column_label(self.first.column), column_label(self.last.column))
+        } else if self.first.column == 1 && self.last.column == COLUMNS {
+            format!("{}:{}", self.first.row, self.last.row)
+        } else {
+            format!("{}:{}", self.first.address(), self.last.address())
+        }
     }
 }
 
@@ -60,10 +113,14 @@ pub struct Spreadsheet {
     pub save_error: Option<String>,
     model: UserModel<'static>,
     selected: Cell,
+    range_end: Cell,
     sheet: u32,
+    grid: grid::State,
     edit: Option<Box<MdEdit>>,
     error: Option<String>,
     seq: usize,
+    undo_steps: Vec<usize>,
+    redo_steps: Vec<usize>,
 }
 
 impl Spreadsheet {
@@ -77,10 +134,14 @@ impl Spreadsheet {
             save_error: None,
             model: read_workbook(hmac, bytes).map_err(TabFailure::SimpleMisc)?,
             selected: Cell::FIRST,
+            range_end: Cell::FIRST,
             sheet: 0,
+            grid: grid::State::default(),
             edit: None,
             error: None,
             seq: 0,
+            undo_steps: Vec::new(),
+            redo_steps: Vec::new(),
         })
     }
 
@@ -96,6 +157,9 @@ impl Spreadsheet {
         self.sheet = self
             .sheet
             .min(self.model.get_model().workbook.worksheets.len() as u32 - 1);
+        self.grid = grid::State::default();
+        self.undo_steps.clear();
+        self.redo_steps.clear();
         Ok(())
     }
 
@@ -119,6 +183,15 @@ impl Spreadsheet {
         self.model
             .get_cell_content(self.sheet, self.selected.row, self.selected.column)
             .unwrap_or_default()
+    }
+
+    fn selection(&self) -> CellRange {
+        CellRange::new(self.selected, self.range_end)
+    }
+
+    fn select(&mut self, cell: Cell) {
+        self.selected = cell;
+        self.range_end = cell;
     }
 
     fn cell_style(&self, cell: Cell) -> Style {
@@ -172,6 +245,21 @@ impl Spreadsheet {
     }
 
     fn record_change(&mut self, result: Result<(), String>) -> bool {
+        self.record_edit(result.map(|()| 1))
+    }
+
+    fn record_edit(&mut self, result: Result<usize, String>) -> bool {
+        match result {
+            Ok(steps) => {
+                self.undo_steps.push(steps);
+                self.redo_steps.clear();
+                self.finish_change(Ok(()))
+            }
+            Err(error) => self.finish_change(Err(error)),
+        }
+    }
+
+    fn finish_change(&mut self, result: Result<(), String>) -> bool {
         match result {
             Ok(()) => {
                 self.error = None;
@@ -187,21 +275,33 @@ impl Spreadsheet {
     }
 
     fn change_history(&mut self, redo: bool) {
-        let result = if redo && self.model.can_redo() {
-            self.model.redo()
+        let (from, to) = if redo && self.model.can_redo() {
+            (&mut self.redo_steps, &mut self.undo_steps)
         } else if !redo && self.model.can_undo() {
-            self.model.undo()
+            (&mut self.undo_steps, &mut self.redo_steps)
         } else {
             return;
         };
-        self.record_change(result);
+        let steps = from.pop().unwrap_or(1);
+        self.model.pause_evaluation();
+        let result =
+            (0..steps).try_for_each(|_| if redo { self.model.redo() } else { self.model.undo() });
+        self.model.resume_evaluation();
+        self.model.evaluate();
+        if result.is_ok() {
+            to.push(steps);
+        }
+        if self.finish_change(result) {
+            let count = self.model.get_model().workbook.worksheets.len() as u32;
+            if self.sheet >= count {
+                self.sheet = count - 1;
+                self.select(Cell::FIRST);
+            }
+        }
     }
 
     fn update_style(&mut self, property: &str, value: &str) {
-        let Cell { row, column } = self.selected;
-        let area = Area { sheet: self.sheet, row, column, width: 1, height: 1 };
-        let result = self.model.update_range_style(&area, property, value);
-        self.record_change(result);
+        self.format_selection(property, value);
     }
 
     pub fn show(&mut self, ui: &mut Ui, read_only: bool, embedded: bool) -> Response {
@@ -239,6 +339,7 @@ impl Spreadsheet {
         }
         let keyboard = !embedded
             && !self.editing()
+            && !self.grid.dragging()
             && !egui::Popup::is_any_open(ui.ctx())
             && ui.memory(|m| m.focused().is_none_or(|focus| focus == grid_id));
         let reveal = keyboard && self.grid_keys(ui, id, read_only);
@@ -252,7 +353,7 @@ impl Spreadsheet {
                     }
                 });
             }
-            self.toolbar(ui, grid_id, height, !read_only && !self.editing());
+            self.toolbar(ui, grid_id, height, read_only);
             self.formula_bar(ui, id, height, read_only, &mut response);
             if let Some(error) = &self.error {
                 ui.colored_label(ui.ctx().get_lb_theme().danger(), error);
@@ -269,47 +370,13 @@ impl Spreadsheet {
             }
         }
 
-        if let Some((cell, double_clicked)) = self.grid(ui, height, embedded, reveal) {
-            if !self.editing() {
-                ui.memory_mut(|m| m.request_focus(grid_id));
-            }
-            if cell != self.selected && self.commit(ui, id) {
-                self.selected = cell;
-                response.text_interaction_rect = None;
-                ui.ctx().request_repaint();
-            }
-            if double_clicked && !touch && !read_only && !self.editing() {
-                self.begin_edit(ui, id, &self.input());
-            }
-        }
+        let grid_options = grid::Options { row_height: height, touch, embedded, read_only };
+        self.show_grid(ui, id, grid_options, reveal);
         if !embedded {
-            let sheets = self.model.get_worksheets_properties();
-            let mut next = self.sheet;
-            let text_color = ui.ctx().get_lb_theme().neutral_fg();
-            ui.horizontal(|ui| {
-                egui::ScrollArea::horizontal()
-                    .id_salt("worksheets")
-                    .show(ui, |ui| {
-                        ui.horizontal(|ui| {
-                            for (index, sheet) in sheets.iter().enumerate() {
-                                let label = egui::RichText::new(&sheet.name).color(text_color);
-                                if ui
-                                    .selectable_label(index as u32 == self.sheet, label)
-                                    .clicked()
-                                {
-                                    next = index as u32;
-                                }
-                            }
-                        });
-                    });
-            });
-            if next != self.sheet && self.commit(ui, id) {
-                self.sheet = next;
-                self.selected = Cell::FIRST;
-                response.text_interaction_rect = None;
-                ui.memory_mut(|m| m.request_focus(grid_id));
-                ui.ctx().request_repaint();
-            }
+            self.worksheets(ui, id, height, read_only);
+        }
+        if !self.editing() {
+            response.text_interaction_rect = None;
         }
         if was_editing != self.editing() {
             response.text_updated = true;
@@ -318,9 +385,50 @@ impl Spreadsheet {
         response
     }
 
-    fn toolbar(&mut self, ui: &mut Ui, grid_id: Id, height: f32, enabled: bool) {
-        let compact = ui.available_width() < height * 8.0 + 145.0;
-        let group_text_styles = ui.available_width() < height * 7.0 + 24.0;
+    fn worksheets(&mut self, ui: &mut Ui, id: Id, height: f32, read_only: bool) {
+        let sheets = self.model.get_worksheets_properties();
+        let mut next = self.sheet;
+        let text_color = ui.ctx().get_lb_theme().neutral_fg();
+        ui.horizontal(|ui| {
+            if !read_only
+                && toolbar_icon(ui, phosphor::FILE_PLUS, "Add worksheet", height, true, None)
+                && self.commit(ui, id)
+            {
+                let result = self.model.new_sheet();
+                if self.record_change(result) {
+                    next = self.model.get_selected_sheet();
+                }
+            }
+            egui::ScrollArea::horizontal()
+                .id_salt("worksheets")
+                .show(ui, |ui| {
+                    ui.horizontal(|ui| {
+                        ui.spacing_mut().interact_size.y = height;
+                        for (index, sheet) in sheets.iter().enumerate() {
+                            let label = RichText::new(&sheet.name).color(text_color);
+                            if ui
+                                .selectable_label(index as u32 == self.sheet, label)
+                                .clicked()
+                            {
+                                next = index as u32;
+                            }
+                        }
+                    });
+                });
+        });
+        if next != self.sheet && self.commit(ui, id) {
+            self.sheet = next;
+            self.select(Cell::FIRST);
+            self.grid = grid::State::default();
+            ui.memory_mut(|m| m.request_focus(id.with("grid")));
+            ui.ctx().request_repaint();
+        }
+    }
+
+    fn toolbar(&mut self, ui: &mut Ui, grid_id: Id, height: f32, read_only: bool) {
+        let enabled = !read_only && !self.editing();
+        let compact = ui.available_width() < height * 9.0 + 145.0;
+        let group_text_styles = ui.available_width() < height * 8.0 + 24.0;
         let style = self.cell_style(self.selected);
         let alignment = style
             .alignment
@@ -359,10 +467,67 @@ impl Spreadsheet {
                     }
                 }
             }
+            ui.add_enabled_ui(!self.editing(), |ui| self.selection_menu(ui, height, read_only));
         });
         if self.seq != seq {
             ui.memory_mut(|memory| memory.request_focus(grid_id));
             ui.ctx().request_repaint();
+        }
+    }
+
+    fn selection_menu(&mut self, ui: &mut Ui, height: f32, read_only: bool) {
+        enum Action {
+            Copy,
+            Clear,
+            Fill(ranges::Fill, CellRange),
+        }
+
+        let range = self.selection();
+        let button =
+            Button::new(icon_text(phosphor::DOTS_THREE, 18.0)).min_size(vec2(height, height));
+        let (trigger, action) = egui::containers::menu::MenuButton::from_button(
+            button.frame_when_inactive(false),
+        )
+        .ui(ui, |ui| {
+            ui.spacing_mut().interact_size.y = height;
+            let mut action = ui.button("Copy cells").clicked().then_some(Action::Copy);
+            if !read_only {
+                if ui
+                    .add_enabled(range.last.row > range.first.row, Button::new("Fill down"))
+                    .clicked()
+                {
+                    let mut source = range;
+                    source.last.row = source.first.row;
+                    action = Some(Action::Fill(ranges::Fill::Rows(range.last.row), source));
+                }
+                if ui
+                    .add_enabled(range.last.column > range.first.column, Button::new("Fill right"))
+                    .clicked()
+                {
+                    let mut source = range;
+                    source.last.column = source.first.column;
+                    action = Some(Action::Fill(ranges::Fill::Columns(range.last.column), source));
+                }
+                if ui.button("Clear contents").clicked() {
+                    action = Some(Action::Clear);
+                }
+            }
+            if action.is_some() {
+                ui.close();
+            }
+            action
+        });
+        trigger.widget_info(|| {
+            WidgetInfo::labeled(egui::Role::Button, ui.is_enabled(), "Cell actions")
+        });
+        trigger.on_hover_text("Cell actions");
+        match action.and_then(|response| response.inner) {
+            Some(Action::Copy) => self.copy_selection(ui),
+            Some(Action::Clear) => {
+                self.clear_selection();
+            }
+            Some(Action::Fill(fill, source)) => self.fill_selection(source, fill),
+            None => {}
         }
     }
 
@@ -444,7 +609,9 @@ impl Spreadsheet {
         let mut apply = false;
         let mut cancel = false;
         ui.horizontal(|ui| {
-            ui.add_sized(vec2(ROW_HEADER, height), egui::Label::new(self.selected.address()));
+            let address = self.selection().address();
+            let width = (address.len() as f32 * 8.0 + 6.0).clamp(ROW_HEADER, 132.0);
+            ui.add_sized(vec2(width, height), egui::Label::new(address).truncate());
             ui.label(icon_text(phosphor::FUNCTION, 16.0).weak());
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                 if self.editing() {
@@ -519,18 +686,17 @@ impl Spreadsheet {
     }
 
     fn grid_keys(&mut self, ui: &Ui, id: Id, read_only: bool) -> bool {
-        let (delta, edit, typing, clear, undo, redo) = ui.input_mut(|i| {
-            let delta = if i.consume_key(Modifiers::NONE, Key::ArrowDown) {
-                (1, 0)
-            } else if i.consume_key(Modifiers::NONE, Key::ArrowUp) {
-                (-1, 0)
-            } else if i.consume_key(Modifiers::NONE, Key::ArrowRight) {
-                (0, 1)
-            } else if i.consume_key(Modifiers::NONE, Key::ArrowLeft) {
-                (0, -1)
-            } else {
-                (0, 0)
-            };
+        let (delta, extend, edit, typing, clear, undo, redo, copy, paste) = ui.input_mut(|i| {
+            let extend = i.modifiers.shift;
+            let modifiers = if extend { Modifiers::SHIFT } else { Modifiers::NONE };
+            let delta = [
+                (Key::ArrowDown, (1, 0)),
+                (Key::ArrowUp, (-1, 0)),
+                (Key::ArrowRight, (0, 1)),
+                (Key::ArrowLeft, (0, -1)),
+            ]
+            .into_iter()
+            .find_map(|(key, delta)| i.consume_key(modifiers, key).then_some(delta));
             let edit = !read_only
                 && (i.consume_key(Modifiers::NONE, Key::F2)
                     || i.consume_key(Modifiers::NONE, Key::Enter));
@@ -543,168 +709,44 @@ impl Spreadsheet {
             let clear = !read_only && i.consume_key(Modifiers::NONE, Key::Delete);
             let redo = !read_only && i.consume_key(Modifiers::COMMAND | Modifiers::SHIFT, Key::Z);
             let undo = !read_only && !redo && i.consume_key(Modifiers::COMMAND, Key::Z);
-            (delta, edit, typing, clear, undo, redo)
+            let mut copy = false;
+            let mut paste = None;
+            i.events.retain(|event| match event {
+                Event::Copy => {
+                    copy = true;
+                    false
+                }
+                Event::Paste(text) if !read_only => {
+                    paste = Some(text.clone());
+                    false
+                }
+                _ => true,
+            });
+            (delta, extend, edit, typing, clear, undo, redo, copy, paste)
         });
-        let Cell { row, column } = self.selected;
-        if clear && !self.input().is_empty() {
-            let result = self.model.set_user_input(self.sheet, row, column, "");
-            self.record_change(result);
+        if clear {
+            self.clear_selection();
         } else if undo || redo {
             self.change_history(redo);
         }
-        self.selected = Cell {
-            row: (row + delta.0).clamp(1, ROWS),
-            column: (column + delta.1).clamp(1, COLUMNS),
-        };
-        if edit || typing {
+        if copy {
+            self.copy_selection(ui);
+        }
+        if let Some(text) = paste {
+            self.paste(&text);
+        }
+        if let Some((rows, columns)) = delta {
+            if extend {
+                self.range_end = self.range_end.offset(rows, columns).clamped();
+            } else {
+                self.select(self.selected.offset(rows, columns).clamped());
+            }
+        }
+        if edit || (typing && !self.editing()) {
             let input = if typing { String::new() } else { self.input() };
             self.begin_edit(ui, id, &input);
         }
-        delta != (0, 0)
-    }
-
-    fn grid(&self, ui: &mut Ui, height: f32, embedded: bool, reveal: bool) -> Option<(Cell, bool)> {
-        let theme = ui.ctx().get_lb_theme();
-        let max_height = if embedded {
-            (height * 8.0).min(ui.available_height())
-        } else {
-            (ui.available_height() - 32.0).max(0.0)
-        };
-        egui::ScrollArea::both()
-            .id_salt(("grid", self.sheet))
-            .auto_shrink([false, false])
-            .max_height(max_height)
-            .scroll_source(if embedded {
-                egui::scroll_area::ScrollSource::NONE
-            } else {
-                Default::default()
-            })
-            .show_viewport(ui, |ui, viewport| {
-                let origin = ui.min_rect().min + vec2(ROW_HEADER, COLUMN_HEADER);
-                if !embedded {
-                    ui.set_min_size(vec2(
-                        ROW_HEADER + COLUMN_WIDTH * COLUMNS as f32,
-                        COLUMN_HEADER + height * ROWS as f32,
-                    ));
-                } else {
-                    ui.set_min_height(max_height);
-                }
-                let viewport_rect = viewport.translate(ui.min_rect().min.to_vec2());
-                let corner = viewport_rect.min;
-                let body =
-                    Rect::from_min_max(corner + vec2(ROW_HEADER, COLUMN_HEADER), viewport_rect.max);
-                let clip = ui.clip_rect();
-                ui.set_clip_rect(clip.intersect(body));
-                let columns = visible_indices(
-                    viewport.min.x,
-                    viewport.max.x - ROW_HEADER,
-                    COLUMN_WIDTH,
-                    COLUMNS,
-                );
-                let rows =
-                    visible_indices(viewport.min.y, viewport.max.y - COLUMN_HEADER, height, ROWS);
-                let mut clicked = None;
-                let border = Stroke::new(
-                    1.0,
-                    theme.wash_toward_neutral_fg(ui.visuals().extreme_bg_color, 0.16),
-                );
-                if reveal {
-                    ui.scroll_to_rect(
-                        self.selected
-                            .rect(origin, height)
-                            .expand2(vec2(ROW_HEADER, COLUMN_HEADER)),
-                        None,
-                    );
-                }
-                for row in rows.clone() {
-                    for column in columns.clone() {
-                        let cell = Cell { row, column };
-                        let rect = cell.rect(origin, height);
-                        let selected = cell == self.selected;
-                        let value = self
-                            .model
-                            .get_formatted_cell_value(self.sheet, row, column)
-                            .unwrap_or_default();
-                        if !embedded {
-                            let response = ui.interact(
-                                rect,
-                                ui.scope_id().with((row, column)),
-                                Sense::click(),
-                            );
-                            response.widget_info(|| {
-                                egui::WidgetInfo::selected(
-                                    egui::Role::Button,
-                                    true,
-                                    selected,
-                                    format!("{} {value}", cell.address()),
-                                )
-                            });
-                            if response.clicked() || response.double_clicked() {
-                                clicked = Some((cell, response.double_clicked()));
-                            }
-                        }
-                        if selected {
-                            let color =
-                                theme.wash_toward_neutral_fg(ui.visuals().extreme_bg_color, 0.07);
-                            ui.painter().rect_filled(rect, 0.0, color);
-                            ui.painter().rect_stroke(
-                                rect,
-                                0.0,
-                                Stroke::new(2.0, theme.accent()),
-                                StrokeKind::Inside,
-                            );
-                        } else {
-                            ui.painter()
-                                .rect_stroke(rect, 0.0, border, StrokeKind::Middle);
-                        }
-                        if !value.is_empty() {
-                            let number = self.model.get_cell_type(self.sheet, row, column)
-                                == Ok(CellType::Number);
-                            paint_cell_value(
-                                ui,
-                                rect.shrink2(vec2(6.0, 0.0)),
-                                &value,
-                                &self.cell_style(cell),
-                                number,
-                                theme.neutral_fg(),
-                            );
-                        }
-                    }
-                }
-                ui.set_clip_rect(clip);
-                let header_fill = ui.visuals().panel_fill;
-                let header_text = theme.neutral_fg_secondary();
-                let column_clip =
-                    Rect::from_min_max(pos2(body.min.x, corner.y), pos2(body.max.x, body.min.y));
-                let row_clip =
-                    Rect::from_min_max(pos2(corner.x, body.min.y), pos2(body.min.x, body.max.y));
-                for column in columns {
-                    let left = Cell { row: 1, column }.rect(origin, height).left();
-                    let rect = Rect::from_min_size(
-                        pos2(left, corner.y),
-                        vec2(COLUMN_WIDTH, COLUMN_HEADER),
-                    );
-                    header(
-                        ui,
-                        rect,
-                        column_clip,
-                        header_fill,
-                        border,
-                        &column_label(column),
-                        header_text,
-                    );
-                }
-                for row in rows {
-                    let top = Cell { row, column: 1 }.rect(origin, height).top();
-                    let rect = Rect::from_min_size(pos2(corner.x, top), vec2(ROW_HEADER, height));
-                    header(ui, rect, row_clip, header_fill, border, &row.to_string(), header_text);
-                }
-                let corner_rect = Rect::from_min_size(corner, vec2(ROW_HEADER, COLUMN_HEADER));
-                ui.painter()
-                    .rect(corner_rect, 0.0, header_fill, border, StrokeKind::Inside);
-                clicked
-            })
-            .inner
+        delta.is_some()
     }
 }
 
@@ -727,12 +769,6 @@ fn read_workbook(hmac: Option<DocumentHmac>, bytes: &[u8]) -> Result<UserModel<'
         return Err("Spreadsheet has no worksheets".into());
     }
     Ok(workbook)
-}
-
-fn visible_indices(from: f32, to: f32, step: f32, last: i32) -> RangeInclusive<i32> {
-    let first = (from / step).floor() as i32 + 1;
-    let end = (to / step).ceil() as i32;
-    first.max(1)..=end.min(last)
 }
 
 fn column_label(mut column: i32) -> String {
@@ -841,15 +877,6 @@ fn paint_text(ui: &Ui, rect: Rect, text: &str, align: Align2, color: Color32) {
     }
 }
 
-fn header(
-    ui: &Ui, rect: Rect, clip: Rect, fill: Color32, border: Stroke, text: &str, color: Color32,
-) {
-    let rect_clip = rect.intersect(clip).intersect(ui.clip_rect());
-    let painter = ui.painter().with_clip_rect(rect_clip);
-    painter.rect(rect, 0.0, fill, border, StrokeKind::Middle);
-    painter.text(rect.center(), Align2::CENTER_CENTER, text, FontId::proportional(12.0), color);
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -878,10 +905,20 @@ mod tests {
     }
 
     fn show(
-        ctx: &Context, sheet: &mut Spreadsheet, events: Vec<Event>, size: egui::Vec2,
+        ctx: &Context, sheet: &mut Spreadsheet, mut events: Vec<Event>, size: egui::Vec2,
         read_only: bool,
     ) -> (Response, egui::FullOutput) {
         let mut response = Response::default();
+        let modifiers = events
+            .iter()
+            .find_map(|event| match event {
+                Event::Key { modifiers, .. } | Event::PointerButton { modifiers, .. } => {
+                    Some(*modifiers)
+                }
+                _ => None,
+            })
+            .unwrap_or_default();
+        events.insert(0, Event::ModifiersChanged(modifiers));
         let mut full = ctx.run_pass(
             RawInput {
                 screen_rect: Some(Rect::from_min_size(pos2(0.0, 0.0), size)),
@@ -900,6 +937,10 @@ mod tests {
     }
 
     fn control_position(full: egui::FullOutput, label: &str) -> egui::Pos2 {
+        control_rect(full, label).center()
+    }
+
+    fn control_rect(full: egui::FullOutput, label: &str) -> Rect {
         let tree = full.platform_output.accesskit_update.expect("widget tree");
         let bounds = tree
             .nodes
@@ -909,7 +950,193 @@ mod tests {
             .1
             .bounds()
             .expect("control bounds");
-        pos2(((bounds.x0 + bounds.x1) / 2.0) as f32, ((bounds.y0 + bounds.y1) / 2.0) as f32)
+        Rect::from_min_max(
+            pos2(bounds.x0 as f32, bounds.y0 as f32),
+            pos2(bounds.x1 as f32, bounds.y1 as f32),
+        )
+    }
+
+    fn drag(
+        ctx: &Context, sheet: &mut Spreadsheet, size: egui::Vec2, from: egui::Pos2, to: egui::Pos2,
+    ) {
+        let [_, press, _] = click(from).try_into().unwrap();
+        let [_, _, release] = click(to).try_into().unwrap();
+        show(ctx, sheet, vec![Event::PointerMoved(from)], size, false);
+        show(ctx, sheet, vec![press], size, false);
+        show(ctx, sheet, vec![Event::PointerMoved(to)], size, false);
+        show(ctx, sheet, vec![release], size, false);
+    }
+
+    #[test]
+    fn spreadsheet_range_drag_formats_and_clears_all_selected_cells() {
+        let ctx = test_ctx();
+        ctx.enable_accesskit();
+        let size = vec2(800.0, 600.0);
+        let mut sheet = Spreadsheet::new(Uuid::nil(), None, &[]).unwrap();
+        sheet.model.set_user_input(0, 1, 1, "1").unwrap();
+        sheet.model.set_user_input(0, 2, 2, "2").unwrap();
+        let a1 = control_position(show(&ctx, &mut sheet, vec![], size, false).1, "A1 1");
+        let b2 = control_position(show(&ctx, &mut sheet, vec![], size, false).1, "B2 2");
+        drag(&ctx, &mut sheet, size, b2, a1);
+        assert_eq!(sheet.selection().address(), "A1:B2");
+        assert_eq!(sheet.selected.address(), "B2");
+
+        let bold = control_position(show(&ctx, &mut sheet, vec![], size, false).1, "Bold");
+        show(&ctx, &mut sheet, click(bold), size, false);
+        assert!(sheet.cell_style(Cell::FIRST).font.b);
+        assert!(sheet.cell_style(Cell { row: 2, column: 1 }).font.b);
+        show(&ctx, &mut sheet, vec![key(Key::Delete)], size, false);
+        assert!(sheet.model.get_cell_content(0, 1, 1).unwrap().is_empty());
+        assert!(sheet.model.get_cell_content(0, 2, 2).unwrap().is_empty());
+        assert_eq!(sheet.seq(), 2);
+        sheet.change_history(false);
+        assert_eq!(sheet.model.get_cell_content(0, 2, 2).unwrap(), "2");
+    }
+
+    #[test]
+    fn spreadsheet_drag_move_and_fill_update_formula_references() {
+        let ctx = test_ctx();
+        ctx.enable_accesskit();
+        let size = vec2(800.0, 600.0);
+        let mut sheet = Spreadsheet::new(Uuid::nil(), None, &[]).unwrap();
+        for (row, column, text) in [(1, 1, "5"), (1, 2, "=A1*2"), (3, 1, "=B1+1"), (2, 2, "7")] {
+            sheet.model.set_user_input(0, row, column, text).unwrap();
+        }
+        let a1 = control_rect(show(&ctx, &mut sheet, vec![], size, false).1, "A1 5");
+        let b1 = control_rect(show(&ctx, &mut sheet, vec![], size, false).1, "B1 10");
+        drag(&ctx, &mut sheet, size, a1.center(), b1.center());
+        drag(&ctx, &mut sheet, size, a1.center_top() + vec2(0.0, 2.0), b1.center());
+        assert_eq!(sheet.selection().address(), "B1:C1");
+        assert!(sheet.model.get_cell_content(0, 1, 1).unwrap().is_empty());
+        assert_eq!(sheet.model.get_cell_content(0, 1, 3).unwrap(), "=B1*2");
+        assert_eq!(sheet.model.get_cell_content(0, 3, 1).unwrap(), "=C1+1");
+
+        let c1 = control_rect(show(&ctx, &mut sheet, vec![], size, false).1, "C1 10");
+        show(&ctx, &mut sheet, click(c1.center()), size, false);
+        drag(
+            &ctx,
+            &mut sheet,
+            size,
+            c1.right_bottom() - vec2(3.0, 3.0),
+            c1.center() + vec2(0.0, 28.0),
+        );
+        assert_eq!(sheet.model.get_cell_content(0, 2, 3).unwrap(), "=B2*2");
+        assert_eq!(sheet.model.get_formatted_cell_value(0, 2, 3).unwrap(), "14");
+        sheet.change_history(false);
+        sheet.change_history(false);
+        assert_eq!(sheet.model.get_cell_content(0, 1, 1).unwrap(), "5");
+        assert_eq!(sheet.model.get_cell_content(0, 3, 1).unwrap(), "=B1+1");
+    }
+
+    #[test]
+    fn spreadsheet_resizes_headers_and_persists_dimensions() {
+        let ctx = test_ctx();
+        ctx.enable_accesskit();
+        let size = vec2(800.0, 600.0);
+        let mut sheet = Spreadsheet::new(Uuid::nil(), None, &[]).unwrap();
+        let (_, full) = show(&ctx, &mut sheet, vec![], size, false);
+        let column = control_position(full, "Resize column A");
+        drag(&ctx, &mut sheet, size, column, column + vec2(44.0, 0.0));
+        let row = control_position(show(&ctx, &mut sheet, vec![], size, false).1, "Resize row 1");
+        drag(&ctx, &mut sheet, size, row, row + vec2(0.0, 28.0));
+        assert_eq!(sheet.seq(), 2);
+        let reopened =
+            Spreadsheet::new(sheet.id, Some([1; 32]), &encode_workbook(&sheet.snapshot())).unwrap();
+        assert!(
+            (reopened.model.get_column_width(0, 1).unwrap() - 90.0 * 156.0 / 112.0).abs() < 0.001
+        );
+        assert_eq!(reopened.model.get_row_height(0, 1).unwrap(), 50.0);
+        sheet.change_history(false);
+        assert_eq!(sheet.model.get_row_height(0, 1).unwrap(), 25.0);
+    }
+
+    #[test]
+    fn spreadsheet_shift_selection_and_tabular_clipboard_work_from_the_grid() {
+        let ctx = test_ctx();
+        let size = vec2(800.0, 600.0);
+        let mut sheet = Spreadsheet::new(Uuid::nil(), None, &[]).unwrap();
+        show(&ctx, &mut sheet, vec![Event::Paste("5\t=A1*2\n7\t=A2*2".into())], size, false);
+        assert_eq!(sheet.selection().address(), "A1:B2");
+        let (_, full) = show(&ctx, &mut sheet, vec![Event::Copy], size, false);
+        assert!(
+            full.platform_output
+                .commands
+                .contains(&egui::OutputCommand::CopyText("5\t10\n7\t14".into()))
+        );
+        show(&ctx, &mut sheet, vec![key(Key::ArrowRight)], size, false);
+        let shift_right = Event::Key {
+            modifiers: Modifiers::SHIFT,
+            key: Key::ArrowRight,
+            physical_key: None,
+            pressed: true,
+            repeat: false,
+        };
+        show(&ctx, &mut sheet, vec![shift_right], size, false);
+        assert_eq!(sheet.selection().address(), "B1:C1");
+    }
+
+    #[test]
+    fn spreadsheet_touch_handle_extends_selection_without_stealing_pan() {
+        let ctx = test_ctx();
+        ctx.enable_accesskit();
+        ctx.set_os(egui::os::OperatingSystem::IOS);
+        let size = vec2(320.0, 450.0);
+        let mut sheet = Spreadsheet::new(Uuid::nil(), None, &[]).unwrap();
+        let touch_drag = |sheet: &mut Spreadsheet, from: egui::Pos2, to: egui::Pos2| {
+            let touch = |phase, pos| Event::Touch {
+                device_id: egui::TouchDeviceId(0),
+                id: egui::TouchId(0),
+                phase,
+                pos,
+                force: None,
+            };
+            let [_, press, _] = click(from).try_into().unwrap();
+            let [_, _, release] = click(to).try_into().unwrap();
+            show(&ctx, sheet, vec![touch(egui::TouchPhase::Start, from), press], size, false);
+            show(
+                &ctx,
+                sheet,
+                vec![touch(egui::TouchPhase::Move, to), Event::PointerMoved(to)],
+                size,
+                false,
+            );
+            show(
+                &ctx,
+                sheet,
+                vec![touch(egui::TouchPhase::End, to), release, Event::PointerGone],
+                size,
+                false,
+            );
+        };
+
+        let (_, full) = show(&ctx, &mut sheet, vec![], size, false);
+        let handle = control_position(full, "Drag to extend selection");
+        let (_, full) = show(&ctx, &mut sheet, vec![], size, false);
+        let b2 = control_position(full, "B2 ");
+        touch_drag(&mut sheet, handle, b2);
+        assert_eq!(sheet.selection().address(), "A1:B2");
+        let (_, full) = show(&ctx, &mut sheet, vec![], size, false);
+        let b5 = control_position(full, "B5 ");
+        touch_drag(&mut sheet, b5, b5 - vec2(0.0, 100.0));
+        let (_, full) = show(&ctx, &mut sheet, vec![], size, false);
+        assert!(control_position(full, "B5 ").y < b5.y - 20.0);
+        assert_eq!(sheet.selection().address(), "A1:B2");
+        assert_eq!(sheet.seq(), 0);
+    }
+
+    #[test]
+    fn spreadsheet_adds_a_worksheet_and_can_undo_creation() {
+        let ctx = test_ctx();
+        ctx.enable_accesskit();
+        let size = vec2(800.0, 600.0);
+        let mut sheet = Spreadsheet::new(Uuid::nil(), None, &[]).unwrap();
+        let add = control_position(show(&ctx, &mut sheet, vec![], size, false).1, "Add worksheet");
+        show(&ctx, &mut sheet, click(add), size, false);
+        assert_eq!(sheet.sheet, 1);
+        assert_eq!(sheet.snapshot().worksheets.len(), 2);
+        sheet.change_history(false);
+        assert_eq!(sheet.sheet, 0);
+        assert_eq!(sheet.snapshot().worksheets.len(), 1);
     }
 
     #[test]

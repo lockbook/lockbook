@@ -11410,6 +11410,7 @@ dependencies = [
  "colors-transform",
  "comrak",
  "content_inspector",
+ "csv",
  "db-rs 0.3.7",
  "egui",
  "egui_animation",
