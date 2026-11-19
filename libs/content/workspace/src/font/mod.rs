@@ -37,6 +37,11 @@ pub fn choose(sans: Option<&str>, mono: Option<&str>) {
     CHOSEN.write().unwrap().asked = [sans.map(str::to_owned), mono.map(str::to_owned)];
 }
 
+/// What [`choose`] last asked for: text's family, then code's.
+pub fn asked() -> [Option<String>; 2] {
+    CHOSEN.read().unwrap().asked.clone()
+}
+
 /// Puts what [`choose`] asked into effect, and adds the fallback families
 /// text asked for, once they're read off the UI thread, redrawing `ctx`'s
 /// notes; until then text draws as before. Called each frame.

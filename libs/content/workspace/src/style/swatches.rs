@@ -1,6 +1,6 @@
 //! Exclusive row of color dots — the accent picker.
 
-use egui::{Color32, Rect, Response, Ui, pos2, vec2};
+use egui::{Color32, InnerResponse, Rect, Ui, pos2, vec2};
 
 use crate::style::chrome::control_height;
 use crate::style::color::{FG_HOVER, FG_PRESS, Theme};
@@ -18,10 +18,11 @@ pub fn swatches_width(n: usize) -> f32 {
 }
 
 /// One dot per color; `selected` is the index of the chosen one, if any.
-/// Marks the response `.changed()` when `selected` updates.
+/// Marks the response `.changed()` when `selected` updates. The inner value
+/// is the dot under the pointer.
 pub fn swatches(
     ui: &mut Ui, t: &Theme, colors: &[Color32], selected: &mut Option<usize>,
-) -> Response {
+) -> InnerResponse<Option<usize>> {
     let (row, mut resp) =
         ui.allocate_exact_size(vec2(swatches_width(colors.len()), control_height()), sense_click());
     let pitch = DOT.pts() + GAP.pts();
@@ -60,5 +61,5 @@ pub fn swatches(
                 .circle_filled(center, MARK.pts() / 2.0, t.neutral_bg());
         }
     }
-    resp
+    InnerResponse::new(pointer, resp)
 }
