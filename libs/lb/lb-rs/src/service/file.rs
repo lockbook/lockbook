@@ -18,10 +18,9 @@ use uuid::Uuid;
 /// The attachments folders [Lb::list_attachments] finds, with what's in them.
 #[derive(Debug, Clone, Default)]
 pub struct Attachments {
-    /// The folders and everything in them.
+    /// Every attachments folder and everything inside
     pub files: Vec<File>,
-    /// Each document's attachments folder, found by what the folder is for, whatever its name
-    /// or place.
+    /// Note id -> its attachments folder id
     pub folders: HashMap<Uuid, Uuid>,
 }
 

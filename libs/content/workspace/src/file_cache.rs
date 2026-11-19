@@ -1521,21 +1521,27 @@ pub(crate) mod tests {
     #[test]
     fn a_reader_of_a_note_shared_alone_finds_its_images_under_another_name() {
         use crate::test_utils::files::{at, cache, tree};
-        // bob's tree: alice's note beside the link he accepted it by, its folder beside it under
-        // a name the note's text doesn't use, as after another device's folder was folded into it
+        // bob's tree: alice's note beside the link he accepted it by, and its folder, whose parent
+        // is alice's and isn't here, under a name the note's text doesn't use, as after another
+        // device's folder was folded into it
         let mut files = tree("bob", &["/inbox/plan.md", "/inbox/trip-attachments/a.png"]);
         let c = cache(files.clone());
         let (note, folder) = (at(&c, "/inbox/plan.md"), at(&c, "/inbox/trip-attachments/"));
-        for f in files.iter_mut().filter(|f| f.id == note) {
-            f.owner = "alice".into();
-            f.shares.push(lb_rs::model::file::Share {
-                mode: ShareMode::Read,
-                shared_by: "alice".into(),
-                shared_with: "bob".into(),
-            });
+        let a = at(&c, "/inbox/trip-attachments/a.png");
+        for f in files.iter_mut() {
+            if f.id == note {
+                f.owner = "alice".into();
+                f.shares.push(lb_rs::model::file::Share {
+                    mode: ShareMode::Read,
+                    shared_by: "alice".into(),
+                    shared_with: "bob".into(),
+                });
+            }
+            if f.id == folder {
+                f.parent = Uuid::new_v4();
+            }
         }
         let c = cache(files).with_attachments([(note, folder)]);
-        let a = at(&c, "/inbox/trip-attachments/a.png");
 
         assert_eq!(c.locate_link("plan-attachments/a.png", note), Some((a, Reach::Scope)));
         assert_eq!(c.resolve_link("plan-attachments/a.png", note), Some(ResolvedLink::File(a)));
