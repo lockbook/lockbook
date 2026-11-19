@@ -1,11 +1,12 @@
 use libsecp256k1::PublicKey;
 use serde::{Deserialize, Serialize};
+use std::mem;
 use uuid::Uuid;
 
 use crate::LbResult;
 use crate::service::keychain::Keychain;
 
-use super::access_info::{EncryptedFolderAccessKey, UserAccessInfo, UserAccessMode};
+use super::access_info::{EncryptedKey, UserAccessInfo, UserAccessMode};
 use super::account::Account;
 use super::clock::get_time;
 use super::crypto::AESKey;
@@ -28,10 +29,14 @@ pub enum Meta {
         doc_size: Option<usize>,
         doc_hmac: Option<DocumentHmac>,
         user_access_keys: Vec<UserAccessInfo>,
-        folder_access_key: EncryptedFolderAccessKey,
+        folder_access_key: EncryptedKey,
     },
-    /// An attachments folder: V1's fields and the document it belongs to. Only attachments
-    /// folders are written as V2, so every other file stays readable by V1 clients.
+    /// Adds optional attachment info that marks this file as an attachment of another. A single
+    /// attachment folder per note is created when the first image is added or the note is
+    /// write-shared for the first time. This folder is moved, deleted, and shared alongside the
+    /// target note. Links resolve into it under relaxed conditions. This folder is hidden from
+    /// files, recents, shared with me, and search, but shown by `lockbook list` and files
+    /// integrations.
     V2 {
         id: Uuid,
         file_type: FileType,
@@ -42,17 +47,19 @@ pub enum Meta {
         doc_size: Option<usize>,
         doc_hmac: Option<DocumentHmac>,
         user_access_keys: Vec<UserAccessInfo>,
-        folder_access_key: EncryptedFolderAccessKey,
-        attachments_of: AttachmentsOf,
+        folder_access_key: EncryptedKey,
+        attachment_of: Option<AttachmentAccessInfo>,
     },
 }
 
-/// The document an attachments folder belongs to, and the folder's key encrypted with that
-/// document's key, so whoever can read the document can decrypt the folder without its parent.
+/// The information required for this folder to follow the target note's lifecycle. The server
+/// considers it part of the same tree as the target, so it hands it out to the same users from
+/// `/get-updates`, and its key is encrypted with that of the target so it is readable to anyone
+/// who can read the target.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
-pub struct AttachmentsOf {
+pub struct AttachmentAccessInfo {
     pub id: Uuid,
-    pub key: EncryptedFolderAccessKey,
+    pub key: EncryptedKey,
 }
 
 impl Meta {
@@ -81,65 +88,41 @@ impl Meta {
         })
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub fn create(
         id: Uuid, key: AESKey, owner: &PublicKey, parent: Uuid, parent_key: &AESKey, name: &str,
-        file_type: FileType,
+        file_type: FileType, attachment_of: Option<AttachmentAccessInfo>,
     ) -> LbResult<Self> {
-        Ok(Meta::V1 {
-            id,
-            file_type,
-            parent,
-            name: SecretFileName::from_str(name, &key, parent_key)?,
-            owner: Owner(*owner),
-            is_deleted: false,
-            doc_hmac: None,
-            doc_size: None,
-            user_access_keys: Default::default(),
-            folder_access_key: symkey::encrypt(parent_key, &key)?,
-        })
-    }
-
-    /// This new folder, as `attachments_of`'s attachments folder.
-    pub fn into_attachments(self, attachments_of: AttachmentsOf) -> Self {
-        match self {
-            Meta::V1 {
+        let name = SecretFileName::from_str(name, &key, parent_key)?;
+        let owner = Owner(*owner);
+        let folder_access_key = symkey::encrypt(parent_key, &key)?;
+        Ok(match attachment_of {
+            None => Meta::V1 {
                 id,
                 file_type,
                 parent,
                 name,
                 owner,
-                is_deleted,
-                doc_size,
-                doc_hmac,
-                user_access_keys,
+                is_deleted: false,
+                doc_hmac: None,
+                doc_size: None,
+                user_access_keys: Default::default(),
                 folder_access_key,
-            }
-            | Meta::V2 {
-                id,
-                file_type,
-                parent,
-                name,
-                owner,
-                is_deleted,
-                doc_size,
-                doc_hmac,
-                user_access_keys,
-                folder_access_key,
-                ..
-            } => Meta::V2 {
-                id,
-                file_type,
-                parent,
-                name,
-                owner,
-                is_deleted,
-                doc_size,
-                doc_hmac,
-                user_access_keys,
-                folder_access_key,
-                attachments_of,
             },
-        }
+            Some(_) => Meta::V2 {
+                id,
+                file_type,
+                parent,
+                name,
+                owner,
+                is_deleted: false,
+                doc_hmac: None,
+                doc_size: None,
+                user_access_keys: Default::default(),
+                folder_access_key,
+                attachment_of,
+            },
+        })
     }
 
     pub fn set_parent(&mut self, new_parent: Uuid) {
@@ -168,7 +151,7 @@ impl Meta {
         }
     }
 
-    pub fn set_folder_access_keys(&mut self, new_keys: EncryptedFolderAccessKey) {
+    pub fn set_folder_access_keys(&mut self, new_keys: EncryptedKey) {
         match self {
             Meta::V1 { folder_access_key, .. } | Meta::V2 { folder_access_key, .. } => {
                 *folder_access_key = new_keys
@@ -221,13 +204,12 @@ impl Meta {
     }
 }
 
-// Impl'd to avoid comparing encrypted values that are re-encrypted without changing. A V1 never
-// equals a V2. attachments_of is compared whole: its key is never re-encrypted, and a change to it
-// must never pass for no change.
+// This is impl'd to avoid comparing encrypted values
 impl PartialEq for Meta {
     fn eq(&self, other: &Self) -> bool {
         // todo: verify that ignoring folder_access_key is intentional
-        self.id() == other.id()
+        mem::discriminant(self) == mem::discriminant(other)
+            && self.id() == other.id()
             && self.file_type() == other.file_type()
             && self.parent() == other.parent()
             && self.secret_name() == other.secret_name()
@@ -236,6 +218,6 @@ impl PartialEq for Meta {
             && self.document_hmac() == other.document_hmac()
             && self.user_access_keys() == other.user_access_keys()
             && self.doc_size() == other.doc_size()
-            && self.attachments_of() == other.attachments_of()
+            && self.attachment_of() == other.attachment_of()
     }
 }

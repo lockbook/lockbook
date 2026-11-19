@@ -352,7 +352,7 @@ pub enum LbErrKind {
     UsernamePublicKeyMismatch,
     UsernameTaken,
     ReReadRequired,
-    /// An attachments folder moves only with its document and keeps its name
+    /// An attachments folder refuses moves and renames; move or rename its target instead
     AttachmentsFolderFixed,
     Diff(DiffError),
 

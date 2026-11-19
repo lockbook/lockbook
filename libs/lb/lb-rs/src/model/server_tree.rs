@@ -52,7 +52,7 @@ impl<'a> ServerTree<'a> {
 pub fn indexed_under<F: FileLike>(file: &F) -> impl Iterator<Item = Uuid> {
     [*file.parent()]
         .into_iter()
-        .chain(file.attachments_of().map(|of| of.id))
+        .chain(file.attachment_of().map(|of| of.id))
 }
 
 /// Walks each file once, however many roots reach it.
@@ -147,9 +147,9 @@ impl TreeLikeMut for ServerTree<'_> {
         // is sent the folder
         let prior_document = maybe_prior
             .as_ref()
-            .and_then(|f| f.attachments_of())
+            .and_then(|f| f.attachment_of())
             .map(|of| of.id);
-        let document = f.attachments_of().map(|of| of.id);
+        let document = f.attachment_of().map(|of| of.id);
         if prior_document != document {
             if let Some(prior_document) = prior_document {
                 self.file_children.remove(&prior_document, &id)?;

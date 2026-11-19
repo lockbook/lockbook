@@ -105,7 +105,7 @@ impl<S: Server, D: LocalDocuments> Lb<S, D> {
                 && !tree.calculate_deleted(&id)?
             {
                 ids.push(id);
-                if let Some(of) = tree.find(&id)?.attachments_of() {
+                if let Some(of) = tree.find(&id)?.attachment_of() {
                     folders.entry(of.id).or_insert(id);
                 }
             }
@@ -138,7 +138,7 @@ impl<S: Server, D: LocalDocuments> Lb<S, D> {
         let db = tx.db();
 
         let tree = (&db.base_metadata).to_staged(&db.local_metadata).to_lazy();
-        Ok(tree.find(folder)?.attachments_of().map(|of| of.id))
+        Ok(tree.find(folder)?.attachment_of().map(|of| of.id))
     }
 
     #[instrument(level = "debug", skip(self), err(Debug))]

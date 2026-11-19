@@ -19,6 +19,7 @@ pub struct LazyTree<T: TreeLike> {
     pub name: HashMap<Uuid, String, UuidIdentityHasherBuilder>,
     pub implicit_deleted: HashMap<Uuid, bool, UuidIdentityHasherBuilder>,
     pub linked_by: Option<HashMap<Uuid, Uuid, UuidIdentityHasherBuilder>>,
+    pub attached_by: Option<HashMap<Uuid, Uuid, UuidIdentityHasherBuilder>>,
     pub children: HashMap<Uuid, Vec<Uuid>, UuidIdentityHasherBuilder>,
 }
 
@@ -29,6 +30,7 @@ impl<T: TreeLike> LazyTree<T> {
             implicit_deleted: uuid_map(),
             children: uuid_map(),
             linked_by: None,
+            attached_by: None,
             tree,
         }
     }
@@ -70,7 +72,7 @@ impl<T: TreeLike> LazyTree<T> {
         let mut file = self.find(id)?;
         let mut visited = HashSet::new();
         loop {
-            if file.attachments_of().is_some() {
+            if file.attachment_of().is_some() {
                 return Ok(true);
             }
             if file.is_root() || !visited.insert(*file.id()) {
@@ -85,14 +87,23 @@ impl<T: TreeLike> LazyTree<T> {
 
     /// `document`'s attachments folder that isn't deleted, if this tree has one.
     pub fn attachments_folder(&mut self, document: &Uuid) -> LbResult<Option<Uuid>> {
-        for id in self.ids() {
-            if self.find(&id)?.attachments_of().map(|of| of.id) == Some(*document)
-                && !self.calculate_deleted(&id)?
-            {
-                return Ok(Some(id));
+        if self.attached_by.is_none() {
+            let mut attached_by = uuid_map();
+            for folder_id in self.ids() {
+                if let Some(of) = self.find(&folder_id)?.attachment_of() {
+                    let document = of.id;
+                    if !self.calculate_deleted(&folder_id)? {
+                        attached_by.insert(document, folder_id);
+                    }
+                }
             }
+            self.attached_by = Some(attached_by);
         }
-        Ok(None)
+
+        Ok(self
+            .attached_by
+            .as_ref()
+            .and_then(|attached_by| attached_by.get(document).copied()))
     }
 
     pub fn in_pending_share(&mut self, id: &Uuid) -> LbResult<bool> {
@@ -135,56 +146,43 @@ impl<T: TreeLike> LazyTree<T> {
     /// A file is deleted when it or a folder above it is explicitly deleted, or when the document
     /// an attachments folder among them belongs to is deleted.
     pub fn calculate_deleted(&mut self, id: &Uuid) -> LbResult<bool> {
-        self.calculate_deleted_from(id, &mut HashSet::new())
-    }
+        let (visited_ids, deleted) = {
+            let mut file = self.find(id)?;
+            let mut visited_ids = vec![];
+            let mut deleted = false;
 
-    /// `documents` are the documents whose deletion is being calculated further up the stack.
-    fn calculate_deleted_from(
-        &mut self, id: &Uuid, documents: &mut HashSet<Uuid>,
-    ) -> LbResult<bool> {
-        if !documents.insert(*id) {
-            return Ok(false); // an attachments folder inside its own document's folder
-        }
-        let mut file_id = *id;
-        let mut visited_ids = vec![];
-        let mut deleted = false;
-        loop {
-            let file = self.find(&file_id)?;
-            let parent = self.maybe_find_parent(file).map(|parent| *parent.id());
-            let document = self
-                .maybe_find_attached(file)
-                .map(|document| *document.id());
-            if file.is_root()
-                || visited_ids.contains(&file_id)
-                || (parent.is_none() && document.is_none())
+            while !file.is_root()
+                && (self.maybe_find_parent(file).is_some()
+                    || self.maybe_find_attached(file).is_some())
+                && !visited_ids.contains(file.id())
             {
-                break;
-            }
-            visited_ids.push(file_id);
-            if let Some(&implicit) = self.implicit_deleted.get(&file_id) {
-                deleted = implicit;
-                break;
-            }
-            if file.explicitly_deleted() {
-                deleted = true;
-                break;
-            }
-            if let Some(document) = document {
-                if self.calculate_deleted_from(&document, documents)? {
+                visited_ids.push(*file.id());
+                if let Some(&implicit) = self.implicit_deleted.get(file.id()) {
+                    deleted = implicit;
+                    break;
+                }
+
+                if file.explicitly_deleted()
+                    || self
+                        .maybe_find_attached(file)
+                        .is_some_and(|target| target.explicitly_deleted())
+                {
                     deleted = true;
                     break;
                 }
+
+                file = match self.maybe_find_parent(file) {
+                    Some(file) => file,
+                    None => break,
+                }
             }
-            match parent {
-                Some(parent) => file_id = parent,
-                None => break,
-            }
-        }
+
+            (visited_ids, deleted)
+        };
 
         for id in visited_ids {
             self.implicit_deleted.insert(id, deleted);
         }
-        documents.remove(id);
 
         Ok(deleted)
     }
@@ -262,10 +260,10 @@ impl<T: TreeLike> LazyTree<T> {
                 let (source, encrypted_key) = match self.maybe_find_parent(file) {
                     Some(parent) => (*parent.id(), file.folder_access_key()),
                     None => {
-                        let attachments_of = file
-                            .attachments_of()
+                        let attachment_of = file
+                            .attachment_of()
                             .ok_or(LbErrKind::FileParentNonexistent)?;
-                        (attachments_of.id, &attachments_of.key)
+                        (attachment_of.id, &attachment_of.key)
                     }
                 };
                 let source_key = keychain.get_aes_key(&source)?.ok_or(LbErrKind::Unexpected(
@@ -314,7 +312,7 @@ impl<T: TreeLike> LazyTree<T> {
         let mut result = vec![];
         for id in self.ids() {
             let file = self.find(&id)?;
-            if file.attachments_of().is_some()
+            if file.attachment_of().is_some()
                 && file.parent() != parent
                 && self.parent_using_links(&id)? == *parent
             {
@@ -498,6 +496,7 @@ impl<T: TreeLike> LazyTree<T> {
             implicit_deleted: uuid_map(),
             children: uuid_map(),
             linked_by: None,
+            attached_by: None,
         }
     }
 
@@ -573,7 +572,7 @@ pub enum ValidationFailure {
     /// was changed to belong to another
     InvalidAttachmentsFolder(Uuid),
 
-    /// A document with a second attachments folder that isn't deleted
+    /// A document with a second attachments folder
     DuplicateAttachmentsFolder {
         document: Uuid,
     },
@@ -597,6 +596,7 @@ where
         self.implicit_deleted = uuid_map();
         self.children = uuid_map();
         self.linked_by = None;
+        self.attached_by = None;
         Ok(())
     }
 
@@ -620,6 +620,7 @@ where
         self.implicit_deleted = uuid_map();
         self.children = uuid_map();
         self.linked_by = None;
+        self.attached_by = None;
         Ok(())
     }
 }
@@ -648,6 +649,7 @@ where
             implicit_deleted: uuid_map(),
             children: uuid_map(),
             linked_by: None,
+            attached_by: None,
         })
     }
 }
@@ -666,6 +668,7 @@ where
                 implicit_deleted: uuid_map(),
                 children: uuid_map(),
                 linked_by: None,
+                attached_by: None,
             },
             self.tree.staged,
         )

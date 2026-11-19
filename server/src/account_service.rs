@@ -56,8 +56,7 @@ where
             return Err(ClientError(NewAccountError::Disabled));
         }
 
-        // a root is never an attachments folder, the only file written as V2
-        if crate::file_service::writes_v2(&request.root_folder) {
+        if self.config.features.refuses(&request.root_folder) {
             return Err(internal!("new account root is V2 metadata"));
         }
 

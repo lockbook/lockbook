@@ -214,7 +214,7 @@ impl<S: Server, D: LocalDocuments> Lb<S, D> {
             .collect();
         let mut attached: HashMap<Uuid, Vec<Uuid>> = HashMap::new();
         for id in local.ids() {
-            if let Some(of) = local.find(&id)?.attachments_of() {
+            if let Some(of) = local.find(&id)?.attachment_of() {
                 attached.entry(of.id).or_default().push(id);
             }
         }
@@ -226,7 +226,7 @@ impl<S: Server, D: LocalDocuments> Lb<S, D> {
                 // while the server has the document, the folder lands beside it in the merge
                 let follows_document = local
                     .find(&child)?
-                    .attachments_of()
+                    .attachment_of()
                     .is_some_and(|of| server_ids.contains(&of.id));
                 if !follows_document {
                     under.push(child);
@@ -522,16 +522,10 @@ impl<S: Server, D: LocalDocuments> Lb<S, D> {
                                 &parent,
                                 &local.name(&id, &self.keychain)?,
                                 local_file.file_type(),
+                                local_file.attachment_of().cloned(),
                                 &self.keychain,
                             )
                             .map_err(orphaned_creation(id))?;
-                        if let Some(of) = local_file.attachments_of() {
-                            remote_with_moves.attach_unvalidated(
-                                &id,
-                                of.clone(),
-                                &self.keychain,
-                            )?;
-                        }
                     }
 
                     // moves (creations happen first in case a file is moved into a new folder);
@@ -617,12 +611,10 @@ impl<S: Server, D: LocalDocuments> Lb<S, D> {
                                 &parent,
                                 &local.name(&id, &self.keychain)?,
                                 local_file.file_type(),
+                                local_file.attachment_of().cloned(),
                                 &self.keychain,
                             )
                             .map_err(orphaned_creation(id))?;
-                        if let Some(of) = local_file.attachments_of() {
-                            merge.attach_unvalidated(&id, of.clone(), &self.keychain)?;
-                        }
                     }
 
                     // deletes
@@ -867,6 +859,7 @@ impl<S: Server, D: LocalDocuments> Lb<S, D> {
                                                 &merge_parent,
                                                 &merge_name,
                                                 FileType::Document,
+                                                None,
                                                 &self.keychain,
                                             )?;
                                             let encrypted_document = merge
@@ -905,7 +898,7 @@ impl<S: Server, D: LocalDocuments> Lb<S, D> {
                     // documents in id order so every device repairs a tree the same way
                     let mut attached = Vec::new();
                     for id in merge.ids() {
-                        if let Some(of) = merge.find(&id)?.attachments_of() {
+                        if let Some(of) = merge.find(&id)?.attachment_of() {
                             attached.push((of.id, id));
                         }
                     }
@@ -919,10 +912,15 @@ impl<S: Server, D: LocalDocuments> Lb<S, D> {
                         }
                         let parent = *merge.find(&document)?.parent();
                         let folder_parent = *merge.find(&folder)?.parent();
-                        if may_write_in(&local, &remote_with_moves, me, &parent)?
+                        if parent != folder_parent
+                            && may_write_in(&local, &remote_with_moves, me, &parent)?
                             && may_write_in(&local, &remote_with_moves, me, &folder_parent)?
                         {
-                            merge.place_attachments_folder(&document, &folder, &self.keychain)?;
+                            merge.move_attachments_beside_note(
+                                &document,
+                                &folder,
+                                &self.keychain,
+                            )?;
                         }
                     }
 
@@ -1090,7 +1088,7 @@ impl<S: Server, D: LocalDocuments> Lb<S, D> {
                                 let mut new = None;
                                 for id in merge.ids() {
                                     let file = merge.find(&id)?;
-                                    if file.attachments_of().map(|of| of.id) != Some(*document)
+                                    if file.attachment_of().map(|of| of.id) != Some(*document)
                                         || merge.calculate_deleted(&id)?
                                     {
                                         continue;
@@ -1742,7 +1740,7 @@ fn unmove_cycle<L: TreeLike, T: TreeLike>(
     let mut progress = false;
     for &id in ids {
         let mut moved = vec![id];
-        if let Some(of) = local.maybe_find(&id).and_then(|f| f.attachments_of()) {
+        if let Some(of) = local.maybe_find(&id).and_then(|f| f.attachment_of()) {
             moved.push(of.id);
         }
         for id in moved {

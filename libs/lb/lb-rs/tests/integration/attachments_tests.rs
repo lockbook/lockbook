@@ -1,9 +1,14 @@
+use lb_rs::io::server::Server;
 use lb_rs::model::ValidationFailure;
+use lb_rs::model::account::Account;
+use lb_rs::model::api::UpsertRequestV2;
 use lb_rs::model::core_config::Config;
 use lb_rs::model::errors::LbErrKind;
 use lb_rs::model::file::ShareMode;
 use lb_rs::model::file_like::FileLike;
-use lb_rs::model::file_metadata::FileType;
+use lb_rs::model::file_metadata::{FileDiff, FileType};
+use lb_rs::model::meta::Meta;
+use lb_rs::model::signed_meta::SignedMeta;
 use lb_rs::model::tree_like::TreeLike;
 use test_utils::*;
 
@@ -104,8 +109,10 @@ async fn only_the_folder_is_written_as_v2() {
     let db = tx.db();
     for id in db.base_metadata.ids() {
         let file = db.base_metadata.find(&id).unwrap();
-        let of = file.attachments_of().map(|of| of.id);
+        let of = file.attachment_of().map(|of| of.id);
         assert_eq!(of, (id == folder.id).then_some(doc.id), "{id}");
+        let v2 = matches!(file.timestamped_value.value, Meta::V2 { .. });
+        assert_eq!(v2, id == folder.id, "{id}");
     }
     drop(tx);
     assert_eq!(
@@ -117,6 +124,91 @@ async fn only_the_folder_is_written_as_v2() {
             .id,
         folder.id
     );
+}
+
+fn rewritten_as_v2(file: &SignedMeta, account: &Account) -> SignedMeta {
+    let Meta::V1 {
+        id,
+        file_type,
+        parent,
+        name,
+        owner,
+        is_deleted,
+        doc_size,
+        doc_hmac,
+        user_access_keys,
+        folder_access_key,
+    } = file.timestamped_value.value.clone()
+    else {
+        panic!("already V2")
+    };
+    Meta::V2 {
+        id,
+        file_type,
+        parent,
+        name,
+        owner,
+        is_deleted,
+        doc_size,
+        doc_hmac,
+        user_access_keys,
+        folder_access_key,
+        attachment_of: None,
+    }
+    .sign_with(account)
+    .unwrap()
+}
+
+#[tokio::test]
+async fn any_file_can_be_rewritten_as_v2() {
+    let core = test_core_with_account().await;
+    let account = core.get_account().unwrap();
+    let doc = core.create_at_path("/notes/plan.md").await.unwrap();
+    core.write_document(doc.id, b"plan").await.unwrap();
+    core.sync().await.unwrap();
+
+    // the root, a folder and a document are rewritten under a device with a rename to push
+    let updates: Vec<_> = {
+        let tx = core.ro_tx().await;
+        let base = &tx.db().base_metadata;
+        base.ids()
+            .into_iter()
+            .map(|id| {
+                let old = base.find(&id).unwrap().clone();
+                let new = rewritten_as_v2(&old, account);
+                assert!(old.timestamped_value.value != new.timestamped_value.value);
+                FileDiff::edit(old, new)
+            })
+            .collect()
+    };
+    assert_eq!(updates.len(), 3);
+    core.rename_file(&doc.id, "idea.md").await.unwrap();
+    Server::upsert_file_metadata_v2(&core.client, account, UpsertRequestV2 { updates })
+        .await
+        .unwrap();
+    core.sync().await.unwrap();
+
+    let other = test_core_from(&core).await;
+    for device in [&core, &other] {
+        let tx = device.ro_tx().await;
+        let base = &tx.db().base_metadata;
+        for id in base.ids() {
+            let file = &base.find(&id).unwrap().timestamped_value.value;
+            assert!(matches!(file, Meta::V2 { attachment_of: None, .. }), "{id}");
+        }
+        drop(tx);
+        let doc = device.get_by_path("/notes/idea.md").await.unwrap();
+        assert_eq!(device.read_document(doc.id, false).await.unwrap(), b"plan");
+    }
+
+    // and they are edited as before
+    let root = other.root().await.unwrap();
+    other.move_file(&doc.id, &root.id).await.unwrap();
+    other.write_document(doc.id, b"idea").await.unwrap();
+    other.sync().await.unwrap();
+    core.sync().await.unwrap();
+    let doc = core.get_by_path("/idea.md").await.unwrap();
+    assert_eq!(core.read_document(doc.id, false).await.unwrap(), b"idea");
 }
 
 #[tokio::test]
