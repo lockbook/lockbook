@@ -20,7 +20,7 @@ use std::sync::Arc;
 use tracing::*;
 use warp::http::{HeaderValue, Method, StatusCode};
 use warp::hyper::body::Bytes;
-use warp::{Filter, Rejection, reject};
+use warp::{Filter, Rejection, Reply, reject};
 
 lazy_static! {
     pub static ref HTTP_REQUEST_DURATION_HISTOGRAM: HistogramVec = register_histogram_vec!(
@@ -94,7 +94,10 @@ macro_rules! core_req {
             .and(warp::header::optional::<String>(WIRE_FORMAT_HEADER))
             .and(warp::header::optional::<String>(OS_HEADER))
             .and(warp::header::optional::<String>(CLIENT_HEADER))
-            .and(warp::filters::addr::remote())
+            .and(
+                warp::ext::optional::<$crate::ClientAddr>()
+                    .map(|addr: Option<$crate::ClientAddr>| addr.map(|addr| addr.0)),
+            )
             .then(
                 |state: Arc<ServerState<S, A, G, D>>,
                  request_time: lb_rs::model::clock::Timestamp,
@@ -284,11 +287,9 @@ const RESPONSE_STREAM_CHUNK_BYTES: usize = 4 * 1024 * 1024;
 
 const RESPONSE_STREAM_THRESHOLD: usize = 1024 * 1024 * 1024;
 
-pub fn build_response(
-    body: Vec<u8>, status: StatusCode,
-) -> warp::http::Response<warp::hyper::Body> {
+pub fn build_response(body: Vec<u8>, status: StatusCode) -> warp::reply::Response {
     let response_body = if body.len() < RESPONSE_STREAM_THRESHOLD {
-        warp::hyper::Body::from(body)
+        Bytes::from(body).into()
     } else {
         let mut buf = Bytes::from(body);
         let mut chunks: Vec<Result<Bytes, std::io::Error>> =
@@ -297,7 +298,9 @@ pub fn build_response(
             let n = buf.len().min(RESPONSE_STREAM_CHUNK_BYTES);
             chunks.push(Ok(buf.split_to(n)));
         }
-        warp::hyper::Body::wrap_stream(futures::stream::iter(chunks))
+        warp::reply::stream(futures::stream::iter(chunks))
+            .into_response()
+            .into_body()
     };
     let mut response = warp::http::Response::new(response_body);
     *response.status_mut() = status;

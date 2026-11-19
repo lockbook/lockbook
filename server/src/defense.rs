@@ -5,7 +5,7 @@ use std::{
     time::{SystemTime, UNIX_EPOCH},
 };
 
-use google_androidpublisher3::chrono::{Datelike, Local};
+use chrono::{Datelike, Local};
 use serde::{Deserialize, Serialize};
 use time::Duration;
 
