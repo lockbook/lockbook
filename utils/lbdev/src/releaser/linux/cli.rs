@@ -64,6 +64,7 @@ parts:
       - git
     stage-packages:
       - nfs-common
+      - nano
     rust-path: ["clients/cli"]
 
 apps:
@@ -72,6 +73,12 @@ apps:
     plugs:
       - network
       - home
+
+layout:
+  /etc/nanorc:
+    bind-file: $SNAP/etc/nanorc
+  /usr/share/nano:
+    bind: $SNAP/usr/share/nano
     "#
     );
 
