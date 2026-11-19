@@ -324,10 +324,7 @@ struct FileTreeView: View {
             scrollToRevealBelowHeaders(file, headerCount: level)
         } label: {
             HStack {
-                Image(systemName: FileIconHelper.fileToSystemImageName(file: file))
-                    .font(.system(size: 16))
-                    .frame(width: 16)
-                    .foregroundColor(.accentColor)
+                FileIcon(file: file)
 
                 Text(file.name)
                     .lineLimit(1)
