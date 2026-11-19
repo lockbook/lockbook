@@ -223,18 +223,20 @@ pub enum CreateKind {
     #[default]
     Note,
     Drawing,
+    Spreadsheet,
     Folder,
     Other,
 }
 
 impl CreateKind {
-    pub const ALL: [CreateKind; 4] =
-        [CreateKind::Note, CreateKind::Drawing, CreateKind::Folder, CreateKind::Other];
+    pub const ALL: [Self; 5] =
+        [Self::Note, Self::Drawing, Self::Spreadsheet, Self::Folder, Self::Other];
 
     pub fn label(self) -> &'static str {
         match self {
             Self::Note => "Note",
             Self::Drawing => "Drawing",
+            Self::Spreadsheet => "Spreadsheet",
             Self::Folder => "Folder",
             Self::Other => "Other",
         }
@@ -244,6 +246,7 @@ impl CreateKind {
         match self {
             Self::Note => Some(".md"),
             Self::Drawing => Some(".svg"),
+            Self::Spreadsheet => Some(".lbsheet"),
             Self::Folder | Self::Other => None,
         }
     }
@@ -252,8 +255,9 @@ impl CreateKind {
         match self {
             Self::Note => 0,
             Self::Drawing => 1,
-            Self::Folder => 2,
-            Self::Other => 3,
+            Self::Spreadsheet => 2,
+            Self::Folder => 3,
+            Self::Other => 4,
         }
     }
 

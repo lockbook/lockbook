@@ -22,6 +22,7 @@ enum class NewFileType(
 ) {
     Note(R.string.note, R.drawable.ic_outline_insert_drive_file_24, ".md", true),
     Drawing(R.string.drawing, R.drawable.ic_outline_draw_24, ".svg", true),
+    Spreadsheet(R.string.spreadsheet, R.drawable.ic_md_table_24, ".lbsheet", true),
     Folder(R.string.folder, R.drawable.ic_baseline_folder_24, null, false),
     Other(R.string.other, R.drawable.ic_outline_insert_drive_file_24, null, true),
 }

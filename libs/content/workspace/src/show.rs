@@ -591,6 +591,7 @@ pub enum DocType {
     PlainText,
     Markdown,
     SVG,
+    Spreadsheet,
     Image,
     ImageUnsupported,
     Code,
@@ -605,6 +606,7 @@ impl Display for DocType {
             DocType::PlainText => write!(f, "Plain Text"),
             DocType::Markdown => write!(f, "Markdown"),
             DocType::SVG => write!(f, "SVG"),
+            DocType::Spreadsheet => write!(f, "Spreadsheet"),
             DocType::Image => write!(f, "Image"),
             DocType::ImageUnsupported => write!(f, "Image (Unsupported)"),
             DocType::Code => write!(f, "Code"),
@@ -624,6 +626,7 @@ impl DocType {
             .to_lowercase();
         match ext.as_str() {
             "draw" | "svg" => Self::SVG,
+            "lbsheet" => Self::Spreadsheet,
             "md" => Self::Markdown,
             "txt" => Self::PlainText,
             "cr2" => Self::ImageUnsupported,
@@ -645,6 +648,7 @@ impl DocType {
             DocType::PlainText => false,
             DocType::Markdown => true,
             DocType::SVG => true,
+            DocType::Spreadsheet => true,
             DocType::Image => false,
             DocType::ImageUnsupported => false,
             DocType::Code => false,

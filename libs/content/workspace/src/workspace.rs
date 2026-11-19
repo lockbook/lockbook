@@ -497,26 +497,15 @@ impl Workspace {
         self.current_tab()?.image_viewer()
     }
 
-    /// The active editable text widget for native (iOS) text input — the
-    /// markdown document's editor or the chat tab's composer. Lets the
-    /// `UITextInput` FFI bridge target whichever editor is current without
-    /// caring which kind of tab owns it.
+    /// The active editable text widget for the platform text-input bridge.
     pub fn focused_mdedit_mut(&mut self) -> Option<&mut MdEdit> {
-        let tab = self.current_tab_mut()?;
-        if tab.markdown().is_some() {
-            tab.markdown_mut().map(|md| &mut md.edit)
-        } else {
+        match &mut self.current_tab_mut()?.content {
+            ContentState::Open(TabContent::Markdown(md)) => Some(&mut md.edit),
             #[cfg(not(target_family = "wasm"))]
-            {
-                // While the connect step is open, the key field is the focused
-                // editor so the native keyboard/caret target it, not the
-                // composer.
-                tab.chat_mut().map(|chat| chat.focused_field())
-            }
-            #[cfg(target_family = "wasm")]
-            {
-                None
-            }
+            ContentState::Open(TabContent::Chat(chat)) => Some(chat.focused_field()),
+            #[cfg(not(target_family = "wasm"))]
+            ContentState::Open(TabContent::Spreadsheet(sheet)) => sheet.edit_mut(),
+            _ => None,
         }
     }
 
@@ -570,6 +559,10 @@ impl Workspace {
         let resp = md.apply_platform(event, reveal);
         if resp.text_updated {
             if let Some(tab) = self.current_tab_mut() {
+                #[cfg(not(target_family = "wasm"))]
+                if matches!(tab.content, ContentState::Open(TabContent::Spreadsheet(_))) {
+                    return resp;
+                }
                 let initialized = tab.markdown().is_none_or(|md| md.initialized);
                 if !tab.read_only && initialized {
                     tab.last_changed = Instant::now();
@@ -655,6 +648,7 @@ impl Workspace {
             .iter()
             .filter(|(_, tab)| matches!(tab.content, ContentState::Open(_)))
             .filter(|(_, tab)| tab.is_dirty(&self.tasks))
+            .filter(|(_, tab)| !tab.save_blocked())
             .filter_map(|(&origin, tab)| Some(SaveRequest { id: tab.id()?, origin }))
             .collect()
     }
@@ -680,7 +674,7 @@ impl Workspace {
     fn queue_save_for_session(&mut self, tab_id: SessionId) {
         if let Some(tab) = self.tabs.get(&tab_id) {
             if let Some(id) = tab.id() {
-                if tab.is_dirty(&self.tasks) {
+                if tab.is_dirty(&self.tasks) && !tab.save_blocked() {
                     self.tasks.queue_save(SaveRequest { id, origin: tab_id });
                 }
             }
@@ -1427,6 +1421,13 @@ impl Workspace {
                     self.tabs.find_for_load_mut(id, target)
                 };
                 if let Some(tab) = tab_opt {
+                    #[cfg(not(target_family = "wasm"))]
+                    if let ContentState::Open(TabContent::Spreadsheet(sheet)) = &mut tab.content {
+                        if tab.last_changed > tab.last_saved || sheet.editing() {
+                            sheet.reload_pending = true;
+                            continue;
+                        }
+                    }
                     // The async-rebuilt cache can trail a create or rename;
                     // the name that picks the editor comes from core.
                     let Ok(file) = core.get_file_by_id(id) else {
@@ -1453,6 +1454,20 @@ impl Workspace {
                         && files.access(id, &self.account) == UserAccessMode::Read;
                     drop(files);
                     tab.read_only = read_only || is_preview;
+
+                    #[cfg(not(target_family = "wasm"))]
+                    if let ContentState::Open(TabContent::Spreadsheet(sheet)) = &mut tab.content {
+                        if DocType::from_name(&file.name) == DocType::Spreadsheet
+                            && res.guard.refusal(id, &bytes, None).is_none()
+                        {
+                            if let Err(failure) = sheet.reload(hmac, &bytes) {
+                                self.out.failure_messages.push(failure.msg());
+                                tab.content = ContentState::Failed(failure);
+                            }
+                            self.out.tabs_changed |= !is_preview;
+                            continue;
+                        }
+                    }
 
                     // a reload keeps the open editor and its unsaved edits;
                     // bytes the open path would refuse reopen the tab instead
@@ -1524,8 +1539,23 @@ impl Workspace {
                         .filter(|t| t.destination.backing_file() == Some(id));
                     if let Some(tab) = tab {
                         match new_hmac_result {
-                            Ok(hmac) => {
+                            Ok(saved) => {
+                                let hmac = saved.hmac;
                                 tab.last_saved = started_at;
+                                #[cfg(not(target_family = "wasm"))]
+                                if let ContentState::Open(TabContent::Spreadsheet(sheet)) =
+                                    &mut tab.content
+                                {
+                                    if let Some(copy) = saved.recovery {
+                                        sheet.recovery = Some((copy, hmac));
+                                        sheet.recovered = Some(copy);
+                                        sheet.reload_pending = true;
+                                    } else {
+                                        sheet.hmac = Some(hmac);
+                                    }
+                                    sheet.save_error = None;
+                                    continue;
+                                }
                                 if let Some(md) = tab.markdown_mut() {
                                     if let TabSaveContent::String(content) = content {
                                         md.saved(hmac, content);
@@ -1547,6 +1577,15 @@ impl Workspace {
                                 }
                             }
                             Err(err) => {
+                                #[cfg(not(target_family = "wasm"))]
+                                if let ContentState::Open(TabContent::Spreadsheet(sheet)) =
+                                    &mut tab.content
+                                {
+                                    let message = format!("Could not save spreadsheet. {err}");
+                                    sheet.save_error = Some(message.clone());
+                                    self.out.failure_messages.push(message);
+                                    continue;
+                                }
                                 if err.kind == LbErrKind::ReReadRequired {
                                     debug!(
                                         "reloading file after save failed with re-read required: {}",
@@ -1571,6 +1610,22 @@ impl Workspace {
             }
         }
         drop(_saves);
+        #[cfg(not(target_family = "wasm"))]
+        for (&origin, tab) in self.tabs.iter_mut() {
+            let Some(id) = tab.id() else { continue };
+            if let ContentState::Open(TabContent::Spreadsheet(sheet)) = &mut tab.content {
+                if sheet.reload_pending && !sheet.editing() && tab.last_changed <= tab.last_saved {
+                    sheet.reload_pending = false;
+                    self.tasks.queue_load(LoadRequest {
+                        id,
+                        tab_created: false,
+                        make_current: false,
+                        is_preview: false,
+                        target: Some(origin),
+                    });
+                }
+            }
+        }
         start.warn_after("processing completed saves", Duration::from_millis(100));
 
         // background work: queue
@@ -1827,6 +1882,11 @@ impl Workspace {
         for tab_id in tab_ids {
             let Some(tab) = self.tabs.get_mut(&tab_id) else { continue };
             if !content_fits_name(&tab.content, &new_name) {
+                #[cfg(not(target_family = "wasm"))]
+                if let ContentState::Open(TabContent::Spreadsheet(sheet)) = &mut tab.content {
+                    sheet.reload_pending = true;
+                    continue;
+                }
                 self.tabs.remove(&tab_id);
                 self.open_dest(tab_id, &dest);
             } else if let Some(md) = tab.markdown_mut() {
@@ -1889,6 +1949,11 @@ impl Workspace {
             }
             let Ok(file) = self.core.get_file_by_id(id) else { continue };
             if !content_fits_name(&tab.content, &file.name) {
+                #[cfg(not(target_family = "wasm"))]
+                if let ContentState::Open(TabContent::Spreadsheet(sheet)) = &mut tab.content {
+                    sheet.reload_pending = true;
+                    continue;
+                }
                 refits.push((*sid, id));
             } else if let Some(md) = tab.markdown_mut() {
                 md.set_ext(ext(&file.name));
@@ -2169,6 +2234,8 @@ fn content_fits_name(content: &ContentState, name: &str) -> bool {
             DocType::PlainText | DocType::Markdown | DocType::Code | DocType::Unknown
         ),
         ContentState::Open(TabContent::Svg(_)) => doc_type == DocType::SVG,
+        #[cfg(not(target_family = "wasm"))]
+        ContentState::Open(TabContent::Spreadsheet(_)) => doc_type == DocType::Spreadsheet,
         ContentState::Open(TabContent::Image(_)) => doc_type == DocType::Image,
         ContentState::Open(TabContent::Pdf(_)) => doc_type == DocType::PDF,
         #[cfg(not(target_family = "wasm"))]

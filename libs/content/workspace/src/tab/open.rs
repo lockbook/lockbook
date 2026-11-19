@@ -205,6 +205,9 @@ impl TabContent {
                 read_only,
             ))),
             #[cfg(not(target_family = "wasm"))]
+            DocType::Spreadsheet => super::spreadsheet::Spreadsheet::new(id, hmac, &bytes)
+                .map(|sheet| TabContent::Spreadsheet(Box::new(sheet))),
+            #[cfg(not(target_family = "wasm"))]
             DocType::Chat => {
                 let mut chat = Chat::new(
                     &bytes,

@@ -325,8 +325,9 @@ import SwiftUI
                     ])
 
                     mtkView.becomeFirstResponder()
-                case .PlainText, .Markdown, .Chat:
+                case .PlainText, .Markdown, .Chat, .Spreadsheet:
                     if let text = currentWrapper as? TextPage {
+                        text.isHidden = newCurrentTab == .Spreadsheet
                         text.documentReplaced()
                         return
                     }
@@ -334,6 +335,7 @@ import SwiftUI
                     currentWrapper?.removeFromSuperview()
 
                     let textWrapper = TextPage(mtkView: mtkView)
+                    textWrapper.isHidden = newCurrentTab == .Spreadsheet
                     currentWrapper = textWrapper
                     mtkView.currentWrapper = textWrapper
 

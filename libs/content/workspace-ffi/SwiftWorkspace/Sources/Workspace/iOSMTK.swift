@@ -520,12 +520,20 @@
             }
 
             if let text = mtkView.currentWrapper as? TextPage,
-               currentTab == .Markdown || currentTab == .PlainText || currentTab == .Chat
+               currentTab.isTextEdit() || currentTab == .Chat
             {
+                if currentTab == .Spreadsheet {
+                    text.isHidden = !output.has_text_interaction_rect
+                    text.text.refreshTraits()
+                } else {
+                    text.isHidden = false
+                }
                 text.apply(output)
                 if let pending = mtkView.workspaceInput?.pendingFocusDoc, pending == mtkView.currentOpenDoc {
                     mtkView.workspaceInput?.pendingFocusDoc = nil
-                    text.becomeFirstResponder()
+                    if currentTab != .Spreadsheet {
+                        text.becomeFirstResponder()
+                    }
                 }
             }
 
@@ -711,8 +719,36 @@
             DispatchQueue.main.async { self.requestFrame() }
         }
 
+        private var saveTask = UIBackgroundTaskIdentifier.invalid
+
         @objc private func appDidEnterBackground() {
             self.isPaused = true
+            guard saveTask == .invalid else { return }
+            saveTask = UIApplication.shared.beginBackgroundTask(withName: "Save Lockbook tabs") { [weak self] in
+                self?.endSaveTask()
+            }
+            flushSaves()
+        }
+
+        private func flushSaves() {
+            guard let wsHandle else {
+                endSaveTask()
+                return
+            }
+            if ios_flush_saves(wsHandle) || saveTask == .invalid {
+                endSaveTask()
+            } else {
+                DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(100)) { [weak self] in
+                    guard let self, saveTask != .invalid else { return }
+                    flushSaves()
+                }
+            }
+        }
+
+        private func endSaveTask() {
+            guard saveTask != .invalid else { return }
+            UIApplication.shared.endBackgroundTask(saveTask)
+            saveTask = .invalid
         }
 
         required init(coder: NSCoder) {
@@ -1298,6 +1334,7 @@ public enum WorkspaceTab: Int {
     case SpaceInspector = 8
     case Chat = 9
     case Search = 10
+    case Spreadsheet = 11
 
     func viewWrapperId() -> Int {
         switch self {
@@ -1305,13 +1342,13 @@ public enum WorkspaceTab: Int {
             1
         case .Svg, .Image, .Graph:
             2
-        case .PlainText, .Markdown, .Chat:
+        case .PlainText, .Markdown, .Chat, .Spreadsheet:
             3
         }
     }
 
     func isTextEdit() -> Bool {
-        self == .Markdown || self == .PlainText
+        self == .Markdown || self == .PlainText || self == .Spreadsheet
     }
 
     func isSvg() -> Bool {

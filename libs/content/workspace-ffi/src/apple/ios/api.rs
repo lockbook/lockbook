@@ -19,6 +19,18 @@ use super::response::*;
 use crate::WgpuWorkspace;
 use crate::apple::keyboard::UIKeys;
 
+/// Advances pending saves even while the iOS view is paused.
+///
+/// # Safety
+/// obj must be a valid pointer to WgpuWorkspace.
+#[no_mangle]
+pub unsafe extern "C" fn ios_flush_saves(obj: *mut c_void) -> bool {
+    let obj = &mut *(obj as *mut WgpuWorkspace);
+    obj.workspace.save_all_tabs();
+    obj.workspace.process_task_updates();
+    obj.workspace.saves_settled()
+}
+
 /// # Safety
 /// obj must be a valid pointer to WgpuEditor
 #[no_mangle]

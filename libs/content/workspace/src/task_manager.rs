@@ -109,7 +109,7 @@ impl Tasks {
 
     fn complete_save(
         &mut self, request: SaveRequest, content: TabSaveContent,
-        new_hmac_result: LbResult<DocumentHmac>,
+        new_hmac_result: LbResult<SavedDocument>,
     ) {
         let mut in_progress_save = None;
         for save in mem::take(&mut self.in_progress_saves) {
@@ -273,7 +273,7 @@ pub struct CompletedLoad {
 pub struct CompletedSave {
     pub request: SaveRequest,
     pub content: TabSaveContent,
-    pub new_hmac_result: LbResult<DocumentHmac>,
+    pub new_hmac_result: LbResult<SavedDocument>,
 
     pub timing: CompletedTiming,
 }
@@ -287,7 +287,12 @@ pub enum Work {
 /// A task whose read or write ran, its completion not yet recorded.
 pub enum Ran {
     Load(Uuid, LbResult<(Option<DocumentHmac>, DecryptedDocument)>),
-    Save { request: SaveRequest, content: TabSaveContent, new_hmac_result: LbResult<DocumentHmac> },
+    Save { request: SaveRequest, content: TabSaveContent, new_hmac_result: LbResult<SavedDocument> },
+}
+
+pub struct SavedDocument {
+    pub hmac: DocumentHmac,
+    pub recovery: Option<Uuid>,
 }
 
 #[derive(Clone)]
@@ -565,13 +570,103 @@ impl TaskManager {
         match work {
             Work::Load(id) => Ran::Load(id, self.core.read_document_with_hmac(id, true)),
             Work::Save { request, old_hmac, content } => {
-                let new_hmac_result = self.core.safe_write(
-                    request.id,
-                    old_hmac,
-                    &content.bytes(),
-                    Some(request.origin.as_uuid()),
-                );
+                let new_hmac_result = self.write(&request, old_hmac, &content);
                 Ran::Save { request, content, new_hmac_result }
+            }
+        }
+    }
+
+    fn write(
+        &self, request: &SaveRequest, old_hmac: Option<DocumentHmac>, content: &TabSaveContent,
+    ) -> LbResult<SavedDocument> {
+        #[cfg(not(target_family = "wasm"))]
+        if let TabSaveContent::Spreadsheet { recovery, .. } = content {
+            use crate::show::DocType;
+            use lb_rs::model::errors::LbErrKind;
+            let bytes = &content.bytes();
+            if let Some((id, hmac)) = recovery {
+                match self
+                    .core
+                    .safe_write(*id, Some(*hmac), bytes, Some(request.origin.as_uuid()))
+                {
+                    Ok(hmac) => return Ok(SavedDocument { hmac, recovery: Some(*id) }),
+                    Err(err)
+                        if !matches!(
+                            err.kind,
+                            LbErrKind::ReReadRequired | LbErrKind::FileNonexistent
+                        ) =>
+                    {
+                        return Err(err);
+                    }
+                    Err(_) => return self.recover_spreadsheet(request, bytes),
+                }
+            }
+            if self
+                .core
+                .get_file_by_id(request.id)
+                .is_ok_and(|file| DocType::from_name(&file.name) != DocType::Spreadsheet)
+            {
+                return self.recover_spreadsheet(request, bytes);
+            }
+            match self
+                .core
+                .safe_write(request.id, old_hmac, bytes, Some(request.origin.as_uuid()))
+            {
+                Ok(hmac) => return Ok(SavedDocument { hmac, recovery: None }),
+                Err(err)
+                    if matches!(
+                        err.kind,
+                        LbErrKind::ReReadRequired
+                            | LbErrKind::InsufficientPermission
+                            | LbErrKind::FileNonexistent
+                    ) =>
+                {
+                    return self.recover_spreadsheet(request, bytes);
+                }
+                Err(err) => return Err(err),
+            }
+        }
+        self.core
+            .safe_write(request.id, old_hmac, &content.bytes(), Some(request.origin.as_uuid()))
+            .map(|hmac| SavedDocument { hmac, recovery: None })
+    }
+
+    #[cfg(not(target_family = "wasm"))]
+    fn recover_spreadsheet(&self, request: &SaveRequest, bytes: &[u8]) -> LbResult<SavedDocument> {
+        use lb_rs::model::file_metadata::FileType;
+
+        let file = self.core.get_file_by_id(request.id).ok();
+        let title = file
+            .as_ref()
+            .and_then(|f| std::path::Path::new(&f.name).file_stem())
+            .and_then(|s| s.to_str())
+            .unwrap_or("Spreadsheet");
+        let title: String = title.chars().take(40).collect();
+        let suffix = Uuid::new_v4().simple().to_string();
+        let name = format!("{title} (Recovered {}).lbsheet", &suffix[..8]);
+        let copy = file
+            .and_then(|f| {
+                self.core
+                    .create_file(&name, &f.parent, FileType::Document)
+                    .ok()
+            })
+            .map_or_else(
+                || {
+                    self.core
+                        .create_file(&name, &self.core.get_root()?.id, FileType::Document)
+                },
+                Ok,
+            )?;
+        match self
+            .core
+            .safe_write(copy.id, None, bytes, Some(request.origin.as_uuid()))
+        {
+            Ok(hmac) => Ok(SavedDocument { hmac, recovery: Some(copy.id) }),
+            Err(err) => {
+                if err.kind != lb_rs::model::errors::LbErrKind::ReReadRequired {
+                    let _ = self.core.delete_file(&copy.id);
+                }
+                Err(err)
             }
         }
     }

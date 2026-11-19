@@ -166,6 +166,7 @@ class CreateFileBottomSheetFragment : BottomSheetDialogFragment() {
             model.setType(
                 when (checkedId) {
                     R.id.type_drawing -> NewFileType.Drawing
+                    R.id.type_spreadsheet -> NewFileType.Spreadsheet
                     R.id.type_folder -> NewFileType.Folder
                     R.id.type_other -> NewFileType.Other
                     else -> NewFileType.Note
@@ -191,6 +192,7 @@ class CreateFileBottomSheetFragment : BottomSheetDialogFragment() {
             when (state.type) {
                 NewFileType.Note -> R.id.type_note
                 NewFileType.Drawing -> R.id.type_drawing
+                NewFileType.Spreadsheet -> R.id.type_spreadsheet
                 NewFileType.Folder -> R.id.type_folder
                 NewFileType.Other -> R.id.type_other
             }

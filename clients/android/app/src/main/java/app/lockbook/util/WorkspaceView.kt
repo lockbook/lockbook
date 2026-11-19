@@ -516,9 +516,13 @@ class WorkspaceView(
                 )
         } else if (
             model.currentTab.value?.type == WorkspaceTabType.Markdown ||
-            model.currentTab.value?.type == WorkspaceTabType.Chat
+            model.currentTab.value?.type == WorkspaceTabType.Chat ||
+            model.currentTab.value?.type == WorkspaceTabType.Spreadsheet
         ) {
             (wrapperView as? WorkspaceTextInputWrapper)?.let { textInputWrapper ->
+                if (model.currentTab.value?.type == WorkspaceTabType.Spreadsheet) {
+                    textInputWrapper.visibility = if (response.hasTextInteractionRect) View.VISIBLE else View.INVISIBLE
+                }
                 val density = context.resources.displayMetrics.scaledDensity
                 textInputWrapper.applyTextInteractionRect(
                     response.hasTextInteractionRect,

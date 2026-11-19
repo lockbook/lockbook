@@ -67,7 +67,7 @@ struct CreateFileSheet: View {
                         Text(type.label).tag(type)
                     }
                 }
-                .pickerStyle(.segmented)
+                .pickerStyle(.menu)
                 .labelsHidden()
             }
 
@@ -358,6 +358,7 @@ enum LocationChoice: Equatable {
 enum NewFileType: CaseIterable, Identifiable {
     case markdown
     case drawing
+    case spreadsheet
     case folder
     case other
 
@@ -369,6 +370,7 @@ enum NewFileType: CaseIterable, Identifiable {
         switch self {
         case .markdown: "Note"
         case .drawing: "Drawing"
+        case .spreadsheet: "Spreadsheet"
         case .folder: "Folder"
         case .other: "Other"
         }
@@ -378,6 +380,7 @@ enum NewFileType: CaseIterable, Identifiable {
         switch self {
         case .markdown: ".md"
         case .drawing: ".svg"
+        case .spreadsheet: ".lbsheet"
         case .folder: nil
         case .other: nil
         }

@@ -33,6 +33,8 @@ pub mod input_controller;
 pub mod markdown_editor;
 pub mod open;
 pub mod pdf_viewer;
+#[cfg(not(target_family = "wasm"))]
+pub mod spreadsheet;
 pub mod svg_editor;
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -536,6 +538,8 @@ impl Tab {
             ContentState::Open(TabContent::Markdown(md)) => md.hmac(),
             ContentState::Open(TabContent::Svg(svg)) => svg.open_file_hmac,
             #[cfg(not(target_family = "wasm"))]
+            ContentState::Open(TabContent::Spreadsheet(sheet)) => sheet.hmac,
+            #[cfg(not(target_family = "wasm"))]
             ContentState::Open(TabContent::Chat(chat)) => chat.hmac,
             _ => None,
         }
@@ -544,6 +548,8 @@ impl Tab {
     pub fn seq(&self) -> usize {
         match &self.content {
             ContentState::Open(TabContent::Markdown(md)) => md.edit.renderer.buffer.current.seq,
+            #[cfg(not(target_family = "wasm"))]
+            ContentState::Open(TabContent::Spreadsheet(sheet)) => sheet.seq(),
             #[cfg(not(target_family = "wasm"))]
             ContentState::Open(TabContent::Chat(chat)) => chat.seq,
             _ => 0,
@@ -658,6 +664,8 @@ impl Tab {
             ContentState::Failed(_) => "failed",
             ContentState::Open(TabContent::Markdown(_)) => "markdown",
             ContentState::Open(TabContent::Svg(_)) => "svg",
+            #[cfg(not(target_family = "wasm"))]
+            ContentState::Open(TabContent::Spreadsheet(_)) => "spreadsheet",
             ContentState::Open(TabContent::Image(_)) => "image",
             ContentState::Open(TabContent::Pdf(_)) => "pdf",
             #[cfg(not(target_family = "wasm"))]
@@ -843,6 +851,15 @@ impl Tab {
                         }
                     }
                     #[cfg(not(target_family = "wasm"))]
+                    TabContent::Spreadsheet(sheet) => {
+                        let seq = sheet.seq();
+                        resp =
+                            sheet.show(ui, self.read_only, self.presentation != Presentation::Full);
+                        if sheet.seq() != seq {
+                            self.last_changed = Instant::now();
+                        }
+                    }
+                    #[cfg(not(target_family = "wasm"))]
                     TabContent::MindMap(mm) => {
                         resp.open_file = mm.show(ui);
                     }
@@ -863,6 +880,14 @@ impl Tab {
             self.last_changed > self.last_saved
         }
     }
+
+    pub fn save_blocked(&self) -> bool {
+        #[cfg(not(target_family = "wasm"))]
+        if let ContentState::Open(TabContent::Spreadsheet(sheet)) = &self.content {
+            return sheet.save_error.is_some();
+        }
+        false
+    }
 }
 
 #[allow(clippy::large_enum_variant)]
@@ -881,6 +906,8 @@ pub enum TabContent {
     Pdf(PdfViewer),
     Svg(SVGEditor),
     #[cfg(not(target_family = "wasm"))]
+    Spreadsheet(Box<spreadsheet::Spreadsheet>),
+    #[cfg(not(target_family = "wasm"))]
     MindMap(MindMap),
     SpaceInspector(SpaceInspector),
     Search(Search),
@@ -896,6 +923,8 @@ impl std::fmt::Debug for TabContent {
             TabContent::Pdf(_) => write!(f, "TabContent::Pdf"),
             TabContent::Svg(_) => write!(f, "TabContent::Svg"),
             #[cfg(not(target_family = "wasm"))]
+            TabContent::Spreadsheet(_) => write!(f, "TabContent::Spreadsheet"),
+            #[cfg(not(target_family = "wasm"))]
             TabContent::MindMap(_) => write!(f, "TabContent::Graph"),
             TabContent::SpaceInspector(_) => write!(f, "TabContent::SpaceInspector"),
             TabContent::Search(_) => write!(f, "TabContent::Search"),
@@ -910,6 +939,8 @@ impl TabContent {
             TabContent::Chat(chat) => Some(chat.id),
             TabContent::Markdown(md) => Some(md.edit.file_id),
             TabContent::Svg(svg) => Some(svg.open_file),
+            #[cfg(not(target_family = "wasm"))]
+            TabContent::Spreadsheet(sheet) => Some(sheet.id),
             TabContent::Image(image_viewer) => image_viewer.file(),
             TabContent::Pdf(pdf_viewer) => Some(pdf_viewer.id),
             #[cfg(not(target_family = "wasm"))]
@@ -925,6 +956,8 @@ impl TabContent {
             TabContent::Chat(chat) => chat.hmac,
             TabContent::Markdown(md) => md.hmac(),
             TabContent::Svg(svg) => svg.open_file_hmac,
+            #[cfg(not(target_family = "wasm"))]
+            TabContent::Spreadsheet(sheet) => sheet.hmac,
             _ => None,
         }
     }
@@ -1033,6 +1066,8 @@ impl TabContent {
             #[cfg(not(target_family = "wasm"))]
             TabContent::Chat(chat) => chat.seq,
             TabContent::Markdown(md) => md.edit.renderer.buffer.current.seq,
+            #[cfg(not(target_family = "wasm"))]
+            TabContent::Spreadsheet(sheet) => sheet.seq(),
             _ => 0,
         }
     }
@@ -1047,6 +1082,11 @@ impl TabContent {
                 Some(TabSaveContent::String(md.edit.renderer.buffer.current.text.clone()))
             }
             TabContent::Svg(svg) => Some(TabSaveContent::Svg(Box::new(svg.buffer.clone()))),
+            #[cfg(not(target_family = "wasm"))]
+            TabContent::Spreadsheet(sheet) => Some(TabSaveContent::Spreadsheet {
+                workbook: Box::new(sheet.snapshot()),
+                recovery: sheet.recovery,
+            }),
             _ => None,
         }
     }
@@ -1059,6 +1099,11 @@ pub enum TabSaveContent {
     Bytes(Vec<u8>),
     String(String),
     Svg(Box<svg::buffer::Buffer>),
+    #[cfg(not(target_family = "wasm"))]
+    Spreadsheet {
+        workbook: Box<ironcalc_base::types::Workbook>,
+        recovery: Option<(Uuid, DocumentHmac)>,
+    },
 }
 
 impl TabSaveContent {
@@ -1067,6 +1112,10 @@ impl TabSaveContent {
             TabSaveContent::Bytes(bytes) => Cow::Borrowed(bytes),
             TabSaveContent::String(string) => Cow::Borrowed(string.as_bytes()),
             TabSaveContent::Svg(buffer) => Cow::Owned(buffer.serialize().into_bytes()),
+            #[cfg(not(target_family = "wasm"))]
+            TabSaveContent::Spreadsheet { workbook, .. } => {
+                Cow::Owned(spreadsheet::encode_workbook(workbook))
+            }
         }
     }
 }

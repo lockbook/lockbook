@@ -886,7 +886,7 @@ class WorkspaceWrapperView(
             return
         }
 
-        val wrapper = WorkspaceTextInputWrapper(context, workspaceView)
+        val wrapper = WorkspaceTextInputWrapper(context, workspaceView, newTab == WorkspaceTabType.Spreadsheet)
         currentWrapper = wrapper
         workspaceView.wrapperView = wrapper
         addView(wrapper, FrameLayout.LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT))
@@ -898,6 +898,7 @@ class WorkspaceWrapperView(
 class WorkspaceTextInputWrapper(
     context: Context,
     val workspaceView: WorkspaceView,
+    private val spreadsheet: Boolean,
 ) : View(context) {
     val wsInputConnection = WorkspaceTextInputConnection(workspaceView, this)
 
@@ -951,6 +952,7 @@ class WorkspaceTextInputWrapper(
     init {
         isFocusable = true
         isFocusableInTouchMode = true
+        if (spreadsheet) visibility = View.INVISIBLE
     }
 
     @SuppressLint("ClickableViewAccessibility")
@@ -1061,21 +1063,23 @@ class WorkspaceTextInputWrapper(
 
     override fun onCreateInputConnection(outAttrs: EditorInfo?): InputConnection {
         if (outAttrs != null) {
-            outAttrs.initialCapsMode = wsInputConnection.getCursorCapsMode(EditorInfo.TYPE_CLASS_TEXT)
-            outAttrs.hintText = "Type here"
-
-            outAttrs.inputType =
-                InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_MULTI_LINE or InputType.TYPE_TEXT_FLAG_AUTO_CORRECT or
-                InputType.TYPE_TEXT_FLAG_CAP_SENTENCES
-
-            EditorInfoCompat.setContentMimeTypes(outAttrs, arrayOf("image/*"))
+            val text = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_MULTI_LINE
+            if (spreadsheet) {
+                outAttrs.inputType = text or InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS
+                outAttrs.hintText = "Value or formula"
+            } else {
+                outAttrs.initialCapsMode = wsInputConnection.getCursorCapsMode(EditorInfo.TYPE_CLASS_TEXT)
+                outAttrs.hintText = "Type here"
+                outAttrs.inputType = text or InputType.TYPE_TEXT_FLAG_AUTO_CORRECT or InputType.TYPE_TEXT_FLAG_CAP_SENTENCES
+                EditorInfoCompat.setContentMimeTypes(outAttrs, arrayOf("image/*"))
+            }
 
             outAttrs.imeOptions = EditorInfo.IME_FLAG_NO_FULLSCREEN
             outAttrs.initialSelStart = wsInputConnection.wsEditable.selectionStart
             outAttrs.initialSelEnd = wsInputConnection.wsEditable.selectionEnd
         }
 
-        if (outAttrs == null) {
+        if (outAttrs == null || spreadsheet) {
             return wsInputConnection
         }
 

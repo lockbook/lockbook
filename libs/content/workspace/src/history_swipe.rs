@@ -211,7 +211,7 @@ impl Workspace {
         match self.current_tab().map(|tab| &tab.content) {
             Some(ContentState::Open(TabContent::Svg(_) | TabContent::Image(_))) => true,
             #[cfg(not(target_family = "wasm"))]
-            Some(ContentState::Open(TabContent::MindMap(_))) => true,
+            Some(ContentState::Open(TabContent::MindMap(_) | TabContent::Spreadsheet(_))) => true,
             _ => false,
         }
     }
