@@ -1,3 +1,5 @@
+#![recursion_limit = "256"]
+
 use billing::app_store_client::AppStoreClient;
 use billing::google_play_client::GooglePlayClient;
 use billing::stripe_client::StripeClient;

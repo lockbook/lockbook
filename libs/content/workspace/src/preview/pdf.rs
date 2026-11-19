@@ -566,9 +566,6 @@ mod tests {
     /// text and no GPU callback, which the PDF leaves out.
     #[test]
     fn a_printed_note_paints_nothing_the_pdf_drops() {
-        if ::test_utils::without_server() {
-            return;
-        }
         let mut t = TestWs::new();
         let mut png = vec![];
         image::RgbaImage::from_pixel(40, 30, image::Rgba([200, 80, 40, 255]))

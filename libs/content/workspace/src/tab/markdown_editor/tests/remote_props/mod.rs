@@ -146,9 +146,6 @@ fn run<C>(seeds: u64, buf_len: usize, check: C)
 where
     C: Fn(&[u8], &mut dyn FnMut(String)) -> Result<(), String>,
 {
-    if ::test_utils::without_server() {
-        return;
-    }
     crate::test_utils::prop::run(
         seeds,
         buf_len,

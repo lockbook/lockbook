@@ -978,9 +978,6 @@ mod tests {
     /// gets the arrow on the first frame, not the title band's open hand.
     #[test]
     fn landing_on_open_shows_the_arrow() {
-        if ::test_utils::without_server() {
-            return;
-        }
         let mut t = TestWs::new();
         embed_of_a_link(&mut t);
         let (rect, _) = shown(&mut t).unwrap();
@@ -1129,9 +1126,6 @@ mod tests {
     /// showing the whole note.
     #[test]
     fn a_missing_heading_embeds_a_message() {
-        if ::test_utils::without_server() {
-            return;
-        }
         let mut t = TestWs::new();
         t.doc("Plan.md", "# Goals\n\nShip it.\n");
         let note = t.doc("note.md", "above\n\n![[Plan#Gone]]\n\nbelow\n");
@@ -1166,9 +1160,6 @@ mod tests {
     /// A width after the pipe sizes a note embed, as it does an image.
     #[test]
     fn a_width_after_the_pipe_sizes_an_embed() {
-        if ::test_utils::without_server() {
-            return;
-        }
         let mut t = TestWs::new();
         t.doc("Plan.md", "# Goals\n\nShip it.\n");
         let note = t.doc("note.md", "above\n\n![[Plan|200]]\n\nbelow\n");
@@ -1181,9 +1172,6 @@ mod tests {
     /// A click on a note embed's body, away from its links, selects the embed.
     #[test]
     fn click_on_an_embed_selects_it() {
-        if ::test_utils::without_server() {
-            return;
-        }
         let mut t = TestWs::new();
         embed_of_a_link(&mut t);
         let (rect, _) = shown(&mut t).unwrap();
@@ -1195,9 +1183,6 @@ mod tests {
     /// Backspace after an embed selects it, as after an image; a second deletes it.
     #[test]
     fn backspace_after_an_embed_selects_it() {
-        if ::test_utils::without_server() {
-            return;
-        }
         use crate::tab::ExtendedInput;
         use crate::tab::markdown_editor::input::{Advance, Event, Increment, Region};
         let mut t = TestWs::new();
@@ -1225,9 +1210,6 @@ mod tests {
     /// note's own selection alone.
     #[test]
     fn drag_in_an_embed_selects_its_text() {
-        if ::test_utils::without_server() {
-            return;
-        }
         let mut t = TestWs::new();
         embed_of_a_link(&mut t);
         let before = t.ws.current_tab_mut().unwrap().markdown_mut().unwrap();
@@ -1264,9 +1246,6 @@ mod tests {
     /// A link in an embed still opens: the embed's click sits beneath it.
     #[test]
     fn link_in_an_embed_opens() {
-        if ::test_utils::without_server() {
-            return;
-        }
         let mut t = TestWs::new();
         let (_, other) = embed_of_a_link(&mut t);
         let (_, texts) = shown(&mut t).unwrap();
@@ -1285,9 +1264,6 @@ mod tests {
     /// On touch too, where the embedded note has no menu of its own.
     #[test]
     fn link_in_an_embed_opens_on_touch() {
-        if ::test_utils::without_server() {
-            return;
-        }
         let mut t = TestWs::new();
         t.ctx.set_os(egui::os::OperatingSystem::Android);
         let (_, other) = embed_of_a_link(&mut t);
@@ -1308,9 +1284,6 @@ mod tests {
     /// egui's, which opens it; elsewhere on the embed it selects it.
     #[test]
     fn touch_targets_on_an_embed() {
-        if ::test_utils::without_server() {
-            return;
-        }
         let mut t = TestWs::new();
         t.ctx.set_os(egui::os::OperatingSystem::IOS);
         embed_of_a_link(&mut t);
@@ -1333,9 +1306,6 @@ mod tests {
     /// Open, not the embed's, which would select it.
     #[test]
     fn a_tap_on_an_embeds_band_leaves_the_selection() {
-        if ::test_utils::without_server() {
-            return;
-        }
         use crate::tab::markdown_editor::widget::utils::wrap_layout::{EmbedKind, FragmentContent};
         let mut t = TestWs::new();
         t.ctx.set_os(egui::os::OperatingSystem::IOS);
@@ -1358,9 +1328,6 @@ mod tests {
     /// An embed stays on the page it names while the note is edited above it.
     #[test]
     fn pdf_embed_keeps_its_page_through_an_edit_above() {
-        if ::test_utils::without_server() {
-            return;
-        }
         let mut t = TestWs::new();
         let root = t.ws.core.get_root().unwrap().id;
         let pdf =
@@ -1391,9 +1358,6 @@ mod tests {
     /// too, with the folds inside it kept; the note keeps its folds.
     #[test]
     fn embed_of_a_folded_section_shows_it() {
-        if ::test_utils::without_server() {
-            return;
-        }
         let fold = crate::tab::markdown_editor::fold::FOLD_TAG;
         let mut t = TestWs::new();
         let plan = format!(

@@ -115,17 +115,14 @@ async fn with_account<S: Server>(core: lb_rs::Lb<S>) -> lb_rs::Lb<S> {
     core
 }
 
-/// Whether a test that needs a server at [url] should return without running. With
-/// `LB_TEST_IN_PROCESS` set, only the tests that run in this process run.
-pub fn without_server() -> bool {
-    let skip = env::var_os("LB_TEST_IN_PROCESS").is_some();
-    if skip {
-        eprintln!("skipped: this test needs a server and LB_TEST_IN_PROCESS is set");
-    }
-    skip
-}
-
+/// The server's URL for clients that reach it over HTTP. With `LB_TEST_IN_PROCESS` set, a server
+/// this process serves on loopback, so the tests need no other process; otherwise `API_URL`, or a
+/// local server's default address.
 pub fn url() -> String {
+    static LOOPBACK: LazyLock<String> = LazyLock::new(InMemoryServer::serve_on_loopback);
+    if env::var_os("LB_TEST_IN_PROCESS").is_some() {
+        return LOOPBACK.clone();
+    }
     env::var("API_URL").unwrap_or_else(|_| "http://localhost:8000".to_string())
 }
 

@@ -1,4 +1,4 @@
-//! A workspace on an account at the local server, drawn frame by frame.
+//! A workspace on an account at the tests' server ([::test_utils::url]), drawn frame by frame.
 
 use egui::{Context, RawInput, Rect, pos2, vec2};
 use lb_rs::Uuid;
@@ -27,12 +27,9 @@ pub fn test_lb() -> Lb {
         .chars()
         .take(30)
         .collect::<String>();
-    core.create_account(&name, &api_url(), false).unwrap();
+    core.create_account(&name, &::test_utils::url(), false)
+        .unwrap();
     core
-}
-
-fn api_url() -> String {
-    std::env::var("API_URL").unwrap_or_else(|_| "http://localhost:8000".into())
 }
 
 pub fn test_ctx() -> Context {
@@ -66,7 +63,9 @@ impl TestWs {
     pub fn other_device(&self) -> Lb {
         let other = crate::test_utils::in_memory_core();
         let key = self.ws.core.export_account_private_key().unwrap();
-        other.import_account(&key, Some(&api_url())).unwrap();
+        other
+            .import_account(&key, Some(&::test_utils::url()))
+            .unwrap();
         other.sync().unwrap();
         other
     }
