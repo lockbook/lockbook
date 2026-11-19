@@ -2123,13 +2123,23 @@ fn whoever_reads_a_document_reads_its_attachments_check(
                 }
                 let writes = world.writes(on, *id).await;
                 for folder in folders_of(&stored, *id) {
+                    // a folder whose parent isn't on the device, as for a note shared alone, isn't
+                    // listed: it is reached by id
+                    let pathless = !listed.contains_key(&stored[&folder].parent);
                     for x in std::iter::once(folder).chain(inside(&stored, folder)) {
                         // only a link's owner, the document's, follows it
                         if stored[&x].link.is_some() && file.owner != me {
                             continue;
                         }
                         let shown = stored[&x].link.unwrap_or(x);
-                        if !listed.contains_key(&shown) {
+                        if pathless {
+                            if device.get_file_by_id(shown).await.is_err() {
+                                return Err(format!(
+                                    "device {on} reads document {id} but can't find {x} in its \
+                                     attachments folder {folder}"
+                                ));
+                            }
+                        } else if !listed.contains_key(&shown) {
                             return Err(format!(
                                 "device {on} reads document {id} but doesn't list {x} in its \
                                  attachments folder {folder}"
