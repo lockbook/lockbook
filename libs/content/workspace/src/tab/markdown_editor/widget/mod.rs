@@ -1,6 +1,6 @@
-use comrak::nodes::{AstNode, NodeHeading, NodeValue};
+use comrak::nodes::{AstNode, LineColumn, NodeHeading, NodeValue, Sourcepos};
 use egui::{Context, Id, Key, Modifiers, Pos2, Rect, Sense, Ui, UiBuilder, Vec2};
-use lb_rs::model::text::offset_types::{Grapheme, RangeExt as _, RangeIterExt as _};
+use lb_rs::model::text::offset_types::{Byte, Grapheme, RangeExt as _, RangeIterExt as _};
 
 use crate::show::InputStateExt as _;
 use crate::style::{FileRow, Space, ThemeExt as _};
@@ -130,17 +130,16 @@ impl<'ast> MdRender {
             // hack: inline positions after an escaped pipe in a table cell
             // are short by the backslash.
             value if value.is_inline() => {
-                if let Some(inline_range) = self.table_cell_inline_range(node, node_data.sourcepos)
-                {
-                    range = inline_range;
-                }
+                range = self.inline_range(node);
 
                 // hack: a link or image whose tail spans a line ends at its
                 // destination; what follows it starts after its `)`.
                 if matches!(value, NodeValue::Link(_) | NodeValue::Image(_)) {
                     let parent = node.parent().unwrap();
                     let follows = match node.next_sibling() {
-                        Some(next) => Some(self.sourcepos_to_range(next.data.borrow().sourcepos).0),
+                        // not `node_range`, which recurses down a run of
+                        // adjacent links
+                        Some(next) => Some(self.inline_range(next).0),
                         None if matches!(parent.data.borrow().value, NodeValue::Paragraph) => {
                             Some(self.node_range(parent).1)
                         }
@@ -160,6 +159,65 @@ impl<'ast> MdRender {
         // Cache the result before returning
         self.set_cached_node_range(node, range);
         range
+    }
+
+    /// An inline's range from its sourcepos, corrected where comrak
+    /// misplaces it, without the hacks that look at its siblings.
+    fn inline_range(&self, node: &'ast AstNode<'ast>) -> (Grapheme, Grapheme) {
+        let sourcepos = node.data.borrow().sourcepos;
+        self.table_cell_inline_range(node, sourcepos)
+            .unwrap_or_else(|| self.inline_range_past_breaks(node, sourcepos))
+    }
+
+    /// An inline's range, where it follows a line break inside an inline
+    /// before it (a link's destination spanning a line). comrak keeps that
+    /// break's line and counts on through the block's text, so a column past
+    /// the line's end runs onto the next lines, each past its container
+    /// prefix (a quote's `> `). Elsewhere it's the sourcepos's range.
+    fn inline_range_past_breaks(
+        &self, node: &'ast AstNode<'ast>, sourcepos: Sourcepos,
+    ) -> (Grapheme, Grapheme) {
+        let raw = self.sourcepos_to_range(sourcepos);
+        let Some(block) = node.ancestors().find(|n| n.data.borrow().value.block()) else {
+            return raw;
+        };
+        let segs = &self.buffer.current.segs;
+        // comrak's byte can land inside a cluster, as `)` with a combining
+        // mark after it; ceil as `sourcepos_to_range` does
+        let start = match self.inline_byte(block, sourcepos.start) {
+            Some(byte) => segs.byte_to_char_ceil(byte),
+            None => raw.0,
+        };
+        // the end is inclusive: place its last byte, then step past it
+        let end = match sourcepos.end.column {
+            0 => None,
+            _ => self.inline_byte(block, sourcepos.end),
+        };
+        let end = match end {
+            Some(byte) => segs.byte_to_char_ceil(byte + 1),
+            None => raw.1,
+        };
+        (start, end)
+    }
+
+    /// The source byte at comrak's 1-based `position` of an inline in `block`.
+    fn inline_byte(&self, block: &'ast AstNode<'ast>, position: LineColumn) -> Option<Byte> {
+        let lines = &self.bounds.source_lines;
+        let mut i = position.line.checked_sub(1)?;
+        let mut column = position.column.checked_sub(1)?;
+        while let (Some(&line), Some(&next)) = (lines.get(i), lines.get(i + 1)) {
+            // within the line or its separator (`\n`, `\r\n` or `\r`)
+            let past_line =
+                (self.offset_to_byte(next.start()) - self.offset_to_byte(line.start())).0;
+            if column < past_line {
+                break;
+            }
+            let content = self.node_line(block, next).start();
+            let prefix = (self.offset_to_byte(content) - self.offset_to_byte(next.start())).0;
+            column = column - past_line + prefix;
+            i += 1;
+        }
+        Some(self.offset_to_byte(lines.get(i)?.start()) + column)
     }
 
     /// Creates a UI that assigns ids using the node's start.
