@@ -470,6 +470,7 @@ pub mod phosphor {
     pub const LIST_BULLETS: &str = "\u{e2f2}";
     pub const LIST_NUMBERS: &str = "\u{e2f6}";
     pub const CHECK_SQUARE: &str = "\u{e186}";
+    pub const TAG: &str = "\u{e478}";
     pub const HIGHLIGHTER: &str = "\u{ec76}";
     pub const EYE_SLASH: &str = "\u{e224}";
     pub const CAMERA: &str = "\u{e10e}";
