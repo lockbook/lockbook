@@ -525,7 +525,7 @@ async fn a_writer_of_a_note_shared_alone_adds_images() {
 }
 
 #[tokio::test]
-async fn the_second_device_folds_its_folder_into_the_servers() {
+async fn the_second_devices_folder_is_replaced_by_the_servers() {
     let a = test_core_with_attachments().await;
     let doc = a.create_at_path("/plan.md").await.unwrap();
     a.sync().await.unwrap();

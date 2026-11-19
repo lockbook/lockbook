@@ -486,9 +486,9 @@ impl<S: Server, D: LocalDocuments> Lb<S, D> {
             let mut files_to_unmove: HashSet<Uuid> = HashSet::new();
             let mut files_to_unshare: HashSet<Uuid> = HashSet::new();
             let mut links_to_delete: HashSet<Uuid> = HashSet::new();
-            // this device's new attachments folder for a document the server already gave one: it
-            // isn't created and its files go in the server's
-            let mut attachments_to_fold: HashMap<Uuid, Uuid> = HashMap::new();
+            // folders this device created that sync replaces with one the server already has; the
+            // contents go in the replacement
+            let mut replaced_folders: HashMap<Uuid, Uuid> = HashMap::new();
             let mut rename_increments: HashMap<Uuid, usize> = HashMap::new();
             // Id and key share one lifetime: the merge, including construction retries.
             // A new key per attempt encrypts with the key cached by the failed attempt.
@@ -506,7 +506,7 @@ impl<S: Server, D: LocalDocuments> Lb<S, D> {
                     for id in db.local_metadata.ids() {
                         if remote.maybe_find(&id).is_none()
                             && !links_to_delete.contains(&id)
-                            && !attachments_to_fold.contains_key(&id)
+                            && !replaced_folders.contains_key(&id)
                         {
                             deletion_creations.insert(id);
                         }
@@ -514,7 +514,7 @@ impl<S: Server, D: LocalDocuments> Lb<S, D> {
                     for id in parents_first(&local, &deletion_creations)? {
                         let local_file = local.find(&id)?.clone();
                         let parent =
-                            created_parent(&remote_with_moves, &local_file, &attachments_to_fold);
+                            created_parent(&remote_with_moves, &local_file, &replaced_folders);
                         remote_with_moves
                             .create_unvalidated(
                                 id,
@@ -547,7 +547,7 @@ impl<S: Server, D: LocalDocuments> Lb<S, D> {
                                 let from = remote.find(&id)?.parent();
                                 let may_move_from = remote.maybe_find(from).is_some()
                                     && remote.access_mode(me, from)? >= Some(UserAccessMode::Write);
-                                let to = folded(&attachments_to_fold, local_file.parent());
+                                let to = replacement(&replaced_folders, local_file.parent());
                                 if !may_move_from
                                     || !may_write_in(&local, &remote_with_moves, me, &to)?
                                 {
@@ -594,7 +594,7 @@ impl<S: Server, D: LocalDocuments> Lb<S, D> {
                                 &created_parent(
                                     &remote_with_moves,
                                     local.find(&id)?,
-                                    &attachments_to_fold,
+                                    &replaced_folders,
                                 ),
                             )?
                         {
@@ -603,7 +603,7 @@ impl<S: Server, D: LocalDocuments> Lb<S, D> {
                     }
                     for id in parents_first(&local, &creations)? {
                         let local_file = local.find(&id)?.clone();
-                        let parent = created_parent(&merge, &local_file, &attachments_to_fold);
+                        let parent = created_parent(&merge, &local_file, &replaced_folders);
                         merge
                             .create_unvalidated(
                                 id,
@@ -672,7 +672,7 @@ impl<S: Server, D: LocalDocuments> Lb<S, D> {
                                 && !files_to_unmove.contains(&id)
                                 && !refused_moves.contains(&id)
                             {
-                                let parent = folded(&attachments_to_fold, local_file.parent());
+                                let parent = replacement(&replaced_folders, local_file.parent());
                                 merge.move_unvalidated(&id, &parent, &self.keychain)?;
                             }
                         }
@@ -1082,7 +1082,7 @@ impl<S: Server, D: LocalDocuments> Lb<S, D> {
                                 }
                             }
                             ValidationFailure::DuplicateAttachmentsFolder { document } => {
-                                // the server's folder stays; this device's new one is folded into
+                                // the server's folder stays; this device's new one is replaced by
                                 // it
                                 let mut existing = None;
                                 let mut new = None;
@@ -1101,7 +1101,7 @@ impl<S: Server, D: LocalDocuments> Lb<S, D> {
                                 }
                                 let progress = match (existing, new) {
                                     (Some(existing), Some(new)) => {
-                                        attachments_to_fold.insert(new, existing).is_none()
+                                        replaced_folders.insert(new, existing).is_none()
                                     }
                                     _ => false,
                                 };
@@ -1781,17 +1781,17 @@ fn parents_first<T: TreeLike>(tree: &LazyTree<T>, ids: &HashSet<Uuid>) -> LbResu
 /// when `tree` has it, since a folder's place follows its document's; anything else in its own
 /// parent, [folded].
 fn created_parent<T: TreeLike<F = SignedMeta>>(
-    tree: &LazyTree<T>, file: &SignedMeta, attachments_to_fold: &HashMap<Uuid, Uuid>,
+    tree: &LazyTree<T>, file: &SignedMeta, replaced_folders: &HashMap<Uuid, Uuid>,
 ) -> Uuid {
     match tree.maybe_find_attached(file) {
         Some(document) => *document.parent(),
-        None => folded(attachments_to_fold, file.parent()),
+        None => replacement(replaced_folders, file.parent()),
     }
 }
 
-/// Where a file in `parent` goes: `parent`, unless it's a folded attachments folder.
-fn folded(attachments_to_fold: &HashMap<Uuid, Uuid>, parent: &Uuid) -> Uuid {
-    *attachments_to_fold.get(parent).unwrap_or(parent)
+/// `folder`, or the folder that replaces it.
+fn replacement(replaced_folders: &HashMap<Uuid, Uuid>, folder: &Uuid) -> Uuid {
+    *replaced_folders.get(folder).unwrap_or(folder)
 }
 
 /// A creation whose parent is in neither the tree nor the creations before it.
