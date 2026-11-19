@@ -148,8 +148,7 @@ impl<S: Server, D: LocalDocuments> Lb<S, D> {
         Ok(())
     }
 
-    /// Makes the attachments folders this device's owner makes for documents others write by a
-    /// share of their own, for documents shared that way before this device made them.
+    /// For each note of mine that someone else can write, if it has no attachments folder, make one
     async fn create_shared_attachments(&self) -> LbResult<()> {
         if !self.attachments_folders {
             return Ok(());
@@ -164,7 +163,7 @@ impl<S: Server, D: LocalDocuments> Lb<S, D> {
         ids.sort();
         let mut created = false;
         for id in ids {
-            if tree.wants_shared_attachments(&id, me)? {
+            if tree.wants_attachments(&id, me)? {
                 tree.create_attachments(
                     self.entropy.id(),
                     self.entropy.key(),
@@ -206,8 +205,8 @@ impl<S: Server, D: LocalDocuments> Lb<S, D> {
         let mut local = db.base_metadata.stage(&db.local_metadata).to_lazy();
         let base_ids = local.tree.base.ids();
 
-        // files the server stopped listing, and this device's files under them, or in their
-        // attachments folders, it never had
+        // files the server stopped listing and unlisted files whose existence is tied to them:
+        // their children and attachments
         let mut prunable_ids: HashSet<Uuid> = base_ids
             .into_iter()
             .filter(|id| !server_ids.contains(id))
@@ -222,8 +221,8 @@ impl<S: Server, D: LocalDocuments> Lb<S, D> {
         while let Some(id) = to_visit.pop() {
             let mut under = Vec::new();
             for child in local.children(&id)? {
-                // an attachments folder goes where its document goes, not where its parent was:
-                // while the server has the document, the folder lands beside it in the merge
+                // concurrent edits can leave an attachments folder looking like it should be pruned
+                // without an exception for when its document is not
                 let follows_document = local
                     .find(&child)?
                     .attachment_of()
@@ -1777,9 +1776,8 @@ fn parents_first<T: TreeLike>(tree: &LazyTree<T>, ids: &HashSet<Uuid>) -> LbResu
     Ok(order)
 }
 
-/// Where a file this device created goes in `tree`: an attachments folder beside its document,
-/// when `tree` has it, since a folder's place follows its document's; anything else in its own
-/// parent, [folded].
+/// An attachments folder's document's parent, or a conflicting file's replacement parent, or a
+/// normal file's normal parent
 fn created_parent<T: TreeLike<F = SignedMeta>>(
     tree: &LazyTree<T>, file: &SignedMeta, replaced_folders: &HashMap<Uuid, Uuid>,
 ) -> Uuid {

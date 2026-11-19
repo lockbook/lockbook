@@ -45,8 +45,8 @@ impl<T: TreeLike> LazyTree<T> {
         Ok(max_access_mode)
     }
 
-    /// The files whose shares grant access to `id`: itself, its ancestors, and, since an
-    /// attachments folder grants what its document grants, its documents and theirs.
+    /// The files where access to them grants access to the provided file: the file itself, its
+    /// ancestors, and the target of any attachments folders along the way
     pub fn access_sources(&self, id: &Uuid) -> LbResult<HashSet<Uuid>> {
         let mut visited = HashSet::new();
         let mut to_visit = vec![*id];
@@ -113,9 +113,6 @@ impl<T: TreeLike> LazyTree<T> {
                 return Ok(false); // root
             } else if let Some(link) = self.linked_by(&id)? {
                 id = link;
-            } else if let Some(document) = self.maybe_find_attached(self.find(&id)?) {
-                // an attachments folder is pending with its document, wherever its own parent is
-                id = *document.id();
             } else if self.maybe_find(self.find(&id)?.parent()).is_some() {
                 id = *self.find(&id)?.parent();
             } else {
@@ -240,8 +237,7 @@ impl<T: TreeLike> LazyTree<T> {
                 break;
             }
 
-            // an attachments folder whose parent isn't here, as for a note shared alone, takes its
-            // key from its document
+            // an attachments folder whose parent isn't here takes its key from its document
             let file = self.find(&file_id)?;
             let next = match self.maybe_find_parent(file) {
                 Some(parent) => *parent.id(),
@@ -296,30 +292,7 @@ impl<T: TreeLike> LazyTree<T> {
 
     pub fn parent_using_links(&mut self, id: &Uuid) -> LbResult<Uuid> {
         let id = if let Some(link) = self.linked_by(id)? { link } else { *id };
-        let file = self.find(&id)?;
-        // an attachments folder sits beside its document as this tree shows it, which differs from
-        // its own parent when the document is reached alone, through a link
-        if let Some(document) = self.maybe_find_attached(file) {
-            let document = *document.id();
-            return self.parent_using_links(&document);
-        }
-        Ok(*file.parent())
-    }
-
-    /// Attachments folders that sit in `parent` only by following their documents, not by their own
-    /// parents.
-    pub fn attachments_beside(&mut self, parent: &Uuid) -> LbResult<Vec<Uuid>> {
-        let mut result = vec![];
-        for id in self.ids() {
-            let file = self.find(&id)?;
-            if file.attachment_of().is_some()
-                && file.parent() != parent
-                && self.parent_using_links(&id)? == *parent
-            {
-                result.push(id);
-            }
-        }
-        Ok(result)
+        Ok(*self.find(&id)?.parent())
     }
 
     pub fn linked_by(&mut self, id: &Uuid) -> LbResult<Option<Uuid>> {

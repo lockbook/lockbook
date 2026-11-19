@@ -165,6 +165,7 @@ where
             &mut db.owned_files,
             &mut db.shared_files,
             &mut db.file_children,
+            &mut db.file_attachments,
             &mut db.metas,
         )?
         .to_lazy();
@@ -369,6 +370,7 @@ where
                 &mut db.owned_files,
                 &mut db.shared_files,
                 &mut db.file_children,
+                &mut db.file_attachments,
                 &mut db.metas,
             )?
             .to_lazy()
@@ -407,6 +409,7 @@ where
                     &mut db.owned_files,
                     &mut db.shared_files,
                     &mut db.file_children,
+                    &mut db.file_attachments,
                     &mut db.metas,
                 )?
                 .to_lazy();
@@ -435,6 +438,7 @@ where
                             }
                             db.metas.remove(&id)?;
                             db.file_children.clear_key(&id)?;
+                            db.file_attachments.clear_key(&id)?;
                         }
                     }
                 }

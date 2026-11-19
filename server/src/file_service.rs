@@ -55,6 +55,7 @@ where
             &mut db.owned_files,
             &mut db.shared_files,
             &mut db.file_children,
+            &mut db.file_attachments,
             &mut db.metas,
         )?
         .to_lazy();
@@ -94,6 +95,7 @@ where
                 &mut db.owned_files,
                 &mut db.shared_files,
                 &mut db.file_children,
+                &mut db.file_attachments,
                 &mut db.metas,
             )?
             .to_lazy();
@@ -139,6 +141,7 @@ where
             &mut db.owned_files,
             &mut db.shared_files,
             &mut db.file_children,
+            &mut db.file_attachments,
             &mut db.metas,
         )?
         .to_lazy();
@@ -167,9 +170,8 @@ where
                     db.shared_files
                         .remove(&Owner(user_access_info.encrypted_for), id)?;
                 }
-                // the document's recipients stop being sent a deleted attachments folder
                 if let Some(of) = meta.attachment_of() {
-                    db.file_children.remove(&of.id, id)?;
+                    db.file_attachments.remove(&of.id, id)?;
                 }
             }
         }
@@ -232,6 +234,7 @@ where
             &mut db.owned_files,
             &mut db.shared_files,
             &mut db.file_children,
+            &mut db.file_attachments,
             &mut db.metas,
         )?
         .to_lazy();
@@ -257,6 +260,7 @@ where
             &mut db.owned_files,
             &mut db.shared_files,
             &mut db.file_children,
+            &mut db.file_attachments,
             &mut db.metas,
         )?
         .to_lazy();
@@ -291,6 +295,7 @@ where
                 &mut db.owned_files,
                 &mut db.shared_files,
                 &mut db.file_children,
+                &mut db.file_attachments,
                 &mut db.metas,
             )?
             .to_lazy();
@@ -380,6 +385,7 @@ where
                 &mut db.owned_files,
                 &mut db.shared_files,
                 &mut db.file_children,
+                &mut db.file_attachments,
                 &mut db.metas,
             )?
             .to_lazy();
@@ -462,6 +468,7 @@ where
                 &mut db.owned_files,
                 &mut db.shared_files,
                 &mut db.file_children,
+                &mut db.file_attachments,
                 &mut db.metas,
             )?
             .ids()
@@ -485,6 +492,7 @@ where
             &mut db.owned_files,
             &mut db.shared_files,
             &mut db.file_children,
+            &mut db.file_attachments,
             &mut db.metas,
         )?
         .to_lazy();
@@ -549,6 +557,7 @@ where
                 &mut db.owned_files,
                 &mut db.shared_files,
                 &mut db.file_children,
+                &mut db.file_attachments,
                 &mut db.metas,
             )?
             .to_lazy();
@@ -598,8 +607,7 @@ where
                     }
                 }
 
-                // maintain index: file_children; a deleted attachments folder is no longer
-                // listed under its document
+                // maintain index: file_children
                 let parent = *meta.parent();
                 if !db.file_children.remove(meta.parent(), &id)? {
                     error!(
@@ -608,8 +616,10 @@ where
                         "attempted to disappear a file, the parent didn't have it as a child"
                     );
                 }
+
+                // maintain index: file_attachments
                 if let Some(of) = meta.attachment_of() {
-                    db.file_children.remove(&of.id, &id)?;
+                    db.file_attachments.remove(&of.id, &id)?;
                 }
             }
 
@@ -666,6 +676,7 @@ where
             &mut db.owned_files,
             &mut db.shared_files,
             &mut db.file_children,
+            &mut db.file_attachments,
             &mut db.metas,
         )?
         .to_lazy();
@@ -734,6 +745,7 @@ where
                 &mut db.owned_files,
                 &mut db.shared_files,
                 &mut db.file_children,
+                &mut db.file_attachments,
                 &mut db.metas,
             )?
             .to_lazy();
@@ -881,9 +893,7 @@ where
         {
             for child_id in child_ids {
                 if let Some(meta) = db.metas.get(&child_id) {
-                    if meta.parent() != &parent_id
-                        && meta.attachment_of().map(|of| of.id) != Some(parent_id)
-                    {
+                    if meta.parent() != &parent_id {
                         insert(
                             &mut result.files_mapped_as_parent_to_non_children,
                             parent_id,
@@ -914,14 +924,28 @@ where
             } else {
                 result.files_unmapped_as_parent.insert(*meta.parent());
             }
-            // a live attachments folder is listed under its document too, a deleted one isn't
-            if let Some(document) = meta.attachment_of().map(|of| of.id) {
-                let listed = db
-                    .file_children
-                    .get(&document)
-                    .is_some_and(|ids| ids.contains(&id));
-                if listed == deleted(&db.metas, &meta) {
-                    insert(&mut result.files_unmapped_as_parent_to_children, document, id);
+        }
+
+        // validate index: file_attachments
+        for (file_id, attachment_ids) in db.file_attachments.iter() {
+            for attachment_id in attachment_ids {
+                let attached = db.metas.get(attachment_id).is_some_and(|meta| {
+                    meta.attachment_of().map(|of| of.id) == Some(*file_id)
+                        && !deleted(&db.metas, meta)
+                });
+                if !attached {
+                    insert(&mut result.files_mapped_to_non_attachments, *file_id, *attachment_id);
+                }
+            }
+        }
+        for (id, meta) in db.metas.iter() {
+            if let Some(of) = meta.attachment_of() {
+                let indexed = db
+                    .file_attachments
+                    .get(&of.id)
+                    .is_some_and(|ids| ids.contains(id));
+                if !indexed && !deleted(&db.metas, meta) {
+                    insert(&mut result.files_unmapped_to_attachments, of.id, *id);
                 }
             }
         }
@@ -970,6 +994,7 @@ where
             &mut db.owned_files,
             &mut db.shared_files,
             &mut db.file_children,
+            &mut db.file_attachments,
             &mut db.metas,
         )?
         .to_lazy();
@@ -1064,12 +1089,19 @@ where
                     .collect::<HashMap<_, _>>()
                 {
                     db.file_children.insert(*file.parent(), id)?;
+                }
+            }
+            ServerIndex::FileAttachments => {
+                db.file_attachments.clear()?;
+                for (id, file) in db
+                    .metas
+                    .iter()
+                    .map(|(key, value)| (*key, value.clone()))
+                    .collect::<HashMap<_, _>>()
+                {
                     if let Some(of) = file.attachment_of() {
                         if !deleted(&db.metas, &file) {
-                            if db.file_children.get(&of.id).is_none() {
-                                db.file_children.create_key(of.id)?;
-                            }
-                            db.file_children.insert(of.id, id)?;
+                            db.file_attachments.insert(of.id, id)?;
                         }
                     }
                 }
@@ -1080,8 +1112,7 @@ where
     }
 }
 
-/// Whether a file is deleted, from the metadata alone, for checking and rebuilding the indexes a
-/// server tree depends on.
+/// Whether a file is implicitly deleted for checking & rebuilding server tree indexes
 fn deleted(metas: &DbHashMap<Uuid, ServerMeta>, file: &ServerMeta) -> bool {
     let mut visited = HashSet::new();
     let mut to_visit = vec![file];

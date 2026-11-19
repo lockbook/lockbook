@@ -333,52 +333,52 @@ async fn a_reader_lists_a_note_shared_alone_with_its_folder() {
 }
 
 #[tokio::test]
-async fn a_note_shared_alone_has_its_folder_beside_the_link() {
+async fn the_folder_of_a_note_shared_alone_has_no_path() {
     let owner = test_core_with_attachments().await;
     let reader = test_core_with_account().await;
     let reader =
         test_core_from_with(&reader, Config { list_attachments: true, ..test_config() }).await;
-    let notes = owner.create_at_path("/notes/").await.unwrap();
     let doc = owner.create_at_path("/notes/plan.md").await.unwrap();
     let folder = owner.create_attachments_folder(&doc.id).await.unwrap();
     let image = owner
         .create_at_path("/notes/plan-attachments/image.png")
         .await
         .unwrap();
+    owner.write_document(image.id, b"pixels").await.unwrap();
     let reader_name = reader.get_account().unwrap().username.clone();
     owner
         .share_file(doc.id, &reader_name, ShareMode::Read)
         .await
         .unwrap();
-    // the folder around them is shared too, but the reader leaves that share pending
-    owner
-        .share_file(notes.id, &reader_name, ShareMode::Read)
-        .await
-        .unwrap();
     owner.sync().await.unwrap();
     reader.sync().await.unwrap();
-
     let link = reader
         .create_link_at_path("/shared/renamed.md", doc.id)
         .await
         .unwrap();
 
-    let folder_path = reader.get_path_by_id(folder.id).await.unwrap();
-    assert_eq!(folder_path, "/shared/plan-attachments/");
-    assert_eq!(
-        reader.get_path_by_id(image.id).await.unwrap(),
-        "/shared/plan-attachments/image.png"
-    );
-    assert_eq!(reader.get_by_path(&folder_path).await.unwrap().id, folder.id);
+    // reached through the note
     assert_eq!(
         reader
-            .get_by_path("/shared/plan-attachments/image.png")
+            .get_attachments_folder(&doc.id)
             .await
             .unwrap()
+            .unwrap()
             .id,
-        image.id
+        folder.id
     );
-    assert_eq!(reader.get_file_by_id(folder.id).await.unwrap().parent, link.parent);
+    assert_eq!(reader.read_document(image.id, false).await.unwrap(), b"pixels");
+
+    // nowhere in the reader's tree
+    assert!(reader.get_path_by_id(folder.id).await.is_err());
+    assert!(reader.get_path_by_id(image.id).await.is_err());
+    assert!(
+        reader
+            .get_by_path("/shared/plan-attachments/")
+            .await
+            .is_err()
+    );
+    reader.list_paths(None).await.unwrap();
     let listed: Vec<_> = reader
         .list_metadatas()
         .await
@@ -386,8 +386,15 @@ async fn a_note_shared_alone_has_its_folder_beside_the_link() {
         .into_iter()
         .map(|f| f.id)
         .collect();
-    assert!(listed.contains(&folder.id) && listed.contains(&image.id));
-    assert!(!listed.contains(&notes.id));
+    assert!(!listed.contains(&folder.id) && !listed.contains(&image.id));
+    let children: Vec<_> = reader
+        .get_children(&link.parent)
+        .await
+        .unwrap()
+        .into_iter()
+        .map(|f| f.id)
+        .collect();
+    assert_eq!(children, [doc.id]);
 }
 
 #[tokio::test]
