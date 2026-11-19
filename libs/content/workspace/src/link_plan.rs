@@ -299,12 +299,18 @@ fn write_note(lb: &Lb, note: Uuid, mends: &[&Mend]) -> LbResult<()> {
 /// `text` with every destination a mend names rewritten.
 pub fn mend_text(text: &str, mends: &[&Mend]) -> String {
     let mut out = text.to_string();
-    let mut dests = written_dests(text);
-    dests.sort_by_key(|(_, _, at)| std::cmp::Reverse(at.start));
-    for (kind, dest, at) in dests {
-        if let Some(m) = mends.iter().find(|m| m.kind == kind && m.from == dest) {
-            out.replace_range(at, &m.to);
-        }
+    let mut edits: Vec<_> = written_dests(text)
+        .into_iter()
+        .filter_map(|w| {
+            let m = mends
+                .iter()
+                .find(|m| m.kind == w.kind && m.from == w.dest)?;
+            Some(w.rewrite(&m.to))
+        })
+        .collect();
+    edits.sort_by_key(|(at, _)| std::cmp::Reverse(at.start));
+    for (at, to) in edits {
+        out.replace_range(at, &to);
     }
     out
 }
@@ -378,6 +384,56 @@ mod tests {
     fn text(texts: &[(Uuid, String)], files: &FileCache, path: &str) -> String {
         let id = at(files, path);
         texts.iter().find(|(i, _)| *i == id).unwrap().1.clone()
+    }
+
+    /// A property's link is mended where it is written, quoted when its
+    /// new destination needs it, and the rest of the block left as it was.
+    /// One written with escapes isn't rewritable.
+    #[test]
+    fn mends_rewrite_links_in_properties() {
+        let mend = |from: &str, to: &str| Mend {
+            note: Uuid::nil(),
+            kind: LinkKind::Link,
+            from: from.into(),
+            to: to.into(),
+        };
+        let md = "---\nat:  lb://a\nlist: [lb://a, \"lb://b\"]\nquoted: 'lb://a'\n---\n";
+        let (to_c, to_b) = (mend("lb://a", "lb://c"), mend("lb://b", "lb://it's"));
+        assert_eq!(
+            mend_text(md, &[&to_c, &to_b]),
+            "---\nat:  lb://c\nlist: [lb://c, \"lb://it's\"]\nquoted: 'lb://c'\n---\n"
+        );
+        // a destination that would read as something else takes quotes
+        let quote = mend("lb://a", "lb://x, y");
+        assert_eq!(
+            mend_text("---\nlist: [lb://a]\nq: 'lb://a'\n---\n", &[&quote]),
+            "---\nlist: [\"lb://x, y\"]\nq: 'lb://x, y'\n---\n"
+        );
+        let apostrophe = mend("lb://a", "lb://it's");
+        assert_eq!(
+            mend_text("---\nq: 'lb://a'\n---\n", &[&apostrophe]),
+            "---\nq: 'lb://it''s'\n---\n"
+        );
+        let escaped = "---\nat: \"lb://\\u0061\"\n---\n";
+        assert_eq!(read_note(escaped).links[0].dest, "lb://a");
+        assert!(!read_note(escaped).links[0].rewritable);
+        assert_eq!(mend_text(escaped, &[&to_c]), escaped);
+    }
+
+    /// A link in a note's properties reaches its file as one in the body does.
+    #[test]
+    fn a_property_link_is_a_backlink() {
+        let files = tree("alice", &["/blocker.md", "/ticket.md"]);
+        let mut c = cache(files);
+        let blocker = at(&c, "/blocker.md");
+        let ticket = at(&c, "/ticket.md");
+        c.notes
+            .insert(ticket, read_note(&format!("---\nblockers: [lb://{blocker}]\n---\n")));
+        c.notes.set_ready();
+        let back = c.notes.backlinks(&c, blocker);
+        assert_eq!(back.len(), 1);
+        assert_eq!(back[0].note, ticket);
+        assert_eq!(back[0].link.context, format!("blockers: lb://{blocker}"));
     }
 
     #[test]

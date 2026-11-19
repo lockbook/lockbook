@@ -2346,15 +2346,38 @@ impl MdRender {
     /// [`Self::fragment_at_offset`]'s index into `fragments`, for a caret
     /// with `affinity`.
     pub fn fragment_idx_at_offset(&self, offset: Grapheme, affinity: Affinity) -> Option<usize> {
-        let contains =
+        let spans =
             |f: &Fragment| f.source_range.start() <= offset && offset <= f.source_range.end();
-        let downstream = self.fragments.iter().rposition(contains)?;
+        // What is drawn after written text ends, on its row and with no
+        // source of its own (a timestamp's local time), is past the caret
+        // there, unless written text also starts at the caret.
+        let written = |f: &Fragment| !f.source_range.is_empty();
+        let ends = self
+            .fragments
+            .iter()
+            .rposition(|f| written(f) && f.source_range.end() == offset)
+            .filter(|_| {
+                !self
+                    .fragments
+                    .iter()
+                    .any(|f| written(f) && f.source_range.start() == offset)
+            });
+        let after = |i: usize, f: &Fragment| {
+            ends.is_some_and(|e| {
+                let row = self.fragments[e].rect.y_range();
+                i > e && !written(f) && f.rect.top() < row.max && row.min < f.rect.bottom()
+            })
+        };
+        let contains = |i: usize| {
+            let f = &self.fragments[i];
+            spans(f) && !after(i, f)
+        };
+        let downstream = (0..self.fragments.len()).rev().find(|&i| contains(i))?;
         let row_top = self.fragments[downstream].rect.top();
         let upstream = match affinity {
-            Affinity::Upstream => self
-                .fragments
-                .iter()
-                .rposition(|f| contains(f) && f.rect.bottom() <= row_top),
+            Affinity::Upstream => (0..self.fragments.len())
+                .rev()
+                .find(|&i| contains(i) && self.fragments[i].rect.bottom() <= row_top),
             Affinity::Downstream => None,
         };
         let row = self.fragments[upstream.unwrap_or(downstream)]
