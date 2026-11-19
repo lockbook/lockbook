@@ -806,6 +806,42 @@ fn an_image_dropped_beside_a_block_that_would_join_it_stays_an_image() {
     }
 }
 
+/// The text in each of the note's list items, leaving out images' alt text.
+fn item_text(md: &str) -> Vec<String> {
+    use comrak::nodes::NodeValue;
+    let arena = comrak::Arena::new();
+    let root = comrak::parse_document(&arena, md, &super::super::MdRender::comrak_options());
+    root.descendants()
+        .filter(|n| matches!(n.data.borrow().value, NodeValue::Item(_)))
+        .map(|item| {
+            item.descendants()
+                .filter(|n| {
+                    !n.ancestors()
+                        .any(|a| matches!(a.data.borrow().value, NodeValue::Image(_)))
+                })
+                .filter_map(|n| match &n.data.borrow().value {
+                    NodeValue::Text(text) => Some(text.to_string()),
+                    _ => None,
+                })
+                .collect()
+        })
+        .collect()
+}
+
+/// A blank line in a list item needn't be indented, but the image's line
+/// must be: a drop at its start would end the list, and the item's later
+/// text with it.
+#[test]
+fn an_image_dropped_on_a_blank_line_in_a_list_item_keeps_the_item() {
+    let md = format!("![a]({IMAGE})\n\n3. ```\n   code\n   ```\n\n   text\n");
+    let mut ws = editor(&md);
+    let (from, to) = (image_center(&ws), after(&ws, "   ```\n"));
+    drag(&mut ws, from, to);
+    let moved = ws.get_text();
+    assert_ne!(moved, md, "the drop moved it");
+    assert_eq!(item_text(moved), item_text(&md), "from {md:?} to {moved:?}");
+}
+
 /// An HTML block that ends at its own closing marker takes nothing after it:
 /// a drop below one lands there.
 #[test]
