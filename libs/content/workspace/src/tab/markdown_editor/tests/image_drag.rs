@@ -745,8 +745,8 @@ fn an_undo_and_a_key_in_one_frame_let_go_of_the_image() {
     assert!(ws.editor.edit.in_progress_image_drag.is_none(), "the image is let go");
 }
 
-/// The note's images and its HTML blocks, code blocks and lists, as the editor
-/// parses it.
+/// The note's images and its HTML blocks, code blocks, lists and math, as the
+/// editor parses it.
 fn images_and_html(md: &str) -> (usize, Vec<String>) {
     use comrak::nodes::NodeValue;
     let arena = comrak::Arena::new();
@@ -761,6 +761,7 @@ fn images_and_html(md: &str) -> (usize, Vec<String>) {
             NodeValue::HtmlBlock(html) => Some(html.literal.clone()),
             NodeValue::CodeBlock(code) => Some(code.literal.clone()),
             NodeValue::List(_) => Some("list".into()),
+            NodeValue::Math(math) => Some(math.literal.clone()),
             _ => None,
         })
         .collect();
@@ -802,6 +803,35 @@ fn an_image_dropped_beside_a_block_that_would_join_it_stays_an_image() {
         drag(&mut ws, from, to);
         let moved = ws.get_text();
         assert_ne!(moved, md, "the drop moved it");
+        assert_eq!(images_and_html(moved), images_and_html(&md), "from {md:?} to {moved:?}");
+    }
+}
+
+/// A lone `$` pairs with the next one in its paragraph unless a space is
+/// inside either: the image beside one could make math of them both. A drop
+/// inside `$$` lands at its edge; one that would pair them lands nowhere.
+#[test]
+fn an_image_dropped_beside_a_dollar_makes_no_math() {
+    let image = format!("![a]({IMAGE})");
+    let cases = [
+        (format!("{image}\n\nx\n\n$$\n"), "x\n\n$"),
+        (format!("{image}\n\n- x\n\n  $$\n\n  y\n  $$\n"), "  y\n  $"),
+    ];
+    for (md, needle) in cases {
+        let mut ws = editor(&md);
+        let (from, to) = (image_center(&ws), after(&ws, needle));
+        drag(&mut ws, from, to);
+        let moved = ws.get_text();
+        assert_ne!(moved, md, "the drop moved it");
+        assert_eq!(images_and_html(moved), images_and_html(&md), "from {md:?} to {moved:?}");
+    }
+    for (md, needle) in
+        [(format!("{image}\n\na$ b$\n"), "a$"), (format!("{image}\n\n$b $x$\n"), "$b ")]
+    {
+        let mut ws = editor(&md);
+        let (from, to) = (image_center(&ws), after(&ws, needle));
+        drag(&mut ws, from, to);
+        let moved = ws.get_text();
         assert_eq!(images_and_html(moved), images_and_html(&md), "from {md:?} to {moved:?}");
     }
 }

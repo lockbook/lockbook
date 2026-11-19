@@ -606,6 +606,48 @@ impl<'ast> MdEdit {
                 });
             runs_on || taken
         };
+        // a lone `$` pairs with the next in its paragraph unless a space is
+        // inside either, so the image beside one can make math of them: it
+        // lands only where its paragraph keeps its math
+        let image_math = math(&r.buffer[image]);
+        let makes_math = |to: Grapheme| {
+            let block = root
+                .descendants()
+                .filter(|n| n.data.borrow().value.contains_inlines())
+                .map(|n| r.node_range(n))
+                .find(|range| range.contains_inclusive(to));
+            let lines: Vec<_> = r
+                .bounds
+                .inline_paragraphs
+                .iter()
+                .copied()
+                .filter(|p| block.is_some_and(|b| b.start() <= p.start() && p.end() <= b.end()))
+                .collect();
+            if image_math.is_empty() && !lines.iter().any(|&line| r.buffer[line].contains('$')) {
+                return false;
+            }
+            let (mut before, mut after) = (String::new(), String::new());
+            for (i, &line) in lines.iter().enumerate() {
+                if i > 0 {
+                    before.push('\n');
+                    after.push('\n');
+                }
+                before += &r.buffer[line];
+                if line.contains_inclusive(to) {
+                    after += &r.buffer[(line.start(), to)];
+                    after += &r.buffer[image];
+                    after += &r.buffer[(to, line.end())];
+                } else {
+                    after += &r.buffer[line];
+                }
+            }
+            let mut kept = math(&before);
+            kept.extend(image_math.iter().cloned());
+            kept.sort();
+            let mut made = math(&after);
+            made.sort();
+            kept != made
+        };
         // a backslash before it would escape its `!`
         let lands = |to: Grapheme| {
             let inline = r
@@ -615,7 +657,12 @@ impl<'ast> MdEdit {
                 .any(|p| p.contains_inclusive(to));
             let escaped = to.0 > 0 && &r.buffer[(to - 1, to)] == "\\";
             let after_url = spans.iter().any(|&(span, bare)| bare && span.end() == to);
-            inline && !escaped && !after_url && !image.contains_inclusive(to) && !swallowed(to)
+            inline
+                && !escaped
+                && !after_url
+                && !image.contains_inclusive(to)
+                && !swallowed(to)
+                && !makes_math(to)
         };
         let span = spans
             .iter()
@@ -623,14 +670,18 @@ impl<'ast> MdEdit {
                 span.start() < to && (to < span.end() || bare && to == span.end())
             })
             .map(|&(span, _)| span);
-        // nor a word
+        // nor a word, its dollars with it
         let word = || {
             let &line = r
                 .bounds
                 .source_lines
                 .iter()
                 .find(|l| l.contains(to, true, true))?;
-            let letter = |g: Grapheme| r.buffer[(g, g + 1)].chars().all(char::is_alphanumeric);
+            let letter = |g: Grapheme| {
+                r.buffer[(g, g + 1)]
+                    .chars()
+                    .all(|c| c.is_alphanumeric() || c == '$')
+            };
             let inside = to > line.start() && to < line.end() && letter(to - 1) && letter(to);
             let (mut start, mut end) = (to, to);
             while inside && start > line.start() && letter(start - 1) {
@@ -944,6 +995,18 @@ fn parse_image_dims(alt: &str) -> ImageDims {
             _ => ImageDims::default(),
         },
     }
+}
+
+/// The math in `md`, as the editor parses it.
+fn math(md: &str) -> Vec<String> {
+    let arena = comrak::Arena::new();
+    let root = comrak::parse_document(&arena, md, &MdRender::comrak_options());
+    root.descendants()
+        .filter_map(|n| match &n.data.borrow().value {
+            NodeValue::Math(math) => Some(math.literal.clone()),
+            _ => None,
+        })
+        .collect()
 }
 
 #[cfg(test)]
