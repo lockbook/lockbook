@@ -138,6 +138,11 @@ struct FileMenuItems: View {
             fileTreeModel.createTarget = file
         }
 
+        contextMenuItem("Get Info", systemImage: "info.circle") {
+            workspaceInput.openInfo(id: file.id)
+            homeState.compactColumn = .detail
+        }
+
         contextMenuItem("Rename", systemImage: "pencil") {
             fileTreeModel.renameTarget = file
         }

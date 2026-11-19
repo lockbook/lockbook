@@ -580,6 +580,11 @@ pub fn apply(app: &mut ShellApp, ctx: &Context, action: A) {
                 }
             }
         }
+        A::GetInfo(id) => {
+            if let Some(r) = app.session.ready_mut() {
+                r.workspace.open_info(id, false);
+            }
+        }
         A::RevealInFiles(id) => {
             app.pane = super::action::SidebarPane::Files;
             app.sidebar_open = true;

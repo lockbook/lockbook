@@ -97,6 +97,10 @@ struct PinnedFilesSection: View {
                 }
             }
             finderMenuSection(file.id)
+            contextMenuItem("Get Info", systemImage: "info.circle") {
+                workspaceInput.openInfo(id: file.id)
+                homeState.compactColumn = .detail
+            }
             contextMenuItem("Unpin", systemImage: "pin.slash") {
                 filesModel.togglePin(file.id)
             }

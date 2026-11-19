@@ -9,7 +9,7 @@ use lb_rs::model::file::File;
 use lb_rs::model::file_metadata::FileType;
 use lb_rs::model::filename::NameComponents;
 use lb_rs::model::svg::buffer::Buffer;
-use lb_rs::service::events::{self, Actor, Event};
+use lb_rs::service::events::{self, Actor, Event, SyncIncrement};
 use lb_rs::{Uuid, spawn};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -116,6 +116,7 @@ pub struct Workspace {
     pub software_keyboard_in_use: bool,
     /// Activate-if-open / honor open-in-new-tab.
     pub desktop_tab_policy: bool,
+    pub get_info: bool,
     pub sidebar_open: bool,
     pub focused_parent: Option<Uuid>, // set to the folder where new files should be created
     pub trackpad_history_swipe: bool,
@@ -201,6 +202,7 @@ impl Workspace {
 
             software_keyboard_in_use: true,
             desktop_tab_policy: false,
+            get_info: false,
             sidebar_open: false,
             focused_parent: Default::default(),
             trackpad_history_swipe: false,
@@ -1230,7 +1232,7 @@ impl Workspace {
         self.cfg.set_seen_pending_shares(seen);
         let mut ids_to_delete = vec![];
         for slot in &self.tab_strip {
-            if let Destination::File(id) = slot.place.dest {
+            if let Destination::File(id) | Destination::Info(id) = slot.place.dest {
                 // A background snapshot can predate a newly opened file.
                 if files.get_by_id(id).is_none() && self.core.get_file_by_id(id).is_err() {
                     info!(%id, "file gone after cache refresh");
@@ -1261,8 +1263,9 @@ impl Workspace {
                                 }
                                 Actor::User(origin) => origin,
                             };
+                            self.refresh_info(Some(id));
                             for session in &self.tab_strip {
-                                if session.place.dest.backing_file() != Some(id) {
+                                if file_dest(&session.place.dest) != Some(id) {
                                     continue;
                                 }
                                 if event_origin == Some(session.id.as_uuid()) {
@@ -1294,8 +1297,9 @@ impl Workspace {
                         Event::MetadataChanged(_) => self.reload_chat_configs(),
                         Event::IpcChangesApplied => {
                             self.images.reload_files();
+                            self.refresh_info(None);
                             for session in &self.tab_strip {
-                                if let Some(id) = session.place.dest.backing_file() {
+                                if let Some(id) = file_dest(&session.place.dest) {
                                     self.tasks.queue_load(LoadRequest {
                                         id,
                                         tab_created: false,
@@ -1308,6 +1312,8 @@ impl Workspace {
                             #[cfg(not(target_family = "wasm"))]
                             self.reload_chat_configs();
                         }
+                        Event::Sync(SyncIncrement::SyncFinished(_))
+                        | Event::PendingSharesChanged => self.refresh_info(None),
                         _ => {}
                     }
                 }
@@ -1797,6 +1803,27 @@ impl Workspace {
         self.open_dest_as_session(dest, true, false);
     }
 
+    pub fn open_info(&mut self, id: Uuid, in_new_tab: bool) {
+        self.open_dest_as_session(Destination::Info(id), true, in_new_tab);
+    }
+
+    fn refresh_info(&mut self, id: Option<Uuid>) {
+        let sessions: Vec<SessionId> = self
+            .tab_strip
+            .iter()
+            .filter(|s| match s.place.dest {
+                Destination::Info(info) => id.is_none_or(|id| id == info),
+                _ => false,
+            })
+            .map(|s| s.id)
+            .collect();
+        for session in sessions {
+            if let Some(info) = self.tabs.get_mut(&session).and_then(|t| t.info_mut()) {
+                info.refresh();
+            }
+        }
+    }
+
     pub fn rename_file(&mut self, req: (Uuid, String), by_user: bool) -> bool {
         let (id, new_name) = req;
         match self.core.rename_file(&id, &new_name) {
@@ -1821,7 +1848,7 @@ impl Workspace {
         let tab_ids: Vec<_> = self
             .tab_strip
             .iter()
-            .filter(|s| s.place.dest.id() == id)
+            .filter(|s| file_dest(&s.place.dest) == Some(id))
             .map(|s| s.id)
             .collect();
         for tab_id in tab_ids {

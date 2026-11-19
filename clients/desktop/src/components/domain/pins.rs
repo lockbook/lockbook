@@ -43,6 +43,7 @@ enum PinCmd {
     Share,
     CopyLink,
     Export,
+    GetInfo,
     Delete,
 }
 
@@ -227,6 +228,7 @@ fn pin_chip(ui: &mut Ui, t: &Theme, row: &PinRow, queue: &mut Vec<Action>) {
             e.item(phosphor::CARET_LEFT, "Collapse All", PinCmd::CollapseAll);
         }
         e.separator();
+        e.item(phosphor::INFO, "Get Info", PinCmd::GetInfo);
         e.item(phosphor::PENCIL, "Rename…", PinCmd::Rename);
         e.item(phosphor::PUSH_PIN, "Unpin", PinCmd::Unpin);
         e.item(phosphor::FOLDERS, "Move…", PinCmd::Move);
@@ -273,6 +275,7 @@ fn pin_chip(ui: &mut Ui, t: &Theme, row: &PinRow, queue: &mut Vec<Action>) {
             PinCmd::Share => queue.push(A::OpenShare(row.id)),
             PinCmd::CopyLink => queue.push(A::CopyLink(Place::new(Destination::File(row.id)))),
             PinCmd::Export => queue.push(A::Export(vec![row.id])),
+            PinCmd::GetInfo => queue.push(A::GetInfo(row.id)),
             PinCmd::Delete => queue.push(A::OpenDelete(vec![row.id])),
         }
     }

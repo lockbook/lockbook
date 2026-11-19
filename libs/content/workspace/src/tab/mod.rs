@@ -5,6 +5,7 @@ use crate::search::{Search, SearchState, SearchType};
 use crate::space_inspector::show::SpaceInspector;
 #[cfg(not(target_family = "wasm"))]
 use crate::tab::chat::Chat;
+use crate::tab::file_info::FileInfo;
 use crate::tab::image_viewer::ImageViewer;
 use crate::tab::markdown_editor::Editor as Markdown;
 use crate::tab::pdf_viewer::PdfViewer;
@@ -28,6 +29,7 @@ use web_time::{Instant, SystemTime, UNIX_EPOCH};
 
 #[cfg(not(target_family = "wasm"))]
 pub mod chat;
+pub mod file_info;
 pub mod image_viewer;
 pub mod input_controller;
 pub mod markdown_editor;
@@ -45,12 +47,13 @@ pub enum Destination {
     Diagram(String),
     /// A note's formula, in the image viewer.
     Formula(crate::widgets::math::Formula),
+    Info(Uuid),
 }
 
 impl Destination {
     pub fn id(&self) -> Uuid {
         match self {
-            Self::File(id) | Self::MindMap(id) | Self::SpaceInspector(id) => *id,
+            Self::File(id) | Self::MindMap(id) | Self::SpaceInspector(id) | Self::Info(id) => *id,
             Self::Search(_) | Self::Diagram(_) | Self::Formula(_) => Uuid::nil(),
         }
     }
@@ -58,7 +61,9 @@ impl Destination {
     /// Underlying file id, if any (e.g. `None` for search).
     pub fn backing_file(&self) -> Option<Uuid> {
         match self {
-            Self::File(id) | Self::MindMap(id) | Self::SpaceInspector(id) => Some(*id),
+            Self::File(id) | Self::MindMap(id) | Self::SpaceInspector(id) | Self::Info(id) => {
+                Some(*id)
+            }
             Self::Search(_) | Self::Diagram(_) | Self::Formula(_) => None,
         }
     }
@@ -72,6 +77,7 @@ impl Destination {
             Self::SpaceInspector(_) => 3,
             Self::Diagram(_) => 4,
             Self::Formula(_) => 5,
+            Self::Info(_) => 6,
         }
     }
 }
@@ -237,7 +243,8 @@ impl Place {
             Destination::MindMap(_)
             | Destination::SpaceInspector(_)
             | Destination::Diagram(_)
-            | Destination::Formula(_) => None,
+            | Destination::Formula(_)
+            | Destination::Info(_) => None,
         }
     }
 }
@@ -643,6 +650,13 @@ impl Tab {
         }
     }
 
+    pub fn info_mut(&mut self) -> Option<&mut FileInfo> {
+        match &mut self.content {
+            ContentState::Open(TabContent::Info(info)) => Some(info),
+            _ => None,
+        }
+    }
+
     /// Clones the content required to save the tab. This is intended for use on the UI thread. Returns `None` if the
     /// tab does not have an editable file type open.
     pub fn clone_content(&self) -> Option<TabSaveContent> {
@@ -665,6 +679,7 @@ impl Tab {
             #[cfg(not(target_family = "wasm"))]
             ContentState::Open(TabContent::MindMap(_)) => "mind_map",
             ContentState::Open(TabContent::SpaceInspector(_)) => "space_inspector",
+            ContentState::Open(TabContent::Info(_)) => "info",
             ContentState::Open(TabContent::Search(_)) => "search",
         }
     }
@@ -849,6 +864,13 @@ impl Tab {
                     TabContent::SpaceInspector(sv) => {
                         sv.show(ui);
                     }
+                    TabContent::Info(info) => match info.show(ui) {
+                        Some((file_info::Go::Open(id), new_tab)) => ui.ctx().open_file(id, new_tab),
+                        Some((file_info::Go::Info(id), new_tab)) => {
+                            resp.open_info = Some((id, new_tab))
+                        }
+                        None => {}
+                    },
                     TabContent::Search(_) => {}
                 }
                 resp
@@ -883,6 +905,7 @@ pub enum TabContent {
     #[cfg(not(target_family = "wasm"))]
     MindMap(MindMap),
     SpaceInspector(SpaceInspector),
+    Info(FileInfo),
     Search(Search),
 }
 
@@ -898,6 +921,7 @@ impl std::fmt::Debug for TabContent {
             #[cfg(not(target_family = "wasm"))]
             TabContent::MindMap(_) => write!(f, "TabContent::Graph"),
             TabContent::SpaceInspector(_) => write!(f, "TabContent::SpaceInspector"),
+            TabContent::Info(_) => write!(f, "TabContent::Info"),
             TabContent::Search(_) => write!(f, "TabContent::Search"),
         }
     }
@@ -915,6 +939,7 @@ impl TabContent {
             #[cfg(not(target_family = "wasm"))]
             TabContent::MindMap(_) => None,
             TabContent::SpaceInspector(_) => None,
+            TabContent::Info(_) => None,
             TabContent::Search(_) => None,
         }
     }
@@ -961,6 +986,7 @@ impl TabContent {
             #[cfg(not(target_family = "wasm"))]
             TabContent::MindMap(mm) => mm.settled(),
             TabContent::SpaceInspector(sv) => sv.settled(),
+            TabContent::Info(info) => info.settled(),
             _ => true,
         }
     }
@@ -1082,6 +1108,7 @@ pub struct Response {
     pub caret_covered: bool,
     pub lifted: bool,
     pub open_file: Option<Uuid>,
+    pub open_info: Option<(Uuid, bool)>,
     pub open_anyway: Option<Uuid>,
     /// The user scrolled or edited, so the tab no longer shows its fragment.
     pub left_fragment: bool,
@@ -1883,6 +1910,7 @@ mod nav_tests {
         assert_eq!(search("").kind_code(), 1);
         assert_eq!(Destination::MindMap(Uuid::nil()).kind_code(), 2);
         assert_eq!(Destination::SpaceInspector(Uuid::nil()).kind_code(), 3);
+        assert_eq!(Destination::Info(Uuid::nil()).kind_code(), 6);
     }
 
     #[test]

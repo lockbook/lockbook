@@ -322,6 +322,10 @@ struct WorkspaceTabsList: View {
             Divider()
 
             if let fileId = tab.destFile, tab.destKind == .file {
+                contextMenuItem("Get Info", systemImage: "info.circle") {
+                    workspaceInput.openInfo(id: fileId)
+                }
+
                 contextMenuItem("Rename", systemImage: "pencil") {
                     renameTarget = filesModel.idsToFiles[fileId]
                 }
@@ -391,7 +395,7 @@ struct WorkspaceTabsList: View {
     }
 
     private func tabName(_ tab: WorkspaceTabInfo) -> String {
-        if tab.destKind == .file, let fileId = tab.destFile {
+        if tab.destKind == .file || tab.destKind == .info, let fileId = tab.destFile {
             return filesModel.idsToFiles[fileId]?.name ?? tab.displayName
         }
         return tab.displayName
@@ -404,6 +408,7 @@ struct WorkspaceTabsList: View {
         case .spaceInspector: "chart.pie"
         case .diagram: "point.3.filled.connected.trianglepath.dotted"
         case .formula: "function"
+        case .info: "info.circle"
         case .file: FileIconHelper.docNameToSystemImageName(name: name)
         }
     }
@@ -502,7 +507,7 @@ struct WorkspaceTabsList: View {
         let open = Set(tabs.map(\.id))
         recentlyClosed = workspaceInput.getRecentlyClosedTabs().filter { tab in
             guard !open.contains(tab.id) else { return false }
-            if tab.destKind == .file {
+            if tab.destKind == .file || tab.destKind == .info {
                 guard let fileId = tab.destFile else { return false }
                 return filesModel.idsToFiles[fileId] != nil
             }

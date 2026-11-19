@@ -277,6 +277,11 @@ impl Workspace {
             if let Some(file) = resp.open_file {
                 self.navigate_to(crate::tab::Destination::File(file));
             }
+            match resp.open_info {
+                Some((id, true)) => self.open_info(id, true),
+                Some((id, false)) => self.navigate_to(crate::tab::Destination::Info(id)),
+                None => {}
+            }
         }
     }
 

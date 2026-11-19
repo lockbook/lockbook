@@ -216,6 +216,7 @@ fn paint_shared_row(
                 e.item(phosphor::CARET_LEFT, "Collapse All", FileCmd::CollapseAll);
                 e.separator();
             }
+            e.item(phosphor::INFO, "Get Info", FileCmd::GetInfo);
             e.item(phosphor::FOLDER_PLUS, "Save to Your Files…", FileCmd::OrganizeShare);
             e.separator();
             e.item_danger(phosphor::TRASH, "Decline…", FileCmd::DeclineShare);
@@ -225,6 +226,7 @@ fn paint_shared_row(
                 FileCmd::OpenNewTab => queue.push(Action::OpenFileNewTab(row.id)),
                 FileCmd::ExpandAll => queue.push(Action::ExpandSubtree(row.id)),
                 FileCmd::CollapseAll => queue.push(Action::CollapseSubtree(row.id)),
+                FileCmd::GetInfo => queue.push(Action::GetInfo(row.id)),
                 FileCmd::OrganizeShare => {
                     queue.push(Action::OpenAcceptShare { id: row.id, name: row.name.clone() })
                 }
@@ -258,12 +260,15 @@ fn paint_shared_row(
                 e.item(phosphor::CARET_DOWN, "Expand All", FileCmd::ExpandAll);
                 e.item(phosphor::CARET_LEFT, "Collapse All", FileCmd::CollapseAll);
             }
+            e.separator();
+            e.item(phosphor::INFO, "Get Info", FileCmd::GetInfo);
         }) {
             match cmd {
                 FileCmd::Open => queue.push(Action::OpenFile(row.id)),
                 FileCmd::OpenNewTab => queue.push(Action::OpenFileNewTab(row.id)),
                 FileCmd::ExpandAll => queue.push(Action::ExpandSubtree(row.id)),
                 FileCmd::CollapseAll => queue.push(Action::CollapseSubtree(row.id)),
+                FileCmd::GetInfo => queue.push(Action::GetInfo(row.id)),
                 _ => {}
             }
         }
