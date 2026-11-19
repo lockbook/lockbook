@@ -1,7 +1,7 @@
 # Install Lockbook
-Lockbook is available on all major platforms — here are the supported ways to install.
+Lockbook is available on all major platforms — here are the supported ways to install the apps and the [command line](cli.md).
 
-Are we missing yours? Reach out on [Discord](https://discord.gg/lockbook), file a [GitHub](https://github.com/lockbook/lockbook/issues) issue, or [build](building.md) Lockbook yourself.
+Are we missing yours? [Reach out](https://discord.gg/lockbook), or [build](building.md) Lockbook yourself.
 
 ## Linux
 **Desktop app**:
@@ -43,3 +43,5 @@ Are we missing yours? Reach out on [Discord](https://discord.gg/lockbook), file 
 
 **CLI**:
 * Available through our [Github Releases](https://github.com/lockbook/lockbook/releases).
+
+Once installed, [create your account](account.md) or sign in to an existing one.
