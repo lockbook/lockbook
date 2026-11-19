@@ -587,6 +587,17 @@ impl<S: Server, D: LocalDocuments> Lb<S, D> {
                 .map_err(LbErr::from)?;
 
                 disk_file.write_all(&content).map_err(LbErr::from)?;
+
+                // a note reached by a link has its attachments folder nowhere in this tree, so
+                // no folder's children include it and it has no path to report
+                if let Some(folder) = self.get_attachments_folder(&file.id).await? {
+                    if folder.parent != file.parent {
+                        Box::pin(
+                            self.export_file_recursively(folder.id, disk_path, edit, &None::<F>),
+                        )
+                        .await?;
+                    }
+                }
             }
             FileType::Folder => {
                 fs::create_dir(new_dest.clone()).map_err(LbErr::from)?;

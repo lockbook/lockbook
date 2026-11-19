@@ -286,6 +286,7 @@ where
             &mut db.owned_files,
             &mut db.shared_files,
             &mut db.file_children,
+            &mut db.file_attachments,
             &mut db.metas,
         )?
         .to_lazy();

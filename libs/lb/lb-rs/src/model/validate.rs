@@ -7,7 +7,6 @@ use crate::model::lazy::LazyTree;
 use crate::model::staged::StagedTreeLike;
 use crate::model::tree_like::TreeLike;
 use std::collections::{HashMap, HashSet};
-use uuid::Uuid;
 
 use super::errors::{LbErrKind, LbResult};
 
@@ -23,6 +22,20 @@ pub fn file_name(name: &str) -> LbResult<()> {
 
 pub fn not_root<F: FileLike>(file: &F) -> LbResult<()> {
     if file.is_root() { Err(LbErrKind::RootModificationInvalid)? } else { Ok(()) }
+}
+
+/// Whether two writes of a file say the same of it, whichever metadata version each is written as.
+fn same_contents<F: FileLike>(a: &F, b: &F) -> bool {
+    a.id() == b.id()
+        && a.file_type() == b.file_type()
+        && a.parent() == b.parent()
+        && a.secret_name() == b.secret_name()
+        && a.owner() == b.owner()
+        && a.explicitly_deleted() == b.explicitly_deleted()
+        && a.document_hmac() == b.document_hmac()
+        && a.user_access_keys() == b.user_access_keys()
+        && a.folder_access_key() == b.folder_access_key()
+        && a.attachment_of() == b.attachment_of()
 }
 
 pub fn is_folder<F: FileLike>(file: &F) -> LbResult<()> {
@@ -263,51 +276,36 @@ where
         Ok(())
     }
 
-    /// An attachments folder is a folder, made for a document, beside it while both live, and the
-    /// only one of that document's that isn't deleted. Only files this change touches are judged,
-    /// as a partial view of the tree can't judge the rest.
+    /// An attachments folder is a folder attached to one document. A document has at most one that
+    /// isn't deleted, and it is the document's sibling. Deleting the document deletes the folder.
     pub fn assert_valid_attachments(&mut self) -> LbResult<()> {
-        let mut folders: HashMap<Uuid, Vec<Uuid>> = HashMap::new();
+        let mut documents = HashSet::new();
         for id in self.ids() {
-            if let Some(of) = self.find(&id)?.attachments_of() {
-                folders.entry(of.id).or_default().push(id);
-            }
-        }
-        for id in self.tree.staged().ids() {
-            let file = self.find(&id)?;
-            let mut judged = Vec::new();
-            if let Some(of) = file.attachments_of() {
-                let new = self.tree.base().maybe_find(&id).is_none();
-                if new
-                    && (!file.is_folder()
-                        || !self.maybe_find(&of.id).is_some_and(|doc| doc.is_document()))
-                {
+            let folder = self.find(&id)?;
+            let Some(of) = folder.attachment_of() else { continue };
+            let (document, parent, is_folder) = (of.id, *folder.parent(), folder.is_folder());
+
+            let Some(target) = self.maybe_find(&document) else {
+                if self.tree.base().maybe_find(&id).is_none() {
                     Err(LbErrKind::Validation(ValidationFailure::InvalidAttachmentsFolder(id)))?;
                 }
-                judged.push((id, of.id));
+                continue;
+            };
+            if !is_folder || !target.is_document() {
+                Err(LbErrKind::Validation(ValidationFailure::InvalidAttachmentsFolder(id)))?;
             }
-            for &folder in folders.get(&id).into_iter().flatten() {
-                judged.push((folder, id));
+            let document_parent = *target.parent();
+
+            if self.calculate_deleted(&id)? || self.calculate_deleted(&document)? {
+                continue;
             }
-            for (folder, document) in judged {
-                if self.maybe_find(&document).is_none()
-                    || self.calculate_deleted(&folder)?
-                    || self.calculate_deleted(&document)?
-                {
-                    continue;
-                }
-                if self.find(&folder)?.parent() != self.find(&document)?.parent() {
-                    Err(LbErrKind::Validation(ValidationFailure::MisplacedAttachmentsFolder(
-                        folder,
-                    )))?;
-                }
-                for &other in &folders[&document] {
-                    if other != folder && !self.calculate_deleted(&other)? {
-                        Err(LbErrKind::Validation(
-                            ValidationFailure::DuplicateAttachmentsFolder { document },
-                        ))?;
-                    }
-                }
+            if parent != document_parent {
+                Err(LbErrKind::Validation(ValidationFailure::MisplacedAttachmentsFolder(id)))?;
+            }
+            if !documents.insert(document) {
+                Err(LbErrKind::Validation(ValidationFailure::DuplicateAttachmentsFolder {
+                    document,
+                }))?;
             }
         }
         Ok(())
@@ -315,17 +313,23 @@ where
 
     pub fn assert_no_root_changes(&mut self) -> LbResult<()> {
         for id in self.tree.staged().ids() {
-            // already root
-            if let Some(base) = self.tree.base().maybe_find(&id) {
-                if base.is_root() {
-                    Err(LbErrKind::RootModificationInvalid)?;
+            match self.tree.base().maybe_find(&id) {
+                // already root: it may be written again, as in a newer metadata version, but
+                // not changed
+                Some(base) if base.is_root() => {
+                    let staged = self.tree.staged().maybe_find(&id);
+                    if !staged.is_some_and(|staged| same_contents(base, staged)) {
+                        Err(LbErrKind::RootModificationInvalid)?;
+                    }
                 }
-            }
-            // newly root
-            if self.find(&id)?.is_root() {
-                Err(LbErrKind::Validation(ValidationFailure::Cycle(
-                    vec![id].into_iter().collect(),
-                )))?;
+                // newly root
+                _ => {
+                    if self.find(&id)?.is_root() {
+                        Err(LbErrKind::Validation(ValidationFailure::Cycle(
+                            vec![id].into_iter().collect(),
+                        )))?;
+                    }
+                }
             }
         }
         Ok(())
@@ -388,7 +392,7 @@ where
             // making a folder a document's attachments folder takes write access to the document,
             // as to the folder's parent
             if file_diff.old.is_none() {
-                if let Some(of) = file_diff.new.attachments_of() {
+                if let Some(of) = file_diff.new.attachment_of() {
                     if !new_files.contains(&of.id)
                         && (base.maybe_find(&of.id).is_none()
                             || base.access_mode(owner, &of.id)? < Some(UserAccessMode::Write))
@@ -483,7 +487,7 @@ where
                             }
                         }
                     }
-                    Diff::AttachmentsOf => {
+                    Diff::AttachmentOf => {
                         // a folder belongs to a document from its creation, and to no other
                         Err(LbErrKind::Validation(ValidationFailure::InvalidAttachmentsFolder(
                             *file_diff.id(),

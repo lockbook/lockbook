@@ -126,9 +126,11 @@ impl<S: Server, D: LocalDocuments> Lb<S, D> {
             .to_lazy();
         db.pub_key_lookup.insert(sharee, username)?;
 
-        let attachments = (self.attachments_folders && mode == ShareMode::Write)
-            .then(|| (self.entropy.id(), self.entropy.key()));
-        tree.add_share_and_attach(id, sharee, mode, attachments, &self.keychain)?;
+        tree.add_share(id, sharee, mode, &self.keychain)?;
+        let me = Owner(self.keychain.get_pk()?);
+        if self.attachments_folders && tree.wants_attachments(&id, me)? {
+            tree.create_attachments(self.entropy.id(), self.entropy.key(), &id, &self.keychain)?;
+        }
 
         tx.end();
 
@@ -164,7 +166,7 @@ impl<S: Server, D: LocalDocuments> Lb<S, D> {
         let mut tree = (&db.base_metadata).to_staged(&db.local_metadata).to_lazy();
         let mut pending_roots = tree.pending_roots(&self.keychain)?;
         if !self.config.list_attachments {
-            pending_roots = Self::omit_attachments(&tree, pending_roots)?;
+            pending_roots = Self::omit_attachments(&mut tree, pending_roots)?;
         }
 
         tree.decrypt_all(&self.keychain, pending_roots.into_iter(), &db.pub_key_lookup, false)
@@ -180,7 +182,7 @@ impl<S: Server, D: LocalDocuments> Lb<S, D> {
         let mut tree = (&db.base_metadata).to_staged(&db.local_metadata).to_lazy();
         let mut pending_files = tree.non_deleted_pending_files(&self.keychain)?;
         if !self.config.list_attachments {
-            pending_files = Self::omit_attachments(&tree, pending_files)?;
+            pending_files = Self::omit_attachments(&mut tree, pending_files)?;
         }
 
         tree.decrypt_all(&self.keychain, pending_files.into_iter(), &db.pub_key_lookup, false)

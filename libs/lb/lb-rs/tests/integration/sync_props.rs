@@ -16,7 +16,8 @@ use lb_rs::model::errors::LbErrKind;
 use lb_rs::model::file::{File, ShareMode};
 use lb_rs::model::file_like::FileLike;
 use lb_rs::model::file_metadata::FileType;
-use lb_rs::model::filename::{DocumentType, attachments_folder_name};
+use lb_rs::model::filename::{DocumentType, NameComponents};
+use lb_rs::model::meta::Meta;
 use test_utils::byte_source::ByteSource;
 use test_utils::gate::{DocOp, Gate, GatedDocuments, GatedServer, Point};
 use test_utils::lockbook_server_lib::ServerState;
@@ -1075,7 +1076,8 @@ impl World {
                 let Some(note) = nth(notes.iter(), document) else {
                     return false;
                 };
-                let name = attachments_folder_name(&note.file.name, 0);
+                let stem = NameComponents::from(&note.file.name).stem();
+                let name = format!("{stem}-attachments");
                 (device.create_file(&name, &note.file.parent, FileType::Folder))
                     .await
                     .is_ok()
@@ -1935,7 +1937,7 @@ impl World {
                         _ => None,
                     },
                     deleted: meta.explicitly_deleted(),
-                    of: meta.attachments_of().map(|of| of.id),
+                    of: meta.attachment_of().map(|of| of.id),
                 };
                 (*id, stored)
             })
@@ -2015,7 +2017,7 @@ fn with_creation_off_no_device_writes_v2_check(case: Case, bytes: &[u8]) -> Resu
                 .chain(db.schema.local_metadata.iter().map(|(_, meta)| meta));
             if let Some(meta) = metas
                 .into_iter()
-                .find(|meta| meta.attachments_of().is_some())
+                .find(|meta| matches!(meta.timestamped_value.value, Meta::V2 { .. }))
             {
                 return Err(format!("device {i} stores {} as V2", meta.id()));
             }
@@ -2121,13 +2123,23 @@ fn whoever_reads_a_document_reads_its_attachments_check(
                 }
                 let writes = world.writes(on, *id).await;
                 for folder in folders_of(&stored, *id) {
+                    // a folder whose parent isn't on the device, as for a note shared alone, isn't
+                    // listed: it is reached by id
+                    let pathless = !listed.contains_key(&stored[&folder].parent);
                     for x in std::iter::once(folder).chain(inside(&stored, folder)) {
                         // only a link's owner, the document's, follows it
                         if stored[&x].link.is_some() && file.owner != me {
                             continue;
                         }
                         let shown = stored[&x].link.unwrap_or(x);
-                        if !listed.contains_key(&shown) {
+                        if pathless {
+                            if device.get_file_by_id(shown).await.is_err() {
+                                return Err(format!(
+                                    "device {on} reads document {id} but can't find {x} in its \
+                                     attachments folder {folder}"
+                                ));
+                            }
+                        } else if !listed.contains_key(&shown) {
                             return Err(format!(
                                 "device {on} reads document {id} but doesn't list {x} in its \
                                  attachments folder {folder}"

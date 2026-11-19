@@ -6,7 +6,7 @@ use libsecp256k1::PublicKey;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use super::access_info::{EncryptedFolderAccessKey, UserAccessInfo, UserAccessMode};
+use super::access_info::{EncryptedKey, UserAccessInfo, UserAccessMode};
 use super::account::Account;
 use super::clock::get_time;
 use super::errors::LbResult;
@@ -29,7 +29,7 @@ pub struct FileMetadata {
     pub is_deleted: bool,
     pub document_hmac: Option<DocumentHmac>,
     pub user_access_keys: Vec<UserAccessInfo>,
-    pub folder_access_key: EncryptedFolderAccessKey,
+    pub folder_access_key: EncryptedKey,
 }
 
 impl FileMetadata {
@@ -161,9 +161,7 @@ impl<F: FileLike> Debug for FileDiff<F> {
                 Diff::Deleted => result.field("new_deleted", &self.new.explicitly_deleted()),
                 Diff::Hmac => result.field("new_hmac", &self.new.document_hmac()),
                 Diff::UserKeys => result.field("new_user_keys", &true),
-                Diff::AttachmentsOf => {
-                    result.field("new_attachments_of", &self.new.attachments_of())
-                }
+                Diff::AttachmentOf => result.field("new_attachment_of", &self.new.attachment_of()),
             };
         }
         result.finish()
@@ -179,8 +177,7 @@ pub enum Diff {
     Deleted,
     Hmac,
     UserKeys,
-    /// Which document a folder holds attachments for; set only when the folder is created.
-    AttachmentsOf,
+    AttachmentOf,
 }
 
 impl<F: FileLike> FileDiff<F> {
@@ -220,8 +217,8 @@ impl<F: FileLike> FileDiff<F> {
                     changes.push(UserKeys);
                 }
 
-                if old.attachments_of() != new.attachments_of() {
-                    changes.push(AttachmentsOf);
+                if old.attachment_of() != new.attachment_of() {
+                    changes.push(AttachmentOf);
                 }
 
                 changes

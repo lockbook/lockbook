@@ -739,6 +739,8 @@ pub struct AdminValidateServer {
     pub files_mapped_as_parent_to_self: HashSet<Uuid>,
     pub files_unmapped_as_parent_to_children: HashMap<Uuid, HashSet<Uuid>>,
     pub files_unmapped_as_parent: HashSet<Uuid>,
+    pub files_mapped_to_non_attachments: HashMap<Uuid, HashSet<Uuid>>,
+    pub files_unmapped_to_attachments: HashMap<Uuid, HashSet<Uuid>>,
     pub sizes_mapped_for_files_without_hmac: HashSet<Uuid>,
     pub sizes_mapped_for_nonexistent_files: HashSet<Uuid>,
     pub sizes_unmapped_for_files_with_hmac: HashSet<Uuid>,
@@ -912,6 +914,7 @@ pub enum ServerIndex {
     OwnedFiles,
     SharedFiles,
     FileChildren,
+    FileAttachments,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]

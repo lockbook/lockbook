@@ -85,6 +85,10 @@ fn main() {
                 .subcommand(
                     Command::name("file-children")
                         .handler(|| rebuild_index(ServerIndex::FileChildren)),
+                )
+                .subcommand(
+                    Command::name("file-attachments")
+                        .handler(|| rebuild_index(ServerIndex::FileAttachments)),
                 ),
         )
         .subcommand(

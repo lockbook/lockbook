@@ -15,10 +15,8 @@ use lb_rs::model::clock::get_time;
 use lb_rs::model::errors::{LbErrKind, LbResult};
 use lb_rs::model::file_like::FileLike;
 use lb_rs::model::file_metadata::{Diff, Owner};
-use lb_rs::model::meta::Meta;
 use lb_rs::model::server_meta::{IntoServerMeta, ServerMeta};
 use lb_rs::model::server_tree::ServerTree;
-use lb_rs::model::signed_meta::SignedMeta;
 use lb_rs::model::tree_like::TreeLike;
 use std::collections::{HashMap, HashSet};
 use std::hash::Hash;
@@ -37,7 +35,10 @@ where
     ) -> Result<(), ServerError<UpsertError>> {
         let req_owner = Owner(context.public_key);
         let UpsertRequestV2 { updates } = context.request;
-        if !self.config.features.meta_v2 && updates.iter().any(|update| writes_v2(&update.new)) {
+        if updates
+            .iter()
+            .any(|update| self.config.features.refuses(&update.new))
+        {
             return Err(ClientError(UpsertError::DiffMalformed));
         }
 
@@ -54,6 +55,7 @@ where
             &mut db.owned_files,
             &mut db.shared_files,
             &mut db.file_children,
+            &mut db.file_attachments,
             &mut db.metas,
         )?
         .to_lazy();
@@ -93,6 +95,7 @@ where
                 &mut db.owned_files,
                 &mut db.shared_files,
                 &mut db.file_children,
+                &mut db.file_attachments,
                 &mut db.metas,
             )?
             .to_lazy();
@@ -138,6 +141,7 @@ where
             &mut db.owned_files,
             &mut db.shared_files,
             &mut db.file_children,
+            &mut db.file_attachments,
             &mut db.metas,
         )?
         .to_lazy();
@@ -166,9 +170,8 @@ where
                     db.shared_files
                         .remove(&Owner(user_access_info.encrypted_for), id)?;
                 }
-                // the document's recipients stop being sent a deleted attachments folder
-                if let Some(of) = meta.attachments_of() {
-                    db.file_children.remove(&of.id, id)?;
+                if let Some(of) = meta.attachment_of() {
+                    db.file_attachments.remove(&of.id, id)?;
                 }
             }
         }
@@ -187,7 +190,7 @@ where
         let ChangeDocRequestV2 { diff, new_content } = context.request;
 
         // Validate Diff
-        if diff.diff() != vec![Diff::Hmac] {
+        if diff.diff() != vec![Diff::Hmac] || self.config.features.refuses(&diff.new) {
             return Err(ClientError(DiffMalformed));
         }
 
@@ -231,6 +234,7 @@ where
             &mut db.owned_files,
             &mut db.shared_files,
             &mut db.file_children,
+            &mut db.file_attachments,
             &mut db.metas,
         )?
         .to_lazy();
@@ -256,6 +260,7 @@ where
             &mut db.owned_files,
             &mut db.shared_files,
             &mut db.file_children,
+            &mut db.file_attachments,
             &mut db.metas,
         )?
         .to_lazy();
@@ -290,6 +295,7 @@ where
                 &mut db.owned_files,
                 &mut db.shared_files,
                 &mut db.file_children,
+                &mut db.file_attachments,
                 &mut db.metas,
             )?
             .to_lazy();
@@ -379,6 +385,7 @@ where
                 &mut db.owned_files,
                 &mut db.shared_files,
                 &mut db.file_children,
+                &mut db.file_attachments,
                 &mut db.metas,
             )?
             .to_lazy();
@@ -461,6 +468,7 @@ where
                 &mut db.owned_files,
                 &mut db.shared_files,
                 &mut db.file_children,
+                &mut db.file_attachments,
                 &mut db.metas,
             )?
             .ids()
@@ -484,6 +492,7 @@ where
             &mut db.owned_files,
             &mut db.shared_files,
             &mut db.file_children,
+            &mut db.file_attachments,
             &mut db.metas,
         )?
         .to_lazy();
@@ -548,6 +557,7 @@ where
                 &mut db.owned_files,
                 &mut db.shared_files,
                 &mut db.file_children,
+                &mut db.file_attachments,
                 &mut db.metas,
             )?
             .to_lazy();
@@ -597,8 +607,7 @@ where
                     }
                 }
 
-                // maintain index: file_children; a deleted attachments folder is no longer
-                // listed under its document
+                // maintain index: file_children
                 let parent = *meta.parent();
                 if !db.file_children.remove(meta.parent(), &id)? {
                     error!(
@@ -607,8 +616,10 @@ where
                         "attempted to disappear a file, the parent didn't have it as a child"
                     );
                 }
-                if let Some(of) = meta.attachments_of() {
-                    db.file_children.remove(&of.id, &id)?;
+
+                // maintain index: file_attachments
+                if let Some(of) = meta.attachment_of() {
+                    db.file_attachments.remove(&of.id, &id)?;
                 }
             }
 
@@ -665,6 +676,7 @@ where
             &mut db.owned_files,
             &mut db.shared_files,
             &mut db.file_children,
+            &mut db.file_attachments,
             &mut db.metas,
         )?
         .to_lazy();
@@ -733,6 +745,7 @@ where
                 &mut db.owned_files,
                 &mut db.shared_files,
                 &mut db.file_children,
+                &mut db.file_attachments,
                 &mut db.metas,
             )?
             .to_lazy();
@@ -880,9 +893,7 @@ where
         {
             for child_id in child_ids {
                 if let Some(meta) = db.metas.get(&child_id) {
-                    if meta.parent() != &parent_id
-                        && meta.attachments_of().map(|of| of.id) != Some(parent_id)
-                    {
+                    if meta.parent() != &parent_id {
                         insert(
                             &mut result.files_mapped_as_parent_to_non_children,
                             parent_id,
@@ -913,14 +924,28 @@ where
             } else {
                 result.files_unmapped_as_parent.insert(*meta.parent());
             }
-            // a live attachments folder is listed under its document too, a deleted one isn't
-            if let Some(document) = meta.attachments_of().map(|of| of.id) {
-                let listed = db
-                    .file_children
-                    .get(&document)
-                    .is_some_and(|ids| ids.contains(&id));
-                if listed == deleted(&db.metas, &meta) {
-                    insert(&mut result.files_unmapped_as_parent_to_children, document, id);
+        }
+
+        // validate index: file_attachments
+        for (file_id, attachment_ids) in db.file_attachments.iter() {
+            for attachment_id in attachment_ids {
+                let attached = db.metas.get(attachment_id).is_some_and(|meta| {
+                    meta.attachment_of().map(|of| of.id) == Some(*file_id)
+                        && !deleted(&db.metas, meta)
+                });
+                if !attached {
+                    insert(&mut result.files_mapped_to_non_attachments, *file_id, *attachment_id);
+                }
+            }
+        }
+        for (id, meta) in db.metas.iter() {
+            if let Some(of) = meta.attachment_of() {
+                let indexed = db
+                    .file_attachments
+                    .get(&of.id)
+                    .is_some_and(|ids| ids.contains(id));
+                if !indexed && !deleted(&db.metas, meta) {
+                    insert(&mut result.files_unmapped_to_attachments, of.id, *id);
                 }
             }
         }
@@ -969,6 +994,7 @@ where
             &mut db.owned_files,
             &mut db.shared_files,
             &mut db.file_children,
+            &mut db.file_attachments,
             &mut db.metas,
         )?
         .to_lazy();
@@ -1063,12 +1089,19 @@ where
                     .collect::<HashMap<_, _>>()
                 {
                     db.file_children.insert(*file.parent(), id)?;
-                    if let Some(of) = file.attachments_of() {
+                }
+            }
+            ServerIndex::FileAttachments => {
+                db.file_attachments.clear()?;
+                for (id, file) in db
+                    .metas
+                    .iter()
+                    .map(|(key, value)| (*key, value.clone()))
+                    .collect::<HashMap<_, _>>()
+                {
+                    if let Some(of) = file.attachment_of() {
                         if !deleted(&db.metas, &file) {
-                            if db.file_children.get(&of.id).is_none() {
-                                db.file_children.create_key(of.id)?;
-                            }
-                            db.file_children.insert(of.id, id)?;
+                            db.file_attachments.insert(of.id, id)?;
                         }
                     }
                 }
@@ -1079,8 +1112,7 @@ where
     }
 }
 
-/// Whether a file is deleted, from the metadata alone, for checking and rebuilding the indexes a
-/// server tree depends on.
+/// Whether a file is implicitly deleted for checking & rebuilding server tree indexes
 fn deleted(metas: &DbHashMap<Uuid, ServerMeta>, file: &ServerMeta) -> bool {
     let mut visited = HashSet::new();
     let mut to_visit = vec![file];
@@ -1100,7 +1132,7 @@ fn deleted(metas: &DbHashMap<Uuid, ServerMeta>, file: &ServerMeta) -> bool {
                 }
             }
         }
-        if let Some(document) = file.attachments_of().and_then(|of| metas.get(&of.id)) {
+        if let Some(document) = file.attachment_of().and_then(|of| metas.get(&of.id)) {
             to_visit.push(document);
         }
     }
@@ -1109,10 +1141,4 @@ fn deleted(metas: &DbHashMap<Uuid, ServerMeta>, file: &ServerMeta) -> bool {
 
 fn insert<K: Hash + Eq, V: Hash + Eq>(map: &mut HashMap<K, HashSet<V>>, k: K, v: V) {
     map.entry(k).or_default().insert(v);
-}
-
-/// Whether a client is writing metadata V2, which a server accepts only once its `meta_v2` feature
-/// is on.
-pub(crate) fn writes_v2(file: &SignedMeta) -> bool {
-    matches!(file.timestamped_value.value, Meta::V2 { .. })
 }

@@ -14,6 +14,7 @@ pub struct ServerTree<'a> {
     pub owned_files: &'a mut DbHashMapSet<Owner, Uuid>,
     pub shared_files: &'a mut DbHashMapSet<Owner, Uuid>,
     pub file_children: &'a mut DbHashMapSet<Uuid, Uuid>,
+    pub file_attachments: &'a mut DbHashMapSet<Uuid, Uuid>,
     pub files: &'a mut DbHashMap<Uuid, ServerMeta>,
 }
 
@@ -22,6 +23,7 @@ impl<'a> ServerTree<'a> {
         owner: Owner, owned_files: &'a mut DbHashMapSet<Owner, Uuid>,
         shared_files: &'a mut DbHashMapSet<Owner, Uuid>,
         file_children: &'a mut DbHashMapSet<Uuid, Uuid>,
+        file_attachments: &'a mut DbHashMapSet<Uuid, Uuid>,
         files: &'a mut DbHashMap<Uuid, ServerMeta>,
     ) -> LbResult<Self> {
         let (owned_ids, shared_ids) = match (owned_files.get(&owner), shared_files.get(&owner)) {
@@ -36,28 +38,21 @@ impl<'a> ServerTree<'a> {
         ids.extend(owned_ids);
         ids.extend(shared_ids.clone());
 
-        ids.extend(reachable(file_children, shared_ids));
+        ids.extend(reachable(file_children, file_attachments, shared_ids));
 
-        Ok(Self { ids, owned_files, shared_files, file_children, files })
+        Ok(Self { ids, owned_files, shared_files, file_children, file_attachments, files })
     }
 
-    /// The files someone given `roots` is sent: their descendants and attachments, and theirs.
+    /// The set of files whose access follows from the provided roots
     pub fn reachable(&self, roots: impl IntoIterator<Item = Uuid>) -> HashSet<Uuid> {
-        reachable(self.file_children, roots)
+        reachable(self.file_children, self.file_attachments, roots)
     }
-}
-
-/// Where `file_children` lists a file: under its parent, and under the document whose
-/// attachments it holds.
-pub fn indexed_under<F: FileLike>(file: &F) -> impl Iterator<Item = Uuid> {
-    [*file.parent()]
-        .into_iter()
-        .chain(file.attachments_of().map(|of| of.id))
 }
 
 /// Walks each file once, however many roots reach it.
 fn reachable(
-    file_children: &DbHashMapSet<Uuid, Uuid>, roots: impl IntoIterator<Item = Uuid>,
+    file_children: &DbHashMapSet<Uuid, Uuid>, file_attachments: &DbHashMapSet<Uuid, Uuid>,
+    roots: impl IntoIterator<Item = Uuid>,
 ) -> HashSet<Uuid> {
     let mut result = HashSet::new();
     let mut expanded = HashSet::new();
@@ -66,9 +61,11 @@ fn reachable(
         if !expanded.insert(id) {
             continue;
         }
-        for &child in file_children.get(&id).into_iter().flatten() {
-            if result.insert(child) {
-                to_visit.push(child);
+        let children = file_children.get(&id).into_iter().flatten();
+        let attachments = file_attachments.get(&id).into_iter().flatten();
+        for &file in children.chain(attachments) {
+            if result.insert(file) {
+                to_visit.push(file);
             }
         }
     }
@@ -143,22 +140,18 @@ impl TreeLikeMut for ServerTree<'_> {
             self.file_children.insert(*f.parent(), id)?;
         }
 
-        // an attachments folder is reached from its document too, so whoever is sent the document
-        // is sent the folder
+        // maintain index: file_attachments
         let prior_document = maybe_prior
             .as_ref()
-            .and_then(|f| f.attachments_of())
+            .and_then(|f| f.attachment_of())
             .map(|of| of.id);
-        let document = f.attachments_of().map(|of| of.id);
+        let document = f.attachment_of().map(|of| of.id);
         if prior_document != document {
             if let Some(prior_document) = prior_document {
-                self.file_children.remove(&prior_document, &id)?;
+                self.file_attachments.remove(&prior_document, &id)?;
             }
             if let Some(document) = document {
-                if self.file_children.get(&document).is_none() {
-                    self.file_children.create_key(document)?;
-                }
-                self.file_children.insert(document, id)?;
+                self.file_attachments.insert(document, id)?;
             }
         }
 

@@ -25,6 +25,7 @@ async fn create_two_files_with_same_path() {
         &root.id,
         "document",
         FileType::Document,
+        None,
         &core.keychain,
     )
     .unwrap();
@@ -34,6 +35,7 @@ async fn create_two_files_with_same_path() {
         &root.id,
         "document",
         FileType::Document,
+        None,
         &core.keychain,
     )
     .unwrap();

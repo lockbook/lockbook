@@ -56,8 +56,7 @@ where
             return Err(ClientError(NewAccountError::Disabled));
         }
 
-        // a root is never an attachments folder, the only file written as V2
-        if crate::file_service::writes_v2(&request.root_folder) {
+        if self.config.features.refuses(&request.root_folder) {
             return Err(internal!("new account root is V2 metadata"));
         }
 
@@ -166,6 +165,7 @@ where
             &mut db.owned_files,
             &mut db.shared_files,
             &mut db.file_children,
+            &mut db.file_attachments,
             &mut db.metas,
         )?
         .to_lazy();
@@ -370,6 +370,7 @@ where
                 &mut db.owned_files,
                 &mut db.shared_files,
                 &mut db.file_children,
+                &mut db.file_attachments,
                 &mut db.metas,
             )?
             .to_lazy()
@@ -408,6 +409,7 @@ where
                     &mut db.owned_files,
                     &mut db.shared_files,
                     &mut db.file_children,
+                    &mut db.file_attachments,
                     &mut db.metas,
                 )?
                 .to_lazy();
@@ -436,6 +438,7 @@ where
                             }
                             db.metas.remove(&id)?;
                             db.file_children.clear_key(&id)?;
+                            db.file_attachments.clear_key(&id)?;
                         }
                     }
                 }

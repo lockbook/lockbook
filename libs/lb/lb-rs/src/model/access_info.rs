@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 use super::errors::LbResult;
 
 pub type EncryptedUserAccessKey = AESEncrypted<AESKey>;
-pub type EncryptedFolderAccessKey = AESEncrypted<AESKey>;
+pub type EncryptedKey = AESEncrypted<AESKey>;
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone, Copy, Hash, PartialOrd, Ord)]
 pub enum UserAccessMode {
