@@ -541,6 +541,15 @@
                 workspaceOutput?.tabCount = Int(tab_count(wsHandle))
             }
 
+            let linkMessage = textFromPtr(s: output.link_message)
+            if !linkMessage.isEmpty {
+                workspaceOutput?.linkMessage = linkMessage
+            }
+
+            if output.opening_link != workspaceOutput?.openingLink {
+                workspaceOutput?.openingLink = output.opening_link
+            }
+
             if output.selected_folder_changed {
                 let selectedFolder = UUID(uuid: get_selected_folder(wsHandle)._0)
                 if selectedFolder.isNil() {

@@ -69,16 +69,13 @@ pub extern "C" fn open_file_at(
         .open_file_at_range(id, range_start..range_end, new_tab);
 }
 
-/// Opens a file at the heading a link's `#fragment` names.
+/// Opens a link from outside the app; false when it isn't ours.
 /// # Safety
 #[no_mangle]
-pub unsafe extern "C" fn open_file_at_heading(
-    obj: *mut c_void, id: CUuid, heading: *const c_char, new_tab: bool,
-) {
+pub unsafe extern "C" fn open_url(obj: *mut c_void, url: *const c_char) -> bool {
     let obj = &mut *(obj as *mut WgpuWorkspace);
-    let heading = CStr::from_ptr(heading).to_string_lossy().into_owned();
-    obj.workspace
-        .open_file_at_heading(id.into(), heading, new_tab);
+    let url = CStr::from_ptr(url).to_string_lossy();
+    obj.workspace.open_url(&url)
 }
 
 #[no_mangle]

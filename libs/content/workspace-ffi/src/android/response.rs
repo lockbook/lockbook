@@ -75,6 +75,8 @@ impl From<crate::Response> for AndroidResponse {
                     open_camera: _,
                     file_cache_updated: _,
                     open_search: _,
+                    opening_link: _,
+                    link_message,
                 },
             redraw_in,
             copied_text,
@@ -94,7 +96,11 @@ impl From<crate::Response> for AndroidResponse {
             _ => Uuid::nil(),
         };
         Self {
-            failure_message: failure_messages.join("\n"),
+            failure_message: failure_messages
+                .into_iter()
+                .chain(link_message)
+                .collect::<Vec<_>>()
+                .join("\n"),
             selected_file: selected_file.unwrap_or_default(),
             doc_created,
             tabs_changed,

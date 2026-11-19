@@ -36,6 +36,10 @@ class WorkspaceViewModel(
     val openFile: LiveData<OpenFileRequest>
         get() = _openFile
 
+    private val _openUrl = SingleMutableLiveData<String>()
+    val openUrl: LiveData<String>
+        get() = _openUrl
+
     /** request workspace to  close a file **/
     val _closeFile = SingleMutableLiveData<String>()
     val closeFile: LiveData<String>
@@ -127,14 +131,17 @@ class WorkspaceViewModel(
     fun postOpenFile(request: OpenFileRequest) {
         _openFile.postValue(request)
     }
+
+    /** Opens a link from outside the app. */
+    fun openUrl(url: String) {
+        _openUrl.value = url
+    }
 }
 
 data class OpenFileRequest(
     val id: String,
     val newFile: Boolean,
     val presentation: OpenFilePresentation,
-    /** The heading a link's `#fragment` names, to open at. */
-    val heading: String? = null,
     /** False for welcome-screen documents: close the tab, but keep the detail pane open. */
     val closeDetailOnBack: Boolean = true,
 )

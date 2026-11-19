@@ -191,6 +191,12 @@ class WorkspaceFragment : Fragment() {
             }
         }
 
+        model.openUrl.observe(viewLifecycleOwner) { url ->
+            finishPendingTabClose()
+            workspaceWrapper.workspaceView.openUrl(url)
+            mainScreenModel.navigate(MainNavigationAction.ShowDetail)
+        }
+
         model.takePhotoRequested.observe(viewLifecycleOwner) {
             hideEditorKeyboard()
             if (ContextCompat.checkSelfPermission(requireContext(), Manifest.permission.CAMERA) ==
