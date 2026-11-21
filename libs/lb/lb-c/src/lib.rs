@@ -246,6 +246,101 @@ pub extern "C" fn lb_export_account_qr(lb: *mut Lb) -> LbExportAccountQRRes {
 }
 
 #[repr(C)]
+pub struct LbCreateSubAccountRes {
+    err: *mut LbFfiErr,
+    username: *mut c_char,
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn lb_create_sub_account(
+    lb: *mut Lb, label: *const c_char,
+) -> LbCreateSubAccountRes {
+    let lb = rlb(lb);
+    let label = rstr(label);
+
+    match lb.create_sub_account(label) {
+        Ok(username) => LbCreateSubAccountRes { err: null_mut(), username: cstring(username) },
+        Err(err) => LbCreateSubAccountRes { err: lb_err(err), username: null_mut() },
+    }
+}
+
+#[repr(C)]
+pub struct LbSubAccount {
+    username: *mut c_char,
+    usage: u64,
+}
+
+#[repr(C)]
+pub struct LbSubAccountsRes {
+    err: *mut LbFfiErr,
+    sub_accounts: *mut LbSubAccount,
+    len: usize,
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn lb_list_sub_accounts(lb: *mut Lb) -> LbSubAccountsRes {
+    let lb = rlb(lb);
+
+    match lb.list_sub_accounts() {
+        Ok(sub_accounts) => {
+            let (sub_accounts, len) = carray(
+                sub_accounts
+                    .into_iter()
+                    .map(|sub_account| LbSubAccount {
+                        username: cstring(sub_account.username),
+                        usage: sub_account.usage,
+                    })
+                    .collect(),
+            );
+
+            LbSubAccountsRes { err: null_mut(), sub_accounts, len }
+        }
+        Err(err) => LbSubAccountsRes { err: lb_err(err), sub_accounts: null_mut(), len: 0 },
+    }
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn lb_delete_sub_account(lb: *mut Lb, username: *const c_char) -> *mut LbFfiErr {
+    let lb = rlb(lb);
+    let username = rstr(username);
+
+    match lb.delete_sub_account(username) {
+        Ok(()) => null_mut(),
+        Err(err) => lb_err(err),
+    }
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn lb_export_sub_account_private_key(
+    lb: *mut Lb, username: *const c_char,
+) -> LbExportAccountRes {
+    let lb = rlb(lb);
+    let username = rstr(username);
+
+    match lb.export_sub_account_private_key(username) {
+        Ok(account_key) => {
+            LbExportAccountRes { account_string: cstring(account_key), err: null_mut() }
+        }
+        Err(err) => LbExportAccountRes { account_string: null_mut(), err: lb_err(err) },
+    }
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn lb_export_sub_account_phrase(
+    lb: *mut Lb, username: *const c_char,
+) -> LbExportAccountRes {
+    let lb = rlb(lb);
+    let username = rstr(username);
+
+    match lb.export_sub_account_phrase(username) {
+        Ok(account_phrase) => {
+            LbExportAccountRes { account_string: cstring(account_phrase), err: null_mut() }
+        }
+        Err(err) => LbExportAccountRes { account_string: null_mut(), err: lb_err(err) },
+    }
+}
+
+#[repr(C)]
 pub struct LbFileRes {
     err: *mut LbFfiErr,
     file: LbFile,
