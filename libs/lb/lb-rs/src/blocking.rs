@@ -7,7 +7,8 @@ use crate::io::network::Network;
 use crate::model::account::{Account, Username};
 use crate::model::api::{
     AccountFilter, AccountIdentifier, AccountInfo, AdminFileInfoResponse, AdminSetUserTierInfo,
-    AdminValidateAccount, AdminValidateServer, ServerIndex, StripeAccountTier, SubscriptionInfo,
+    AdminValidateAccount, AdminValidateServer, ServerIndex, StripeAccountTier, SubAccountInfo,
+    SubscriptionInfo,
 };
 use crate::model::core_config::Config;
 use crate::model::crypto::DecryptedDocument;
@@ -396,6 +397,26 @@ impl Lb {
 
     pub fn delete_account(&self) -> LbResult<()> {
         self.block_on(self.lb.delete_account())
+    }
+
+    pub fn create_sub_account(&self, label: &str) -> LbResult<Username> {
+        self.block_on(self.lb.create_sub_account(label))
+    }
+
+    pub fn list_sub_accounts(&self) -> LbResult<Vec<SubAccountInfo>> {
+        self.block_on(self.lb.list_sub_accounts())
+    }
+
+    pub fn delete_sub_account(&self, username: &str) -> LbResult<()> {
+        self.block_on(self.lb.delete_sub_account(username))
+    }
+
+    pub fn export_sub_account_private_key(&self, username: &str) -> LbResult<String> {
+        self.block_on(self.lb.export_sub_account_private_key(username))
+    }
+
+    pub fn export_sub_account_phrase(&self, username: &str) -> LbResult<String> {
+        self.block_on(self.lb.export_sub_account_phrase(username))
     }
 
     pub fn admin_disappear_account(&self, username: &str) -> LbResult<()> {

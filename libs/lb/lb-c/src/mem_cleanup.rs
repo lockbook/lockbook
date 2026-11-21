@@ -7,11 +7,11 @@ use crate::ffi_utils::rvec;
 use crate::lb_c_err::LbFfiErr;
 use crate::lb_file::LbFile;
 use crate::{
-    LbAccountRes, LbContentSearcherResults, LbContentSearcherSnippet, LbDocRes,
-    LbExportAccountQRRes, LbExportAccountRes, LbFileListRes, LbFileRes, LbGetFileLinkUrlRes,
-    LbIdListRes, LbInitRes, LbLastSyncedHuman, LbLastSyncedi64, LbNextNameRes, LbPathRes,
-    LbPathSearcherResults, LbPathsRes, LbStatus, LbSubscriptionInfoRes, LbUsageBreakdownRes,
-    LbUsageMetrics, LbUsageMetricsRes, LbUsernamesRes,
+    LbAccountRes, LbContentSearcherResults, LbContentSearcherSnippet, LbCreateSubAccountRes,
+    LbDocRes, LbExportAccountQRRes, LbExportAccountRes, LbFileListRes, LbFileRes,
+    LbGetFileLinkUrlRes, LbIdListRes, LbInitRes, LbLastSyncedHuman, LbLastSyncedi64, LbNextNameRes,
+    LbPathRes, LbPathSearcherResults, LbPathsRes, LbStatus, LbSubAccountsRes,
+    LbSubscriptionInfoRes, LbUsageBreakdownRes, LbUsageMetrics, LbUsageMetricsRes, LbUsernamesRes,
 };
 
 #[unsafe(no_mangle)]
@@ -83,6 +83,33 @@ pub extern "C" fn lb_free_export_account_qr(acc: LbExportAccountQRRes) {
 
     if !acc.qr.is_null() {
         drop(rvec(acc.qr, acc.qr_len));
+    }
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn lb_free_create_sub_account_res(res: LbCreateSubAccountRes) {
+    if !res.err.is_null() {
+        lb_free_err(res.err);
+    }
+
+    if !res.username.is_null() {
+        unsafe { drop(CString::from_raw(res.username)) }
+    }
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn lb_free_sub_accounts_res(res: LbSubAccountsRes) {
+    if !res.err.is_null() {
+        lb_free_err(res.err);
+    }
+
+    if !res.sub_accounts.is_null() {
+        let sub_accounts = rvec(res.sub_accounts, res.len);
+        for sub_account in &sub_accounts {
+            unsafe { drop(CString::from_raw(sub_account.username)) };
+        }
+
+        drop(sub_accounts);
     }
 }
 
