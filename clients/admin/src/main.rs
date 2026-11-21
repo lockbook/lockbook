@@ -3,6 +3,7 @@ mod disappear;
 mod error;
 mod indexes;
 mod info;
+mod metrics;
 mod validate;
 
 use clap::{Parser, Subcommand};
@@ -16,6 +17,13 @@ use crate::indexes::CliIndex;
 
 #[derive(Debug, PartialEq, Eq, Parser)]
 pub enum Admin {
+    /// Browse historical metrics from a local or production server index log.
+    Metrics {
+        #[arg(long)]
+        logs: Option<std::path::PathBuf>,
+        #[arg(long, default_value = "/lb-data/ServerV6")]
+        remote_logs: String,
+    },
     /// Disappear a user
     ///
     /// Frees up their username
@@ -106,13 +114,22 @@ pub enum SetUserTier {
 type Res<T> = Result<T, Error>;
 
 pub fn main() {
+    let command = Admin::parse();
+    if let Admin::Metrics { logs, remote_logs } = command {
+        if let Err(error) = metrics::run(logs, remote_logs) {
+            eprintln!("{error}");
+            std::process::exit(1);
+        }
+        return;
+    }
     let core = Lb::init(Config {
         client_name: "admin".into(),
         ..Config::cli_config("cli") // use the cli account
     })
     .unwrap();
 
-    let result = match Admin::parse() {
+    let result = match command {
+        Admin::Metrics { .. } => unreachable!(),
         Admin::DisappearAccount { username } => disappear::account(&core, username),
         Admin::ListUsers { premium, app_store_premium, google_play_premium, stripe_premium } => {
             account::list(&core, premium, app_store_premium, google_play_premium, stripe_premium)

@@ -8,6 +8,16 @@ clap = { version = "4.1.4", features = ["derive"] }
 lb = { package="lb-rs", path = "../../libs/lb/lb-rs" }
 dialoguer = { version = "0.10.1", features = ["fuzzy-select"] }
 basic-human-duration = "0.2.0"
-time = "0.3.20"
+time = { version = "0.3.20", features = ["formatting", "parsing", "macros"] }
 libsecp256k1 = "0.7.1"
 base64 = "0.13.0"
+bincode = { version = "2.0.1", features = ["serde"] }
+db-rs = "0.4.2"
+eframe = { version = "0.37.0", default-features = false, features = ["default_fonts", "wgpu", "x11", "wayland"] }
+flate2 = "1"
+lockbook-server = { path = "../../server" }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+sha2 = "0.10"
+tempfile = "3"
+workspace = { path = "../../libs/content/workspace" }
