@@ -46,6 +46,9 @@ data class AndroidResponse(
     val magnifierX: Float,
     val magnifierY: Float,
     val lifted: Boolean,
+    val requestPaste: Boolean,
+    val spreadsheetExportName: String,
+    val spreadsheetExportBytes: ByteArray,
 )
 
 @Serializable
@@ -209,6 +212,7 @@ object Workspace {
     external fun copyRendered(rustObj: Long)
     external fun clipboardPaste(rustObj: Long, content: String)
     external fun clipboardSendImage(rustObj: Long, content: ByteArray, isPaste: Boolean)
+    external fun importSpreadsheetFile(rustObj: Long, path: String, name: String)
     external fun isPenOnlyDraw(rustObj: Long) : Boolean
     external fun insertTextAtCursor(rustObj: Long, text: String)
     external fun enterSelectedAtom(rustObj: Long)

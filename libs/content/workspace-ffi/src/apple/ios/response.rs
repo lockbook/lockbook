@@ -51,6 +51,9 @@ pub struct IOSResponse {
     pub context_menu_x: f64,
     pub context_menu_y: f64,
     pub context_menu_for_image: bool,
+    pub request_paste: bool,
+    pub spreadsheet_export_name: *mut c_char,
+    pub spreadsheet_export_bytes: CBytes,
 }
 
 impl From<crate::Response> for IOSResponse {
@@ -79,6 +82,7 @@ impl From<crate::Response> for IOSResponse {
                     open_camera,
                     open_search,
                     file_cache_updated: _,
+                    spreadsheet_export_file,
                 },
             redraw_in,
             copied_text,
@@ -88,7 +92,7 @@ impl From<crate::Response> for IOSResponse {
             cursor: _,
             virtual_keyboard_shown,
             window_title: _,
-            request_paste: _,
+            request_paste,
             ime_cursor: _,
             context_menu,
         } = value;
@@ -130,6 +134,7 @@ impl From<crate::Response> for IOSResponse {
             caret_covered,
             lifted,
             chrome_text_focused: false,
+            request_paste,
             has_text_interaction_rect: text_interaction_rect.is_some(),
             text_interaction_rect: text_interaction_rect
                 .map(|r| CRect {
@@ -146,6 +151,18 @@ impl From<crate::Response> for IOSResponse {
                 context_menu,
                 Some((_, workspace_rs::tab::ContextMenuTarget::Image))
             ),
+            spreadsheet_export_name: CString::new(
+                spreadsheet_export_file
+                    .as_ref()
+                    .map(|(name, _)| name.as_str())
+                    .unwrap_or_default(),
+            )
+            .unwrap()
+            .into_raw(),
+            spreadsheet_export_bytes: spreadsheet_export_file
+                .map(|(_, bytes)| bytes)
+                .unwrap_or_default()
+                .into(),
         }
     }
 }

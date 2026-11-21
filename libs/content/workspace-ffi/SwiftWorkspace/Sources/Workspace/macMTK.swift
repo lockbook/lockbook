@@ -396,7 +396,8 @@
             // a spreadsheet copies cells as text and as a picture of them: the
             // text is the paste. A line beside an image names the image.
             let text = pasteBoard.string(forType: .string)
-            let cells = text.map { $0.contains("\t") || $0.contains("\n") } ?? false
+            let spreadsheet = WorkspaceTab(rawValue: Int(current_tab(wsHandle))) == .Spreadsheet
+            let cells = text.map { spreadsheet || $0.contains("\t") || $0.contains("\n") } ?? false
             if let data = pasteBoard.data(forType: .gif) ?? pasteBoard.data(forType: .png), !cells {
                 sendImage(img: data, isPaste: isPaste)
                 return true
@@ -524,6 +525,20 @@
 
             let output = macos_frame(wsHandle)
             chromeTextFocused = output.chrome_text_focused
+
+            let exportName = textFromPtr(s: output.spreadsheet_export_name)
+            let exportData = dataFromBytes(b: output.spreadsheet_export_bytes)
+            if !exportName.isEmpty, let exportData {
+                let panel = NSSavePanel()
+                panel.nameFieldStringValue = exportName
+                panel.allowedContentTypes = [
+                    UTType(filenameExtension: URL(fileURLWithPath: exportName).pathExtension)
+                        ?? .data
+                ]
+                if panel.runModal() == .OK, let url = panel.url {
+                    try? exportData.write(to: url, options: .atomic)
+                }
+            }
 
             let c = output.ime_cursor
             let imeRect = NSRect(x: CGFloat(c.min_x), y: CGFloat(c.min_y), width: CGFloat(c.max_x - c.min_x), height: CGFloat(c.max_y - c.min_y))

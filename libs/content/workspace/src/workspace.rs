@@ -482,6 +482,17 @@ impl Workspace {
         self.current_tab.and_then(|id| self.tabs.get_mut(&id))
     }
 
+    #[cfg(not(target_family = "wasm"))]
+    pub fn import_current_spreadsheet(&mut self, filename: &str, bytes: &[u8]) {
+        let result = self
+            .current_tab_mut()
+            .ok_or_else(|| "No spreadsheet is open".to_owned())
+            .and_then(|tab| tab.import_spreadsheet(filename, bytes));
+        if let Err(error) = result {
+            self.out.failure_messages.push(error);
+        }
+    }
+
     pub fn current_tab_markdown(&self) -> Option<&Markdown> {
         self.current_tab()?.markdown()
     }
@@ -1325,15 +1336,24 @@ impl Workspace {
     /// other tab types (SVG, image viewer, PDF) handle clipboard events
     /// themselves. Non-clip events are left in the queue.
     pub fn process_clip_events(&mut self) {
-        let Some(file_id) = self.current_tab().and_then(|tab| {
-            let md = tab.markdown()?;
-            // image paste inserts `![](…)` markdown
-            if md.edit.renderer.readonly || md.edit.renderer.kind != Syntax::Markdown {
-                None
-            } else {
-                Some(md.edit.file_id)
+        let target = self.current_tab().and_then(|tab| {
+            if let Some(md) = tab.markdown() {
+                if md.edit.renderer.readonly || md.edit.renderer.kind != Syntax::Markdown {
+                    return None;
+                }
+                return Some((false, md.edit.file_id));
             }
-        }) else {
+            #[cfg(not(target_family = "wasm"))]
+            if matches!(
+                &tab.content,
+                crate::tab::ContentState::Open(crate::tab::TabContent::Spreadsheet(_))
+            ) && !tab.read_only
+            {
+                return Some((true, Uuid::nil()));
+            }
+            None
+        });
+        let Some((spreadsheet, file_id)) = target else {
             return;
         };
 
@@ -1352,12 +1372,40 @@ impl Workspace {
             };
             for clip in content {
                 let (name, data) = match clip {
-                    crate::tab::ClipContent::Image(data) => (None, data),
-                    crate::tab::ClipContent::NamedImage { name, data } => (Some(name), data),
-                    crate::tab::ClipContent::Files(..) => {
-                        // todo: support file drop & paste
+                    crate::tab::ClipContent::Files(paths) if spreadsheet => {
+                        for path in paths {
+                            let Some(filename) = path.file_name().and_then(|name| name.to_str())
+                            else {
+                                continue;
+                            };
+                            let Ok(metadata) = std::fs::metadata(&path) else {
+                                self.out
+                                    .failure_messages
+                                    .push(format!("Could not read {}", path.display()));
+                                continue;
+                            };
+                            if metadata.len() > 100 * 1024 * 1024 {
+                                self.out
+                                    .failure_messages
+                                    .push("Spreadsheet imports are limited to 100 MB".into());
+                                continue;
+                            }
+                            match std::fs::read(&path) {
+                                Ok(bytes) => self.import_current_spreadsheet(filename, &bytes),
+                                Err(error) => self
+                                    .out
+                                    .failure_messages
+                                    .push(format!("Could not read {}: {error}", path.display())),
+                            }
+                        }
                         continue;
                     }
+                    crate::tab::ClipContent::Files(_) => continue,
+                    crate::tab::ClipContent::Image(data) if !spreadsheet => (None, data),
+                    crate::tab::ClipContent::NamedImage { name, data } if !spreadsheet => {
+                        (Some(name), data)
+                    }
+                    _ => continue,
                 };
                 let file =
                     match crate::tab::import_image(&self.core, file_id, name.as_deref(), &data) {

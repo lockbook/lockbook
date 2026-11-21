@@ -274,6 +274,7 @@ impl Workspace {
             if resp.scroll_updated {
                 self.out.markdown_editor_scroll_updated = true;
             }
+            self.out.spreadsheet_export_file = resp.spreadsheet_export_file;
             if let Some(file) = resp.open_file {
                 self.navigate_to(crate::tab::Destination::File(file));
             }
@@ -626,7 +627,7 @@ impl DocType {
             .to_lowercase();
         match ext.as_str() {
             "draw" | "svg" => Self::SVG,
-            "lbsheet" => Self::Spreadsheet,
+            "lbsheet" | "csv" | "xlsx" => Self::Spreadsheet,
             "md" => Self::Markdown,
             "txt" => Self::PlainText,
             "cr2" => Self::ImageUnsupported,

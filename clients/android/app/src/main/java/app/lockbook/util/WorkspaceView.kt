@@ -89,6 +89,7 @@ class WorkspaceView(
     private var safeInsets = Insets.NONE
     var wrapperView: View? = null
     var onMarkdownToolbarStateChanged: (() -> Unit)? = null
+    var onSpreadsheetExportRequested: ((String, ByteArray) -> Unit)? = null
     var contextMenu: ActionMode? = null
     private var magnifier: Magnifier? = null
 
@@ -440,6 +441,13 @@ class WorkspaceView(
                     invalidate()
                 }
 
+                WorkspaceTabType.Spreadsheet -> {
+                    Workspace.importSpreadsheetFile(wgpuObj, attachment.tempPath, attachment.name)
+                    model.removeNextAttachment()
+                    File(attachment.tempPath).delete()
+                    invalidate()
+                }
+
                 else -> {
                     model.removeNextAttachment()
                     File(attachment.tempPath).delete()
@@ -453,6 +461,12 @@ class WorkspaceView(
         Workspace.setKeyboardShown(wgpuObj, model.keyboardVisible.value ?: false)
 
         val response: AndroidResponse = Workspace.enterFrameOffloaded(wgpuObj)
+        if (response.spreadsheetExportName.isNotEmpty() && response.spreadsheetExportBytes.isNotEmpty()) {
+            onSpreadsheetExportRequested?.invoke(
+                response.spreadsheetExportName,
+                response.spreadsheetExportBytes,
+            )
+        }
         if (response.failureMessage.isNotEmpty()) {
             Toast.makeText(context, response.failureMessage, Toast.LENGTH_LONG).show()
         }
@@ -574,6 +588,16 @@ class WorkspaceView(
 
         spelling.check(wgpuObj)
 
+        if (response.requestPaste) {
+            val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+            val clip = clipboard.primaryClip
+            val text = if (clip != null && clip.itemCount > 0) clip.getItemAt(0).text else null
+            if (!text.isNullOrEmpty()) {
+                Workspace.clipboardPaste(wgpuObj, text.toString())
+                requestRedraw(0)
+                return
+            }
+        }
         requestRedraw(response.redrawIn)
     }
 

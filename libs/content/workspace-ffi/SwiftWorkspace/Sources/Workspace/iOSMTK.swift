@@ -582,6 +582,21 @@
             }
 
             mtkView.enableSetNeedsDisplay = mtkView.isPaused
+            if output.request_paste, let text = UIPasteboard.general.string {
+                mtkView.importContent(.text(text), isPaste: true)
+                mtkView.setNeedsDisplay()
+            }
+
+            if let wsHandle, let controller = WorkspaceControllerRegistry.controllers[wsHandle] {
+                let name = textFromPtr(s: output.spreadsheet_export_name)
+                let data = dataFromBytes(b: output.spreadsheet_export_bytes)
+                if !name.isEmpty, let data {
+                    controller.presentSpreadsheetExport(name: name, data: data)
+                }
+            } else {
+                free_text(output.spreadsheet_export_name)
+                free_bytes(output.spreadsheet_export_bytes)
+            }
         }
 
         private var lastAccentColors: UInt64 = 0

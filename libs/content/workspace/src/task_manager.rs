@@ -580,10 +580,15 @@ impl TaskManager {
         &self, request: &SaveRequest, old_hmac: Option<DocumentHmac>, content: &TabSaveContent,
     ) -> LbResult<SavedDocument> {
         #[cfg(not(target_family = "wasm"))]
-        if let TabSaveContent::Spreadsheet { recovery, .. } = content {
+        if let TabSaveContent::Spreadsheet { recovery, format, .. } = content {
             use crate::show::DocType;
-            use lb_rs::model::errors::LbErrKind;
-            let bytes = &content.bytes();
+            use lb_rs::model::errors::{LbErr, LbErrKind};
+            let bytes = content.try_bytes().map_err(|error| {
+                LbErr::from(LbErrKind::Unexpected(format!(
+                    "Could not serialize spreadsheet: {error}"
+                )))
+            })?;
+            let bytes = bytes.as_ref();
             if let Some((id, hmac)) = recovery {
                 match self
                     .core
@@ -598,7 +603,7 @@ impl TaskManager {
                     {
                         return Err(err);
                     }
-                    Err(_) => return self.recover_spreadsheet(request, bytes),
+                    Err(_) => return self.recover_spreadsheet(request, bytes, *format),
                 }
             }
             if self
@@ -606,7 +611,7 @@ impl TaskManager {
                 .get_file_by_id(request.id)
                 .is_ok_and(|file| DocType::from_name(&file.name) != DocType::Spreadsheet)
             {
-                return self.recover_spreadsheet(request, bytes);
+                return self.recover_spreadsheet(request, bytes, *format);
             }
             match self
                 .core
@@ -621,7 +626,7 @@ impl TaskManager {
                             | LbErrKind::FileNonexistent
                     ) =>
                 {
-                    return self.recover_spreadsheet(request, bytes);
+                    return self.recover_spreadsheet(request, bytes, *format);
                 }
                 Err(err) => return Err(err),
             }
@@ -632,7 +637,9 @@ impl TaskManager {
     }
 
     #[cfg(not(target_family = "wasm"))]
-    fn recover_spreadsheet(&self, request: &SaveRequest, bytes: &[u8]) -> LbResult<SavedDocument> {
+    fn recover_spreadsheet(
+        &self, request: &SaveRequest, bytes: &[u8], format: crate::tab::spreadsheet::FileFormat,
+    ) -> LbResult<SavedDocument> {
         use lb_rs::model::file_metadata::FileType;
 
         let file = self.core.get_file_by_id(request.id).ok();
@@ -643,7 +650,7 @@ impl TaskManager {
             .unwrap_or("Spreadsheet");
         let title: String = title.chars().take(40).collect();
         let suffix = Uuid::new_v4().simple().to_string();
-        let name = format!("{title} (Recovered {}).lbsheet", &suffix[..8]);
+        let name = format!("{title} (Recovered {}).{}", &suffix[..8], format.extension());
         let copy = file
             .and_then(|f| {
                 self.core

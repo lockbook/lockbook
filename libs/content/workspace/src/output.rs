@@ -41,4 +41,5 @@ pub struct Response {
     pub open_search: bool,
 
     pub file_cache_updated: bool,
+    pub spreadsheet_export_file: Option<(String, Vec<u8>)>,
 }

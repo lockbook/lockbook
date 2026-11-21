@@ -185,6 +185,19 @@ fn android_response_to_java<'local>(
     let failure_message = env
         .new_string(response.failure_message)
         .expect("create failure message");
+    let spreadsheet_export_name = env
+        .new_string(response.spreadsheet_export_name)
+        .expect("create spreadsheet export name");
+    let export_bytes: Vec<i8> = response
+        .spreadsheet_export_bytes
+        .into_iter()
+        .map(|byte| byte as i8)
+        .collect();
+    let spreadsheet_export_bytes = env
+        .new_byte_array(export_bytes.len() as i32)
+        .expect("create spreadsheet export byte array");
+    env.set_byte_array_region(&spreadsheet_export_bytes, 0, &export_bytes)
+        .expect("populate spreadsheet export byte array");
 
     let virtual_keyboard_shown: JObject = match response.virtual_keyboard_shown {
         Some(value) => {
@@ -199,7 +212,7 @@ fn android_response_to_java<'local>(
 
     env.new_object(
         cls,
-        "(JLjava/lang/String;Ljava/lang/String;[BZLjava/lang/String;Ljava/lang/Boolean;Ljava/lang/String;Ljava/lang/String;ZZFFZZZZLjava/lang/String;ZZFFFFZFFZ)V",
+        "(JLjava/lang/String;Ljava/lang/String;[BZLjava/lang/String;Ljava/lang/Boolean;Ljava/lang/String;Ljava/lang/String;ZZFFZZZZLjava/lang/String;ZZFFFFZFFZZLjava/lang/String;[B)V",
         &[
             JValue::Long(redraw_in),
             JValue::Object(&JObject::from(copied_text)),
@@ -229,9 +242,33 @@ fn android_response_to_java<'local>(
             JValue::Float(response.magnifier_x),
             JValue::Float(response.magnifier_y),
             JValue::Bool(if response.lifted { 1 } else { 0 }),
+            JValue::Bool(if response.request_paste { 1 } else { 0 }),
+            JValue::Object(&JObject::from(spreadsheet_export_name)),
+            JValue::Object(&spreadsheet_export_bytes),
         ],
     )
     .expect("create AndroidResponse")
+}
+
+#[no_mangle]
+pub extern "system" fn Java_app_lockbook_workspace_Workspace_importSpreadsheetFile(
+    mut env: JNIEnv, _: JClass, obj: jlong, path: JString, name: JString,
+) {
+    let parsed: Result<Vec<String>, _> = [path, name]
+        .iter()
+        .map(|value| env.get_string(value).map(Into::into))
+        .collect();
+    let Ok(parsed) = parsed else { return };
+    if obj == 0 {
+        return;
+    }
+    let Ok(metadata) = std::fs::metadata(&parsed[0]) else { return };
+    if metadata.len() == 0 || metadata.len() > 100 * 1024 * 1024 {
+        return;
+    }
+    let Ok(bytes) = std::fs::read(&parsed[0]) else { return };
+    let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
+    obj.workspace.import_current_spreadsheet(&parsed[1], &bytes);
 }
 
 #[unsafe(no_mangle)]

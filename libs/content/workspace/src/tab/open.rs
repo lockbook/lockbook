@@ -186,7 +186,7 @@ impl TabContent {
         if res.watched {
             res.guard.enter(id);
         }
-        let Doc { hmac, bytes, .. } = doc;
+        let Doc { name, hmac, bytes } = doc;
         let content = match doc_type {
             DocType::Image => Ok(TabContent::Image(ImageViewer::new(id, res.images.clone()))),
             DocType::PDF => {
@@ -205,8 +205,10 @@ impl TabContent {
                 read_only,
             ))),
             #[cfg(not(target_family = "wasm"))]
-            DocType::Spreadsheet => super::spreadsheet::Spreadsheet::new(id, hmac, &bytes)
-                .map(|sheet| TabContent::Spreadsheet(Box::new(sheet))),
+            DocType::Spreadsheet => {
+                super::spreadsheet::Spreadsheet::new_for_file(id, hmac, &name, &bytes)
+                    .map(|sheet| TabContent::Spreadsheet(Box::new(sheet)))
+            }
             #[cfg(not(target_family = "wasm"))]
             DocType::Chat => {
                 let mut chat = Chat::new(

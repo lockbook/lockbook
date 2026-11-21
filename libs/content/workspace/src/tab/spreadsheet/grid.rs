@@ -37,7 +37,7 @@ enum Drag {
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
-enum AxisKind {
+pub(super) enum AxisKind {
     Row,
     Column,
 }
@@ -187,7 +187,7 @@ impl Spreadsheet {
         };
         let header_height = if touch { COLUMN_HEADER + 10.0 } else { COLUMN_HEADER };
         egui::ScrollArea::both()
-            .id_salt(("grid", self.sheet))
+            .id_salt(("grid", self.worksheet().sheet_id))
             .auto_shrink([false, false])
             .max_height(max_height)
             .scroll_source(if embedded {
@@ -203,9 +203,14 @@ impl Spreadsheet {
                     height.into(),
                     ROWS,
                     sheet.rows.iter().map(|row| {
-                        let size =
-                            row.height * ROW_HEIGHT_FACTOR / ENGINE_ROW_HEIGHT * f64::from(height);
-                        (row.r, row.r, size.clamp(f64::from(height) * 0.65, 2000.0))
+                        let size = if row.hidden {
+                            0.0
+                        } else {
+                            let size = row.height * ROW_HEIGHT_FACTOR / ENGINE_ROW_HEIGHT
+                                * f64::from(height);
+                            size.clamp(f64::from(height) * 0.65, 2000.0)
+                        };
+                        (row.r, row.r, size)
                     }),
                 );
                 let columns = Axis::new(
@@ -214,11 +219,16 @@ impl Spreadsheet {
                     sheet
                         .cols
                         .iter()
-                        .filter(|column| column.custom_width)
+                        .filter(|column| column.custom_width || column.hidden)
                         .map(|column| {
-                            let size = column.width * COLUMN_WIDTH_FACTOR / ENGINE_COLUMN_WIDTH
-                                * f64::from(COLUMN_WIDTH);
-                            (column.min, column.max, size.clamp(36.0, 1600.0))
+                            let size = if column.hidden {
+                                0.0
+                            } else {
+                                let size = column.width * COLUMN_WIDTH_FACTOR / ENGINE_COLUMN_WIDTH
+                                    * f64::from(COLUMN_WIDTH);
+                                size.clamp(36.0, 1600.0)
+                            };
+                            (column.min, column.max, size)
                         }),
                 );
                 let min = ui.min_rect().min;
@@ -252,18 +262,38 @@ impl Spreadsheet {
         let accent = theme.accent();
         let background = ui.visuals().extreme_bg_color;
         let border = Stroke::new(1.0, theme.wash_toward_neutral_fg(background, 0.16));
+        let show_grid_lines = self.worksheet().show_grid_lines;
         let range = self.selection();
         let visible = viewport.visible();
+        let merged_cells = self.model.get_merged_cells(self.sheet).unwrap_or_default();
         let clip = ui.clip_rect();
         let body_clip = clip.intersect(viewport.body);
         let mut click = None;
         let mut start = None;
 
         ui.set_clip_rect(body_clip);
+        if !embedded {
+            ui.interact(viewport.body, id.with("grid"), Sense::focusable_noninteractive())
+                .widget_info(|| WidgetInfo::labeled(egui::Role::Grid, true, "Spreadsheet grid"));
+        }
         for row in visible.first.row..=visible.last.row {
             for column in visible.first.column..=visible.last.column {
                 let cell = Cell { row, column };
-                let rect = viewport.range_rect(CellRange::new(cell, cell));
+                let merged = merged_cells
+                    .iter()
+                    .find(|merged| merged.contains(row, column));
+                if merged.is_some_and(|merged| merged.row != row || merged.column != column) {
+                    continue;
+                }
+                let rect = merged.map_or_else(
+                    || viewport.range_rect(CellRange::new(cell, cell)),
+                    |merged| {
+                        viewport.range_rect(CellRange::new(
+                            cell,
+                            Cell { row: merged.last_row(), column: merged.last_column() },
+                        ))
+                    },
+                );
                 let selected = range.contains(cell);
                 let value = self
                     .model
@@ -291,8 +321,10 @@ impl Spreadsheet {
                     ui.painter()
                         .rect_filled(rect, 0.0, accent.linear_multiply(0.13));
                 }
-                ui.painter()
-                    .rect_stroke(rect, 0.0, border, StrokeKind::Middle);
+                if show_grid_lines {
+                    ui.painter()
+                        .rect_stroke(rect, 0.0, border, StrokeKind::Middle);
+                }
                 if !value.is_empty() {
                     let number =
                         self.model.get_cell_type(self.sheet, row, column) == Ok(CellType::Number);

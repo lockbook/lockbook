@@ -99,6 +99,7 @@ class WorkspaceFragment : Fragment() {
     private var pendingTabClose: String? = null
     private var pendingTabCloseJob: Job? = null
     private var cameraFile: JavaFile? = null
+    private var pendingSpreadsheetExport: ByteArray? = null
     private val welcomeScreen = WorkspaceWelcomeScreen(this, ::onWorkspaceScroll, ::hideEditorKeyboard)
 
     private val cameraPermission =
@@ -119,6 +120,23 @@ class WorkspaceFragment : Fragment() {
         registerForActivityResult(ActivityResultContracts.PickMultipleVisualMedia(MAX_PICKED_PHOTOS)) { uris ->
             if (uris.size > MAX_PICKED_PHOTOS) toast(R.string.workspace_photo_selection_limit)
             importAttachments(uris.take(MAX_PICKED_PHOTOS))
+        }
+    private val createSpreadsheet =
+        registerForActivityResult(ActivityResultContracts.CreateDocument("*/*")) { uri ->
+            val bytes = pendingSpreadsheetExport
+            pendingSpreadsheetExport = null
+            if (uri != null && bytes != null) {
+                runCatching {
+                    requireContext().contentResolver.openOutputStream(uri)?.use { it.write(bytes) }
+                        ?: error("Could not open the export destination")
+                }.onFailure {
+                    Toast.makeText(
+                        requireContext(),
+                        "Could not export spreadsheet: ${it.message}",
+                        Toast.LENGTH_LONG,
+                    ).show()
+                }
+            }
         }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -148,6 +166,10 @@ class WorkspaceFragment : Fragment() {
 
         val workspaceWrapper = WorkspaceWrapperView(requireContext(), model)
         workspaceView = workspaceWrapper.workspaceView
+        workspaceWrapper.workspaceView.onSpreadsheetExportRequested = { name, bytes ->
+            pendingSpreadsheetExport = bytes
+            createSpreadsheet.launch(name)
+        }
         val layoutParams =
             ConstraintLayout
                 .LayoutParams(

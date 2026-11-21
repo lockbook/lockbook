@@ -143,6 +143,27 @@ import SwiftUI
         required init?(coder _: NSCoder) {
             fatalError("init(coder:) has not been implemented")
         }
+
+        func presentSpreadsheetExport(name: String, data: Data) {
+            guard presentedViewController == nil else { return }
+            let url = FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString)
+                .appendingPathComponent(name)
+            do {
+                try FileManager.default.createDirectory(
+                    at: url.deletingLastPathComponent(), withIntermediateDirectories: true
+                )
+                try data.write(to: url, options: .atomic)
+            } catch {
+                return
+            }
+            let activity = UIActivityViewController(activityItems: [url], applicationActivities: nil)
+            if let popover = activity.popoverPresentationController {
+                popover.sourceView = view
+                popover.sourceRect = CGRect(x: view.bounds.midX, y: view.bounds.midY, width: 1, height: 1)
+            }
+            present(activity, animated: true)
+        }
     }
 
     public class iOSMTKInputManager: UIView, UIGestureRecognizerDelegate {
