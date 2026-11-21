@@ -13,6 +13,11 @@ public protocol LbAPI {
     func logoutAndExit()
     func exportAccountPrivateKey() -> Result<String, LbError>
     func exportAccountPhrase() -> Result<String, LbError>
+    func createSubAccount(label: String) -> Result<String, LbError>
+    func listSubAccounts() -> Result<[SubAccount], LbError>
+    func deleteSubAccount(username: String) -> Result<Void, LbError>
+    func exportSubAccountPrivateKey(username: String) -> Result<String, LbError>
+    func exportSubAccountPhrase(username: String) -> Result<String, LbError>
     func createFile(name: String, parent: UUID, fileType: FileType) -> Result<File, LbError>
     func createLink(name: String, parent: UUID, target: UUID) -> Result<File, LbError>
     func nextName(parent: UUID, desired: String) -> Result<String, LbError>
@@ -152,6 +157,61 @@ public class Lb: LbAPI {
 
     public func exportAccountPhrase() -> Result<String, LbError> {
         let res = lb_export_account_phrase(lb)
+        defer { lb_free_export_account(res) }
+
+        guard res.err == nil else {
+            return .failure(LbError(res.err.pointee))
+        }
+
+        return .success(String(cString: res.account_string))
+    }
+
+    public func createSubAccount(label: String) -> Result<String, LbError> {
+        let res = lb_create_sub_account(lb, label)
+        defer { lb_free_create_sub_account_res(res) }
+
+        guard res.err == nil else {
+            return .failure(LbError(res.err.pointee))
+        }
+
+        return .success(String(cString: res.username))
+    }
+
+    public func listSubAccounts() -> Result<[SubAccount], LbError> {
+        let res = lb_list_sub_accounts(lb)
+        defer { lb_free_sub_accounts_res(res) }
+
+        guard res.err == nil else {
+            return .failure(LbError(res.err.pointee))
+        }
+
+        return .success(UnsafeBufferPointer(start: res.sub_accounts, count: Int(res.len)).map { SubAccount($0) })
+    }
+
+    public func deleteSubAccount(username: String) -> Result<Void, LbError> {
+        let err = lb_delete_sub_account(lb, username)
+
+        if let err {
+            defer { lb_free_err(err) }
+            return .failure(LbError(err.pointee))
+        }
+
+        return .success(())
+    }
+
+    public func exportSubAccountPrivateKey(username: String) -> Result<String, LbError> {
+        let res = lb_export_sub_account_private_key(lb, username)
+        defer { lb_free_export_account(res) }
+
+        guard res.err == nil else {
+            return .failure(LbError(res.err.pointee))
+        }
+
+        return .success(String(cString: res.account_string))
+    }
+
+    public func exportSubAccountPhrase(username: String) -> Result<String, LbError> {
+        let res = lb_export_sub_account_phrase(lb, username)
         defer { lb_free_export_account(res) }
 
         guard res.err == nil else {
@@ -647,6 +707,16 @@ public class MockLb: LbAPI {
     public func logoutAndExit() {}
     public func exportAccountPrivateKey() -> Result<String, LbError> { .success(accountPK) }
     public func exportAccountPhrase() -> Result<String, LbError> { .success(accountPhrase) }
+    public func createSubAccount(label: String) -> Result<String, LbError> { .success("smail+\(label.lowercased())") }
+    public func listSubAccounts() -> Result<[SubAccount], LbError> {
+        .success([
+            SubAccount(username: "smail+bot", usage: UsageItem(exact: 2048, human: "2 KB")),
+            SubAccount(username: "smail+site", usage: UsageItem(exact: 100, human: "100 B")),
+        ])
+    }
+    public func deleteSubAccount(username: String) -> Result<Void, LbError> { .success(()) }
+    public func exportSubAccountPrivateKey(username: String) -> Result<String, LbError> { .success(accountPK) }
+    public func exportSubAccountPhrase(username: String) -> Result<String, LbError> { .success(accountPhrase) }
     public func createFile(name: String, parent: UUID, fileType: FileType) -> Result<File, LbError> { .success(file1) }
     public func createLink(name: String, parent: UUID, target: UUID) -> Result<File, LbError> { .success(File(id: UUID(), parent: UUID(), name: "about-link.md", type: .link(file2.id), lastModifiedBy: "smail", lastModified: 1735857215, owner: "smail", shares: [])) }
     public func nextName(parent: UUID, desired: String) -> Result<String, LbError> { .success(desired) }
