@@ -68,6 +68,8 @@ class MainScreenActivity : AppCompatActivity() {
     }
 
     companion object {
+        const val STORAGE_OPEN_FILE = "storage_open_file"
+        const val STORAGE_LOCATE_FOLDER = "storage_locate_folder"
         private const val SIDEBAR_SEARCH_FRAGMENT_TAG = "SidebarSearch"
         private const val FILES_FRAGMENT_TAG = "Files"
         private const val RECENT_FILES_FRAGMENT_TAG = "RecentFiles"
@@ -404,6 +406,21 @@ class MainScreenActivity : AppCompatActivity() {
             parseOpenLink(intent, coldStart = false)?.let {
                 openLinkedFile(it, intent.dataString?.let(OpenLinkParser::heading))
             }
+        }
+        intent.getStringExtra(STORAGE_OPEN_FILE)?.let { openLinkedFile(it, null) }
+        intent.getStringExtra(STORAGE_LOCATE_FOLDER)?.let(::locateFolder)
+    }
+
+    private fun locateFolder(fileId: String) {
+        lifecycleScope.launch {
+            val folder = FileMetadataStore.awaitLoaded().idsAndFiles[fileId]
+            if (folder == null) {
+                alertModel.notify(getString(R.string.open_link_not_found))
+                return@launch
+            }
+            fileTreeViewModel.enterFolder(folder)
+            mainScreenModel.navigate(MainNavigationAction.SelectSidebar(SidebarRoot.Files))
+            mainScreenModel.navigate(MainNavigationAction.ShowSidebar)
         }
     }
 

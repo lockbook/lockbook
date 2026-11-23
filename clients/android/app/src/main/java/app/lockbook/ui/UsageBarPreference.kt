@@ -22,7 +22,7 @@ class UsageBarPreference(
     context: Context,
     attributeSet: AttributeSet?,
 ) : Preference(context, attributeSet) {
-    lateinit var usageBar: LinearProgressIndicator
+    lateinit var usageBar: StorageBarView
     lateinit var premiumUsageBar: LinearProgressIndicator
     lateinit var premiumInfoForFree: LinearLayout
     lateinit var upgradeAccount: Button
@@ -57,17 +57,9 @@ class UsageBarPreference(
         val dataCapExact = usage.dataCap?.exact ?: 1
         val serverUsageExact = usage.local?.exact ?: 1
         val serverUsage = usage.local?.readable ?: ""
-        val dataCap = usage.dataCap?.readable ?: ""
+        val over = usage.dataCap != null && serverUsageExact > dataCapExact
 
-        val roundedDataCap = dataCapExact / ROUND_DECIMAL_PLACES
-        val roundedProgress = serverUsageExact / ROUND_DECIMAL_PLACES
-
-        usageBar.max = roundedDataCap.toInt()
-        usageBar.progress = roundedProgress.toInt() * 100
-
-        val usageRatio = roundedProgress.toFloat() / roundedDataCap
-        val usageBarColor = getUsageBarColor(usageRatio)
-        usageBar.setIndicatorColor(usageBarColor)
+        usageBar.usage = usage
 
         // necessary to reset it for rendering successful billings
         premiumInfoForFree.visibility =
@@ -92,15 +84,14 @@ class UsageBarPreference(
         }
 
         usageInfo.text =
-            spannable {
-                context.resources
-                    .getString(R.string.settings_usage_current)
-                    .bold() + " " + serverUsage + "\n" +
-                    context.resources
-                        .getString(
-                            R.string.settings_usage_data_cap,
-                        ).bold() + " " + dataCap + "\n"
-            }
+            usage.dataCap?.let { context.getString(R.string.storage_used_of_cap, serverUsage, it.readable) } ?: serverUsage
+        if (over) {
+            usageInfo.setTextColor(StorageInks(context).over)
+        } else {
+            usageInfo.setTextColor(
+                MaterialColors.getColor(context, com.google.android.material.R.attr.colorOnSurfaceVariant, 0),
+            )
+        }
     }
 
     private fun getUsageBarColor(usageRatio: Float): Int {

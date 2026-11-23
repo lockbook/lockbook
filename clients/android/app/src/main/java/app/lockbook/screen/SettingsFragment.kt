@@ -198,6 +198,10 @@ class SettingsFragment : PreferenceFragmentCompat() {
                 startActivity(Intent(context, DebugInfoActivity::class.java))
             }
 
+            getString(R.string.usage_bar_key) -> {
+                startActivity(Intent(context, StorageActivity::class.java))
+            }
+
             getString(R.string.background_sync_enabled_key) -> {
                 findPreference<Preference>(getString(R.string.background_sync_period_key))?.isEnabled =
                     (preference as SwitchPreference).isChecked
