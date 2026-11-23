@@ -9,6 +9,7 @@ use egui::{
 use lb_rs::Uuid;
 use lb_rs::model::file_metadata::FileType;
 use lb_rs::model::filename::NameComponents;
+use lb_rs::service::account::MARKDOWN_WELCOME;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
@@ -390,14 +391,14 @@ impl Workspace {
     pub(crate) fn create_sample_note(&mut self) {
         let parent = self.files.read().unwrap().root.id;
         let children = self.core.get_children(&parent).unwrap_or_default();
-        let name = NameComponents::from("sample-note.md").free_number_in(&children);
+        let name = NameComponents::from("welcome.md").free_number_in(&children);
 
         let created = self
             .core
             .create_file(&name, &parent, FileType::Document)
             .and_then(|file| {
                 self.core
-                    .write_document(file.id, SAMPLE_NOTE_CONTENT.as_bytes())?;
+                    .write_document(file.id, MARKDOWN_WELCOME.as_bytes())?;
                 Ok(file)
             });
 
@@ -996,37 +997,6 @@ struct DesktopDoor {
 }
 
 const EMPTY_COL_W: f32 = 468.0;
-
-const SAMPLE_NOTE_CONTENT: &str = "\
-# Sample note
-
-Everything in Lockbook is end-to-end encrypted on your device and synced everywhere you sign in.
-
-## Things to try
-
-- [x] Create your Lockbook account
-- [ ] Click a checkbox or drag a list item to reorder
-- [ ] Format text with **bold**, *italic*, `code`, or ==highlight==
-
-> [!TIP]
-> Type Markdown directly — headings, lists, links, and code blocks render inline as you write.
-
-### Code and tables
-
-```rust
-fn main() {
-    println!(\"Private by default.\");
-}
-```
-
-| Syntax | Result |
-| --- | --- |
-| `# Heading` | Section heading |
-| `- [ ] Task` | Interactive checklist |
-| `> [!NOTE]` | Callout block |
-
-Edit, rename, or delete this note whenever you like.
-";
 
 #[derive(Clone, Copy)]
 enum EmptyAction {
