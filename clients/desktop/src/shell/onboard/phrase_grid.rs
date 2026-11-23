@@ -554,6 +554,53 @@ pub fn show_import_grid(
     out
 }
 
+/// Read-only 3×8 phrase display grid (used in `Modal::BackupKey`).
+/// When `revealed` is false, all 24 cells render `•••••`.
+pub fn show_display_grid(ui: &mut Ui, t: &Theme, words: &[&str], revealed: bool) -> Rect {
+    let total_w = ui_width(ui).max(1.0);
+    let cell_w = ((total_w - CELL_GAP * (GRID_COLS as f32 - 1.0)) / GRID_COLS as f32).max(56.0);
+    let total_h = GRID_ROWS as f32 * CELL_H + (GRID_ROWS as f32 - 1.0) * CELL_GAP;
+    let (grid_rect, _) = ui.allocate_exact_size(vec2(total_w, total_h), Sense::hover());
+
+    for row in 0..GRID_ROWS {
+        for col in 0..GRID_COLS {
+            let idx = row * GRID_COLS + col;
+            let x = grid_rect.left() + col as f32 * (cell_w + CELL_GAP);
+            let y = grid_rect.top() + row as f32 * (CELL_H + CELL_GAP);
+            let cell = Rect::from_min_size(pos2(x, y), vec2(cell_w, CELL_H));
+
+            ui.painter().rect(
+                cell,
+                Radius::Control.corner(),
+                t.neutral_bg_secondary(),
+                Stroke::new(STROKE_HAIRLINE, t.neutral()),
+                StrokeKind::Inside,
+            );
+
+            let num_right = cell.left() + 26.0;
+            ui.painter().text(
+                pos2(num_right, cell.center().y),
+                Align2::RIGHT_CENTER,
+                format!("{}", idx + 1),
+                TypeRole::Mono.font_id(),
+                t.neutral_fg_secondary(),
+            );
+
+            let word = if revealed { words.get(idx).copied().unwrap_or("") } else { MASK_DOTS };
+            let ink = if revealed { t.neutral_fg() } else { t.neutral_fg_secondary() };
+            ui.painter().text(
+                pos2(num_right + 8.0, cell.center().y),
+                Align2::LEFT_CENTER,
+                word,
+                TypeRole::Mono.font_id(),
+                ink,
+            );
+        }
+    }
+
+    grid_rect
+}
+
 /// Join the 24 phrase slots into a normalized lowercase space-separated string.
 pub fn words_joined(words: &[String; WORD_COUNT]) -> String {
     words

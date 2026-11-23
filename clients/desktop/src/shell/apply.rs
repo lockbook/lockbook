@@ -22,8 +22,8 @@ use workspace_rs::tab::{ContentState, Destination, Place, TabSaveContent};
 
 use super::ShellApp;
 use super::action::{
-    Action as A, CreateKind, CreateLoc, Modal, OnboardLookup, OnboardStep, SettingsCat,
-    ShareLookup, UpgradeStage,
+    Action as A, BackupKeyState, CreateKind, CreateLoc, Modal, OnboardLookup, OnboardStep,
+    SettingsCat, ShareLookup, UpgradeStage,
 };
 use super::ops::{is_pinned, note_files_changed, refresh_pinned};
 use super::prefs::AccountPanel;
@@ -198,7 +198,12 @@ pub fn apply(app: &mut ShellApp, ctx: &Context, action: A) {
         A::OpenSettings => {
             app.modal = Some(Modal::Settings { cat: SettingsCat::Account });
         }
-        A::CloseModal => app.modal = None,
+        A::CloseModal => {
+            if matches!(app.modal, Some(Modal::BackupKey(_))) {
+                clear_backup_key_secrets(app, ctx);
+            }
+            app.modal = None;
+        }
         A::SetSettingsCat(cat) => {
             if let Some(Modal::Settings { cat: c }) = &mut app.modal {
                 *c = cat;
@@ -548,6 +553,67 @@ pub fn apply(app: &mut ShellApp, ctx: &Context, action: A) {
         A::OnboardSubmit { show_error } => onboard_submit(app, ctx, show_error),
         A::OnboardFinishLook => onboard_finish_look(app, ctx),
         A::OnboardRetryImportSync => onboard_retry_import_sync(app, ctx),
+        A::OpenBackupKey => {
+            app.modal = Some(Modal::BackupKey(BackupKeyState::default()));
+        }
+        A::BackupKeySetTab(tab) => {
+            if let Some(Modal::BackupKey(s)) = &mut app.modal {
+                s.tab = tab;
+            }
+        }
+        A::BackupKeyRevealQr => {
+            if let Some(Modal::BackupKey(s)) = &mut app.modal {
+                s.qr_revealed = true;
+                s.qr_ever_revealed = true;
+            }
+            spawn_account_qr(app, ctx);
+        }
+        A::BackupKeyHideQr => {
+            if let Some(Modal::BackupKey(s)) = &mut app.modal {
+                s.qr_revealed = false;
+            }
+        }
+        A::BackupKeyCopyCompactKey => {
+            if let Some(r) = app.session.ready() {
+                if let Ok(key) = r.workspace.core.export_account_private_key() {
+                    ctx.copy_text(key);
+                    if let Some(Modal::BackupKey(s)) = &mut app.modal {
+                        s.compact_key_copied = true;
+                    }
+                }
+            }
+        }
+        A::BackupKeyRevealPhrase => {
+            if let Some(Modal::BackupKey(s)) = &mut app.modal {
+                s.phrase_revealed = true;
+                s.phrase_ever_revealed = true;
+            }
+        }
+        A::BackupKeyHidePhrase => {
+            if let Some(Modal::BackupKey(s)) = &mut app.modal {
+                s.phrase_revealed = false;
+            }
+        }
+        A::BackupKeyCopyPhrase => {
+            if let Some(r) = app.session.ready() {
+                if let Ok(p) = r.workspace.core.export_account_phrase() {
+                    ctx.copy_text(p);
+                    if let Some(Modal::BackupKey(s)) = &mut app.modal {
+                        s.phrase_copied = true;
+                    }
+                }
+            }
+        }
+        A::BackupKeyComplete => {
+            let can_complete = matches!(&app.modal, Some(Modal::BackupKey(s)) if s.can_complete());
+            if can_complete {
+                if let Some(nudges) = &mut app.nudges {
+                    nudges.complete();
+                }
+                clear_backup_key_secrets(app, ctx);
+                app.modal = None;
+            }
+        }
         A::RequestSync => request_sync(app, ctx),
         A::TogglePin(id) => toggle_pins(app, &[id]),
         A::TogglePinMany(ids) => toggle_pins(app, &ids),
@@ -680,7 +746,6 @@ pub fn apply(app: &mut ShellApp, ctx: &Context, action: A) {
         A::CancelSubscription => {
             ensure_settings_account(app);
             app.account_panel = AccountPanel::CancelSub;
-            app.phrase_cache = None;
         }
         A::SetThemeMode(pref) => {
             app.settings.theme_mode = pref;
@@ -788,37 +853,29 @@ pub fn apply(app: &mut ShellApp, ctx: &Context, action: A) {
                 apply(app, ctx, then);
             }
         }
-        A::NudgeDismiss => {
-            if let Some(n) = &mut app.nudges {
-                n.dismiss();
-            }
-        }
         A::RevealPhrase => {
             ensure_settings_account(app);
             app.account_panel = AccountPanel::Phrase;
-            if let Some(r) = app.session.ready() {
-                if let Ok(p) = r.workspace.core.export_account_phrase() {
-                    app.phrase_cache = Some(p);
-                }
-            }
         }
         A::OpenAccountQr => {
             ensure_settings_account(app);
             app.account_panel = AccountPanel::Qr;
-            app.phrase_cache = None;
             spawn_account_qr(app, ctx);
         }
         A::HideAccountKey => {
             app.close_account_panel();
-            app.phrase_cache = None;
         }
         A::CopyPhrase => {
-            if let Some(p) = &app.phrase_cache {
-                ctx.copy_text(p.clone());
-            } else if let Some(r) = app.session.ready() {
+            if let Some(r) = app.session.ready() {
                 if let Ok(p) = r.workspace.core.export_account_phrase() {
-                    ctx.copy_text(p.clone());
-                    app.phrase_cache = Some(p);
+                    ctx.copy_text(p);
+                }
+            }
+        }
+        A::CopyCompactKey => {
+            if let Some(r) = app.session.ready() {
+                if let Ok(key) = r.workspace.core.export_account_private_key() {
+                    ctx.copy_text(key);
                 }
             }
         }
@@ -853,7 +910,6 @@ pub fn apply(app: &mut ShellApp, ctx: &Context, action: A) {
                 error: None,
                 done: None,
             };
-            app.phrase_cache = None;
             ctx.data_mut(|d| d.insert_temp(egui::Id::unique("shell_upgrade_need_focus"), true));
         }
         A::UpgradeBack => {
@@ -893,7 +949,6 @@ pub fn apply(app: &mut ShellApp, ctx: &Context, action: A) {
         A::OpenLogout => {
             ensure_settings_account(app);
             app.account_panel = AccountPanel::Logout { acked: false };
-            app.phrase_cache = None;
         }
         A::LogoutAck(on) => {
             if let AccountPanel::Logout { acked } = &mut app.account_panel {
@@ -910,7 +965,6 @@ pub fn apply(app: &mut ShellApp, ctx: &Context, action: A) {
         A::OpenDeleteAccount => {
             ensure_settings_account(app);
             app.account_panel = AccountPanel::DeleteAccount { typed: String::new() };
-            app.phrase_cache = None;
             ctx.data_mut(|d| {
                 d.insert_temp(egui::Id::unique("shell_delete_account_need_focus"), true)
             });
@@ -1869,4 +1923,11 @@ fn apply_fonts(app: &mut ShellApp, ctx: &Context) {
     workspace_rs::font::choose(settings.text_font.as_deref(), settings.code_font.as_deref());
     ctx.request_repaint();
     let _ = settings.to_file();
+}
+
+fn clear_backup_key_secrets(app: &mut ShellApp, ctx: &Context) {
+    if let Ok(mut g) = app.account_qr.lock() {
+        *g = super::AccountQrCache::Idle;
+    }
+    super::settings_account::clear_account_qr_texture(ctx);
 }

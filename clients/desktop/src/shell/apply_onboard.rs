@@ -287,7 +287,7 @@ pub(crate) fn poll_onboard_worker(app: &mut ShellApp, ctx: &Context) {
                 app.shared_cache = Default::default();
                 let ready = session::Ready::new(core, files, ctx, sub_info);
                 let mut nudges = Nudges::load(&ready);
-                nudges.created(&ready);
+                nudges.created();
                 app.nudges = Some(nudges);
                 app.session = Session::Ready(Box::new(ready));
             }

@@ -114,7 +114,11 @@ fn page_account_phrase(app: &ShellApp, ui: &mut Ui, t: &Theme, queue: &mut Vec<A
     );
     ui.add(Spacer::new(Space::Md));
 
-    let phrase = app.phrase_cache.as_deref().unwrap_or("Preparing phrase…");
+    let phrase = app
+        .session
+        .ready()
+        .and_then(|r| r.workspace.core.export_account_phrase().ok());
+    let phrase = phrase.as_deref().unwrap_or("Preparing phrase…");
     // Elevated plate + pad — natural height, no tight form_group squeeze.
     crate::components::plate_content_shadow(
         ui,
@@ -558,16 +562,28 @@ fn page_account_qr(app: &ShellApp, ui: &mut Ui, t: &Theme, queue: &mut Vec<Actio
     }
 
     ui.add(Spacer::new(Space::Md));
-    let foot = sheet_footer(ui, t, "", SheetFooterOpts::default().divider(false).back_only());
+    let foot = sheet_footer(
+        ui,
+        t,
+        "Copy compact key",
+        SheetFooterOpts::default()
+            .divider(false)
+            .cancel_label("Back")
+            .copy_feedback("shell_copy_compact_key"),
+    );
     if foot.cancel {
         queue.push(A::HideAccountKey);
     }
+    if foot.primary {
+        queue.push(A::CopyCompactKey);
+    }
 }
 
-/// Decode PNG → texture for the in-Settings QR panel.
-fn paint_account_qr_image(ui: &mut Ui, png: &[u8], side: f32) {
-    #[derive(Clone)]
-    struct QrTex(egui::TextureHandle);
+#[derive(Clone)]
+struct QrTex(egui::TextureHandle);
+
+/// Decode PNG → texture for the in-Settings QR panel and backup key sheet.
+pub(crate) fn paint_account_qr_image(ui: &mut Ui, png: &[u8], side: f32) {
     let tex_key = Id::unique("shell_account_qr_texture");
     let len_key = Id::unique("shell_account_qr_texture_len");
     let cached_len = ui.ctx().data(|d| d.get_temp::<usize>(len_key));
@@ -598,6 +614,14 @@ fn paint_account_qr_image(ui: &mut Ui, png: &[u8], side: f32) {
         }
     };
     ui.add(egui::Image::from_texture((tex.id(), egui::vec2(side, side))));
+}
+
+/// Drop the cached QR texture from egui memory when key sheets close.
+pub(crate) fn clear_account_qr_texture(ctx: &egui::Context) {
+    ctx.data_mut(|d| {
+        d.remove::<QrTex>(Id::unique("shell_account_qr_texture"));
+        d.remove::<usize>(Id::unique("shell_account_qr_texture_len"));
+    });
 }
 
 fn decode_png_color_image(png: &[u8]) -> Result<egui::ColorImage, String> {

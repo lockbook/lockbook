@@ -19,6 +19,7 @@ pub mod session;
 pub mod settings;
 mod settings_account;
 mod settings_storage;
+mod sheet_backup_key;
 mod sheet_create;
 mod sheet_folder;
 mod sheet_links;
@@ -89,7 +90,6 @@ pub struct ShellApp {
     pub account_panel: AccountPanel,
     /// Settings → Debug: expand JSON dump (session only).
     pub debug_info_revealed: bool,
-    pub phrase_cache: Option<String>,
     /// Shared with the debug-info worker thread.
     pub debug_info: Arc<Mutex<DebugInfoCache>>,
     /// Shared with the account-QR worker (mobile sign-in).
@@ -173,7 +173,6 @@ impl Default for ShellApp {
             settings,
             account_panel: AccountPanel::Closed,
             debug_info_revealed: false,
-            phrase_cache: None,
             debug_info: Arc::new(Mutex::new(DebugInfoCache::Idle)),
             account_qr: Arc::new(Mutex::new(AccountQrCache::Idle)),
             queue: Vec::new(),
@@ -843,6 +842,20 @@ impl ShellApp {
         }
 
         if let Some(modal) = &self.modal {
+            // Backup key sheet: Tab and Shift+Tab toggle between QR code and 24 words.
+            if let Modal::BackupKey(s) = modal {
+                if !egui::Popup::is_any_open(ctx)
+                    && (ctx.input_mut(|i| i.consume_key(egui::Modifiers::NONE, egui::Key::Tab))
+                        || ctx.input_mut(|i| i.consume_key(egui::Modifiers::SHIFT, egui::Key::Tab)))
+                {
+                    let next = match s.tab {
+                        action::BackupKeyTab::Qr => action::BackupKeyTab::Phrase,
+                        action::BackupKeyTab::Phrase => action::BackupKeyTab::Qr,
+                    };
+                    self.queue.push(A::BackupKeySetTab(next));
+                }
+            }
+
             // Share: ⏎ stages the field token; ⌘⏎ / Ctrl+⏎ commits Share.
             // Other sheets: either modifier form commits the primary action.
             if matches!(modal, Modal::Share { .. }) {
@@ -910,6 +923,11 @@ impl ShellApp {
                             _ => {}
                         },
                         Modal::ImportParent { .. } => self.queue.push(A::ConfirmImportParent),
+                        Modal::BackupKey(s) => {
+                            if s.can_complete() {
+                                self.queue.push(A::BackupKeyComplete);
+                            }
+                        }
                         Modal::Share { .. } => unreachable!(),
                         _ => {}
                     }

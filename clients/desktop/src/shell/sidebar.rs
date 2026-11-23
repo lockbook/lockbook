@@ -139,12 +139,16 @@ pub fn show(app: &mut ShellApp, ui: &mut Ui, t: &Theme, queue: &mut Vec<Action>)
     // The import card sits above the nudge card, both above the sync footer.
     let import = app.import_job.as_ref().map(|j| j.view());
     let nudge = app.nudges.as_ref().is_some_and(|n| n.showing());
+    let has_files = app.session.ready().is_some_and(|r| {
+        let files = r.workspace.files.read().unwrap();
+        !workspace_rs::file_cache::FilesExt::children(&*files, files.root.id).is_empty()
+    });
     let card_w = (ui_width(ui) - 2.0 * Space::Sm.pts()).max(0.0);
     let import_h = import
         .clone()
         .map_or(0.0, |view| Space::Sm.pts() + ImportCard { view, t, queue }.measure(ui, card_w));
     let nudge_h = match nudge {
-        true => Space::Sm.pts() + NudgeCard { t, queue }.measure(ui, card_w),
+        true => Space::Sm.pts() + NudgeCard { t, has_files, queue }.measure(ui, card_w),
         false => 0.0,
     };
     egui::Panel::bottom("shell_sidebar_foot")
@@ -165,7 +169,7 @@ pub fn show(app: &mut ShellApp, ui: &mut Ui, t: &Theme, queue: &mut Vec<Action>)
             }
             if nudge {
                 ui.add(Spacer::new(Space::Sm));
-                with_h_pad(ui, Space::Sm, &mut NudgeCard { t, queue });
+                with_h_pad(ui, Space::Sm, &mut NudgeCard { t, has_files, queue });
             }
             show_sync_footer(app, ui, t, queue);
         });

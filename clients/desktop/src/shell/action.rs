@@ -180,6 +180,8 @@ pub enum Modal {
             Option<std::sync::mpsc::Receiver<Result<workspace_rs::import::ImportPlan, String>>>,
     },
     Help,
+    /// Unified secret-key backup sheet (QR code | 24 words).
+    BackupKey(BackupKeyState),
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Default)]
@@ -191,6 +193,33 @@ pub enum OnboardStep {
     ImportSyncing,
     /// Create-only experiment (`OnboardLook::Show`): accent + font preview.
     Look,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
+pub enum BackupKeyTab {
+    #[default]
+    Qr,
+    Phrase,
+}
+
+#[derive(Clone, Copy, Debug, Default)]
+pub struct BackupKeyState {
+    pub tab: BackupKeyTab,
+    pub qr_revealed: bool,
+    pub qr_ever_revealed: bool,
+    pub compact_key_copied: bool,
+    pub phrase_revealed: bool,
+    pub phrase_ever_revealed: bool,
+    pub phrase_copied: bool,
+}
+
+impl BackupKeyState {
+    pub fn can_complete(&self) -> bool {
+        match self.tab {
+            BackupKeyTab::Qr => self.qr_ever_revealed || self.compact_key_copied,
+            BackupKeyTab::Phrase => self.phrase_ever_revealed || self.phrase_copied,
+        }
+    }
 }
 
 /// Stripe upgrade sheet stages.
@@ -372,6 +401,17 @@ pub enum Action {
     OnboardFinishLook,
     /// Retry initial sync after Sign in authenticated the account.
     OnboardRetryImportSync,
+    /// Open unified `Back up your secret key` sheet.
+    OpenBackupKey,
+    BackupKeySetTab(BackupKeyTab),
+    BackupKeyRevealQr,
+    BackupKeyHideQr,
+    BackupKeyCopyCompactKey,
+    BackupKeyRevealPhrase,
+    BackupKeyHidePhrase,
+    BackupKeyCopyPhrase,
+    /// Backup confirmed (QR/compact key revealed or copied, or 24 words revealed/copied); retires nudge.
+    BackupKeyComplete,
     RequestSync,
     TogglePin(Uuid),
     /// Toggle pin on each id (own state).
@@ -442,10 +482,8 @@ pub enum Action {
 
     /// Linux only — persisted; takes effect after restart.
     SetPrefAllowWayland(bool),
-    /// The nudge card's button: it's done, and the sign-in QR code shows.
+    /// The checklist card's action: open the secret-key backup sheet.
     NudgeAccept,
-    /// The nudge card's X: it doesn't come back.
-    NudgeDismiss,
     /// Settings → Account: show 24-word phrase in-content.
     RevealPhrase,
     /// Settings → Account: show account key QR in-content.
@@ -453,6 +491,7 @@ pub enum Action {
     /// Close in-content Account panel (phrase / QR / manage) — Esc / Back.
     HideAccountKey,
     CopyPhrase,
+    CopyCompactKey,
     RevealDebugInfo,
     HideDebugInfo,
     /// Kick off background `Lb::debug_info` if idle (Debug settings tab).
@@ -544,6 +583,15 @@ impl Action {
             Self::OnboardSubmit { .. } => "OnboardSubmit",
             Self::OnboardFinishLook => "OnboardFinishLook",
             Self::OnboardRetryImportSync => "OnboardRetryImportSync",
+            Self::OpenBackupKey => "OpenBackupKey",
+            Self::BackupKeySetTab(_) => "BackupKeySetTab",
+            Self::BackupKeyRevealQr => "BackupKeyRevealQr",
+            Self::BackupKeyHideQr => "BackupKeyHideQr",
+            Self::BackupKeyCopyCompactKey => "BackupKeyCopyCompactKey",
+            Self::BackupKeyRevealPhrase => "BackupKeyRevealPhrase",
+            Self::BackupKeyHidePhrase => "BackupKeyHidePhrase",
+            Self::BackupKeyCopyPhrase => "BackupKeyCopyPhrase",
+            Self::BackupKeyComplete => "BackupKeyComplete",
             Self::RequestSync => "RequestSync",
             Self::TogglePin(_) => "TogglePin",
             Self::TogglePinMany(_) => "TogglePinMany",
@@ -583,11 +631,11 @@ impl Action {
             Self::SetPrefSidebarUsage(_) => "SetPrefSidebarUsage",
             Self::SetPrefAllowWayland(_) => "SetPrefAllowWayland",
             Self::NudgeAccept => "NudgeAccept",
-            Self::NudgeDismiss => "NudgeDismiss",
             Self::RevealPhrase => "RevealPhrase",
             Self::OpenAccountQr => "OpenAccountQr",
             Self::HideAccountKey => "HideAccountKey",
             Self::CopyPhrase => "CopyPhrase",
+            Self::CopyCompactKey => "CopyCompactKey",
             Self::RevealDebugInfo => "RevealDebugInfo",
             Self::HideDebugInfo => "HideDebugInfo",
             Self::EnsureDebugInfo => "EnsureDebugInfo",
