@@ -205,7 +205,7 @@ impl<'ast> MdRender {
             View::Rendered => self.text_format_document(),
             View::Source => self.text_format_syntax(),
         };
-        let format = Format { color: self.ctx.get_lb_theme().neutral(), ..typed };
+        let format = Format { italic: true, color: self.ctx.get_lb_theme().neutral(), ..typed };
         let start = (Grapheme(0), Grapheme(0));
         let row_height = self.layout.row_height;
         let layout =
