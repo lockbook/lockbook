@@ -1,6 +1,5 @@
 use std::backtrace::Backtrace;
 use std::fmt::{Debug, Write};
-use std::time::SystemTime;
 use std::{env, panic};
 
 use serde::Serialize;
@@ -19,8 +18,9 @@ use tracing_subscriber::layer::Context;
 use tracing_subscriber::prelude::*;
 use tracing_subscriber::{Layer, filter, fmt};
 
-use pagerduty_rs::eventsv2async::EventsV2;
-use pagerduty_rs::types::{AlertTrigger, AlertTriggerPayload, Event as PagerEvent, Severity};
+use serde_json::json;
+use time::OffsetDateTime;
+use time::format_description::well_known::Rfc3339;
 
 use crate::CARGO_PKG_VERSION;
 use crate::config::Config;
@@ -97,38 +97,49 @@ impl PDLogger {
     }
 }
 
+const PAGERDUTY_EVENTS: &str = "https://events.pagerduty.com/v2/enqueue";
+
+fn now() -> String {
+    OffsetDateTime::now_utc().format(&Rfc3339).unwrap()
+}
+
+async fn post_pagerduty(url: &str, body: serde_json::Value) {
+    let result = reqwest::Client::new()
+        .post(url)
+        .header(reqwest::header::CONTENT_ENCODING, "identity")
+        .header(reqwest::header::USER_AGENT, "lockbook-server")
+        .json(&body)
+        .send()
+        .await;
+    match result {
+        Ok(response) if response.status() == reqwest::StatusCode::ACCEPTED => {}
+        Ok(response) => {
+            eprintln!("Failed reporting event to PagerDuty! status {}", response.status())
+        }
+        Err(err) => eprintln!("Failed reporting event to PagerDuty! {err}"),
+    }
+}
+
 fn send_to_pagerduty(handle: &Handle, env: String, api_key: &str, alert: AlertDetails) {
-    let events = EventsV2::new(String::from(api_key), Some("lockbook-server".to_string())).unwrap();
     let message = alert.message.clone();
-    let event = PagerEvent::AlertTrigger(AlertTrigger {
-        payload: AlertTriggerPayload {
-            severity: Severity::Error,
-            summary: message.clone(),
-            source: env,
-            timestamp: Some(SystemTime::now().into()),
-            component: None,
-            group: None,
-            class: None,
-            custom_details: Some(alert),
+    let body = json!({
+        "routing_key": api_key,
+        "event_action": "trigger",
+        "dedup_key": dedup_key(&message),
+        "payload": {
+            "summary": message,
+            "source": env,
+            "severity": "error",
+            "timestamp": now(),
+            "custom_details": alert,
         },
-        dedup_key: Some(dedup_key(&message)),
-        images: None,
-        links: None,
-        client: None,
-        client_url: None,
     });
 
     // https://github.com/neonphog/tokio_safe_block_on/blob/074d40929ccab649b0dcc83a4ebdbdcb70b317fb/src/lib.rs#L72-L86
     tokio::task::block_in_place(move || {
         futures::executor::block_on(async {
             handle
-                .spawn(async move {
-                    events
-                        .event(event)
-                        .await
-                        .err()
-                        .map(|err| eprintln!("Failed reporting event to PagerDuty! {err}"))
-                })
+                .spawn(post_pagerduty(PAGERDUTY_EVENTS, body))
                 .await
                 .err()
                 .map(|err| eprintln!("Failed spawning task in Tokio runtime! {err}"))
