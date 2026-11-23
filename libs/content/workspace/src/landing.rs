@@ -655,10 +655,10 @@ impl Workspace {
                 desc: "Start writing in Markdown",
             },
             DesktopDoor {
-                action: DesktopDoorAction::NewDrawing,
-                icon: phosphor::PENCIL,
-                title: "New drawing",
-                desc: "Draw on an infinite SVG canvas",
+                action: DesktopDoorAction::Import,
+                icon: phosphor::DOWNLOAD_SIMPLE,
+                title: "Import files or folders",
+                desc: "Add documents or anything else",
             },
             DesktopDoor {
                 action: DesktopDoorAction::Search,
@@ -960,7 +960,7 @@ impl Workspace {
         if let Some(act) = door_triggered {
             match act {
                 DesktopDoorAction::NewNote => self.create_doc(false),
-                DesktopDoorAction::NewDrawing => self.create_doc(true),
+                DesktopDoorAction::Import => self.out.open_import = true,
                 DesktopDoorAction::Search => {
                     self.upsert_search(Some(crate::search::SearchType::Path));
                 }
@@ -985,7 +985,7 @@ impl Workspace {
 #[derive(Clone, Copy)]
 enum DesktopDoorAction {
     NewNote,
-    NewDrawing,
+    Import,
     Search,
 }
 
