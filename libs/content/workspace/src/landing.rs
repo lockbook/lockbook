@@ -433,16 +433,16 @@ impl Workspace {
                 desc: "Start writing in Markdown",
             },
             EmptyDoor {
-                action: EmptyAction::NewDrawing,
-                icon: phosphor::PENCIL,
-                title: "New drawing",
-                desc: "Draw on an infinite SVG canvas",
-            },
-            EmptyDoor {
                 action: EmptyAction::Import,
                 icon: phosphor::DOWNLOAD_SIMPLE,
                 title: "Import files or folders",
                 desc: "Add documents or anything else",
+            },
+            EmptyDoor {
+                action: EmptyAction::SampleNote,
+                icon: phosphor::FILE_TEXT,
+                title: "Open a sample note",
+                desc: "A short guide to writing in Markdown",
             },
         ];
 
@@ -487,9 +487,7 @@ impl Workspace {
         let row_h = 64.0_f32;
         let row_gap = 10.0_f32;
         let rows_h = row_h * n as f32 + row_gap * n.saturating_sub(1) as f32;
-        let rows_to_link = 20.0_f32;
-        let link_h = 22.0_f32;
-        let cluster_h = title_h + head_to_rows + rows_h + rows_to_link + link_h;
+        let cluster_h = title_h + head_to_rows + rows_h;
 
         let left = max.center().x - col_w / 2.0;
         let top = (max.center().y - cluster_h / 2.0 - 8.0).max(max.top() + Space::Lg.pts());
@@ -594,37 +592,11 @@ impl Workspace {
             y += row_h + row_gap;
         }
 
-        // Sample note link
-        let link_text = "Open a sample note →";
-        let link_g = ui
-            .painter()
-            .layout_no_wrap(link_text.to_owned(), body_sm.clone(), accent);
-        let link_pos = pos2(left + 4.0, top + title_h + head_to_rows + rows_h + rows_to_link);
-        let link_rect = Rect::from_min_size(link_pos, vec2(link_g.size().x, link_h));
-        let link_resp =
-            ui.interact(link_rect, Id::unique("landing_empty_sample_note"), sense_click());
-        let link_top = link_rect.center().y - link_g.size().y / 2.0;
-        let link_w = link_g.size().x;
-        let link_bottom = link_top + link_g.size().y;
-        ui.painter()
-            .galley(pos2(link_pos.x, link_top), link_g, accent);
-        if link_resp.hovered() && ui.is_enabled() {
-            ui.painter().hline(
-                link_pos.x..=(link_pos.x + link_w),
-                link_bottom + 1.0,
-                Stroke::new(1.0, accent),
-            );
-        }
-        if link_resp.clicked() {
-            triggered = Some(EmptyAction::SampleNote);
-        }
-
         claim(ui, cluster);
 
         if let Some(act) = triggered {
             match act {
                 EmptyAction::NewNote => self.create_doc(false),
-                EmptyAction::NewDrawing => self.create_doc(true),
                 EmptyAction::Import => self.out.open_import = true,
                 EmptyAction::SampleNote => self.create_sample_note(),
             }
@@ -1001,7 +973,6 @@ const EMPTY_COL_W: f32 = 468.0;
 #[derive(Clone, Copy)]
 enum EmptyAction {
     NewNote,
-    NewDrawing,
     Import,
     SampleNote,
 }
