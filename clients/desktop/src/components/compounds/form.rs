@@ -305,10 +305,11 @@ pub fn form_toggle_detail(
     out.expect("form_row_detail always runs trailing")
 }
 
-/// Label + exclusive [`super::segmented`] in the trailing slot.
+/// Label + exclusive [`super::segmented`] in the trailing slot; the inner
+/// value is the segment under the pointer.
 pub fn form_segmented(
     ui: &mut Ui, t: &Theme, label: &str, options: &[&str], selected: &mut usize,
-) -> Response {
+) -> egui::InnerResponse<Option<usize>> {
     let mut out = None;
     form_row(ui, t, label, |ui| {
         out = Some(crate::components::atoms::segmented::segmented(ui, t, options, selected));

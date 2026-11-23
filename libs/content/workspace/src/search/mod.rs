@@ -355,7 +355,7 @@ impl Search {
             Rect::from_min_size(pos2(x, row.top()), vec2(seg_w, h)),
             Layout::left_to_right(Align::Center),
             |ui| {
-                if segmented(ui, t, &opts, &mut kind).changed() {
+                if segmented(ui, t, &opts, &mut kind).response.changed() {
                     self.search_type =
                         if kind == 0 { SearchType::Path } else { SearchType::Content };
                 }

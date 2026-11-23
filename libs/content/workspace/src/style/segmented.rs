@@ -3,7 +3,7 @@
 //! Quiet language: soft **recessed track** + sliding **canvas pill** under the
 //! active label. Metrics follow control height and space tokens.
 
-use egui::{Response, Stroke, Ui, pos2, vec2};
+use egui::{InnerResponse, Stroke, Ui, pos2, vec2};
 
 use crate::style::chrome::{HOVER_ANIM_SECS, Radius, STROKE_HAIRLINE, control_height};
 use crate::style::color::{FG_HOVER, Theme};
@@ -47,8 +47,11 @@ fn segmented_cell_widths(ui: &Ui, t: &Theme, options: &[&str]) -> Vec<f32> {
 }
 
 /// Exclusive segmented control. `options` should be 2–5 short labels.
-/// Marks the response `.changed()` when `selected` updates.
-pub fn segmented(ui: &mut Ui, t: &Theme, options: &[&str], selected: &mut usize) -> Response {
+/// Marks the response `.changed()` when `selected` updates. The inner value
+/// is the segment under the pointer.
+pub fn segmented(
+    ui: &mut Ui, t: &Theme, options: &[&str], selected: &mut usize,
+) -> InnerResponse<Option<usize>> {
     let n = options.len().max(1);
     *selected = (*selected).min(n - 1);
 
@@ -168,5 +171,5 @@ pub fn segmented(ui: &mut Ui, t: &Theme, options: &[&str], selected: &mut usize)
     if changed {
         resp.mark_changed();
     }
-    resp
+    InnerResponse::new(pointer_seg, resp)
 }

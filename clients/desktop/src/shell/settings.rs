@@ -20,8 +20,8 @@
 use crate::components::{
     Button, FixedPadContent, NavItem, Radius, STROKE_HAIRLINE, Space, Spacer, Theme, ThemeFamily,
     TypeRole, control_height, form_group, form_picker, form_row, form_segmented, form_toggle,
-    form_toggle_detail, form_value, icon_button, phosphor, section_label, sheet_dim, theme_family,
-    ui_width, with_h_pad, with_overlay_scroll,
+    form_toggle_detail, form_value, icon_button, phosphor, section_label, sheet_dim, ui_width,
+    with_h_pad, with_overlay_scroll,
 };
 use egui::{
     Align, Area, CornerRadius, Id, Label, Layout, Order, Pos2, Rect, ScrollArea, Sense, Stroke,
@@ -34,6 +34,7 @@ use workspace_rs::theme::palette_v2::Palette;
 use super::ShellApp;
 use super::action::Action as A;
 use super::action::{Action, Modal, SettingsCat};
+use crate::settings::Look;
 
 pub use crate::components::domain::settings_plate::{
     plate_origin_for_screen, plate_size_for_screen,
@@ -91,11 +92,39 @@ fn header_band_h() -> f32 {
     Space::Sm.pts() * 2.0 + header_row_h()
 }
 
-/// A theme preview lives only while the theme picker is on screen.
-pub fn end_hidden_theme_preview(app: &ShellApp, ctx: &egui::Context, queue: &mut Vec<Action>) {
-    let app_page = matches!(app.modal, Some(Modal::Settings { cat: SettingsCat::App }));
-    if !app_page && theme_family(ctx) != app.settings.theme_family {
-        queue.push(A::PreviewThemeFamily(None));
+/// A preview lives only while the page with its option is on screen; run
+/// after the pass's actions, so closing settings ends it in that pass.
+pub fn end_hidden_preview(app: &mut ShellApp, ctx: &egui::Context) {
+    let Some(look) = &app.preview else { return };
+    let page = match look {
+        Look::Mode(_) | Look::Family(_) | Look::Accent(_) => SettingsCat::App,
+        Look::TextFont(_) | Look::CodeFont(_) | Look::ColumnWidth(_) => SettingsCat::Editor,
+    };
+    if !matches!(app.modal, Some(Modal::Settings { cat }) if cat == page) {
+        app.preview = None;
+        app.show_appearance(ctx);
+    }
+}
+
+/// Notes where a control sat this pass, for headless tests to point at it.
+fn note_control(_ctx: &egui::Context, _label: &str, _resp: &egui::Response) {
+    #[cfg(test)]
+    _ctx.data_mut(|d| {
+        d.get_temp_mut_or_default::<std::collections::HashMap<String, (Rect, Id)>>(controls_id())
+            .insert(_label.to_owned(), (_resp.rect, _resp.id));
+    });
+}
+
+#[cfg(test)]
+fn controls_id() -> Id {
+    Id::unique("shell_settings_controls")
+}
+
+/// Queues the preview of the option hovered on this page, `None` where none
+/// is, unless it's already showing.
+fn preview_hovered(app: &ShellApp, hovered: Option<Look>, queue: &mut Vec<Action>) {
+    if hovered != app.preview {
+        queue.push(A::Preview(hovered));
     }
 }
 
@@ -331,23 +360,25 @@ pub fn show(app: &mut ShellApp, ctx: &egui::Context, t: &Theme, queue: &mut Vec<
     ctx.data_mut(|d| d.insert_temp(layout_readout_id(), readout));
 }
 
-/// Theme and window prefs.
+/// Theme, tab and window prefs. Hovering an appearance option previews it.
 fn page_app(app: &mut ShellApp, ui: &mut Ui, t: &Theme, queue: &mut Vec<Action>) {
+    use crate::components::ModePreference;
+    // what the pointer rests on, where it isn't the saved choice
+    let mut hovered = None;
     section_label(ui, t, "Appearance");
     form_group(ui, t, |ui| {
-        let mut mode = match app.settings.theme_mode {
-            crate::components::ModePreference::System => 0,
-            crate::components::ModePreference::Light => 1,
-            crate::components::ModePreference::Dark => 2,
-        };
-        if form_segmented(ui, t, "Mode", &["System", "Light", "Dark"], &mut mode).changed() {
-            let pref = match mode {
-                1 => crate::components::ModePreference::Light,
-                2 => crate::components::ModePreference::Dark,
-                _ => crate::components::ModePreference::System,
-            };
-            queue.push(A::SetThemeMode(pref));
+        const MODES: [ModePreference; 3] =
+            [ModePreference::System, ModePreference::Light, ModePreference::Dark];
+        let saved = app.settings.theme_mode;
+        let mut mode = MODES.iter().position(|&m| m == saved).unwrap_or(0);
+        let picked = form_segmented(ui, t, "Mode", &["System", "Light", "Dark"], &mut mode);
+        note_control(ui.ctx(), "Mode", &picked.response);
+        if picked.response.changed() {
+            queue.push(A::SetThemeMode(MODES[mode]));
+        } else if let Some(m) = picked.inner.map(|i| MODES[i]).filter(|&m| m != saved) {
+            hovered = Some(Look::Mode(m));
         }
+
         let names: Vec<&str> = ThemeFamily::ALL.iter().map(|f| f.label()).collect();
         let saved = app.settings.theme_family;
         let mut fam = ThemeFamily::ALL
@@ -355,14 +386,17 @@ fn page_app(app: &mut ShellApp, ui: &mut Ui, t: &Theme, queue: &mut Vec<Action>)
             .position(|&f| f == saved)
             .unwrap_or(0);
         let picked = form_picker(ui, t, "Theme", &names, &mut fam);
+        note_control(ui.ctx(), "Theme", &picked.response);
         if picked.response.changed() {
             queue.push(A::SetThemeFamily(ThemeFamily::ALL[fam]));
-        } else {
-            let want = picked.inner.map_or(saved, |i| ThemeFamily::ALL[i]);
-            if want != theme_family(ui.ctx()) {
-                queue.push(A::PreviewThemeFamily((want != saved).then_some(want)));
-            }
+        } else if let Some(f) = picked
+            .inner
+            .map(|i| ThemeFamily::ALL[i])
+            .filter(|&f| f != saved)
+        {
+            hovered = Some(Look::Family(f));
         }
+
         const HUES: [Palette; 6] = [
             Palette::Red,
             Palette::Yellow,
@@ -372,21 +406,24 @@ fn page_app(app: &mut ShellApp, ui: &mut Ui, t: &Theme, queue: &mut Vec<Action>)
             Palette::Magenta,
         ];
         let colors = HUES.map(|p| t.fg().get_color(p));
-        let mut hue = HUES.iter().position(|&p| p == t.accent_hue);
+        let saved = app
+            .settings
+            .theme_accent
+            .unwrap_or_else(|| app.settings.theme_family.build(t.current).accent_hue);
+        let mut hue = HUES.iter().position(|&p| p == saved);
         form_row(ui, t, "Accent", |ui| {
-            if swatches(ui, t, &colors, &mut hue).changed() {
+            let picked = swatches(ui, t, &colors, &mut hue);
+            note_control(ui.ctx(), "Accent", &picked.response);
+            if picked.response.changed() {
                 if let Some(i) = hue {
                     queue.push(A::SetThemeAccent(HUES[i]));
                 }
+            } else if let Some(p) = picked.inner.map(|i| HUES[i]).filter(|&p| p != saved) {
+                hovered = Some(Look::Accent(p));
             }
         });
-        if let Some(family) = text_font_picker(ui, t, &app.settings.text_font) {
-            queue.push(A::SetTextFont(family));
-        }
-        if let Some(family) = code_font_picker(ui, t, &app.settings.code_font) {
-            queue.push(A::SetCodeFont(family));
-        }
     });
+    preview_hovered(app, hovered, queue);
 
     ui.add(Spacer::new(Space::Lg));
     section_label(ui, t, "Tabs");
@@ -464,9 +501,17 @@ fn font_list(
     }))
 }
 
+/// What a font menu did this pass: the family picked, and the one
+/// highlighted where it isn't the chosen one; `None` within is the platform's.
+#[derive(Default)]
+struct FontPick {
+    picked: Option<Option<String>>,
+    hovered: Option<Option<String>>,
+}
+
 /// The font slots by the fonts that fill them, then on request every
-/// installed family; returns the new choice, where `None` is the platform's.
-fn text_font_picker(ui: &mut Ui, t: &Theme, chosen: &Option<String>) -> Option<Option<String>> {
+/// installed family.
+fn text_font_picker(ui: &mut Ui, t: &Theme, chosen: &Option<String>) -> FontPick {
     use workspace_rs::font::slot::Slot;
     let slots: Vec<&'static str> = Slot::shown().map(Slot::drawn_family).collect();
     let platform = workspace_rs::font::system::platform_sans().unwrap_or("Noto Sans");
@@ -474,20 +519,20 @@ fn text_font_picker(ui: &mut Ui, t: &Theme, chosen: &Option<String>) -> Option<O
 }
 
 /// The platform's monospace family, then on request every installed
-/// monospaced one; returns the new choice, where `None` is the platform's.
-fn code_font_picker(ui: &mut Ui, t: &Theme, chosen: &Option<String>) -> Option<Option<String>> {
+/// monospaced one.
+fn code_font_picker(ui: &mut Ui, t: &Theme, chosen: &Option<String>) -> FontPick {
     let platform = workspace_rs::font::system::platform_mono().unwrap_or("Noto Sans Mono");
     font_picker(ui, t, "Code font", true, &[platform], platform, chosen)
 }
 
 /// A font menu: the `top` families under a rule, the current choice where
 /// it isn't one of them, and a row that swaps in every installed family
-/// (monospaced only for `mono`). Each row names a family in its own font.
-/// Returns the new choice, where `None` is `platform`.
+/// (monospaced only for `mono`). Each row names a family in its own font;
+/// `None` within the result is `platform`.
 fn font_picker(
     ui: &mut Ui, t: &Theme, label: &str, mono: bool, top: &[&'static str], platform: &'static str,
     chosen: &Option<String>,
-) -> Option<Option<String>> {
+) -> FontPick {
     use crate::components::atoms::picker::OptionFont;
     use workspace_rs::font::system;
     const ALL: &str = "All fonts…";
@@ -526,21 +571,29 @@ fn font_picker(
         .iter()
         .position(|(_, _, pick)| *pick == Some(current))
         .unwrap_or(0);
-    let mut out = None;
+    let choice = |family: &str| (family != platform).then(|| family.to_owned());
+    let mut out = FontPick::default();
     form_row(ui, t, label, |ui| {
-        let resp =
-            crate::components::atoms::picker::picker_fonts(ui, t, &names, &fonts, divider, &mut at)
-                .response;
+        let menu =
+            crate::components::atoms::picker::picker_fonts(ui, t, &names, &fonts, divider, &mut at);
+        let resp = menu.response;
+        note_control(ui.ctx(), label, &resp);
         let popup = egui::Popup::default_response_id(&resp);
         let pick = rows[at].2;
         if resp.changed() && pick.is_none() {
             ui.ctx().data_mut(|d| d.insert_temp(all_key, true));
             egui::Popup::open_id(ui.ctx(), popup);
         } else if resp.changed() {
-            let family = pick.unwrap_or(platform);
-            out = Some((family != platform).then(|| family.to_owned()));
-        } else if all && !egui::Popup::is_id_open(ui.ctx(), popup) {
-            ui.ctx().data_mut(|d| d.remove_temp::<bool>(all_key));
+            out.picked = Some(choice(pick.unwrap_or(platform)));
+        } else {
+            if all && !egui::Popup::is_id_open(ui.ctx(), popup) {
+                ui.ctx().data_mut(|d| d.remove_temp::<bool>(all_key));
+            }
+            out.hovered = menu
+                .inner
+                .and_then(|i| rows.get(i)?.2)
+                .filter(|&family| family != current)
+                .map(choice);
         }
     });
     out
@@ -558,8 +611,10 @@ fn chosen_font(family: &str) -> crate::components::atoms::picker::OptionFont {
     }
 }
 
-/// Note-adjacent prefs — workspace.cfg only.
+/// Note-adjacent prefs. Hovering a font or a text width previews it.
 fn page_editor(app: &mut ShellApp, ui: &mut Ui, t: &Theme, queue: &mut Vec<Action>) {
+    // what the pointer rests on, where it isn't the saved choice
+    let mut hovered = None;
     section_label(ui, t, "Links");
     form_group(ui, t, |ui| {
         let mut previews = app
@@ -597,16 +652,37 @@ fn page_editor(app: &mut ShellApp, ui: &mut Ui, t: &Theme, queue: &mut Vec<Actio
         {
             queue.push(A::SetPrefSpellCheck(spell_check));
         }
-        let width = app
+        let saved = app
             .session
             .ready()
             .map(|r| r.workspace.cfg.get_column_width())
             .unwrap_or(COLUMN_WIDTHS[1]);
-        let mut pick = COLUMN_WIDTHS.iter().position(|w| *w == width).unwrap_or(0);
-        if form_segmented(ui, t, "Text width", &["Narrow", "Medium", "Wide"], &mut pick).changed() {
+        let mut pick = COLUMN_WIDTHS.iter().position(|w| *w == saved).unwrap_or(0);
+        let picked = form_segmented(ui, t, "Text width", &["Narrow", "Medium", "Wide"], &mut pick);
+        note_control(ui.ctx(), "Text width", &picked.response);
+        if picked.response.changed() {
             queue.push(A::SetPrefColumnWidth(COLUMN_WIDTHS[pick]));
+        } else if let Some(w) = picked
+            .inner
+            .map(|i| COLUMN_WIDTHS[i])
+            .filter(|&w| w != saved)
+        {
+            hovered = Some(Look::ColumnWidth(w));
         }
+        let text = text_font_picker(ui, t, &app.settings.text_font);
+        if let Some(family) = text.picked {
+            queue.push(A::SetTextFont(family));
+        }
+        let code = code_font_picker(ui, t, &app.settings.code_font);
+        if let Some(family) = code.picked {
+            queue.push(A::SetCodeFont(family));
+        }
+        hovered = hovered
+            .take()
+            .or(text.hovered.map(Look::TextFont))
+            .or(code.hovered.map(Look::CodeFont));
     });
+    preview_hovered(app, hovered, queue);
 }
 
 /// The text column's widest points: Narrow, Medium, Wide.
@@ -938,5 +1014,167 @@ mod tests {
                 "partition broken at h={h}"
             );
         }
+    }
+
+    /// A settings sheet driven by pointer events, each pass applying its
+    /// actions as the shell does.
+    struct Sheet {
+        app: ShellApp,
+        ctx: Context,
+    }
+
+    impl Sheet {
+        fn open(cat: SettingsCat) -> Self {
+            let mut app = ShellApp { modal: Some(Modal::Settings { cat }), ..Default::default() };
+            app.settings = crate::settings::Settings::default();
+            let ctx = Context::default();
+            workspace_rs::register_font_system(&ctx);
+            let mut sheet = Self { app, ctx };
+            sheet.pass(vec![]);
+            sheet.pass(vec![]);
+            sheet
+        }
+
+        fn pass(&mut self, events: Vec<egui::Event>) {
+            let input = RawInput {
+                screen_rect: Some(Rect::from_min_size(Pos2::ZERO, Vec2::new(1300.0, 1000.0))),
+                events,
+                ..Default::default()
+            };
+            let app = &mut self.app;
+            self.ctx
+                .run_pass(input, |ctx| {
+                    install(ctx);
+                    if app.preview.is_none() {
+                        app.show_appearance(ctx);
+                    }
+                    let t = ctx.get_lb_theme();
+                    let mut queue = Vec::new();
+                    show(app, ctx, &t, &mut queue);
+                    for a in queue {
+                        crate::shell::apply::apply(app, ctx, a);
+                    }
+                    end_hidden_preview(app, ctx);
+                })
+                .textures_delta
+                .clear();
+        }
+
+        fn point(&mut self, at: Pos2) {
+            self.pass(vec![egui::Event::PointerMoved(at)]);
+        }
+
+        fn click(&mut self, at: Pos2) {
+            let button = |pressed| egui::Event::PointerButton {
+                pos: at,
+                button: egui::PointerButton::Primary,
+                pressed,
+                modifiers: Default::default(),
+            };
+            self.point(at);
+            self.pass(vec![button(true)]);
+            self.pass(vec![button(false)]);
+        }
+
+        fn control(&self, label: &str) -> (Rect, Id) {
+            self.ctx.data_mut(|d| {
+                d.get_temp_mut_or_default::<std::collections::HashMap<String, (Rect, Id)>>(
+                    controls_id(),
+                )[label]
+            })
+        }
+
+        /// The middle of option `i` of `n` in an evenly divided control.
+        fn segment(&self, label: &str, i: usize, n: usize) -> Pos2 {
+            let (rect, _) = self.control(label);
+            let w = rect.width() / n as f32;
+            egui::pos2(rect.left() + w * (i as f32 + 0.5), rect.center().y)
+        }
+
+        /// The middle of row `i` of the menu `label` opens.
+        fn menu_row(&mut self, label: &str, i: usize) -> Pos2 {
+            let (trigger, id) = self.control(label);
+            self.click(trigger.center());
+            // a menu's rows take the pointer from its second pass on
+            self.pass(vec![]);
+            let popup = egui::Popup::default_response_id(&self.ctx.read_response(id).unwrap());
+            let menu = self.ctx.memory(|m| m.area_rect(popup)).expect("menu open");
+            let row = crate::components::control_height();
+            egui::pos2(menu.center().x, menu.top() + Space::Xxs.pts() + row * (i as f32 + 0.5))
+        }
+
+        fn assert_saved_unchanged(&self) {
+            assert_eq!(self.app.settings, crate::settings::Settings::default());
+        }
+    }
+
+    /// Resting on an option shows the app with it at the end of that pass,
+    /// saving nothing; moving off shows the saved look again.
+    #[test]
+    fn hovering_an_app_option_previews_it() {
+        use crate::components::ModePreference;
+        use crate::components::foundation::style::{mode_preference, theme_family};
+        use crate::settings::Look;
+        let mut sheet = Sheet::open(SettingsCat::App);
+        let saved_family = sheet.app.settings.theme_family;
+        let away = Pos2::new(2.0, 2.0);
+
+        let dark = sheet.segment("Mode", 2, 3);
+        sheet.point(dark);
+        assert_eq!(mode_preference(&sheet.ctx), ModePreference::Dark);
+        sheet.point(away);
+        assert_eq!(mode_preference(&sheet.ctx), ModePreference::System);
+
+        let (accent, _) = sheet.control("Accent");
+        sheet.point(Pos2::new(accent.left() + Space::Md.pts() / 2.0, accent.center().y));
+        assert_eq!(sheet.app.preview, Some(Look::Accent(Palette::Red)));
+        assert_eq!(sheet.ctx.get_lb_theme().accent_hue, Palette::Red);
+        sheet.point(away);
+        assert_eq!(sheet.app.preview, None);
+
+        let other = ThemeFamily::ALL
+            .iter()
+            .position(|&f| f != saved_family)
+            .unwrap();
+        let row = sheet.menu_row("Theme", other);
+        sheet.point(row);
+        assert_eq!(theme_family(&sheet.ctx), ThemeFamily::ALL[other]);
+        sheet.assert_saved_unchanged();
+
+        // closing settings ends the preview in the pass that closes it
+        sheet.app.modal = None;
+        sheet.pass(vec![]);
+        assert_eq!(theme_family(&sheet.ctx), saved_family);
+        assert_eq!(sheet.app.preview, None);
+        sheet.assert_saved_unchanged();
+    }
+
+    /// The editor page previews text widths and fonts; picking one saves it
+    /// and ends the preview.
+    #[test]
+    fn hovering_an_editor_option_previews_it() {
+        use crate::settings::Look;
+        use workspace_rs::font;
+        let mut sheet = Sheet::open(SettingsCat::Editor);
+
+        let wide = sheet.segment("Text width", 2, 3);
+        sheet.point(wide);
+        assert_eq!(sheet.app.preview, Some(Look::ColumnWidth(COLUMN_WIDTHS[2])));
+        sheet.point(Pos2::new(2.0, 2.0));
+        assert_eq!(sheet.app.preview, None);
+
+        // the code menu lists the platform's family then "All fonts…"; with
+        // another family saved, the platform's row previews `None`
+        sheet.app.settings.code_font = Some("Saved Mono".into());
+        sheet.app.show_appearance(&sheet.ctx);
+        let row = sheet.menu_row("Code font", 0);
+        sheet.point(row);
+        assert_eq!(sheet.app.preview, Some(Look::CodeFont(None)));
+        assert_eq!(font::asked()[1], None);
+        assert_eq!(sheet.app.settings.code_font.as_deref(), Some("Saved Mono"));
+
+        sheet.click(row);
+        assert_eq!(sheet.app.settings.code_font, None);
+        assert_eq!(sheet.app.preview, None);
     }
 }
