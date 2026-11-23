@@ -4,7 +4,7 @@
 use egui::text::{LayoutJob, TextWrapping};
 use egui::{
     Align, Align2, Color32, CornerRadius, FontFamily, FontId, Galley, Id, Key, Layout, Modifiers,
-    Pos2, Rect, Sense, Stroke, StrokeKind, Ui, Vec2, pos2, vec2,
+    Pos2, Rect, Sense, Stroke, Ui, Vec2, pos2, vec2,
 };
 use lb_rs::Uuid;
 use lb_rs::model::file_metadata::FileType;
@@ -529,15 +529,7 @@ impl Workspace {
                     (false, false) => 0.05,
                 };
                 let fill = t.neutral_bg().lerp_to_gamma(accent, fill_t);
-                let stroke_col =
-                    accent.lerp_to_gamma(t.neutral_bg(), if is_dark { 0.22 } else { 0.12 });
-                ui.painter().rect(
-                    rect,
-                    corner,
-                    fill,
-                    Stroke::new(1.25, stroke_col),
-                    StrokeKind::Inside,
-                );
+                ui.painter().rect_filled(rect, corner, fill);
             }
 
             // 34x34 icon badge
@@ -753,7 +745,7 @@ impl Workspace {
         let meta_font = FontId::new(11.5, FontFamily::Proportional);
         let pointer_moved = ctx.input(|i| i.pointer.delta().length_sq() > 0.0);
 
-        let paint_selection_frame = |ui: &Ui, rect: Rect, corner: CornerRadius, down: bool| {
+        let paint_selection = |ui: &Ui, rect: Rect, corner: CornerRadius, down: bool| {
             let fill_t = match (is_dark, down) {
                 (true, true) => 0.14,
                 (true, false) => 0.08,
@@ -761,15 +753,7 @@ impl Workspace {
                 (false, false) => 0.05,
             };
             let fill = t.neutral_bg().lerp_to_gamma(accent, fill_t);
-            let stroke_col =
-                accent.lerp_to_gamma(t.neutral_bg(), if is_dark { 0.22 } else { 0.12 });
-            ui.painter().rect(
-                rect,
-                corner,
-                fill,
-                Stroke::new(1.25, stroke_col),
-                StrokeKind::Inside,
-            );
+            ui.painter().rect_filled(rect, corner, fill);
         };
 
         let mut y = top;
@@ -788,12 +772,7 @@ impl Workspace {
             let selected = self.landing_page.selected_door == idx;
 
             if selected {
-                paint_selection_frame(
-                    ui,
-                    rect,
-                    CornerRadius::same(10),
-                    resp.is_pointer_button_down_on(),
-                );
+                paint_selection(ui, rect, CornerRadius::same(10), resp.is_pointer_button_down_on());
             }
 
             // 32x32 icon badge
@@ -882,7 +861,7 @@ impl Workspace {
                 let pinned = pinned_ids.contains(&r.id);
 
                 if selected {
-                    paint_selection_frame(
+                    paint_selection(
                         ui,
                         rect,
                         CornerRadius::same(8),
