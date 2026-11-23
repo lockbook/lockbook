@@ -5,6 +5,7 @@
 
 mod create;
 mod import;
+mod look;
 pub(crate) mod phrase_grid;
 mod welcome;
 
@@ -12,6 +13,8 @@ use egui::{
     Align, Id, Layout, Rect, TextStyle, TextWrapMode, TextureHandle, Ui, UiBuilder, WidgetText,
     pos2, vec2,
 };
+use workspace_rs::font::slot::Slot;
+use workspace_rs::theme::palette_v2::Palette;
 
 use crate::components::{Space, Theme};
 use crate::shell::ShellApp;
@@ -46,8 +49,15 @@ pub struct OnboardState {
     pub sync_status: String,
     pub busy: bool,
     pub err: Option<String>,
+    /// Active hover preview on `Choose a look` (never persisted to disk).
+    pub preview_accent: Option<Palette>,
+    /// Active font hover preview on `Choose a look` (`Some(choice)` where `choice`
+    /// is `Option<String>` matching `settings.text_font`).
+    pub preview_font: Option<Option<String>>,
     /// Hash of the last compact secret submitted via import (shared between grid paste & compact auto-submit).
     pub last_auto_submit_hash: Option<u64>,
+    /// Keyboard-focused row on `Choose a look`: `0` = Accent, `1` = Font.
+    pub look_focus_row: usize,
 }
 
 impl OnboardState {
@@ -68,7 +78,10 @@ impl OnboardState {
             sync_status: String::new(),
             busy: false,
             err: None,
+            preview_accent: None,
+            preview_font: None,
             last_auto_submit_hash: None,
+            look_focus_row: 0,
         }
     }
 }
@@ -85,17 +98,23 @@ pub fn show(app: &mut ShellApp, ui: &mut Ui, t: &Theme, queue: &mut Vec<A>) {
     else {
         return;
     };
+    // Warm font-slot discovery on entry to onboarding so every font pill on
+    // `Choose a look` is already loaded on Frame 1 with zero pop-in.
+    for slot in Slot::ALL {
+        let _ = slot.family();
+    }
     if step == OnboardStep::Create {
         crate::shell::apply::onboard_poll_uname(app, ui.ctx());
     }
     // Give each onboarding view its own egui ID namespace so widget fill/hover
-    // animations (e.g. a Primary button on Create vs a Quiet Back button on Import)
+    // animations (e.g. a Primary button on Create vs a Quiet Back button on Look)
     // never collide and cross-fade across step transitions.
     ui.push_id(("onboard_step", step, import_compact), |ui| match step {
         OnboardStep::Welcome => welcome::show(app, ui, t, queue),
         OnboardStep::Create => create::show(app, ui, t, queue),
         OnboardStep::Import => import::show_import(app, ui, t, queue),
         OnboardStep::ImportSyncing => import::show_syncing(app, ui, t, queue),
+        OnboardStep::Look => look::show(app, ui, t, queue),
     });
 }
 
@@ -209,3 +228,44 @@ pub(super) fn paint_logo(ui: &mut Ui, side: f32) {
     }
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::components::{ThemeExt, install};
+    use crate::shell::action::{Action, OnboardStep};
+    use crate::shell::apply::apply;
+    use egui::Context;
+
+    #[test]
+    fn look_hover_previews_do_not_persist_and_restore_cleanly() {
+        let ctx = Context::default();
+        install(&ctx);
+        let mut st = OnboardState::new();
+        st.step = OnboardStep::Look;
+        let mut app = ShellApp { onboard: Some(st), ..Default::default() };
+        app.show_saved_theme(&ctx);
+
+        let saved_settings_accent = app.settings.theme_accent;
+        let saved_accent = ctx.get_lb_theme().accent_hue;
+        let hover_accent =
+            if saved_accent == Palette::Magenta { Palette::Green } else { Palette::Magenta };
+
+        // Preview changes live theme without mutating settings.
+        apply(&mut app, &ctx, Action::PreviewThemeAccent(Some(hover_accent)));
+        assert_eq!(ctx.get_lb_theme().accent_hue, hover_accent);
+        assert_eq!(app.settings.theme_accent, saved_settings_accent);
+        assert_eq!(app.onboard.as_ref().unwrap().preview_accent, Some(hover_accent));
+
+        // Leaving hover restores saved accent.
+        apply(&mut app, &ctx, Action::PreviewThemeAccent(None));
+        assert_eq!(ctx.get_lb_theme().accent_hue, saved_accent);
+        assert_eq!(app.onboard.as_ref().unwrap().preview_accent, None);
+
+        // Leaving Look step while a preview is active restores saved accent.
+        apply(&mut app, &ctx, Action::PreviewThemeAccent(Some(hover_accent)));
+        assert_eq!(ctx.get_lb_theme().accent_hue, hover_accent);
+        apply(&mut app, &ctx, Action::OnboardSetStep(OnboardStep::Create));
+        assert_eq!(ctx.get_lb_theme().accent_hue, saved_accent);
+        assert_eq!(app.onboard.as_ref().unwrap().preview_accent, None);
+    }
+}

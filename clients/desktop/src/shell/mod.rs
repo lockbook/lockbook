@@ -114,8 +114,10 @@ pub struct ShellApp {
     pub(crate) native_dialog_rx: Option<mpsc::Receiver<apply::NativeDialogResult>>,
     /// In-flight PDF export, once its destination is picked.
     pub(crate) pdf_export_rx: Option<mpsc::Receiver<Result<(), String>>>,
-    /// Full-window onboarding state while signed out (Welcome / Create / Import).
+    /// Full-window onboarding state while signed out (Welcome / Create / Import / Look).
     pub onboard: Option<onboard::OnboardState>,
+    /// Cached Markdown preview renderer for the `Choose a look` experiment step.
+    pub(crate) onboard_look_label: Option<workspace_rs::tab::markdown_editor::MdLabel>,
     /// Background worker for onboard create / import / initial sync.
     pub(crate) onboard_worker_rx: Option<mpsc::Receiver<apply_onboard::OnboardWorkerMsg>>,
     /// The file a link from outside the app names, until it opens.
@@ -193,6 +195,7 @@ impl Default for ShellApp {
             native_dialog_rx: None,
             pdf_export_rx: None,
             onboard: None,
+            onboard_look_label: None,
             onboard_worker_rx: None,
             incoming_link: None,
             nudges: None,
@@ -644,6 +647,9 @@ impl ShellApp {
                         action::OnboardStep::Create | action::OnboardStep::Import => {
                             Some(A::OnboardSetStep(action::OnboardStep::Welcome))
                         }
+                        action::OnboardStep::Look => {
+                            Some(A::OnboardSetStep(action::OnboardStep::Create))
+                        }
                         action::OnboardStep::ImportSyncing => None,
                     }
                 };
@@ -748,6 +754,9 @@ impl ShellApp {
                                     apply_onboard::onboard_import_focus(ctx, false);
                                 }
                             }
+                        }
+                        action::OnboardStep::Look => {
+                            self.queue.push(A::OnboardFinishLook);
                         }
                         action::OnboardStep::ImportSyncing => {
                             if self.onboard.as_ref().is_some_and(|s| s.err.is_some()) {

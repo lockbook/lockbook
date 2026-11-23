@@ -189,6 +189,8 @@ pub enum OnboardStep {
     Create,
     Import,
     ImportSyncing,
+    /// Create-only experiment (`OnboardLook::Show`): accent + font preview.
+    Look,
 }
 
 /// Stripe upgrade sheet stages.
@@ -366,6 +368,8 @@ pub enum Action {
     OnboardSubmit {
         show_error: bool,
     },
+    /// Finish `Choose a look` (Create-only experiment) and create the account.
+    OnboardFinishLook,
     /// Retry initial sync after Sign in authenticated the account.
     OnboardRetryImportSync,
     RequestSync,
@@ -419,8 +423,12 @@ pub enum Action {
     /// Shows a family without saving it; `None` shows the saved theme again.
     PreviewThemeFamily(Option<crate::components::ThemeFamily>),
     SetThemeAccent(workspace_rs::theme::palette_v2::Palette),
+    /// Shows an accent hue without saving it; `None` restores the saved theme.
+    PreviewThemeAccent(Option<workspace_rs::theme::palette_v2::Palette>),
     /// An installed family for notes' text; `None` is the platform's.
     SetTextFont(Option<String>),
+    /// Shows a text font without saving it; `None` restores the saved choice.
+    PreviewTextFont(Option<Option<String>>),
     /// An installed family for notes' code; `None` is the platform's.
     SetCodeFont(Option<String>),
     SetPrefLinkPreviews(bool),
@@ -534,6 +542,7 @@ impl Action {
             Self::OnboardToggleCompact(_) => "OnboardToggleCompact",
             Self::OnboardVerifyUname => "OnboardVerifyUname",
             Self::OnboardSubmit { .. } => "OnboardSubmit",
+            Self::OnboardFinishLook => "OnboardFinishLook",
             Self::OnboardRetryImportSync => "OnboardRetryImportSync",
             Self::RequestSync => "RequestSync",
             Self::TogglePin(_) => "TogglePin",
@@ -562,7 +571,9 @@ impl Action {
             Self::SetThemeFamily(_) => "SetThemeFamily",
             Self::PreviewThemeFamily(_) => "PreviewThemeFamily",
             Self::SetThemeAccent(_) => "SetThemeAccent",
+            Self::PreviewThemeAccent(_) => "PreviewThemeAccent",
             Self::SetTextFont(_) => "SetTextFont",
+            Self::PreviewTextFont(_) => "PreviewTextFont",
             Self::SetCodeFont(_) => "SetCodeFont",
             Self::SetPrefLinkPreviews(_) => "SetPrefLinkPreviews",
             Self::SetPrefSpellCheck(_) => "SetPrefSpellCheck",

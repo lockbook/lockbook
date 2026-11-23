@@ -504,10 +504,17 @@ pub fn apply(app: &mut ShellApp, ctx: &Context, action: A) {
         }
         A::OpenHelp => app.modal = Some(Modal::Help),
         A::OnboardSetStep(step) => {
+            let leaving_look = app
+                .onboard
+                .as_ref()
+                .is_some_and(|s| s.step == OnboardStep::Look && step != OnboardStep::Look);
             if let Some(s) = &app.onboard {
                 if s.busy && step != OnboardStep::ImportSyncing {
                     return;
                 }
+            }
+            if leaving_look {
+                super::apply_onboard::clear_look_preview(app, ctx);
             }
             if let Some(s) = &mut app.onboard {
                 s.step = step;
@@ -526,7 +533,7 @@ pub fn apply(app: &mut ShellApp, ctx: &Context, action: A) {
                     OnboardStep::Import => {
                         onboard_import_focus(ctx, compact);
                     }
-                    OnboardStep::Welcome | OnboardStep::ImportSyncing => {}
+                    OnboardStep::Welcome | OnboardStep::ImportSyncing | OnboardStep::Look => {}
                 }
             }
         }
@@ -539,6 +546,7 @@ pub fn apply(app: &mut ShellApp, ctx: &Context, action: A) {
         }
         A::OnboardVerifyUname => onboard_verify_uname(app, ctx),
         A::OnboardSubmit { show_error } => onboard_submit(app, ctx, show_error),
+        A::OnboardFinishLook => onboard_finish_look(app, ctx),
         A::OnboardRetryImportSync => onboard_retry_import_sync(app, ctx),
         A::RequestSync => request_sync(app, ctx),
         A::TogglePin(id) => toggle_pins(app, &[id]),
@@ -693,13 +701,44 @@ pub fn apply(app: &mut ShellApp, ctx: &Context, action: A) {
             ctx.request_repaint();
         }
         A::SetThemeAccent(accent) => {
+            if let Some(s) = &mut app.onboard {
+                s.preview_accent = None;
+            }
             app.settings.theme_accent = Some(accent);
             set_theme_accent(ctx, accent);
             let _ = app.settings.to_file();
         }
+        A::PreviewThemeAccent(accent) => {
+            if let Some(s) = &mut app.onboard {
+                s.preview_accent = accent;
+            }
+            match accent {
+                Some(hue) => set_theme_accent(ctx, hue),
+                None => app.show_saved_theme(ctx),
+            }
+            ctx.request_repaint();
+        }
         A::SetTextFont(family) => {
+            if let Some(s) = &mut app.onboard {
+                s.preview_font = None;
+            }
             app.settings.text_font = family;
             apply_fonts(app, ctx);
+        }
+        A::PreviewTextFont(family) => {
+            if let Some(s) = &mut app.onboard {
+                s.preview_font = family.clone();
+            }
+            match family {
+                Some(choice) => {
+                    workspace_rs::font::choose(choice.as_deref(), app.settings.code_font.as_deref())
+                }
+                None => workspace_rs::font::choose(
+                    app.settings.text_font.as_deref(),
+                    app.settings.code_font.as_deref(),
+                ),
+            }
+            ctx.request_repaint();
         }
         A::SetCodeFont(family) => {
             app.settings.code_font = family;
