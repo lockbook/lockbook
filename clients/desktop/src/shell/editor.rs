@@ -23,6 +23,7 @@ pub fn show(app: &mut ShellApp, ui: &mut Ui, _t: &Theme, queue: &mut Vec<Action>
         };
 
         ready.workspace.desktop_tab_policy = true;
+        ready.workspace.empty_vault_welcome = true;
         ready.workspace.sidebar_open = sidebar_open;
         ready.workspace.trackpad_history_swipe = trackpad_history_swipe();
         // Workspace create-dest follows the open tab. Tree `cursor` is selection
@@ -49,6 +50,10 @@ pub fn show(app: &mut ShellApp, ui: &mut Ui, _t: &Theme, queue: &mut Vec<Action>
         if let Some(id) = out.selected_file {
             ready.select_only(id);
             super::reveal_and_scroll(ready, id);
+        }
+
+        if out.open_import {
+            queue.push(Action::Import);
         }
 
         out.failure_messages

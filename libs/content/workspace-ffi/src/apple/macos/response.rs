@@ -85,6 +85,7 @@ impl From<crate::Response> for MacOSResponse {
                     open_camera: _,
                     file_cache_updated: _,
                     open_search: _,
+                    open_import: _,
                 },
             redraw_in,
             copied_text,

@@ -116,6 +116,8 @@ pub struct Workspace {
     pub software_keyboard_in_use: bool,
     /// Activate-if-open / honor open-in-new-tab.
     pub desktop_tab_policy: bool,
+    /// Show the desktop empty-vault welcome landing (including Import) when root has 0 files.
+    pub empty_vault_welcome: bool,
     pub sidebar_open: bool,
     pub focused_parent: Option<Uuid>, // set to the folder where new files should be created
     pub trackpad_history_swipe: bool,
@@ -201,6 +203,7 @@ impl Workspace {
 
             software_keyboard_in_use: true,
             desktop_tab_policy: false,
+            empty_vault_welcome: false,
             sidebar_open: false,
             focused_parent: Default::default(),
             trackpad_history_swipe: false,
