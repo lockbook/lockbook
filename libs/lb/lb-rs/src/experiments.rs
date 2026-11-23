@@ -18,6 +18,9 @@ pub enum WelcomeDoc {
 }
 
 /// When a new account is asked to sign in on another device, if at all.
+/// Retired: whether and when the backup nudge appeared after signup (replaced
+/// on desktop by the immediate 3-step checklist). Kept so historical cohort
+/// lookups remain reproducible.
 /// Assigned with [`cohort_in`] under [`SignInNudge::EXPERIMENT`].
 #[derive(VariantArray, Clone, Copy, Debug, PartialEq, Eq)]
 pub enum SignInNudge {
@@ -33,6 +36,19 @@ pub enum SignInNudge {
 
 impl SignInNudge {
     pub const EXPERIMENT: &str = "nudges";
+}
+
+/// Whether newly created accounts see the "Choose a look" customization step
+/// before landing in their workspace.
+/// Assigned with [`cohort_in`] under [`OnboardLook::EXPERIMENT`].
+#[derive(VariantArray, Clone, Copy, Debug, PartialEq, Eq)]
+pub enum OnboardLook {
+    Show,
+    Skip,
+}
+
+impl OnboardLook {
+    pub const EXPERIMENT: &str = "onboard_look";
 }
 
 pub fn cohort<E: VariantArray + Copy>(username: &str) -> E {
@@ -72,6 +88,10 @@ mod tests {
         assert_eq!(
             arms(|u| cohort_in::<SignInNudge>(SignInNudge::EXPERIMENT, u) as usize),
             "22200022022220110220200002201212"
+        );
+        assert_eq!(
+            arms(|u| cohort_in::<OnboardLook>(OnboardLook::EXPERIMENT, u) as usize),
+            "10001101100111011111110111110110"
         );
     }
 }
