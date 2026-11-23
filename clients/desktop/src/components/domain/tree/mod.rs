@@ -513,6 +513,7 @@ pub(crate) enum FileCmd {
     Duplicate,
     Export,
     CopyLink,
+    GetInfo,
     ExpandAll,
     CollapseAll,
     /// Pending share → destination picker.
@@ -883,6 +884,7 @@ fn paint_row(
         e.separator();
         // Arrange — structure + pin (sidebar surface).
         if !multi_sel {
+            e.item(phosphor::INFO, "Get Info", FileCmd::GetInfo);
             e.item(phosphor::PENCIL, "Rename…", FileCmd::Rename);
         }
         if !row.is_folder {
@@ -951,6 +953,7 @@ fn paint_row(
             FileCmd::CopyLink => {
                 queue.push(Action::CopyLink(Place::new(Destination::File(row.id))))
             }
+            FileCmd::GetInfo => queue.push(Action::GetInfo(row.id)),
             FileCmd::ExpandAll => queue.push(Action::ExpandSubtree(row.id)),
             FileCmd::CollapseAll => queue.push(Action::CollapseSubtree(row.id)),
             FileCmd::OrganizeShare | FileCmd::DeclineShare => {}

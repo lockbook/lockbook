@@ -228,7 +228,10 @@ pub fn show(app: &mut ShellApp, ui: &mut Ui, t: &Theme, queue: &mut Vec<Action>)
 /// once a writer queues between the two.
 fn tab_label(files: &FileCache, dest: &Destination) -> String {
     match dest {
-        Destination::File(id) | Destination::MindMap(id) | Destination::SpaceInspector(id) => files
+        Destination::File(id)
+        | Destination::MindMap(id)
+        | Destination::SpaceInspector(id)
+        | Destination::Info(id) => files
             .get_by_id(*id)
             .map(|f| f.name.clone())
             .unwrap_or_else(|| "Unknown".into()),
@@ -275,6 +278,7 @@ enum TabMenu {
     CloseRight,
     CloseAll,
     RevealInFiles,
+    GetInfo,
     Rename,
     TogglePin,
     Move,
@@ -311,6 +315,7 @@ fn apply_tab_out(queue: &mut Vec<Action>, tab: &TabInfo, out: TabOut) {
             TabMenu::CloseAll => queue.push(A::CloseAllTabs),
             TabMenu::ReopenClosed => queue.push(A::ReopenClosedTab),
             TabMenu::RevealInFiles => queue.extend(tab.file_id.map(A::RevealInFiles)),
+            TabMenu::GetInfo => queue.extend(tab.file_id.map(A::GetInfo)),
             TabMenu::Rename => queue.extend(tab.file_id.map(A::OpenRename)),
             TabMenu::TogglePin => queue.extend(tab.file_id.map(A::TogglePin)),
             TabMenu::Move => queue.extend(tab.file_id.map(|id| A::OpenMove(vec![id]))),
@@ -491,8 +496,9 @@ fn tab_button(ui: &mut Ui, t: &Theme, tab: &TabInfo, tab_count: usize, can_reope
         if is_file {
             if tab.in_files {
                 m.item(phosphor::FOLDER, "Reveal in Files", TabMenu::RevealInFiles);
-                m.separator();
             }
+            m.item(phosphor::INFO, "Get Info", TabMenu::GetInfo);
+            m.separator();
             m.item(phosphor::PENCIL, "Rename…", TabMenu::Rename);
             if tab.in_files {
                 let pin = if tab.pinned { "Unpin" } else { "Pin" };

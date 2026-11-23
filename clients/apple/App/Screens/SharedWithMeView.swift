@@ -238,6 +238,11 @@ struct PendingShareRowView: View {
             }
         }
 
+        contextMenuItem("Get Info", systemImage: "info.circle") {
+            workspaceInput.openInfo(id: file.id)
+            homeState.compactColumn = .detail
+        }
+
         ShareLink(item: DraggedFile(file: file, filesModel: filesModel), preview: SharePreview(file.name)) {
             Label("Share Externally", systemImage: "square.and.arrow.up")
         }
