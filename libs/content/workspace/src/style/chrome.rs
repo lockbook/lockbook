@@ -668,6 +668,11 @@ pub fn shortcut_enter() -> Shortcut {
     Shortcut { parts: &[KbdPart::Icon(phosphor::KEY_RETURN)] }
 }
 
+/// Plain `S` — Welcome screen Sign in shortcut.
+pub fn shortcut_s() -> Shortcut {
+    Shortcut { parts: &[KbdPart::Mono("S")] }
+}
+
 /// Dismiss shortcut badge — small `esc` (only mono caption in this slot).
 pub fn shortcut_esc() -> Shortcut {
     Shortcut { parts: &[KbdPart::MonoSm("esc")] }

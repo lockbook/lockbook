@@ -10,6 +10,72 @@ use super::errors::{LbErrKind, LbResult};
 pub const MAX_USERNAME_LENGTH: usize = 32;
 pub const SUB_ACCOUNT_SEPARATOR: char = '+';
 
+/// True when `word` (trimmed, ASCII case-insensitive) is in the English BIP-39 word list.
+pub fn is_valid_phrase_word(word: &str) -> bool {
+    let w = word.trim();
+    if w.is_empty() {
+        return false;
+    }
+    if bip39_dict::ENGLISH.lookup_mnemonic(w).is_ok() {
+        return true;
+    }
+    let lower = w.to_ascii_lowercase();
+    lower != w && bip39_dict::ENGLISH.lookup_mnemonic(&lower).is_ok()
+}
+
+/// How a typed prefix matches the sorted English BIP-39 word list.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum PhrasePrefixMatch {
+    /// Empty input.
+    Empty,
+    /// No BIP-39 word starts with this prefix.
+    None,
+    /// Exactly one BIP-39 word starts with this prefix (`word == prefix` when complete).
+    Unique(&'static str),
+    /// Two or more BIP-39 words start with this prefix (`exact` is true when the
+    /// prefix itself is a valid word, e.g. `"art"` vs `"artist"`).
+    Multiple { exact: bool },
+}
+
+fn english_bip39_words() -> &'static [&'static str] {
+    static WORDS: std::sync::OnceLock<Vec<&'static str>> = std::sync::OnceLock::new();
+    WORDS
+        .get_or_init(|| {
+            (0..2048u16)
+                .map(|i| {
+                    bip39_dict::MnemonicIndex::new(i)
+                        .expect("0..2048 is valid")
+                        .to_word(&bip39_dict::ENGLISH)
+                })
+                .collect()
+        })
+        .as_slice()
+}
+
+/// Classify a typed prefix against the English BIP-39 word list.
+pub fn match_phrase_prefix(prefix: &str) -> PhrasePrefixMatch {
+    let lower = prefix.trim().to_ascii_lowercase();
+    if lower.is_empty() {
+        return PhrasePrefixMatch::Empty;
+    }
+    let words = english_bip39_words();
+    let idx = words.partition_point(|&w| w < lower.as_str());
+    let Some(&first) = words.get(idx) else {
+        return PhrasePrefixMatch::None;
+    };
+    if !first.starts_with(lower.as_str()) {
+        return PhrasePrefixMatch::None;
+    }
+    let has_second = words
+        .get(idx + 1)
+        .is_some_and(|w| w.starts_with(lower.as_str()));
+    if has_second {
+        PhrasePrefixMatch::Multiple { exact: first == lower }
+    } else {
+        PhrasePrefixMatch::Unique(first)
+    }
+}
+
 /// A flag for which users have volunteers as beta testers.
 ///
 /// Beta users are users to which riskier code is enabled first for testing.
@@ -304,5 +370,29 @@ mod test_account_key_and_phrase {
         let reverse = Account::phrase_to_private_key(phrase).unwrap();
 
         assert!(account1.private_key == reverse);
+    }
+
+    #[test]
+    fn valid_phrase_word_checks_english_bip39() {
+        use crate::model::account::is_valid_phrase_word;
+        assert!(is_valid_phrase_word("abandon"));
+        assert!(is_valid_phrase_word("turkey"));
+        assert!(is_valid_phrase_word("  Audit "));
+        assert!(!is_valid_phrase_word(""));
+        assert!(!is_valid_phrase_word("   "));
+        assert!(!is_valid_phrase_word("notabip39word"));
+        assert!(!is_valid_phrase_word("turke"));
+    }
+
+    #[test]
+    fn match_phrase_prefix_classifies_empty_none_unique_and_multiple() {
+        use crate::model::account::{PhrasePrefixMatch, match_phrase_prefix};
+        assert_eq!(match_phrase_prefix(""), PhrasePrefixMatch::Empty);
+        assert_eq!(match_phrase_prefix("qz"), PhrasePrefixMatch::None);
+        assert_eq!(match_phrase_prefix("turk"), PhrasePrefixMatch::Unique("turkey"));
+        assert_eq!(match_phrase_prefix("turkey"), PhrasePrefixMatch::Unique("turkey"));
+        assert_eq!(match_phrase_prefix("art"), PhrasePrefixMatch::Multiple { exact: true });
+        assert_eq!(match_phrase_prefix("ar"), PhrasePrefixMatch::Multiple { exact: false });
+        assert_eq!(match_phrase_prefix("artist"), PhrasePrefixMatch::Unique("artist"));
     }
 }

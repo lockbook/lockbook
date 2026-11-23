@@ -572,8 +572,11 @@ impl Theme {
                 let accent = self.accent();
                 let paper = self.neutral_bg();
                 style::Selection {
-                    bg_fill: paper.lerp_to_gamma(accent, 0.18),
-                    stroke: Stroke::new(1.0_f32, paper.lerp_to_gamma(accent, 0.45)),
+                    bg_fill: paper.lerp_to_gamma(accent, 0.25),
+                    // In egui, `selection.stroke.color` is painted as the
+                    // selected text color (and TextEdit caret), so it needs
+                    // full foreground contrast over `bg_fill`.
+                    stroke: Stroke::new(1.0_f32, self.neutral_fg()),
                 }
             },
             hyperlink_color: self.accent(),

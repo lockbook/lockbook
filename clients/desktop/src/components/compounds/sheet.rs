@@ -9,7 +9,8 @@ use crate::components::foundation::layout::{claim, origin, place_at};
 use crate::components::foundation::space::Space;
 
 pub use workspace_rs::style::{
-    SheetFooterOpts, sheet_dim, sheet_footer, sheet_panel_fit, sheet_panel_fixed, sheet_title_muted,
+    SheetFooterOpts, sheet_dim, sheet_footer, sheet_panel_fit, sheet_panel_fixed, sheet_title,
+    sheet_title_muted,
 };
 
 // ── Measure+place section helpers (Tier B) ──────────────────────────────────

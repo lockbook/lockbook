@@ -220,6 +220,10 @@ pub struct MdRender {
     pub code_line_clips: Vec<(Rect, (Grapheme, Grapheme))>,
     /// [`crate::font::chosen_seq`] the layout cache was measured at
     font_seq: u64,
+    /// Per-renderer text font override `(family, size_adjust)`, used by
+    /// [`MdLabel::height_in_family`] to measure candidate faces without
+    /// touching global font state.
+    pub(crate) text_family_override: Option<(&'static str, f32)>,
     /// A code block whose code was copied, by its range, and until when its
     /// button says so.
     pub code_copied: Option<((Grapheme, Grapheme), f64)>,
@@ -875,6 +879,7 @@ impl MdRender {
             wheel: Default::default(),
             code_line_clips: Default::default(),
             font_seq: crate::font::chosen_seq(),
+            text_family_override: None,
             code_copied: None,
             diagrams,
             math,
@@ -1004,6 +1009,7 @@ impl MdRender {
             wheel: Default::default(),
             code_line_clips: Default::default(),
             font_seq: crate::font::chosen_seq(),
+            text_family_override: None,
             code_copied: None,
             diagrams,
             math,
@@ -1273,6 +1279,7 @@ impl Editor {
             wheel: Default::default(),
             code_line_clips: Default::default(),
             font_seq: crate::font::chosen_seq(),
+            text_family_override: None,
             code_copied: None,
             diagrams,
             math,
