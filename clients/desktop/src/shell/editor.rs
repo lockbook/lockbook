@@ -51,7 +51,7 @@ pub fn show(app: &mut ShellApp, ui: &mut Ui, _t: &Theme, queue: &mut Vec<Action>
             super::reveal_and_scroll(ready, id);
         }
 
-        out.failure_messages
+        out.failure_messages.into_iter().chain(out.link_message)
     };
     for msg in failures {
         app.toasts.error(msg);

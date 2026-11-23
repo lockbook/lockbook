@@ -38,7 +38,12 @@ pub struct Response {
     pub failure_messages: Vec<String>, // shown as toasts in egui client
 
     pub open_camera: bool,
-    pub open_search: bool,
+    /// iOS shows search itself: open it, filled in when the query isn't empty.
+    pub open_search: Option<crate::search::SearchState>,
 
     pub file_cache_updated: bool,
+    /// A link waits on a sync to find its file.
+    pub opening_link: bool,
+    /// Why a link didn't open.
+    pub link_message: Option<String>,
 }

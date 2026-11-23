@@ -5,7 +5,6 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Someone shared a note with you | Lockbook</title>
   <meta name="description" content="Someone shared a note with you. Open Lockbook to view it. Only people with access can see its contents." />
-  <link rel="canonical" href="{{OPEN_URL}}" />
   <meta name="theme-color" content="#FFFFFF" media="(prefers-color-scheme: light)" />
   <meta name="theme-color" content="#101010" media="(prefers-color-scheme: dark)" />
   <link rel="icon" type="image/svg+xml" href="https://lockbook.net/favicon/favicon.svg" />
@@ -19,7 +18,6 @@
   <meta property="og:locale" content="en_US" />
   <meta property="og:title" content="Someone shared a note with you" />
   <meta property="og:description" content="Open Lockbook to view it. Only people with access to the note can see its contents." />
-  <meta property="og:url" content="{{OPEN_URL}}" />
   <meta property="og:image" content="https://lockbook.net/open-preview.png" />
   <meta property="og:image:secure_url" content="https://lockbook.net/open-preview.png" />
   <meta property="og:image:type" content="image/png" />
@@ -128,7 +126,7 @@
       <h1 id="shared-note-title">Someone shared a note with you.</h1>
       <p class="lede">Open Lockbook to view it. Only people with access to the note can see its contents.</p>
       <div class="actions">
-        <a class="btn btn-primary" href="{{HANDOFF}}">Open in Lockbook</a>
+        <a class="btn btn-primary" id="handoff" href="lb://">Open in Lockbook</a>
         <a class="btn btn-quiet" href="https://lockbook.net/download/">Get Lockbook</a>
       </div>
       <div class="trust" role="note">
@@ -157,6 +155,11 @@ nQ6zP1hVc8sM+R4bT7yLw2eD9xF5</pre>
       </div>
     </figure>
   </main>
+  <script>
+    // `/open/<place>#<fragment>` opens in the app as `lb://<place>#<fragment>`
+    document.getElementById("handoff").href =
+      "lb://" + location.pathname.replace(/^\/open\//, "") + location.hash;
+  </script>
   <script>
     (() => {
       const cipher = document.querySelector(".cipher-text");

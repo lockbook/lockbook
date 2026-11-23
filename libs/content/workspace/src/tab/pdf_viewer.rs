@@ -103,7 +103,7 @@ pub struct PdfViewer {
     /// The page an embed shows.
     pub region: Option<usize>,
     /// The file's external URL, which a page's copied link starts with.
-    pub link_url: Option<String>,
+    pub open_origin: Option<String>,
     /// The page a right click, on the pages or a thumbnail, opened the menu on.
     menu_page: Option<usize>,
 }
@@ -211,7 +211,7 @@ impl PdfViewer {
             user_scrolled: false,
             pages_pending: false,
             region: None,
-            link_url: None,
+            open_origin: None,
             menu_page: None,
         }
     }
@@ -875,7 +875,7 @@ impl PdfViewer {
 
     /// Whether a right click offers a page's link: a tab's, not an embed's.
     fn has_menu(&self) -> bool {
-        !self.embedded && self.link_url.is_some()
+        !self.embedded && self.open_origin.is_some()
     }
 
     /// The page at `pos` in the pages' content, laid out `view_width` wide.
@@ -903,7 +903,11 @@ impl PdfViewer {
             return;
         }
         let place = Place::at(Destination::File(self.id), Some(Fragment::Page(idx)));
-        if let Some(url) = place.to_url_with(|_| self.link_url.clone()) {
+        if let Some(url) = self
+            .open_origin
+            .as_deref()
+            .and_then(|o| place.to_open_url(o))
+        {
             resp.ctx.copy_text(url);
         }
     }

@@ -16,6 +16,13 @@ pub struct IOSResponse {
     pub urls_opened: CUrls,
     pub open_camera: bool,
     pub open_search: bool,
+    /// The search a link names, filled in when not empty.
+    pub search_query: *mut c_char,
+    pub search_content: bool,
+    /// Why a link didn't open, for an alert; empty when nothing failed.
+    pub link_message: *mut c_char,
+    /// A link waits on a sync to find its file.
+    pub opening_link: bool,
     pub has_virtual_keyboard_shown: bool,
     pub virtual_keyboard_shown: bool,
 
@@ -79,6 +86,8 @@ impl From<crate::Response> for IOSResponse {
                     open_camera,
                     open_search,
                     file_cache_updated: _,
+                    opening_link,
+                    link_message,
                 },
             redraw_in,
             copied_text,
@@ -119,7 +128,21 @@ impl From<crate::Response> for IOSResponse {
             copied_image: copied_image.into(),
             urls_opened,
             open_camera,
-            open_search,
+            open_search: open_search.is_some(),
+            search_query: CString::new(
+                open_search
+                    .as_ref()
+                    .map(|s| s.query.as_str())
+                    .unwrap_or_default(),
+            )
+            .unwrap_or_default()
+            .into_raw(),
+            search_content: open_search
+                .is_some_and(|s| s.search_type == workspace_rs::search::SearchType::Content),
+            link_message: CString::new(link_message.unwrap_or_default())
+                .unwrap_or_default()
+                .into_raw(),
+            opening_link,
             text_updated: markdown_editor_text_updated,
             selection_updated: markdown_editor_selection_updated,
             tab_title_clicked,
