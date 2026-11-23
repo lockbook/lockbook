@@ -27,8 +27,7 @@ pub use workspace_rs::style::{
 pub use workspace_rs::style::{
     Radius, STROKE_HAIRLINE, control_height, display_file_name, file_row_icon, overlay_shadow,
     paint_plate_shadow, phosphor, phosphor_font_id, phosphor_ui_font_id, pin_shadow,
-    plate_content_shadow, shortcut_cmd_i, shortcut_cmd_n, shortcut_enter, shortcut_esc,
-    shortcut_return, tab_icon,
+    plate_content_shadow, shortcut_enter, shortcut_esc, shortcut_return, shortcut_s, tab_icon,
 };
 #[cfg(test)]
 pub use workspace_rs::style::{begin_spacer_record, take_spacer_record};

@@ -180,32 +180,15 @@ pub enum Modal {
             Option<std::sync::mpsc::Receiver<Result<workspace_rs::import::ImportPlan, String>>>,
     },
     Help,
-    Onboard {
-        mode: OnboardMode,
-        uname: String,
-        /// Create: debounced server availability.
-        uname_lookup: OnboardLookup,
-        /// Username last settled by network / invalid local check.
-        uname_lookup_for: String,
-        /// Compact key or 24-word phrase — `import_account` accepts either.
-        account_key: String,
-        /// Custom API URL. Empty = [`lb::DEFAULT_API_LOCATION`].
-        api_url: String,
-        busy: bool,
-        err: Option<String>,
-        /// Backup step: user confirmed they stored the key.
-        key_stored: bool,
-    },
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
-pub enum OnboardMode {
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Default)]
+pub enum OnboardStep {
     #[default]
-    Choice,
+    Welcome,
     Create,
     Import,
-    /// After create: show the 24-word key and require a backup ack.
-    Backup,
+    ImportSyncing,
 }
 
 /// Stripe upgrade sheet stages.
@@ -374,15 +357,17 @@ pub enum Action {
     /// Confirmed decline (delete pending share link only).
     ConfirmDeclineShare(Uuid),
     OpenHelp,
-    OnboardSetMode(OnboardMode),
+    OnboardSetStep(OnboardStep),
+    /// Toggle between 24-word grid and single-field compact key mode on Sign in.
+    OnboardToggleCompact(bool),
     /// Debounced create-username availability (share-style network verify).
     OnboardVerifyUname,
-    /// `show_error`: false for auto-submit (silent fail; Import button surfaces).
+    /// `show_error`: false for silent auto-import; true for explicit submit.
     OnboardSubmit {
         show_error: bool,
     },
-    /// Backup step finished (key ack). Dismisses onboard.
-    OnboardFinishBackup,
+    /// Retry initial sync after Sign in authenticated the account.
+    OnboardRetryImportSync,
     RequestSync,
     TogglePin(Uuid),
     /// Toggle pin on each id (own state).
@@ -545,10 +530,11 @@ impl Action {
             Self::OpenDeclineShare { .. } => "OpenDeclineShare",
             Self::ConfirmDeclineShare(_) => "ConfirmDeclineShare",
             Self::OpenHelp => "OpenHelp",
-            Self::OnboardSetMode(_) => "OnboardSetMode",
+            Self::OnboardSetStep(_) => "OnboardSetStep",
+            Self::OnboardToggleCompact(_) => "OnboardToggleCompact",
             Self::OnboardVerifyUname => "OnboardVerifyUname",
             Self::OnboardSubmit { .. } => "OnboardSubmit",
-            Self::OnboardFinishBackup => "OnboardFinishBackup",
+            Self::OnboardRetryImportSync => "OnboardRetryImportSync",
             Self::RequestSync => "RequestSync",
             Self::TogglePin(_) => "TogglePin",
             Self::TogglePinMany(_) => "TogglePinMany",

@@ -62,7 +62,6 @@ enum ModalKind {
     DeclineShare,
     ImportParent,
     Help,
-    Onboard,
 }
 
 pub fn show_modals(app: &mut ShellApp, ctx: &egui::Context, t: &Theme, queue: &mut Vec<Action>) {
@@ -78,7 +77,6 @@ pub fn show_modals(app: &mut ShellApp, ctx: &egui::Context, t: &Theme, queue: &m
         Some(Modal::DeclineShare { .. }) => ModalKind::DeclineShare,
         Some(Modal::ImportParent { .. }) => ModalKind::ImportParent,
         Some(Modal::Help) => ModalKind::Help,
-        Some(Modal::Onboard { .. }) => ModalKind::Onboard,
     };
 
     match kind {
@@ -138,10 +136,6 @@ pub fn show_modals(app: &mut ShellApp, ctx: &egui::Context, t: &Theme, queue: &m
             );
         }
         ModalKind::Help => show_help(ctx, t, queue),
-        ModalKind::Onboard => {
-            super::apply::onboard_poll_uname(app, ctx);
-            super::sheet_onboard::show_onboard(app, ctx, t, queue);
-        }
     }
 }
 

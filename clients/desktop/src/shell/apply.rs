@@ -22,7 +22,7 @@ use workspace_rs::tab::{ContentState, Destination, Place, TabSaveContent};
 
 use super::ShellApp;
 use super::action::{
-    Action as A, CreateKind, CreateLoc, Modal, OnboardLookup, OnboardMode, SettingsCat,
+    Action as A, CreateKind, CreateLoc, Modal, OnboardLookup, OnboardStep, SettingsCat,
     ShareLookup, UpgradeStage,
 };
 use super::ops::{is_pinned, note_files_changed, refresh_pinned};
@@ -503,49 +503,43 @@ pub fn apply(app: &mut ShellApp, ctx: &Context, action: A) {
             }
         }
         A::OpenHelp => app.modal = Some(Modal::Help),
-        A::OnboardSetMode(m) => {
-            if matches!(&app.modal, Some(Modal::Onboard { mode: OnboardMode::Backup, .. })) {
-                return;
-            }
-            if let Some(Modal::Onboard { mode, err, uname_lookup, uname_lookup_for, .. }) =
-                &mut app.modal
-            {
-                *mode = m;
-                *err = None;
-                if matches!(m, OnboardMode::Create) {
-                    *uname_lookup = OnboardLookup::Idle;
-                    uname_lookup_for.clear();
+        A::OnboardSetStep(step) => {
+            if let Some(s) = &app.onboard {
+                if s.busy && step != OnboardStep::ImportSyncing {
+                    return;
                 }
             }
-            // Default-focus the field when entering a form step (Create/Rename pattern).
-            match m {
-                OnboardMode::Create => {
-                    ctx.data_mut(|d| {
-                        d.insert_temp(egui::Id::unique("onboard_uname_need_focus"), true)
-                    });
+            if let Some(s) = &mut app.onboard {
+                s.step = step;
+                s.err = None;
+                if step == OnboardStep::Create {
+                    s.uname_lookup = OnboardLookup::Idle;
+                    s.uname_lookup_for.clear();
                 }
-                OnboardMode::Import => {
-                    onboard_import_focus(ctx);
+                let compact = s.import_compact;
+                match step {
+                    OnboardStep::Create => {
+                        ctx.data_mut(|d| {
+                            d.insert_temp(egui::Id::unique("onboard_uname_need_focus"), true);
+                        });
+                    }
+                    OnboardStep::Import => {
+                        onboard_import_focus(ctx, compact);
+                    }
+                    OnboardStep::Welcome | OnboardStep::ImportSyncing => {}
                 }
-                OnboardMode::Choice | OnboardMode::Backup => {}
             }
+        }
+        A::OnboardToggleCompact(compact) => {
+            if let Some(s) = &mut app.onboard {
+                s.import_compact = compact;
+                s.err = None;
+            }
+            onboard_import_focus(ctx, compact);
         }
         A::OnboardVerifyUname => onboard_verify_uname(app, ctx),
         A::OnboardSubmit { show_error } => onboard_submit(app, ctx, show_error),
-        A::OnboardFinishBackup => {
-            let stored = matches!(
-                &app.modal,
-                Some(Modal::Onboard { mode: OnboardMode::Backup, key_stored: true, .. })
-            );
-            let phrase_ok = app
-                .phrase_cache
-                .as_deref()
-                .is_some_and(|p| p.split_whitespace().count() == 24);
-            if stored && phrase_ok {
-                app.modal = None;
-                app.phrase_cache = None;
-            }
-        }
+        A::OnboardRetryImportSync => onboard_retry_import_sync(app, ctx),
         A::RequestSync => request_sync(app, ctx),
         A::TogglePin(id) => toggle_pins(app, &[id]),
         A::TogglePinMany(ids) => toggle_pins(app, &ids),
@@ -756,8 +750,8 @@ pub fn apply(app: &mut ShellApp, ctx: &Context, action: A) {
             }
         }
         A::NudgeDismiss => {
-            if let Some(nudges) = &mut app.nudges {
-                nudges.dismiss();
+            if let Some(n) = &mut app.nudges {
+                n.dismiss();
             }
         }
         A::RevealPhrase => {
