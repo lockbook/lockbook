@@ -22,6 +22,13 @@ pub fn swatches_width(n: usize) -> f32 {
 pub fn swatches(
     ui: &mut Ui, t: &Theme, colors: &[Color32], selected: &mut Option<usize>,
 ) -> Response {
+    swatches_with_hover(ui, t, colors, selected).0
+}
+
+/// Like [`swatches`], also returning the index of the currently hovered dot (if any).
+pub fn swatches_with_hover(
+    ui: &mut Ui, t: &Theme, colors: &[Color32], selected: &mut Option<usize>,
+) -> (Response, Option<usize>) {
     let (row, mut resp) =
         ui.allocate_exact_size(vec2(swatches_width(colors.len()), control_height()), sense_click());
     let pitch = DOT.pts() + GAP.pts();
@@ -60,5 +67,5 @@ pub fn swatches(
                 .circle_filled(center, MARK.pts() / 2.0, t.neutral_bg());
         }
     }
-    resp
+    (resp, pointer)
 }

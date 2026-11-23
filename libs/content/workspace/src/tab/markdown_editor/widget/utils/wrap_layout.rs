@@ -58,6 +58,9 @@ pub enum FontFamily {
     Mono,
     Icons,
     Phosphor,
+    /// Explicit note text family + `size_adjust.to_bits()`, used to measure or
+    /// render a label in a specific loaded family without mutating global state.
+    Named(&'static str, u32),
 }
 
 impl FontFamily {
@@ -67,6 +70,7 @@ impl FontFamily {
             FontFamily::Mono => GlyphonFontFamily::Named(crate::font::note_family(true)),
             FontFamily::Icons => GlyphonFontFamily::Named("Nerd Fonts Mono Symbols"),
             FontFamily::Phosphor => GlyphonFontFamily::Named("Phosphor"),
+            FontFamily::Named(name, _) => GlyphonFontFamily::Named(name),
         }
     }
 
@@ -77,6 +81,7 @@ impl FontFamily {
             FontFamily::Sans => crate::font::size_adjust(false),
             FontFamily::Mono => crate::font::size_adjust(true),
             FontFamily::Icons | FontFamily::Phosphor => 1.,
+            FontFamily::Named(_, adjust_bits) => f32::from_bits(adjust_bits),
         }
     }
 
@@ -86,6 +91,7 @@ impl FontFamily {
             FontFamily::Mono => glyphon::Family::Name(crate::font::note_family(true)),
             FontFamily::Icons => glyphon::Family::Name("Nerd Fonts Mono Symbols"),
             FontFamily::Phosphor => glyphon::Family::Name("Phosphor"),
+            FontFamily::Named(name, _) => glyphon::Family::Name(name),
         }
     }
 }
@@ -653,7 +659,7 @@ impl MdRender {
             .data(|d| d.get_temp::<std::sync::Arc<std::sync::Mutex<GlyphonCache>>>(egui::Id::NULL));
         let (Some(fs), Some(cache)) = (fs, cache) else { return (BASELINE, BASELINE) };
         let body = Format {
-            family: FontFamily::Sans,
+            family: self.text_family(),
             bold: false,
             italic: false,
             color: egui::Color32::PLACEHOLDER,

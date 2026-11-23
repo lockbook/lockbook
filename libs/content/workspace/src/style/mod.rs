@@ -37,7 +37,7 @@ pub use chrome::{
     paint_fade, paint_inset_shadow, paint_plate, paint_plate_shadow, paint_plate_stroke, phosphor,
     phosphor_font_id, phosphor_ui_font_id, pin_shadow, plate_content, plate_content_shadow,
     shortcut_cmd_i, shortcut_cmd_n, shortcut_cmd_o, shortcut_enter, shortcut_esc, shortcut_return,
-    tab_icon,
+    shortcut_s, tab_icon,
 };
 pub use color::{FG_HOVER, FG_PRESS, Theme, ThemeExt};
 pub use file_row::{
@@ -77,7 +77,7 @@ pub use motion::{SURFACE_SECS, SurfaceMotion, snap_surface_motion, surface_motio
 pub use overlay_scroll::{SIDEBAR_RESIZING_LATCH, with_overlay_scroll};
 pub use sheet::{
     SheetFooter, SheetFooterOpts, sheet_dim, sheet_footer, sheet_panel, sheet_panel_fit,
-    sheet_panel_fixed, sheet_title_muted,
+    sheet_panel_fixed, sheet_title, sheet_title_muted,
 };
 pub use sticky::{
     FlatRow, RowGeom, Stuck, TreeRowChrome, ancestor_at_depth, flatten, folder_has_flat_child,

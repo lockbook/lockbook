@@ -28,6 +28,25 @@ impl MdLabel {
         Self { renderer: MdRender::empty(ctx), last_prepared: None }
     }
 
+    /// Parse `md` at `width` using `family` (if already loaded into the font
+    /// system) and return its rendered height without mutating global font
+    /// state. Returns `None` while `family` is still loading.
+    pub fn height_in_family(&mut self, md: &str, width: f32, family: &'static str) -> Option<f32> {
+        let adjust = crate::font::load_family(&self.renderer.ctx, family)?;
+        let prev = self.renderer.text_family_override.replace((family, adjust));
+        self.clear_caches();
+        let h = self.height(md, width);
+        self.renderer.text_family_override = prev;
+        self.clear_caches();
+        Some(h)
+    }
+
+    fn clear_caches(&mut self) {
+        self.last_prepared = None;
+        self.renderer.layout_cache.clear();
+        self.renderer.layout_cache.table_cells.borrow_mut().clear();
+    }
+
     /// Parse `md` at `width` and return the rendered height. Call before
     /// `show` to measure; the AST parse is cheap but not memoized.
     pub fn height(&mut self, md: &str, width: f32) -> f32 {

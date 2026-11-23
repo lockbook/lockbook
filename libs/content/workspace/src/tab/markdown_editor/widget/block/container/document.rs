@@ -10,9 +10,16 @@ use crate::tab::markdown_editor::{Syntax, View};
 use crate::theme::palette_v2::ThemeExt as _;
 
 impl<'ast> MdRender {
+    pub(crate) fn text_family(&self) -> FontFamily {
+        match self.text_family_override {
+            Some((name, adjust)) => FontFamily::Named(name, adjust.to_bits()),
+            None => FontFamily::Sans,
+        }
+    }
+
     pub fn text_format_document(&self) -> Format {
         Format {
-            family: FontFamily::Sans,
+            family: self.text_family(),
             bold: false,
             italic: false,
             color: self.ctx.get_lb_theme().neutral_fg(),
