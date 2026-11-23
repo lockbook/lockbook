@@ -250,7 +250,13 @@ impl FileCache {
             .collect()
     }
 
+    /// Adds a file the caller just created, so it shows before the rebuild
+    /// its creation triggers. That rebuild runs on another thread and can
+    /// land first, in which case the file is already here.
     pub fn insert_created_file(&mut self, file: File) {
+        if self.by_id.contains_key(&file.id) {
+            return;
+        }
         if self.hidden.contains(&file.parent) {
             self.hidden.insert(file.id);
         }
@@ -1707,6 +1713,19 @@ pub(crate) mod tests {
         assert_eq!(names, ["a", "b.md", "c.md"]);
         assert_eq!(cache.get_by_id(Uuid::from_u128(3)).unwrap().name, "a");
         assert_eq!(cache.get_by_id(Uuid::from_u128(4)).unwrap().name, "c.md");
+    }
+
+    #[test]
+    fn inserting_a_file_the_rebuild_already_brought_adds_no_second_row() {
+        let root = Uuid::from_u128(1);
+        let created = file(Uuid::from_u128(2), root, "welcome.md", FileType::Document);
+        let mut cache = FileCache::from_owned_and_shared(
+            file(root, root, "root", FileType::Folder),
+            [file(root, root, "root", FileType::Folder), created.clone()],
+            [],
+        );
+        cache.insert_created_file(created);
+        assert_eq!(cache.children(root).len(), 1);
     }
 
     /// Alice's tree: `/personal/Budget.md`, `/finance/budget.md`, and
