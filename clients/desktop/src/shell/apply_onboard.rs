@@ -428,7 +428,7 @@ fn onboard_account(
 ) -> Result<(), String> {
     match mode {
         OnboardMode::Create => core
-            .create_account(uname.trim(), api, true)
+            .create_account(uname.trim(), api, false)
             .map(|_| ())
             .map_err(|e| e.to_string()),
         OnboardMode::Import => core

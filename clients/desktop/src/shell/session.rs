@@ -118,6 +118,7 @@ impl Ready {
         let root = file_cache.read().unwrap().root.id;
         let mut workspace = Workspace::new(&core, ctx, true, Some(file_cache));
         workspace.desktop_tab_policy = true;
+        workspace.empty_vault_welcome = true;
         workspace.sidebar_open = true;
 
         let status = core.status();

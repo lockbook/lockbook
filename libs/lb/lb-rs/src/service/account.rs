@@ -16,6 +16,10 @@ use qrcode_generator::QrCodeEcc;
 
 use crate::io::network::ApiError;
 
+/// A short introduction to writing in Markdown: the note one welcome cohort
+/// starts with, and the sample note a client can offer in an empty vault.
+pub const MARKDOWN_WELCOME: &str = include_str!("samples/markdown_welcome.md");
+
 impl<S: Server, D: LocalDocuments> Lb<S, D> {
     /// CoreError::AccountExists,
     /// CoreError::UsernameTaken,
@@ -80,11 +84,8 @@ impl<S: Server, D: LocalDocuments> Lb<S, D> {
                     let welcome_doc = self
                         .create_file("welcome.md", &root_id, FileType::Document)
                         .await?;
-                    self.write_document(
-                        welcome_doc.id,
-                        include_bytes!("samples/markdown_welcome.md"),
-                    )
-                    .await?;
+                    self.write_document(welcome_doc.id, MARKDOWN_WELCOME.as_bytes())
+                        .await?;
                     self.sync().await?;
                 }
                 WelcomeDoc::FramgentedArchetypes => {
