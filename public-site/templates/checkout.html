@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="section checkout">
+  <div class="wrap">
+    <div class="measure">
+      <h1>{{ page.title }}</h1>
+      <p class="lede">{{ page.extra.lede | markdown(inline=true) | safe }}</p>
+      {% if page.extra.foot %}<p class="foot">{{ page.extra.foot | markdown(inline=true) | safe }}</p>{% endif %}
+    </div>
+  </div>
+</section>
+
+<style>{% raw %}
+  .checkout{border-top:0}
+  .checkout h1{font-size:var(--t-title)}
+  .checkout .lede{color:var(--fg-2);margin-top:var(--s-md)}
+  .checkout .foot{margin-top:var(--s-xl);color:var(--fg-3);font-size:15px}
+  .checkout strong{color:var(--fg);font-weight:600}
+{% endraw %}</style>
+{% endblock content %}
