@@ -64,7 +64,11 @@ pub fn info(lb: &Lb, username: String, public_key: String) -> CliResult<()> {
     let payment_platform = match info.payment_platform {
         None => "none".to_string(),
         Some(PaymentPlatformV2::Stripe { card_last_4_digits }) => {
-            format!("Stripe, card ending {card_last_4_digits}")
+            if card_last_4_digits.is_empty() {
+                "Stripe".to_string()
+            } else {
+                format!("Stripe, card ending {card_last_4_digits}")
+            }
         }
         Some(PaymentPlatformV2::GooglePlay { account_state }) => {
             format!("Google Play, {account_state:?}")
