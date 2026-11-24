@@ -18,6 +18,7 @@ import androidx.recyclerview.widget.ConcatAdapter
 import androidx.recyclerview.widget.LinearLayoutManager
 import app.lockbook.R
 import app.lockbook.databinding.FragmentRecentFilesBinding
+import app.lockbook.model.AccountStore
 import app.lockbook.model.FileTreeViewModel
 import app.lockbook.model.MainNavigationAction
 import app.lockbook.model.MainScreenViewModel
@@ -25,7 +26,6 @@ import app.lockbook.model.RecentsFilterViewModel
 import app.lockbook.util.FilesFragment
 import kotlinx.coroutines.launch
 import net.lockbook.File
-import net.lockbook.Lb
 
 class RecentFilesFragment :
     Fragment(),
@@ -46,7 +46,7 @@ class RecentFilesFragment :
         RecentFilesAdapter(
             onFileClick = ::onFileClicked,
             onFileLongClick = ::onFileLongClicked,
-            currentUsername = runCatching { Lb.getAccount().username }.getOrNull(),
+            currentUsername = AccountStore.username,
         )
     }
 
@@ -69,11 +69,6 @@ class RecentFilesFragment :
             updateListBottomPadding()
         }
 
-        fileTreeModel.sharingContacts.observe(viewLifecycleOwner) { contacts ->
-            runCatching { Lb.getAccount().username }.getOrNull()?.let { me ->
-                editorFilter.updateContacts(contacts.map { it.username }, me)
-            }
-        }
         fileTreeModel.recentFiles.observe(viewLifecycleOwner) { renderFiles() }
         editorFilter.state.observe(viewLifecycleOwner) { renderFiles() }
 
@@ -86,6 +81,7 @@ class RecentFilesFragment :
         filterChips?.submitState(state, recentFiles)
         val files = state.filterRecents(recentFiles)
         selectionModel.reconcile(FileSelectionSource.Recents, files)
+        adapter.setCurrentUsername(AccountStore.username)
         adapter.submitRecentFiles(files, fileTreeModel.fileModel?.idsAndFiles.orEmpty())
         adapter.setSelectedFileIds(selectionModel.uiState.value.selectedIdsFor(FileSelectionSource.Recents))
         binding.recentFilesEmpty.isVisible = files.isEmpty()

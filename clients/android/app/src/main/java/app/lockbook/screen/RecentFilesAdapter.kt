@@ -37,12 +37,18 @@ internal sealed interface RecentListItem {
 internal class RecentFilesAdapter(
     private val onFileClick: (File) -> Unit,
     private val onFileLongClick: (File) -> Unit,
-    private val currentUsername: String?,
+    private var currentUsername: String?,
 ) : ListAdapter<RecentListItem, RecyclerView.ViewHolder>(RecentListItemDiffCallback()) {
     private var files: Collection<File> = emptyList()
     private var filesById: Map<String, File> = emptyMap()
     private val collapsedPeriods = mutableSetOf<RecentPeriod>()
     private var selectedFileIds: Set<String> = emptySet()
+
+    fun setCurrentUsername(username: String?) {
+        if (currentUsername == username) return
+        currentUsername = username
+        notifyItemRangeChanged(0, itemCount)
+    }
 
     fun setSelectedFileIds(newSelection: Set<String>) {
         if (selectedFileIds == newSelection) return

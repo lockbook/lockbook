@@ -71,6 +71,7 @@ class SettingsViewModel(
     fun deleteAccount() {
         try {
             Lb.deleteAccount()
+            AccountStore.clear()
             FileMetadataStore.clear()
             _exit.postValue(Unit)
         } catch (err: LbError) {
@@ -81,6 +82,7 @@ class SettingsViewModel(
     fun logout() {
         viewModelScope.launch(Dispatchers.IO) {
             Lb.logout()
+            AccountStore.clear()
             FileMetadataStore.clear()
             _exit.postValue(Unit)
         }

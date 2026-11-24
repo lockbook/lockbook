@@ -7,10 +7,10 @@ import androidx.core.content.edit
 import androidx.preference.PreferenceManager
 import app.lockbook.R
 import app.lockbook.databinding.SplashScreenBinding
+import app.lockbook.model.AccountStore
 import app.lockbook.model.AlertModel
 import app.lockbook.model.BiometricModel
 import app.lockbook.model.VerificationItem
-import net.lockbook.Lb
 import net.lockbook.LbError
 import net.lockbook.LbError.LbEC
 import java.lang.ref.WeakReference
@@ -36,7 +36,7 @@ class InitialLaunchFigureOuter : AppCompatActivity() {
 
     private fun handleAccountState() {
         try {
-            Lb.getAccount()
+            AccountStore.load()
             startFromExistingAccount()
         } catch (err: LbError) {
             if (err.kind == LbEC.AccountNonexistent) {

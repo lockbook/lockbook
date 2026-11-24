@@ -52,7 +52,6 @@ internal class WorkspaceWelcomeScreen(
     private val model: WorkspaceViewModel by fragment.activityViewModels()
     private val mainScreenModel: MainScreenViewModel by fragment.activityViewModels()
 
-    private val fileTreeModel: FileTreeViewModel by fragment.activityViewModels()
     private val editorFilter: RecentsFilterViewModel by fragment.activityViewModels()
 
     private var viewBinding: WorkspaceEmptyBinding? = null
@@ -166,15 +165,6 @@ internal class WorkspaceWelcomeScreen(
         empty.documentGrid.addOnLayoutChangeListener { view, _, _, _, _, _, _, _, _ ->
             val columns = (view.width / (180 * fragment.resources.displayMetrics.density)).toInt().coerceIn(2, 4)
             if (grid.spanCount != columns) grid.spanCount = columns
-        }
-        fileTreeModel.sharingContacts.observe(fragment.viewLifecycleOwner) { contacts ->
-            runCatching {
-                net.lockbook.Lb
-                    .getAccount()
-                    .username
-            }.getOrNull()?.let { me ->
-                editorFilter.updateContacts(contacts.map { it.username }, me)
-            }
         }
         editorFilter.state.observe(fragment.viewLifecycleOwner) { state ->
             workspaceDocuments.setEditorFilter(state.editorFilter)

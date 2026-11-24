@@ -1,10 +1,12 @@
 package app.lockbook.model
 
 import androidx.lifecycle.LiveData
-import androidx.lifecycle.MutableLiveData
+import androidx.lifecycle.MediatorLiveData
+import androidx.lifecycle.Observer
 import androidx.lifecycle.ViewModel
 import app.lockbook.util.ExtensionHelper
 import net.lockbook.File
+import net.lockbook.SharingContact
 
 internal data class EditorFilter(
     val usernames: List<String> = emptyList(),
@@ -52,16 +54,19 @@ internal data class RecentsFilterState(
 }
 
 internal class RecentsFilterViewModel : ViewModel() {
-    private val mutableState = MutableLiveData(RecentsFilterState())
+    private val mutableState = MediatorLiveData(RecentsFilterState())
     val state: LiveData<RecentsFilterState> = mutableState
 
-    fun updateContacts(
-        usernames: List<String>,
-        yourself: String,
-    ) {
-        val current = mutableState.value!!
-        val updated = current.copy(editorFilter = current.editorFilter.withContacts(usernames, yourself))
-        if (updated != mutableState.value) mutableState.value = updated
+    private val contactsObserver =
+        Observer<List<SharingContact>> { contacts ->
+            val username = AccountStore.username ?: return@Observer
+            val current = mutableState.value!!
+            val updated = current.copy(editorFilter = current.editorFilter.withContacts(contacts.map { it.username }, username))
+            if (updated != current) mutableState.value = updated
+        }
+
+    fun observeContacts(contacts: LiveData<List<SharingContact>>) {
+        mutableState.addSource(contacts, contactsObserver)
     }
 
     fun toggle(username: String) {

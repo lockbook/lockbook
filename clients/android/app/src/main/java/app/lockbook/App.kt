@@ -17,6 +17,7 @@ import androidx.work.*
 import app.lockbook.App.Companion.PERIODIC_SYNC_TAG
 import app.lockbook.billing.BillingManager
 import app.lockbook.billing.StoreBillingManager
+import app.lockbook.model.AccountStore
 import app.lockbook.model.LbEvents
 import app.lockbook.util.*
 import app.lockbook.workspace.Workspace
@@ -128,7 +129,7 @@ class ForegroundBackgroundObserver(
     private fun doIfLoggedIn(onSuccess: () -> Unit) {
         if (!(context.applicationContext as App).isInImportSync) {
             try {
-                Lb.getAccount()
+                AccountStore.load()
                 onSuccess()
             } catch (err: LbError) {
                 Timber.e("Error: ${err.msg}")

@@ -163,7 +163,11 @@ class FileTreeViewModel(
 
     private suspend fun refreshSharingContacts() {
         try {
-            val contacts = withContext(Dispatchers.IO) { Lb.getSharingContacts().toList() }
+            val contacts =
+                withContext(Dispatchers.IO) {
+                    AccountStore.load()
+                    Lb.getSharingContacts().toList()
+                }
             _sharingContacts.value = contacts
         } catch (error: LbError) {
             Timber.e(error, "Unable to load sharing contacts")
