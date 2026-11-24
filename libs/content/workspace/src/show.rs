@@ -513,6 +513,36 @@ impl Workspace {
         if forward {
             self.forward();
         }
+
+        if let Some(current) = self.current_tab_id() {
+            let mut step = 0;
+            self.ctx.input_mut(|input| {
+                if input.consume_key_exact(ALT, Key::ArrowDown) {
+                    step = 1;
+                } else if input.consume_key_exact(ALT, Key::ArrowUp) {
+                    step = -1;
+                }
+            });
+            if let Some(next) = self.neighboring_document(current, step) {
+                self.open_file(next, true, false);
+            }
+        }
+    }
+
+    fn neighboring_document(&self, id: Uuid, step: isize) -> Option<Uuid> {
+        if step == 0 {
+            return None;
+        }
+        let files = self.files.read().unwrap();
+        let parent = files.get_by_id(id)?.parent;
+        let documents: Vec<Uuid> = files
+            .children(parent)
+            .into_iter()
+            .filter(|f| f.is_document())
+            .map(|f| f.id)
+            .collect();
+        let at = documents.iter().position(|&f| f == id)?;
+        documents.get(at.checked_add_signed(step)?).copied()
     }
 }
 
