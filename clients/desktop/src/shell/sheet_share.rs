@@ -3,9 +3,9 @@ use lb::Uuid;
 use workspace_rs::file_cache::FilesExt;
 
 use crate::components::{
-    Chip, ChipHue, EqualCells, Field, PersonRow, PersonTone, SheetFooterOpts, Space, Spacer, Theme,
-    TypeRole, fixed_height_list, person_row_height, phosphor, sheet_dim, sheet_footer,
-    sheet_panel_fit, sheet_title_muted, shortcut_return,
+    Button, Chip, ChipHue, EqualCells, Field, PersonRow, PersonTone, SheetFooterOpts, Space,
+    Spacer, Theme, TypeRole, fixed_height_list, person_row_height, phosphor, sheet_dim,
+    sheet_footer, sheet_panel_fit, sheet_title_muted, shortcut_return,
 };
 
 use super::ShellApp;
@@ -18,6 +18,7 @@ pub(crate) fn show_share(
 ) {
     // Drain background username checks (never block the UI thread on network).
     super::apply::share_poll_network(app, ctx);
+    super::apply::poll_sub_accounts(app, ctx);
 
     let id = match &app.modal {
         Some(Modal::Share { id, .. }) => *id,
@@ -76,6 +77,8 @@ pub(crate) fn show_share(
         .iter()
         .any(|s| matches!(s.lookup, ShareLookup::Checking));
     let can_share = (staged_found > 0 || field_ok) && !staged_checking;
+
+    let suggestions = share_suggestions(app, id, q_for_debounce.as_str(), &staged);
 
     let share_names = share_summary_names(&staged, q_for_debounce.as_str(), &lookup, &lookup_for);
     let show_summary = !share_names.is_empty();
@@ -214,6 +217,23 @@ pub(crate) fn show_share(
                     queue.push(A::ShareQuery);
                 }
 
+                if !suggestions.is_empty() {
+                    ui.add(Spacer::new(Space::Xs));
+                    let gap = EqualCells::gap_pts();
+                    ui.horizontal_wrapped(|ui| {
+                        ui.spacing_mut().item_spacing = egui::vec2(gap, gap);
+                        for name in &suggestions {
+                            let pick = Button::secondary(t, name)
+                                .icon(super::sub_accounts::KEY_ICON)
+                                .max_width(crate::components::ui_width(ui))
+                                .show(ui);
+                            if pick.clicked() {
+                                queue.push(A::ShareSuggest(name.clone()));
+                            }
+                        }
+                    });
+                }
+
                 // Staged batch: wrap spacing from EqualCells gap only (one plan).
                 if !staged.is_empty() {
                     ui.add(Spacer::new(Space::Xs));
@@ -280,6 +300,31 @@ pub(crate) fn show_share(
                 }
             });
         });
+}
+
+fn share_suggestions(app: &ShellApp, id: Uuid, query: &str, staged: &[ShareStaged]) -> Vec<String> {
+    let Some(ready) = app.session.ready() else {
+        return Vec::new();
+    };
+    if app.sub_accounts.list.is_empty() {
+        return Vec::new();
+    }
+    let shared: Vec<String> = ready
+        .workspace
+        .files
+        .read()
+        .unwrap()
+        .get_by_id(id)
+        .map(|f| f.shares.iter().map(|s| s.shared_with.clone()).collect())
+        .unwrap_or_default();
+    let staged: Vec<String> = staged.iter().map(|s| s.username.clone()).collect();
+    super::sub_accounts::share_suggestions(
+        query,
+        &app.sub_accounts.usernames(),
+        &ready.workspace.account.username,
+        &staged,
+        &shared,
+    )
 }
 
 /// Ghost after the typed buffer: remainder of `full` once `query` is a

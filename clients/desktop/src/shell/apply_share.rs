@@ -45,10 +45,12 @@ fn share_local_known(app: &ShellApp, q: &str) -> bool {
     if q.is_empty() {
         return false;
     }
-    app.session
-        .ready()
-        .map(|r| r.known_usernames.iter().any(|u| u.eq_ignore_ascii_case(q)))
-        .unwrap_or(false)
+    app.sub_accounts.contains(q)
+        || app
+            .session
+            .ready()
+            .map(|r| r.known_usernames.iter().any(|u| u.eq_ignore_ascii_case(q)))
+            .unwrap_or(false)
 }
 
 /// Shortest known username with `query` as a case-insensitive prefix.
@@ -266,6 +268,17 @@ pub(crate) fn share_stage_field(app: &mut ShellApp, ctx: &Context) {
         // No commas — stage the whole field.
         share_stage_push(app, ctx, user);
     }
+    if let Some(Modal::Share { query, lookup, lookup_for, err, .. }) = &mut app.modal {
+        query.clear();
+        *lookup = ShareLookup::Idle;
+        lookup_for.clear();
+        *err = None;
+    }
+    ctx.data_mut(|d| d.insert_temp(egui::Id::unique("shell_share_need_focus"), true));
+}
+
+pub(crate) fn share_suggest(app: &mut ShellApp, ctx: &Context, user: String) {
+    share_stage_push(app, ctx, user);
     if let Some(Modal::Share { query, lookup, lookup_for, err, .. }) = &mut app.modal {
         query.clear();
         *lookup = ShareLookup::Idle;

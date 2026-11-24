@@ -604,7 +604,7 @@ fn run_import_sync(core: Lb, tx: &mpsc::Sender<OnboardWorkerMsg>, ctx: &Context)
     ctx.request_repaint();
     match FileCache::new(&core) {
         Ok(files) => {
-            let sub_info = core.get_subscription_info().ok().flatten();
+            let sub_info = super::session::subscription_info(&core);
             let _ = tx.send(OnboardWorkerMsg::ImportReady { core, files, sub_info });
         }
         Err(e) => {
