@@ -10,6 +10,7 @@ mod apply;
 mod apply_account;
 mod apply_onboard;
 mod apply_share;
+mod apply_sub_accounts;
 mod editor;
 pub mod nudge;
 pub mod onboard;
@@ -19,6 +20,7 @@ pub mod session;
 pub mod settings;
 mod settings_account;
 mod settings_storage;
+mod settings_sub_accounts;
 mod sheet_backup_key;
 mod sheet_create;
 mod sheet_folder;
@@ -27,6 +29,7 @@ mod sheet_share;
 mod sheets;
 pub mod sidebar;
 mod storage_report;
+pub mod sub_accounts;
 pub mod titlebar;
 pub mod toasts;
 
@@ -129,6 +132,7 @@ pub struct ShellApp {
     /// An import waiting on an upgrade: its paths, its folder, and the cap it must outgrow.
     pub(crate) import_after_upgrade: Option<(Vec<std::path::PathBuf>, Uuid, u64)>,
     pub(crate) storage: settings_storage::StorageView,
+    pub sub_accounts: sub_accounts::SubAccounts,
 }
 
 /// Dev harness: bounce Ready ↔ SignedOut without clicking UI.
@@ -201,6 +205,7 @@ impl Default for ShellApp {
             import_job: None,
             import_after_upgrade: None,
             storage: Default::default(),
+            sub_accounts: Default::default(),
         }
     }
 }
@@ -213,6 +218,8 @@ impl ShellApp {
 
     pub fn close_account_panel(&mut self) {
         self.account_panel = AccountPanel::Closed;
+        self.sub_accounts.error = None;
+        self.sub_accounts.keys = None;
     }
 
     /// Dev-gated renderer extras.
@@ -623,6 +630,10 @@ impl ShellApp {
                         } => None, // mid-charge
                         AccountPanel::Upgrade { .. } => Some(A::UpgradeBack),
                         AccountPanel::Closed => Some(A::CloseModal),
+                        AccountPanel::NewSubAccount { .. }
+                        | AccountPanel::SubAccount { .. }
+                        | AccountPanel::SubAccountKeys { .. }
+                        | AccountPanel::DeleteSubAccount { .. } => Some(A::SubAccountsBack),
                         _ => Some(A::HideAccountKey),
                     },
                     Some(_) => Some(A::CloseModal),
@@ -903,6 +914,12 @@ impl ShellApp {
                                 self.queue.push(A::ConfirmDeleteAccount)
                             }
                             AccountPanel::CancelSub => self.queue.push(A::ConfirmCancelSub),
+                            AccountPanel::NewSubAccount { .. } => {
+                                self.queue.push(A::ConfirmNewSubAccount)
+                            }
+                            AccountPanel::DeleteSubAccount { .. } => {
+                                self.queue.push(A::ConfirmDeleteSubAccount)
+                            }
                             AccountPanel::Upgrade {
                                 stage: action::UpgradeStage::EnterCard,
                                 ..

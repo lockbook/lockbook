@@ -86,6 +86,7 @@ pub fn show_modals(app: &mut ShellApp, ctx: &egui::Context, t: &Theme, queue: &m
             if matches!(app.account_panel, super::prefs::AccountPanel::Upgrade { .. }) {
                 super::apply::poll_upgrade(app, ctx);
             }
+            super::apply::poll_sub_accounts(app, ctx);
             settings::show(app, ctx, t, queue);
         }
         ModalKind::Delete => {

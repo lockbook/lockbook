@@ -6,6 +6,8 @@ pub(crate) use super::apply_onboard::onboard_poll_uname;
 use super::apply_onboard::*;
 use super::apply_share::*;
 pub(crate) use super::apply_share::{share_poll_network, share_shortest_prefix_match};
+pub(crate) use super::apply_sub_accounts::poll_sub_accounts;
+use super::apply_sub_accounts::*;
 
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -234,6 +236,7 @@ pub fn apply(app: &mut ShellApp, ctx: &Context, action: A) {
             if let Some(r) = app.session.ready_mut() {
                 r.refresh_known_usernames();
             }
+            load_sub_accounts(app, ctx);
             app.modal = Some(Modal::Share {
                 id,
                 query: String::new(),
@@ -264,6 +267,7 @@ pub fn apply(app: &mut ShellApp, ctx: &Context, action: A) {
                 *err = None;
             }
         }
+        A::ShareSuggest(user) => share_suggest(app, ctx, user),
         A::ShareInvite => share_invite(app, ctx),
         A::ShareRemove(user) => share_remove(app, &user),
         A::OpenCreate { folder, alongside, is_folder } => {
@@ -1013,6 +1017,16 @@ pub fn apply(app: &mut ShellApp, ctx: &Context, action: A) {
                 }
             }
         }
+        A::OpenSubAccounts => open_sub_accounts(app, ctx),
+        A::OpenNewSubAccount => open_new_sub_account(app, ctx),
+        A::ConfirmNewSubAccount => confirm_new_sub_account(app, ctx),
+        A::OpenSubAccount(username) => open_sub_account(app, username),
+        A::RevealSubAccountKeys => reveal_sub_account_keys(app, ctx),
+        A::CopySubAccountPhrase => copy_sub_account_key(app, ctx, true),
+        A::CopySubAccountKey => copy_sub_account_key(app, ctx, false),
+        A::OpenDeleteSubAccount => open_delete_sub_account(app),
+        A::ConfirmDeleteSubAccount => confirm_delete_sub_account(app, ctx),
+        A::SubAccountsBack => sub_accounts_back(app),
         A::Create => {
             // Sidebar Create chip / ⌘N — open tab (not tree selection).
             open_create_sheet(app, ctx, None, None, false);

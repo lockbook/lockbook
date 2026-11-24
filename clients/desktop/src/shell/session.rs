@@ -323,6 +323,16 @@ impl Session {
 }
 
 pub(crate) fn prepare_ready(core: Lb, files: FileCache) -> CoreLoad {
-    let sub_info = core.get_subscription_info().ok().flatten();
+    let sub_info = subscription_info(&core);
     CoreLoad::Ready { core, files, sub_info }
+}
+
+pub(crate) fn subscription_info(core: &Lb) -> Option<SubscriptionInfo> {
+    let sub_account = core
+        .get_account()
+        .is_ok_and(|a| super::sub_accounts::is_sub_account(&a.username));
+    if sub_account {
+        return None;
+    }
+    core.get_subscription_info().ok().flatten()
 }

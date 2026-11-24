@@ -11,6 +11,12 @@ use crate::shell::ShellApp;
 use crate::shell::action::{Action, Action as A, SettingsCat, UpgradeStage};
 use crate::shell::prefs::AccountPanel;
 
+fn signed_in_as_sub_account(app: &ShellApp) -> bool {
+    app.session
+        .ready()
+        .is_some_and(|r| super::sub_accounts::is_sub_account(&r.workspace.account.username))
+}
+
 fn plan_standing(app: &ShellApp) -> super::account_plan::AccountStanding {
     use super::account_plan::AccountStanding;
     let cap = app
@@ -49,8 +55,18 @@ pub(crate) fn page_account(app: &mut ShellApp, ui: &mut Ui, t: &Theme, queue: &m
             page_account_upgrade(app, ui, t, queue);
             return;
         }
+        AccountPanel::SubAccounts
+        | AccountPanel::NewSubAccount { .. }
+        | AccountPanel::SubAccount { .. }
+        | AccountPanel::SubAccountKeys { .. }
+        | AccountPanel::DeleteSubAccount { .. } => {
+            let premium = plan_standing(app).tier == super::account_plan::AccountTier::Premium;
+            super::settings_sub_accounts::page(app, ui, t, queue, premium);
+            return;
+        }
         AccountPanel::Closed => {}
     }
+    let sub_account = signed_in_as_sub_account(app);
 
     // ── Account key (single plate; page title is already Account) ────────
     form_group(ui, t, |ui| {
@@ -72,6 +88,9 @@ pub(crate) fn page_account(app: &mut ShellApp, ui: &mut Ui, t: &Theme, queue: &m
                 queue.push(A::OpenAccountQr);
             }
         });
+        if !sub_account {
+            super::settings_sub_accounts::account_row(ui, t, queue);
+        }
     });
 
     // ── Plan (tier + storage + upgrade / renewal) ───────────────────────
@@ -119,20 +138,7 @@ fn page_account_phrase(app: &ShellApp, ui: &mut Ui, t: &Theme, queue: &mut Vec<A
         .ready()
         .and_then(|r| r.workspace.core.export_account_phrase().ok());
     let phrase = phrase.as_deref().unwrap_or("Preparing phrase…");
-    // Elevated plate + pad — natural height, no tight form_group squeeze.
-    crate::components::plate_content_shadow(
-        ui,
-        t.neutral_bg_secondary(),
-        crate::components::pin_shadow(t),
-        Radius::Control.corner(),
-        |ui| {
-            ui.set_width(ui_width(ui));
-            ui.spacing_mut().item_spacing = egui::vec2(0.0, 0.0);
-            crate::components::with_pad_fit(ui, Space::Md, |ui| {
-                ui.label(TypeRole::Mono.rich(phrase).color(t.neutral_fg()));
-            });
-        },
-    );
+    phrase_plate(ui, t, phrase);
 
     ui.add(Spacer::new(Space::Md));
     let foot = sheet_footer(
@@ -150,6 +156,23 @@ fn page_account_phrase(app: &ShellApp, ui: &mut Ui, t: &Theme, queue: &mut Vec<A
     if foot.primary {
         queue.push(A::CopyPhrase);
     }
+}
+
+pub(crate) fn phrase_plate(ui: &mut Ui, t: &Theme, phrase: &str) {
+    // Elevated plate + pad — natural height, no tight form_group squeeze.
+    crate::components::plate_content_shadow(
+        ui,
+        t.neutral_bg_secondary(),
+        crate::components::pin_shadow(t),
+        Radius::Control.corner(),
+        |ui| {
+            ui.set_width(ui_width(ui));
+            ui.spacing_mut().item_spacing = egui::vec2(0.0, 0.0);
+            crate::components::with_pad_fit(ui, Space::Md, |ui| {
+                ui.label(TypeRole::Mono.rich(phrase).color(t.neutral_fg()));
+            });
+        },
+    );
 }
 
 /// In-settings log out confirm. Esc / Back → HideAccountKey.
@@ -650,20 +673,17 @@ fn page_plan_body(app: &mut ShellApp, ui: &mut Ui, t: &Theme, queue: &mut Vec<Ac
     let tier = standing.tier.label();
     let paying = standing.tier == super::account_plan::AccountTier::Premium;
 
+    if signed_in_as_sub_account(app) {
+        section_label(ui, t, "Storage");
+        form_group(ui, t, |ui| storage_row(ui, t, &storage, queue));
+        footnote(ui, t, "A sub-account uses its parent account’s storage and plan.");
+        return;
+    }
+
     section_label(ui, t, "Plan & storage");
     form_group(ui, t, |ui| {
         form_value(ui, t, "Tier", tier);
-        form_row(ui, t, "Storage", |ui| {
-            if Button::quiet(t, "Details").show(ui).clicked() {
-                queue.push(A::SetSettingsCat(SettingsCat::Storage));
-            }
-            ui.add(Spacer::new(Space::Sm).fill_cross(control_height()));
-            ui.label(
-                TypeRole::Body
-                    .rich(&storage)
-                    .color(t.neutral_fg_secondary()),
-            );
-        });
+        storage_row(ui, t, &storage, queue);
         if paying {
             // Standing detail (renew / access until) + source line.
             if let Some(detail) = standing.detail.as_deref() {
@@ -697,4 +717,14 @@ fn page_plan_body(app: &mut ShellApp, ui: &mut Ui, t: &Theme, queue: &mut Vec<Ac
             "Card checkout is processed by Stripe. Review Terms of Service before upgrading.",
         );
     }
+}
+
+fn storage_row(ui: &mut Ui, t: &Theme, storage: &str, queue: &mut Vec<Action>) {
+    form_row(ui, t, "Storage", |ui| {
+        if Button::quiet(t, "Details").show(ui).clicked() {
+            queue.push(A::SetSettingsCat(SettingsCat::Storage));
+        }
+        ui.add(Spacer::new(Space::Sm).fill_cross(control_height()));
+        ui.label(TypeRole::Body.rich(storage).color(t.neutral_fg_secondary()));
+    });
 }

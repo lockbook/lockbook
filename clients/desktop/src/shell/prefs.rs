@@ -36,6 +36,19 @@ pub enum AccountPanel {
         /// Set when Paying finishes (`Ok` or error string).
         done: Option<Result<(), String>>,
     },
+    SubAccounts,
+    NewSubAccount {
+        label: String,
+    },
+    SubAccount {
+        username: String,
+    },
+    SubAccountKeys {
+        username: String,
+    },
+    DeleteSubAccount {
+        username: String,
+    },
 }
 
 /// SI byte label (1000-based), matching lb `bytes_to_human` so caps read as 30 GB.
