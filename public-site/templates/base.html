@@ -19,6 +19,7 @@
 <title>{{ seo_title }}</title>
 <meta name="description" content="{{ seo_description }}" />
 <link rel="canonical" href="{{ seo_url }}" />
+{% if page is defined and page.extra.noindex %}<meta name="robots" content="noindex" />{% endif %}
 <meta property="og:site_name" content="Lockbook" />
 <meta property="og:type" content="{% if page is defined and page.date %}article{% else %}website{% endif %}" />
 <meta property="og:title" content="{{ seo_title }}" />
@@ -105,7 +106,8 @@
 *,*::before,*::after{box-sizing:border-box}
 html{-webkit-text-size-adjust:100%}
 body{
-  margin:0; background:var(--bg); color:var(--fg);
+  margin:0; min-height:100vh; min-height:100dvh; display:flex; flex-direction:column;
+  background:var(--bg); color:var(--fg);
   font-family:var(--sans); font-size:var(--t-body); line-height:var(--lh-prose);
   -webkit-font-smoothing:antialiased; -moz-osx-font-smoothing:grayscale;
 }
@@ -265,7 +267,7 @@ code,kbd,samp{font-family:var(--mono);font-size:.85em}
 .card h3{font-size:19px;margin-bottom:var(--s-sm)}
 .card p{color:var(--fg-2);font-size:16px}
 
-.site-footer{border-top:1px solid var(--divider);padding:var(--s-2xl) 0 var(--s-xl);color:var(--fg-2);font-size:15px}
+.site-footer{margin-top:auto;border-top:1px solid var(--divider);padding:var(--s-2xl) 0 var(--s-xl);color:var(--fg-2);font-size:15px}
 .site-footer .cols{display:grid;gap:var(--s-lg);margin-bottom:var(--s-lg)}
 @media (min-width:760px){.site-footer .cols{grid-template-columns:repeat(4,1fr)}}
 .site-footer h4{font-family:var(--mono);font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--fg-3);font-weight:400;margin-bottom:var(--s-sm)}
