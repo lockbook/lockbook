@@ -909,6 +909,61 @@ impl Request for AdminSetUserTierRequest {
     const ROUTE: &'static str = "/admin-set-user-tier";
 }
 
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
+pub struct AdminStripeSnapshot {
+    pub subscription_id: String,
+    pub last_4: String,
+    pub expiration_time: UnixTimeMillis,
+    pub account_state: StripeAccountState,
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
+pub enum AdminStripeAccountStatus {
+    /// Cached DB matches Stripe's live subscription state.
+    InSync,
+    /// Cached DB differs from Stripe; when `apply` is true, DB was updated to `stripe`.
+    Drifted { cached: Option<AdminStripeSnapshot>, stripe: Option<AdminStripeSnapshot> },
+    /// Account is currently Premium on App Store or Google Play; never overwritten.
+    OtherPlatformPremium { stripe: Option<AdminStripeSnapshot> },
+    /// Stripe lookup or billing lock failed for this customer.
+    Error(String),
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
+pub struct AdminStripeAccountCheck {
+    pub username: String,
+    pub customer_id: String,
+    pub status: AdminStripeAccountStatus,
+}
+
+/// Checks cached Stripe billing against live Stripe, and when `apply` is true, updates the DB.
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
+pub struct AdminSyncStripeRequest {
+    /// One account to check/sync, or `None` for every account with a Stripe customer ID.
+    pub username: Option<String>,
+    /// `false` = read-only diff; `true` = write drifted accounts from Stripe.
+    pub apply: bool,
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
+pub struct AdminSyncStripeResponse {
+    pub results: Vec<AdminStripeAccountCheck>,
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
+pub enum AdminSyncStripeError {
+    NotPermissioned,
+    UserNotFound,
+    NotStripeCustomer,
+}
+
+impl Request for AdminSyncStripeRequest {
+    type Response = AdminSyncStripeResponse;
+    type Error = AdminSyncStripeError;
+    const METHOD: Method = Method::POST;
+    const ROUTE: &'static str = "/admin-sync-stripe";
+}
+
 // number of milliseconds that have elapsed since the unix epoch
 pub type UnixTimeMillis = u64;
 

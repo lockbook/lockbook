@@ -7,7 +7,8 @@ use crate::io::network::Network;
 use crate::model::account::{Account, Username};
 use crate::model::api::{
     AccountFilter, AccountIdentifier, AccountInfo, AdminFileInfoResponse, AdminSetUserTierInfo,
-    AdminValidateAccount, AdminValidateServer, ServerIndex, SubAccountInfo, SubscriptionInfo,
+    AdminStripeAccountCheck, AdminValidateAccount, AdminValidateServer, ServerIndex,
+    SubAccountInfo, SubscriptionInfo,
 };
 use crate::model::core_config::Config;
 use crate::model::crypto::DecryptedDocument;
@@ -456,6 +457,12 @@ impl Lb {
 
     pub fn admin_set_user_tier(&self, username: &str, info: AdminSetUserTierInfo) -> LbResult<()> {
         self.block_on(self.lb.set_user_tier(username, info))
+    }
+
+    pub fn admin_sync_stripe(
+        &self, username: Option<String>, apply: bool,
+    ) -> LbResult<Vec<AdminStripeAccountCheck>> {
+        self.block_on(self.lb.sync_stripe(username, apply))
     }
 
     pub fn subscribe(&self) -> Receiver<Event> {

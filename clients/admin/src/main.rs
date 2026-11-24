@@ -162,6 +162,18 @@ fn main() {
                         }),
                 ),
         )
+        .subcommand(
+            Command::name("check-stripe")
+                .description("Check cached Stripe billing against live Stripe without writing")
+                .input(Flag::<String>::new("username"))
+                .handler(|username| account::sync_stripe(&core()?, username.get(), false)),
+        )
+        .subcommand(
+            Command::name("sync-stripe")
+                .description("Refresh cached Stripe billing from live Stripe")
+                .input(Flag::<String>::new("username"))
+                .handler(|username| account::sync_stripe(&core()?, username.get(), true)),
+        )
         .parse()
         .exit();
 }

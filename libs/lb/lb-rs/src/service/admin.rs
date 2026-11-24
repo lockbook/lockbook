@@ -208,4 +208,30 @@ impl<S: Server, D: LocalDocuments> Lb<S, D> {
 
         Ok(())
     }
+
+    #[instrument(level = "debug", skip(self), err(Debug))]
+    pub async fn sync_stripe(
+        &self, username: Option<String>, apply: bool,
+    ) -> LbResult<Vec<AdminStripeAccountCheck>> {
+        let account = self.get_account()?;
+        Ok(self
+            .client
+            .admin_sync_stripe(account, AdminSyncStripeRequest { username, apply })
+            .await
+            .map_err(|err| match err {
+                ApiError::Endpoint(AdminSyncStripeError::NotPermissioned) => {
+                    LbErrKind::InsufficientPermission
+                }
+                ApiError::Endpoint(AdminSyncStripeError::UserNotFound) => {
+                    LbErrKind::UsernameNotFound
+                }
+                ApiError::Endpoint(AdminSyncStripeError::NotStripeCustomer) => {
+                    LbErrKind::NotPremium
+                }
+                ApiError::SendFailed(_) => LbErrKind::ServerUnreachable,
+                ApiError::ClientUpdateRequired => LbErrKind::ClientUpdateRequired,
+                _ => core_err_unexpected(err),
+            })?
+            .results)
+    }
 }

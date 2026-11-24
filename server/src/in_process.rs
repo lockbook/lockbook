@@ -446,6 +446,14 @@ where
             .map_err(api_error)
     }
 
+    async fn admin_sync_stripe(
+        &self, account: &Account, request: AdminSyncStripeRequest,
+    ) -> ApiResult<AdminSyncStripeRequest> {
+        ServerState::admin_sync_stripe(self, context(account, request))
+            .await
+            .map_err(api_error)
+    }
+
     async fn admin_rebuild_index(
         &self, account: &Account, request: AdminRebuildIndexRequest,
     ) -> ApiResult<AdminRebuildIndexRequest> {
