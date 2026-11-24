@@ -22,6 +22,12 @@ import SwiftWorkspace
                         }
                     }
 
+                    if AppState.shared.account?.isSubAccount == false {
+                        NavigationLink("Sub-accounts") {
+                            SubAccountsView(settingsModel: model)
+                        }
+                    }
+
                     LogoutButton()
                 }
 
@@ -144,6 +150,12 @@ import SwiftWorkspace
                             .foregroundStyle(.gray)
                     })
                     .buttonStyle(.borderless)
+
+                    if AppState.shared.account?.isSubAccount == false {
+                        NavigationLink("Sub-accounts") {
+                            SubAccountsView(settingsModel: model)
+                        }
+                    }
 
                     HStack {
                         Text("Logout")
@@ -472,12 +484,26 @@ struct UsageSettingsRows: View {
 }
 
 struct AccountKeysView: View {
-    let accountKey = (try? AppState.lb.exportAccountPrivateKey().get()) ?? "ERROR"
+    let title: String
+    let accountKey: String
+    let phrase: String?
+
+    init() {
+        title = "Account Keys"
+        accountKey = (try? AppState.lb.exportAccountPrivateKey().get()) ?? "ERROR"
+        phrase = nil
+    }
+
+    init(title: String, accountKey: String, phrase: String) {
+        self.title = title
+        self.accountKey = accountKey
+        self.phrase = phrase
+    }
 
     var body: some View {
         Form {
             Section("Phrase") {
-                AccountPhraseView(includeBackground: false)
+                AccountPhraseView(includeBackground: false, phrase: phrase)
             }
 
             Section("Compact") {
@@ -511,7 +537,7 @@ struct AccountKeysView: View {
             }
         }
         #if os(iOS)
-            .navigationTitle("Account Keys")
+            .navigationTitle(title)
             .navigationBarTitleDisplayMode(.large)
         #else
             .formStyle(.grouped)
