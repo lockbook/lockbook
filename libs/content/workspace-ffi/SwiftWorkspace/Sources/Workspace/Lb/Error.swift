@@ -23,14 +23,6 @@ public enum EC: Int {
     case appStoreAccountAlreadyLinked
     case alreadySyncing
     case cannotCancelSubscriptionForAppStore
-    case cardDecline
-    case cardExpired
-    case cardInsufficientFunds
-    case cardInvalidCvc
-    case cardInvalidExpMonth
-    case cardInvalidExpYear
-    case cardInvalidNumber
-    case cardNotSupported
     case clientUpdateRequired
     case currentUsageIsMoreThanNewTier
     case diskPathInvalid
@@ -55,7 +47,6 @@ public enum EC: Int {
     case notPremium
     case usageIsOverDataCap
     case usageIsOverFreeTierDataCap
-    case oldCardDoesNotExist
     case pathContainsEmptyFileName
     case pathTaken
     case rootModificationInvalid
@@ -70,6 +61,8 @@ public enum EC: Int {
     case usernameNotFound
     case usernamePublicKeyMismatch
     case usernameTaken
+    case importFailed
+    case attachmentsFolderFixed
 
     init(_ lbEC: LbEC) {
         self = EC(rawValue: Int(lbEC.rawValue))!
