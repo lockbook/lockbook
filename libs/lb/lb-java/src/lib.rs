@@ -195,6 +195,92 @@ pub extern "system" fn Java_net_lockbook_Lb_exportAccountQR<'local>(
     }
 }
 
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_net_lockbook_Lb_createSubAccount<'local>(
+    mut env: JNIEnv<'local>, class: JClass<'local>, jlabel: JString<'local>,
+) -> jstring {
+    let lb = rlb(&mut env, &class);
+
+    let label = rstring(&mut env, jlabel);
+
+    match lb.create_sub_account(&label) {
+        Ok(username) => jni_string(&mut env, username).into_raw(),
+        Err(err) => throw_err(&mut env, err).into_raw(),
+    }
+}
+
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_net_lockbook_Lb_listSubAccounts<'local>(
+    mut env: JNIEnv<'local>, class: JClass<'local>,
+) -> jobjectArray {
+    let lb = rlb(&mut env, &class);
+
+    let sub_accounts = match lb.list_sub_accounts() {
+        Ok(sub_accounts) => sub_accounts,
+        Err(err) => return throw_err(&mut env, err).into_raw(),
+    };
+
+    let sub_account_class = env.find_class("net/lockbook/SubAccount").unwrap();
+    let arr = env
+        .new_object_array(sub_accounts.len() as i32, &sub_account_class, JObject::null())
+        .unwrap();
+
+    for (i, sub_account) in sub_accounts.into_iter().enumerate() {
+        let obj = env.alloc_object(&sub_account_class).unwrap();
+        let username = jni_string(&mut env, sub_account.username);
+        env.set_field(&obj, "username", "Ljava/lang/String;", JValue::Object(&username))
+            .unwrap();
+        env.set_field(&obj, "usage", "J", JValue::Long(sub_account.usage as jlong))
+            .unwrap();
+        env.set_object_array_element(&arr, i as i32, &obj).unwrap();
+        env.delete_local_ref(username).unwrap();
+        env.delete_local_ref(obj).unwrap();
+    }
+
+    arr.into_raw()
+}
+
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_net_lockbook_Lb_deleteSubAccount<'local>(
+    mut env: JNIEnv<'local>, class: JClass<'local>, jusername: JString<'local>,
+) {
+    let lb = rlb(&mut env, &class);
+
+    let username = rstring(&mut env, jusername);
+
+    if let Err(err) = lb.delete_sub_account(&username) {
+        throw_err(&mut env, err);
+    }
+}
+
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_net_lockbook_Lb_exportSubAccountPrivateKey<'local>(
+    mut env: JNIEnv<'local>, class: JClass<'local>, jusername: JString<'local>,
+) -> jstring {
+    let lb = rlb(&mut env, &class);
+
+    let username = rstring(&mut env, jusername);
+
+    match lb.export_sub_account_private_key(&username) {
+        Ok(key) => jni_string(&mut env, key).into_raw(),
+        Err(err) => throw_err(&mut env, err).into_raw(),
+    }
+}
+
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_net_lockbook_Lb_exportSubAccountPhrase<'local>(
+    mut env: JNIEnv<'local>, class: JClass<'local>, jusername: JString<'local>,
+) -> jstring {
+    let lb = rlb(&mut env, &class);
+
+    let username = rstring(&mut env, jusername);
+
+    match lb.export_sub_account_phrase(&username) {
+        Ok(phrase) => jni_string(&mut env, phrase).into_raw(),
+        Err(err) => throw_err(&mut env, err).into_raw(),
+    }
+}
+
 fn jfile<'local>(env: &mut JNIEnv<'local>, file: File) -> JObject<'local> {
     let file_class = env.find_class("net/lockbook/File").unwrap();
     let obj = env.alloc_object(file_class).unwrap();

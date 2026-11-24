@@ -24,6 +24,23 @@
     <string name="settings_export_account_phrase_copied">Account phrase copied!</string>
     <string name="settings_protect_account_biometric">Biometric options</string>
 
+    <string name="sub_accounts">Sub-accounts</string>
+    <string name="sub_accounts_manage">Manage sub-accounts</string>
+    <string name="sub_accounts_description">A sub-account has its own keys for a script, a tool or another person. It uses your storage and reaches only what you share with it.</string>
+    <string name="sub_accounts_loading">Loading…</string>
+    <string name="sub_accounts_empty">No sub-accounts</string>
+    <string name="sub_account_new">New sub-account</string>
+    <string name="sub_account_new_needs_premium">Creating a sub-account needs a premium subscription.</string>
+    <string name="sub_account_new_details">It will be named %1$s+label. A name can\'t be used again after its sub-account is deleted.</string>
+    <string name="sub_account_label">Label</string>
+    <string name="sub_account_storage">Storage</string>
+    <string name="sub_account_keys">Keys</string>
+    <string name="sub_account_keys_description">Sign in as this sub-account with its keys. Anyone who has them can reach what you\'ve shared with it.</string>
+    <string name="sub_account_export_qr">Export account key (QR Code)</string>
+    <string name="sub_account_delete">Delete sub-account</string>
+    <string name="sub_account_delete_title">Delete %1$s?</string>
+    <string name="sub_account_delete_details">The files it owns are deleted, and its name can\'t be used again.</string>
+
     <string name="biometric_disabled">Disabled</string>
     <string name="biometric_recommended">Protect key export with biometrics (recommended)</string>
     <string name="biometric_strict">Use biometrics every time you open the app (strict mode)</string>
@@ -217,6 +234,9 @@
     <string name="export_account_phrase_key" translatable="false">export_account_phrase</string>
     <string name="export_account_raw_key" translatable="false">export_account_raw</string>
     <string name="export_account_qr_key" translatable="false">export_account_qr</string>
+
+    <string name="sub_accounts_category_key" translatable="false">sub_accounts_category</string>
+    <string name="sub_accounts_key" translatable="false">sub_accounts</string>
 
     <string name="background_sync_period_key" translatable="false">background_sync_period</string>
     <string name="background_sync_enabled_key" translatable="false">background_sync_enabled</string>

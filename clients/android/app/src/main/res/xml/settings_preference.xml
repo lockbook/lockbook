@@ -44,6 +44,16 @@
     </PreferenceCategory>
 
     <PreferenceCategory
+        android:key="@string/sub_accounts_category_key"
+        android:icon="@drawable/ic_baseline_key_24"
+        android:title="@string/sub_accounts">
+        <Preference
+            android:key="@string/sub_accounts_key"
+            android:title="@string/sub_accounts_manage"
+            app:iconSpaceReserved="false" />
+    </PreferenceCategory>
+
+    <PreferenceCategory
         android:icon="@drawable/ic_baseline_sync_24"
         android:title="@string/settings_preference_title_background_sync">
         <SwitchPreference
