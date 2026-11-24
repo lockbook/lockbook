@@ -1,0 +1,433 @@
+===== t1.ps1 (script) =====
+. \\Mac\lockbook\vm-scratch\cfapi\lib.ps1
+$A = 'C:\Users\travis\Lockbook-alice\Team\plan.md'; $B = 'C:\Users\travis\Lockbook-bob\Team\plan.md'
+function L($m) { Log 't1.ps1' $m }
+$j = Start-Job { Get-Content 'C:\Users\travis\Lockbook-bob\Team\plan.md' -Raw }
+if (Wait-Job $j -Timeout 20) { L "bob reads: $(Receive-Job $j)" } else { L 'bob read HUNG' }
+Add-Content $A '- alice: edited from Windows'
+L "alice file now: $(Get-Content $A -Raw)"
+Start-Sleep 10
+$j = Start-Job { Get-Content 'C:\Users\travis\Lockbook-bob\Team\plan.md' -Raw }
+if (Wait-Job $j -Timeout 20) { L "bob after sync: $(Receive-Job $j)" } else { L 'bob read 2 HUNG' }
+L '--- alice log'; Get-Content C:\Users\travis\cf-alice.log -Tail 8 | ForEach-Object { L $_ }
+L '--- bob log'; Get-Content C:\Users\travis\cf-bob.log -Tail 8 | ForEach-Object { L $_ }
+Done 't1.ps1'
+
+===== t1.ps1 (guest log) =====
+22:39:45 bob reads: # Team plan
+
+- ship the Windows spike
+
+22:39:45 alice file now: # Team plan
+
+- ship the Windows spike
+- alice: edited from Windows
+
+22:39:55 bob after sync: # Team plan
+
+- ship the Windows spike
+- alice: edited from Windows
+
+22:39:55 --- alice log
+22:39:55 [81637.744] connected C:\Users\travis\Lockbook-alice as cfalice2233
+22:39:55 [81637.747] placeholder Team
+22:39:55 [81637.748] placeholder Team\plan.md
+22:39:55 [81985.199] hydrated 1fb27303-2390-4b06-aeb3-d41243ae2599 (41 bytes)
+22:39:55 [81985.682] local edit Team\plan.md (71 bytes)
+22:39:55 --- bob log
+22:39:55 [81644.393] connected C:\Users\travis\Lockbook-bob as cfbob2233
+22:39:55 [81644.396] placeholder Team
+22:39:55 [81644.398] placeholder Team\plan.md
+22:39:55 [81984.491] hydrated 1fb27303-2390-4b06-aeb3-d41243ae2599 (41 bytes)
+22:39:55 [81988.594] remote edit Team\plan.md (71 bytes)
+22:39:55 [81995.491] hydrated 1fb27303-2390-4b06-aeb3-d41243ae2599 (71 bytes)
+
+===== t2.ps1 (script) =====
+. \\Mac\lockbook\vm-scratch\cfapi\lib.ps1
+$A = 'C:\Users\travis\Lockbook-alice\Team'; $B = 'C:\Users\travis\Lockbook-bob\Team'
+function L($m) { Log 't2.ps1' $m }
+function R($p) { $j = Start-Job -ArgumentList $p { param($p) Get-Content $p -Raw }; if (Wait-Job $j -Timeout 20) { Receive-Job $j } else { 'HUNG' } }
+function Tree($d) { (Get-ChildItem -Recurse $d | ForEach-Object { $_.FullName.Substring($d.Length) }) -join ', ' }
+# B -> A edit
+Add-Content "$B\plan.md" '- bob: edited from Windows'
+Start-Sleep 9
+L "B->A edit, alice reads: $(R "$A\plan.md")"
+# B creates a folder and a file in it, A creates a file
+New-Item -ItemType Directory "$B\Notes" | Out-Null
+Set-Content "$B\Notes\idea.txt" 'bob idea'
+Set-Content "$A\todo.md" '# todo from alice'
+Start-Sleep 10
+L "after creates, alice tree: $(Tree $A)"
+L "after creates, bob tree: $(Tree $B)"
+L "alice reads idea: $(R "$A\Notes\idea.txt")"
+# A renames, B moves, then A deletes
+Rename-Item "$A\todo.md" 'todo-renamed.md'
+Move-Item "$B\Notes\idea.txt" "$B\idea.txt"
+Start-Sleep 10
+L "after rename/move, alice tree: $(Tree $A)"
+L "after rename/move, bob tree: $(Tree $B)"
+Remove-Item "$A\Notes" -Recurse
+Start-Sleep 10
+L "after delete, alice tree: $(Tree $A)"
+L "after delete, bob tree: $(Tree $B)"
+L '--- alice log'; Get-Content C:\Users\travis\cf-alice.log -Tail 14 | ForEach-Object { L $_ }
+L '--- bob log'; Get-Content C:\Users\travis\cf-bob.log -Tail 14 | ForEach-Object { L $_ }
+Done 't2.ps1'
+
+===== t2.ps1 (guest log) =====
+22:40:20 B->A edit, alice reads: 
+22:40:30 after creates, alice tree: \Notes, \plan.md, \todo.md, \Notes\idea.txt
+22:40:30 after creates, bob tree: \Notes, \plan.md, \todo.md, \Notes\idea.txt
+22:40:30 alice reads idea: 
+22:40:40 after rename/move, alice tree: \Notes, \idea.txt, \plan.md, \todo-renamed.md
+22:40:40 after rename/move, bob tree: \Notes, \idea.txt, \plan.md, \todo-renamed.md
+22:41:05 after delete, alice tree: \idea.txt, \plan.md, \todo-renamed.md
+22:41:05 after delete, bob tree: \idea.txt, \plan.md, \todo-renamed.md
+22:41:06 --- alice log
+22:41:06 [81637.744] connected C:\Users\travis\Lockbook-alice as cfalice2233
+22:41:07 [81637.747] placeholder Team
+22:41:07 [81637.748] placeholder Team\plan.md
+22:41:07 [81985.199] hydrated 1fb27303-2390-4b06-aeb3-d41243ae2599 (41 bytes)
+22:41:07 [81985.682] local edit Team\plan.md (71 bytes)
+22:41:07 [82014.012] remote edit Team\plan.md (99 bytes)
+22:41:07 [82020.814] local create Team\todo.md
+22:41:07 [82020.840] local edit Team\todo.md (19 bytes)
+22:41:07 [82021.352] placeholder Team\Notes
+22:41:08 [82021.362] placeholder Team\Notes\idea.txt
+22:41:08 [82030.450] local rename 5e241b31-5733-41fa-8106-e153de02b8fb -> C:\Users\travis\Lockbook-alice\Team\todo-renamed.md
+22:41:08 [82030.942] local edit Team\todo-renamed.md (19 bytes)
+22:41:08 [82034.122] remote move Team\Notes\idea.txt -> Team\idea.txt: Ok(())
+22:41:09 [82040.522] local delete 27d8f93c-c9d6-4b7c-bfa4-a2ce26722f72
+22:41:09 --- bob log
+22:41:10 [81644.396] placeholder Team
+22:41:11 [81644.398] placeholder Team\plan.md
+22:41:11 [81984.491] hydrated 1fb27303-2390-4b06-aeb3-d41243ae2599 (41 bytes)
+22:41:11 [81988.594] remote edit Team\plan.md (71 bytes)
+22:41:12 [81995.491] hydrated 1fb27303-2390-4b06-aeb3-d41243ae2599 (71 bytes)
+22:41:13 [82011.430] local edit Team\plan.md (99 bytes)
+22:41:15 [82020.817] local create Team\Notes
+22:41:17 [82020.834] local create Team\Notes\idea.txt
+22:41:17 [82020.852] local edit Team\Notes\idea.txt (10 bytes)
+22:41:18 [82021.358] placeholder Team\todo.md
+22:41:18 [82030.455] local rename 32c43e26-6306-4f10-a569-541b68702c2b -> C:\Users\travis\Lockbook-bob\Team\idea.txt
+22:41:19 [82030.946] local edit Team\idea.txt (10 bytes)
+22:41:20 [82034.120] remote move Team\todo.md -> Team\todo-renamed.md: Ok(())
+22:41:20 [82044.339] remote delete Team\Notes: Ok(())
+
+===== t3.ps1 (script) =====
+. \\Mac\lockbook\vm-scratch\cfapi\lib.ps1
+$ErrorActionPreference = 'Stop'
+$PA = 'C:\Users\travis\Lockbook-alice\Team\plan.md'; $PB = 'C:\Users\travis\Lockbook-bob\Team\plan.md'
+function L($m) { Log 't3.ps1' $m }
+function ReadText($p) { [IO.File]::ReadAllText($p) }
+try {
+[IO.File]::WriteAllText($PA, "# Team plan`r`n`r`n- ship the Windows spike`r`n- alice: edited from Windows`r`n- bob: edited from Windows`r`n")
+Start-Sleep 9
+# 1. simultaneous: both editors start from the same text, both save before either syncs
+$base = ReadText $PA; $null = ReadText $PB
+L "base: $base"
+$ta = $base.Replace('# Team plan', '# Team plan (alice retitled)')
+$tb = $base + "- bob: added at the same time`r`n"
+[IO.File]::WriteAllText($PA, $ta); [IO.File]::WriteAllText($PB, $tb)
+Start-Sleep 14
+L "simultaneous -> alice: $(ReadText $PA)"
+L "simultaneous -> bob: $(ReadText $PB)"
+# 2. stale editor: bob's buffer predates alice's save, which lands on bob's disk first
+$stale = ReadText $PB
+[IO.File]::WriteAllText($PA, (ReadText $PA) + "- alice: second edit`r`n")
+Start-Sleep 9
+L "bob disk before his save: $(ReadText $PB)"
+[IO.File]::WriteAllText($PB, $stale.Replace('ship the Windows spike', 'ship the Windows spike (bob, stale buffer)'))
+Start-Sleep 12
+L "stale -> alice: $(ReadText $PA)"
+L "stale -> bob: $(ReadText $PB)"
+} catch { L "ERR $($_.Exception.Message) at $($_.InvocationInfo.ScriptLineNumber)" }
+L '--- alice log'; Get-Content C:\Users\travis\cf-alice.log -Tail 10 | ForEach-Object { L $_ }
+L '--- bob log'; Get-Content C:\Users\travis\cf-bob.log -Tail 10 | ForEach-Object { L $_ }
+Done 't3.ps1'
+
+===== t3.ps1 (guest log) =====
+22:47:14 base: # Team plan
+
+- ship the Windows spike
+- alice: edited from Windows
+- bob: edited from Windows
+
+22:47:28 simultaneous -> alice: # Team plan (alice retitled)
+
+- ship the Windows spike
+- alice: edited from Windows
+- bob: edited from Windows
+- bob: added at the same time
+
+22:47:28 simultaneous -> bob: # Team plan (alice retitled)
+
+- ship the Windows spike
+- alice: edited from Windows
+- bob: edited from Windows
+- bob: added at the same time
+
+22:47:37 bob disk before his save: # Team plan (alice retitled)
+
+- ship the Windows spike
+- alice: edited from Windows
+- bob: edited from Windows
+- bob: added at the same time
+- alice: second edit
+
+22:47:52 stale -> alice: # Team plan (alice retitled)
+
+- ship the Windows spike (bob, stale buffer)
+- alice: edited from Windows
+- bob: edited from Windows
+- bob: added at the same time
+
+22:47:53 stale -> bob: # Team plan (alice retitled)
+
+- ship the Windows spike (bob, stale buffer)
+- alice: edited from Windows
+- bob: edited from Windows
+- bob: added at the same time
+
+22:47:53 --- alice log
+22:47:57   29: <unknown>
+22:47:58   30: <unknown>
+22:47:58   31: <unknown>
+22:47:59   32: BaseThreadInitThunk
+22:47:59   33: RtlUserThreadStart
+22:48:00 [82438.446] remote edit Team\plan.md (147 bytes)
+22:48:00 [82448.783] hydrated bde5c60b-28a8-4874-a9c5-2d153a3ccd05 (147 bytes)
+22:48:00 [82449.321] local edit Team\plan.md (169 bytes)
+22:48:00 [82458.806] remote edit Team\plan.md (167 bytes)
+22:48:00 [82471.952] hydrated bde5c60b-28a8-4874-a9c5-2d153a3ccd05 (167 bytes)
+22:48:00 --- bob log
+22:48:00 [82383.627] remote edit Team\plan.md (99 bytes)
+22:48:00 [82398.244] local delete 1fb27303-2390-4b06-aeb3-d41243ae2599
+22:48:00 [82427.526] placeholder Team\plan.md
+22:48:00 [82434.664] hydrated bde5c60b-28a8-4874-a9c5-2d153a3ccd05 (99 bytes)
+22:48:00 [82435.208] local edit Team\plan.md (130 bytes)
+22:48:00 [82441.513] remote edit Team\plan.md (147 bytes)
+22:48:00 [82448.807] hydrated bde5c60b-28a8-4874-a9c5-2d153a3ccd05 (147 bytes)
+22:48:00 [82452.481] remote edit Team\plan.md (169 bytes)
+22:48:00 [82457.862] hydrated bde5c60b-28a8-4874-a9c5-2d153a3ccd05 (169 bytes)
+22:48:00 [82458.383] local edit Team\plan.md (167 bytes)
+
+===== t5.ps1 (script) =====
+. \\Mac\lockbook\vm-scratch\cfapi\lib.ps1
+$ErrorActionPreference = 'Stop'
+$PA = 'C:\Users\travis\Lockbook-alice\Team\plan.md'; $PB = 'C:\Users\travis\Lockbook-bob\Team\plan.md'
+function L($m) { Log 't5.ps1' $m }
+function ReadText($p) { [IO.File]::ReadAllText($p) }
+try {
+$stale = ReadText $PB
+L "bob's editor loads: $stale"
+[IO.File]::WriteAllText($PA, (ReadText $PA) + "- alice: third edit`r`n")
+Start-Sleep 9
+[IO.File]::WriteAllText($PB, $stale + "- bob: saved from a stale buffer`r`n")
+Start-Sleep 12
+L "stale -> alice: $(ReadText $PA)"
+L "stale -> bob: $(ReadText $PB)"
+} catch { L "ERR $($_.Exception.Message) at $($_.InvocationInfo.ScriptLineNumber)" }
+L '--- bob log'; Get-Content C:\Users\travis\cf-bob.log -Tail 5 | ForEach-Object { L $_ }
+Done 't5.ps1'
+
+===== t5.ps1 (guest log) =====
+22:48:29 bob's editor loads: # Team plan (alice retitled)
+
+- ship the Windows spike (bob, stale buffer)
+- alice: edited from Windows
+- bob: edited from Windows
+- bob: added at the same time
+
+22:48:50 stale -> alice: # Team plan (alice retitled)
+
+- ship the Windows spike (bob, stale buffer)
+- alice: edited from Windows
+- bob: edited from Windows
+- bob: added at the same time
+- bob: saved from a stale buffer
+- alice: third edit
+
+22:48:50 stale -> bob: # Team plan (alice retitled)
+
+- ship the Windows spike (bob, stale buffer)
+- alice: edited from Windows
+- bob: edited from Windows
+- bob: added at the same time
+- bob: saved from a stale buffer
+- alice: third edit
+
+22:48:50 --- bob log
+22:48:50 [82457.862] hydrated bde5c60b-28a8-4874-a9c5-2d153a3ccd05 (169 bytes)
+22:48:50 [82458.383] local edit Team\plan.md (167 bytes)
+22:48:50 [82512.985] remote edit Team\plan.md (188 bytes)
+22:48:50 [82518.910] merged Team\plan.md with a newer version
+22:48:50 [82519.118] local edit Team\plan.md (222 bytes)
+
+
+===== demo.ps1 (Notepad save, guest log) =====
+23:33:51 before save: File ID is 0x0000000000000000000300000006d57a attrs Archive, ReparsePoint
+23:33:58 after save: File ID is 0x0000000000000000000300000006d57a attrs Archive, ReparsePoint same-file=True
+23:34:04 shot shot-2-alice-notepad-save
+23:34:16 shot shot-3-bob-notepad-sees-it
+23:34:16 titles: plan.md - Notepad |  | 
+23:34:16 bob file: # Team plan (alice retitled)
+
+* ship the Windows spike (bob, stale buffer)
+* alice: edited from Windows
+* bob: edited from Windows
+* bob: added at the same time
+* bob: saved from a stale buffer
+* alice: third edit- alice: typed in notepad and saved
+* 
+
+
+23:34:16 --- alice log
+23:34:16 [82509.890] local edit Team\plan.md (188 bytes)
+23:34:16 [82519.516] remote edit Team\plan.md (222 bytes)
+23:34:16 [82530.579] hydrated bde5c60b-28a8-4874-a9c5-2d153a3ccd05 (222 bytes)
+23:34:16 [85237.395] local edit Team\plan.md (263 bytes)
+23:34:16 --- bob log
+23:34:16 [82518.910] merged Team\plan.md with a newer version
+23:34:16 [82519.118] local edit Team\plan.md (222 bytes)
+23:34:16 [85239.005] remote edit Team\plan.md (263 bytes)
+23:34:16 [85253.096] hydrated bde5c60b-28a8-4874-a9c5-2d153a3ccd05 (263 bytes)
+
+===== gitrepo.ps1 (script) =====
+. \\Mac\lockbook\vm-scratch\cfapi\lib.ps1
+function L($m) { Log 'gitrepo.ps1' $m }
+$s = (Get-Content "$Share\gsuffix.txt").Trim()
+function G($dir) { $out = & git -C $dir -c user.name=spike -c user.email=spike@example.invalid @args 2>&1 | ForEach-Object { "$_" }; L "git $($args -join ' ') [exit $LASTEXITCODE]"; $out | ForEach-Object { L "  $_" } }
+try {
+  Lb galice create-account "cfgalice$s" | ForEach-Object { L $_ }
+  Lb gbob create-account "cfgbob$s" | ForEach-Object { L $_ }
+  Lb galice write 'Repo/README.md' "# repo`r`n" | Out-Null
+  Lb galice share 'Repo/' "cfgbob$s" | ForEach-Object { L $_ }
+  Lb gbob accept | ForEach-Object { L $_ }
+  foreach ($w in 'galice','gbob') {
+    Who $w
+    $p = Start-Process -FilePath $Exe -ArgumentList @('run', "C:\Users\travis\Lockbook-$w") -WindowStyle Hidden -RedirectStandardError "C:\Users\travis\cf-$w.log" -RedirectStandardOutput "C:\Users\travis\cf-$w.out" -PassThru
+    $p.Id | Set-Content "C:\Users\travis\cf-$w.pid"
+  }
+  Start-Sleep 8
+  $A = 'C:\Users\travis\Lockbook-galice\Repo'; $B = 'C:\Users\travis\Lockbook-gbob\Repo'
+  $t = Measure-Command { G $A init -q; G $A add README.md; G $A commit -q -m first }
+  L "init+commit took $([int]$t.TotalSeconds) s"
+  Add-Content "$A\README.md" 'second line'
+  G $A commit -q -am second
+  G $A log --oneline
+  Start-Sleep 25
+  L "alice .git files: $(@(Get-ChildItem -Recurse -Force "$A\.git" -File).Count)  bob .git files: $(@(Get-ChildItem -Recurse -Force "$B\.git" -File -ErrorAction SilentlyContinue).Count)"
+  G $B log --oneline
+  G $B status --short
+  G $B fsck
+  Add-Content "$B\README.md" 'bob line'
+  G $B commit -q -am 'from bob'
+  Start-Sleep 25
+  G $A log --oneline
+  G $A status --short
+  G $A fsck
+  L '--- galice log errors'; Get-Content C:\Users\travis\cf-galice.log | Select-String 'fail|ERR|panick|kept both' | Select-Object -First 15 | ForEach-Object { L "$_" }
+  L "galice log lines: $(@(Get-Content C:\Users\travis\cf-galice.log).Count)"
+  L '--- gbob log errors'; Get-Content C:\Users\travis\cf-gbob.log | Select-String 'fail|ERR|panick|kept both' | Select-Object -First 15 | ForEach-Object { L "$_" }
+  L "gbob log lines: $(@(Get-Content C:\Users\travis\cf-gbob.log).Count)"
+} catch { L "ERR $($_.Exception.Message) at $($_.InvocationInfo.ScriptLineNumber)" }
+Done 'gitrepo.ps1'
+
+===== gitrepo.ps1 (guest log) =====
+21:59:42 created cfgalice2126
+21:59:43 created cfgbob2126
+21:59:44 accepted Repo
+21:59:52 git init -q [exit 0]
+21:59:52 git add README.md [exit 0]
+21:59:52 git commit -q -m first [exit 0]
+21:59:52 init+commit took 0 s
+21:59:53 git commit -q -am second [exit 0]
+21:59:53 git log --oneline [exit 0]
+21:59:53   af15f3f second
+21:59:53   672622f first
+22:00:19 alice .git files: 29  bob .git files: 29
+22:00:19 git log --oneline [exit 0]
+22:00:19   af15f3f second
+22:00:19   672622f first
+22:00:19 git status --short [exit 0]
+22:00:20 git fsck [exit 0]
+22:00:20 git commit -q -am from bob [exit 0]
+22:00:46 git log --oneline [exit 0]
+22:00:46   e5ad2e4 from bob
+22:00:46   af15f3f second
+22:00:46   672622f first
+22:00:47 git status --short [exit 0]
+22:00:48 git fsck [exit 0]
+22:00:48 --- galice log errors
+22:00:49 [52393.847] reconcile Repo\.git\objects\1e\48dc9a506229183298210110bad0985a578c8a failed: Error { code: HRESULT(0x80070005), message: "Access is denied." }
+22:00:49 [52393.864] reconcile Repo\.git\objects\67\2622f6787e2cec7a48e5a2f964dcb9975a4b7b failed: Error { code: HRESULT(0x80070005), message: "Access is denied." }
+22:00:49 [52393.881] reconcile Repo\.git\objects\68\394c3550e4f592beebfa3b3c8f12990f5b88b6 failed: Error { code: HRESULT(0x80070005), message: "Access is denied." }
+22:00:49 [52393.895] reconcile Repo\.git\objects\68\3fae8b380a9a2a22fc8bedf73e482f2b981b10 failed: Error { code: HRESULT(0x80070005), message: "Access is denied." }
+22:00:49 [52393.912] reconcile Repo\.git\objects\a5\b6ef88cb973c6cb5645418757848569e29a6df failed: Error { code: HRESULT(0x80070005), message: "Access is denied." }
+22:00:49 [52393.928] reconcile Repo\.git\objects\af\15f3f819f3ea026cab60bcf5ba8c04eabc3316 failed: Error { code: HRESULT(0x80070005), message: "Access is denied." }
+22:00:49 [52393.963] reconcile Repo\.git\objects\68\3fae8b380a9a2a22fc8bedf73e482f2b981b10 failed: Error { code: HRESULT(0x80070005), message: "Access is denied." }
+22:00:49 [52393.965] reconcile Repo\.git\objects\68\394c3550e4f592beebfa3b3c8f12990f5b88b6 failed: Error { code: HRESULT(0x80070005), message: "Access is denied." }
+22:00:49 [52393.966] reconcile Repo\.git\objects\a5\b6ef88cb973c6cb5645418757848569e29a6df failed: Error { code: HRESULT(0x80070005), message: "Access is denied." }
+22:00:49 [52393.968] reconcile Repo\.git\objects\af\15f3f819f3ea026cab60bcf5ba8c04eabc3316 failed: Error { code: HRESULT(0x80070005), message: "Access is denied." }
+22:00:49 [52393.969] reconcile Repo\.git\objects\67\2622f6787e2cec7a48e5a2f964dcb9975a4b7b failed: Error { code: HRESULT(0x80070005), message: "Access is denied." }
+22:00:49 [52393.971] reconcile Repo\.git\objects\1e\48dc9a506229183298210110bad0985a578c8a failed: Error { code: HRESULT(0x80070005), message: "Access is denied." }
+22:00:49 galice log lines: 103
+22:00:49 --- gbob log errors
+22:00:49 [52394.434] fetch failed: size changed: 21 != 8
+22:00:49 [52420.712] reconcile Repo\.git\objects\e5\ad2e403c01f0b93027864b38a880f2ccf4941e failed: Error { code: HRESULT(0x80070005), message: "Access is denied." }
+22:00:49 [52420.732] reconcile Repo\.git\objects\74\51a5909f939cf0e22b69b133e6f58f40a65289 failed: Error { code: HRESULT(0x80070005), message: "Access is denied." }
+22:00:49 [52420.750] reconcile Repo\.git\objects\66\605630b74a3ad08a82b3d592938aa86a435d36 failed: Error { code: HRESULT(0x80070005), message: "Access is denied." }
+22:00:49 [52420.759] reconcile Repo\.git\objects\66\605630b74a3ad08a82b3d592938aa86a435d36 failed: Error { code: HRESULT(0x80070005), message: "Access is denied." }
+22:00:49 [52420.776] reconcile Repo\.git\objects\74\51a5909f939cf0e22b69b133e6f58f40a65289 failed: Error { code: HRESULT(0x80070005), message: "Access is denied." }
+22:00:49 [52420.779] reconcile Repo\.git\objects\e5\ad2e403c01f0b93027864b38a880f2ccf4941e failed: Error { code: HRESULT(0x80070005), message: "Access is denied." }
+22:00:49 gbob log lines: 81
+
+===== gitrepo2.ps1 (script) =====
+. \\Mac\lockbook\vm-scratch\cfapi\lib.ps1
+function L($m) { Log 'gitrepo2.ps1' $m }
+function G($dir) { $out = & git -C $dir -c user.name=spike -c user.email=spike@example.invalid @args 2>&1 | ForEach-Object { "$_" }; L "git $($args -join ' ') [exit $LASTEXITCODE]"; $out | ForEach-Object { L "  $_" } }
+try {
+  foreach ($w in 'galice','gbob') {
+    Who $w
+    $p = Start-Process -FilePath $Exe -ArgumentList @('run', "C:\Users\travis\Lockbook-$w") -WindowStyle Hidden -RedirectStandardError "C:\Users\travis\cf-$w-2.log" -RedirectStandardOutput "C:\Users\travis\cf-$w.out" -PassThru
+  }
+  Start-Sleep 8
+  $A = 'C:\Users\travis\Lockbook-galice\Repo\second'; $B = 'C:\Users\travis\Lockbook-gbob\Repo\second'
+  New-Item -ItemType Directory $A | Out-Null
+  Set-Content "$A\notes.md" '# notes'
+  G $A init -q; G $A add notes.md; G $A commit -q -m one
+  Add-Content "$A\notes.md" 'more'; G $A commit -q -am two
+  Start-Sleep 25
+  G $B log --oneline; G $B status --short; G $B fsck
+  Add-Content "$B\notes.md" 'bob'; G $B commit -q -am three
+  Start-Sleep 25
+  G $A log --oneline; G $A status --short; G $A fsck
+  $np = @(Get-ChildItem -Recurse -Force "$A\.git" -File | Where-Object { -not ($_.Attributes -band [IO.FileAttributes]::ReparsePoint) }).Count
+  L "alice .git files: $(@(Get-ChildItem -Recurse -Force "$A\.git" -File).Count), not placeholders: $np"
+  foreach ($w in 'galice','gbob') { L "--- $w errors"; Get-Content "C:\Users\travis\cf-$w-2.log" | Select-String 'fail|denied|panick|kept both' | Select-Object -First 8 | ForEach-Object { L "$_" }; L "$w log lines: $(@(Get-Content "C:\Users\travis\cf-$w-2.log").Count)" }
+} catch { L "ERR $($_.Exception.Message) at $($_.InvocationInfo.ScriptLineNumber)" }
+Done 'gitrepo2.ps1'
+
+===== gitrepo2.ps1 (guest log) =====
+22:02:31 git init -q [exit 0]
+22:02:31 git add notes.md [exit 0]
+22:02:32 git commit -q -m one [exit 0]
+22:02:32 git commit -q -am two [exit 0]
+22:03:32 git log --oneline [exit 0]
+22:03:33   16afe16 two
+22:03:33   7b111f1 one
+22:03:38 git status --short [exit 0]
+22:03:55 git fsck [exit 0]
+22:04:02 git commit -q -am three [exit 0]
+22:04:30 git log --oneline [exit 0]
+22:04:30   cfc7bfe three
+22:04:32   16afe16 two
+22:04:33   7b111f1 one
+22:04:36 git status --short [exit 0]
+22:04:43 git fsck [exit 0]
+22:04:52 alice .git files: 32, not placeholders: 0
+22:04:52 --- galice errors
+22:04:53 galice log lines: 98
+22:04:53 --- gbob errors
+22:04:53 gbob log lines: 79

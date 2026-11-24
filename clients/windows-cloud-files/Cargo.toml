@@ -1,0 +1,23 @@
+[package]
+name = "lockbook-cloud-files"
+version = "26.11.6"
+edition = "2021"
+
+[dependencies]
+lb-rs = { version = "26", path = "../../libs/lb/lb-rs" }
+
+[target.'cfg(windows)'.dependencies]
+windows = { version = "0.62", features = [
+    "Foundation",
+    "Storage",
+    "Storage_Provider",
+    "Storage_Search",
+    "Win32_Foundation",
+    "Win32_Security",
+    "Win32_Security_Authorization",
+    "Win32_Storage_CloudFilters",
+    "Win32_Storage_FileSystem",
+    "Win32_System_CorrelationVector",
+    "Win32_System_IO",
+    "Win32_System_Threading",
+] }
