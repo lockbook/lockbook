@@ -152,6 +152,10 @@ pub trait Server: Clone + MaybeSend + MaybeSync + 'static {
         &self, account: &Account, request: AdminSetUserTierRequest,
     ) -> impl Future<Output = ApiResult<AdminSetUserTierRequest>> + MaybeSend;
 
+    fn admin_sync_stripe(
+        &self, account: &Account, request: AdminSyncStripeRequest,
+    ) -> impl Future<Output = ApiResult<AdminSyncStripeRequest>> + MaybeSend;
+
     fn admin_rebuild_index(
         &self, account: &Account, request: AdminRebuildIndexRequest,
     ) -> impl Future<Output = ApiResult<AdminRebuildIndexRequest>> + MaybeSend;

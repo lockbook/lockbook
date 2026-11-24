@@ -342,6 +342,12 @@ impl Server for Network {
         self.request(account, request).await
     }
 
+    async fn admin_sync_stripe(
+        &self, account: &Account, request: AdminSyncStripeRequest,
+    ) -> ApiResult<AdminSyncStripeRequest> {
+        self.request(account, request).await
+    }
+
     async fn admin_rebuild_index(
         &self, account: &Account, request: AdminRebuildIndexRequest,
     ) -> ApiResult<AdminRebuildIndexRequest> {

@@ -368,6 +368,7 @@ where
         .or(core_req!(AdminFileInfoRequest, ServerState::admin_file_info, server_state))
         .or(core_req!(AdminRebuildIndexRequest, ServerState::admin_rebuild_index, server_state))
         .or(core_req!(AdminSetUserTierRequest, ServerState::admin_set_user_tier, server_state))
+        .or(core_req!(AdminSyncStripeRequest, ServerState::admin_sync_stripe, server_state))
         .map(warp::Reply::into_response)
         .boxed()
 }

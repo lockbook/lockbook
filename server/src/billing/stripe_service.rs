@@ -9,13 +9,15 @@ use google_androidpublisher3::hyper::body::Bytes;
 use google_androidpublisher3::hyper::header::HeaderValue;
 use hmac::{Hmac, Mac};
 use lb_rs::model::api::{
-    StripeAccountState, StripeBillingPortalError, StripeBillingPortalRequest,
-    StripeBillingPortalResponse, StripeCheckoutError, StripeCheckoutRequest,
-    StripeCheckoutResponse,
+    AdminStripeAccountCheck, AdminStripeAccountStatus, AdminStripeSnapshot, AdminSyncStripeError,
+    AdminSyncStripeRequest, AdminSyncStripeResponse, StripeAccountState, StripeBillingPortalError,
+    StripeBillingPortalRequest, StripeBillingPortalResponse, StripeCheckoutError,
+    StripeCheckoutRequest, StripeCheckoutResponse,
 };
 use lb_rs::model::file_metadata::Owner;
 use libsecp256k1::PublicKey;
 use sha2::Sha256;
+use std::collections::HashMap;
 use std::time::Duration;
 use tracing::*;
 use uuid::Uuid;
@@ -275,6 +277,162 @@ where
         }
     }
 
+    /// Admin check/reconcile of cached Stripe billing against live Stripe.
+    pub async fn admin_sync_stripe(
+        &self, context: RequestContext<AdminSyncStripeRequest>,
+    ) -> Result<AdminSyncStripeResponse, ServerError<AdminSyncStripeError>> {
+        {
+            let db = self.index_db.lock().await;
+            if !Self::is_admin::<AdminSyncStripeError>(
+                &db.schema,
+                &context.public_key,
+                &self.config.admin.admins,
+            )? {
+                return Err(ClientError(AdminSyncStripeError::NotPermissioned));
+            }
+        }
+
+        let targets: Vec<(String, Owner, String)> = match &context.request.username {
+            Some(username) => {
+                let (owner, account) = {
+                    let db = self.index_db.lock().await;
+                    let owner = *db
+                        .schema
+                        .usernames
+                        .get(username)
+                        .ok_or(ClientError(AdminSyncStripeError::UserNotFound))?;
+                    let account = db
+                        .schema
+                        .accounts
+                        .get(&owner)
+                        .cloned()
+                        .ok_or(ClientError(AdminSyncStripeError::UserNotFound))?;
+                    (owner, account)
+                };
+                let customer_id = self
+                    .stripe_customer_of(&owner.0, &account)
+                    .await
+                    .ok_or(ClientError(AdminSyncStripeError::NotStripeCustomer))?;
+                vec![(account.username, owner, customer_id)]
+            }
+            None => {
+                let db = self.index_db.lock().await;
+                let is_live_account = |owner: &Owner| {
+                    db.schema
+                        .owned_files
+                        .get(owner)
+                        .is_some_and(|ids| !ids.is_empty())
+                };
+                let mut by_owner: HashMap<Owner, (String, String)> = HashMap::new();
+                for (owner, account) in db.schema.accounts.iter() {
+                    if !is_live_account(owner) {
+                        continue;
+                    }
+                    if let Some(BillingPlatform::Stripe(info)) =
+                        &account.billing_info.billing_platform
+                    {
+                        if !info.customer_id.is_empty() {
+                            by_owner.insert(
+                                *owner,
+                                (account.username.clone(), info.customer_id.clone()),
+                            );
+                        }
+                    }
+                }
+                for (customer_id, owner) in db.schema.stripe_ids.iter() {
+                    if !is_live_account(owner) {
+                        continue;
+                    }
+                    if let Some(account) = db.schema.accounts.get(owner) {
+                        by_owner
+                            .entry(*owner)
+                            .or_insert_with(|| (account.username.clone(), customer_id.clone()));
+                    }
+                }
+                let mut list: Vec<(String, Owner, String)> = by_owner
+                    .into_iter()
+                    .map(|(owner, (username, cus_id))| (username, owner, cus_id))
+                    .collect();
+                list.sort_by(|a, b| a.0.cmp(&b.0).then_with(|| a.2.cmp(&b.2)));
+                list
+            }
+        };
+
+        let mut results = Vec::with_capacity(targets.len());
+        for (username, owner, customer_id) in targets {
+            let status = self
+                .check_or_sync_stripe_account(owner, &customer_id, context.request.apply)
+                .await;
+            results.push(AdminStripeAccountCheck { username, customer_id, status });
+        }
+
+        Ok(AdminSyncStripeResponse { results })
+    }
+
+    async fn check_or_sync_stripe_account(
+        &self, owner: Owner, customer_id: &str, apply: bool,
+    ) -> AdminStripeAccountStatus {
+        if !apply {
+            let account = self
+                .index_db
+                .lock()
+                .await
+                .schema
+                .accounts
+                .get(&owner)
+                .cloned();
+            let Some(account) = account else {
+                return AdminStripeAccountStatus::Error("Account no longer exists".into());
+            };
+            let live_info = match self.current_stripe_billing(customer_id).await {
+                Ok(info) => info,
+                Err(err) => return AdminStripeAccountStatus::Error(format!("{err:?}")),
+            };
+            return compare_stripe_state(&account, customer_id, live_info.as_ref());
+        }
+
+        let mut account = match self.lock_for_stripe_sync(&owner).await {
+            Ok(Some(account)) => account,
+            Ok(None) => return AdminStripeAccountStatus::Error("Account no longer exists".into()),
+            Err(msg) => return AdminStripeAccountStatus::Error(msg),
+        };
+
+        let live_result = self.current_stripe_billing(customer_id).await;
+        let status = match live_result {
+            Err(err) => AdminStripeAccountStatus::Error(format!("{err:?}")),
+            Ok(live_info) => {
+                let status = compare_stripe_state(&account, customer_id, live_info.as_ref());
+                if matches!(status, AdminStripeAccountStatus::Drifted { .. }) {
+                    apply_stripe_sync(owner, customer_id, &mut account, live_info.as_ref());
+                }
+                status
+            }
+        };
+
+        if let Err(err) = self
+            .release_subscription_profile::<AdminSyncStripeError>(owner.0, account)
+            .await
+        {
+            return AdminStripeAccountStatus::Error(format!(
+                "Failed to save account after Stripe sync: {err:?}"
+            ));
+        }
+
+        // Backfill stripe_ids even when InSync so future webhooks always find this customer.
+        if !matches!(status, AdminStripeAccountStatus::Error(_)) {
+            if let Err(err) = self
+                .record_stripe_customer::<AdminSyncStripeError>(customer_id, owner)
+                .await
+            {
+                return AdminStripeAccountStatus::Error(format!(
+                    "Failed to record stripe_ids mapping: {err:?}"
+                ));
+            }
+        }
+
+        status
+    }
+
     /// The customer's live Stripe subscription, if any.
     async fn current_stripe_billing(
         &self, customer_id: &str,
@@ -394,6 +552,48 @@ fn verify_stripe_signature(
 fn is_other_platform_premium(account: &Account) -> bool {
     account.billing_info.is_premium()
         && !matches!(account.billing_info.billing_platform, Some(BillingPlatform::Stripe(_)))
+}
+
+fn stripe_snapshot(info: &StripeUserInfo) -> AdminStripeSnapshot {
+    AdminStripeSnapshot {
+        subscription_id: info.subscription_id.clone(),
+        last_4: info.last_4.clone(),
+        expiration_time: info.expiration_time,
+        account_state: info.account_state.clone(),
+    }
+}
+
+fn compare_stripe_state(
+    account: &Account, customer_id: &str, live_info: Option<&StripeUserInfo>,
+) -> AdminStripeAccountStatus {
+    let stripe = live_info.map(stripe_snapshot);
+    if is_other_platform_premium(account) {
+        return AdminStripeAccountStatus::OtherPlatformPremium { stripe };
+    }
+    // A lapsed Stripe customer must never touch a recoverable mobile record (e.g. OnHold,
+    // FailedToRenew) or a newer Stripe customer on the same Lockbook account.
+    if live_info.is_none() {
+        match &account.billing_info.billing_platform {
+            Some(BillingPlatform::AppStore(_) | BillingPlatform::GooglePlay(_)) => {
+                return AdminStripeAccountStatus::InSync;
+            }
+            Some(BillingPlatform::Stripe(cur)) if cur.customer_id != customer_id => {
+                return AdminStripeAccountStatus::InSync;
+            }
+            _ => {}
+        }
+    }
+    let cached = match &account.billing_info.billing_platform {
+        Some(BillingPlatform::Stripe(info)) if info.customer_id == customer_id => {
+            Some(stripe_snapshot(info))
+        }
+        _ => None,
+    };
+    if cached == stripe {
+        AdminStripeAccountStatus::InSync
+    } else {
+        AdminStripeAccountStatus::Drifted { cached, stripe }
+    }
 }
 
 /// Applies Stripe's live state for `customer_id` to `account`.
@@ -568,6 +768,10 @@ mod tests {
         )
         .unwrap();
         apply_stripe_sync(owner, "cus_new", &mut account, Some(&newer));
+        assert_eq!(
+            compare_stripe_state(&account, "cus_old", None),
+            AdminStripeAccountStatus::InSync
+        );
         apply_stripe_sync(owner, "cus_old", &mut account, None);
         assert!(matches!(
             &account.billing_info.billing_platform,
@@ -583,6 +787,10 @@ mod tests {
                 expiration_time: 1_900_000_000_000,
                 account_state: GooglePlayAccountState::OnHold,
             }));
+        assert_eq!(
+            compare_stripe_state(&account, "cus_old", None),
+            AdminStripeAccountStatus::InSync
+        );
         apply_stripe_sync(owner, "cus_old", &mut account, None);
         assert!(matches!(
             &account.billing_info.billing_platform,
@@ -596,6 +804,10 @@ mod tests {
             expiration_time: 1_900_000_000_000,
             account_state: AppStoreAccountState::Ok,
         }));
+        assert!(matches!(
+            compare_stripe_state(&account, "cus_old", Some(&newer)),
+            AdminStripeAccountStatus::OtherPlatformPremium { .. }
+        ));
         apply_stripe_sync(owner, "cus_old", &mut account, Some(&newer));
         assert!(matches!(
             &account.billing_info.billing_platform,

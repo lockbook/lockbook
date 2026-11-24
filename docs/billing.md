@@ -49,6 +49,10 @@ Canceling, from the portal or `/cancel-subscription`, sets `cancel_at_period_end
 
 Deleting a Lockbook account best-effort looks up the customer in Stripe (via `billing_platform` or `stripe_ids`) and immediately cancels any live Stripe subscriptions so deleted accounts aren't left billed.
 
+## Admin Reconciliation
+
+`admin check-stripe [--username=<name>]` compares cached DB state against live Stripe without writing. `admin sync-stripe [--username=<name>]` reconciles drifted rows from Stripe (and backfills any missing `stripe_ids` mappings). Legacy rows stored in Unix seconds before this migration report as drifted until synced.
+
 ## Setup
 
 The Stripe dashboard holds branding (icon, colors, public business name), payment methods (Card, Apple Pay, Google Pay, Link — no async/delayed methods), portal features (cancel at period end, card update, invoices), and customer emails (receipts, failed renewals). The server reads `STRIPE_SECRET`, `STRIPE_SIGNING_SECRET`, and `STRIPE_PREMIUM_PRICE_ID`.
