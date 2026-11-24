@@ -19,6 +19,7 @@ use crate::components::{
     display_file_name, phosphor, place_at, tab_icon, ui_width,
 };
 
+use crate::components::atoms::name_trail::{self, disambiguating_folders, folder_crumbs};
 use crate::shell::ShellApp;
 use crate::shell::action::Action;
 use crate::shell::action::Action as A;
@@ -61,12 +62,21 @@ pub fn show(app: &mut ShellApp, ui: &mut Ui, t: &Theme, queue: &mut Vec<Action>)
             let root = files.root().id;
             // a share not yet saved to Files has no place there
             let in_files = |id| id == root || files.ancestors(id).last() == Some(&root);
+            let folders = tab_folders(
+                &ready
+                    .workspace
+                    .tab_strip
+                    .iter()
+                    .map(|slot| file_place(&files, &slot.place.dest))
+                    .collect::<Vec<_>>(),
+            );
             let tabs: Vec<TabInfo> = ready
                 .workspace
                 .tab_strip
                 .iter()
+                .zip(folders)
                 .enumerate()
-                .map(|(i, slot)| {
+                .map(|(i, (slot, folder))| {
                     let title = tab_label(&files, &slot.place.dest);
                     let active = current == Some(slot.id);
                     let file_id = match &slot.place.dest {
@@ -82,6 +92,7 @@ pub fn show(app: &mut ShellApp, ui: &mut Ui, t: &Theme, queue: &mut Vec<Action>)
                     TabInfo {
                         idx: i,
                         title,
+                        folder,
                         active,
                         file_id,
                         pinned,
@@ -125,7 +136,7 @@ pub fn show(app: &mut ShellApp, ui: &mut Ui, t: &Theme, queue: &mut Vec<Action>)
     }
 
     let mid_left = top_left.x + left;
-    let content_w: f32 = tabs.iter().map(|tab| measure_tab_w(ui, &tab.title)).sum();
+    let content_w: f32 = tabs.iter().map(|tab| measure_tab_w(ui, tab)).sum();
     let scroll_w = tab_scroll_w(bar_w, left, right, content_w);
 
     if scroll_w > 0.5 {
@@ -165,7 +176,7 @@ pub fn show(app: &mut ShellApp, ui: &mut Ui, t: &Theme, queue: &mut Vec<Action>)
                 // Flush on x — no gap between tabs (shared edge = one drop
                 // seam for reorder; Outside stroke sits in side air).
                 for tab in &tabs {
-                    let w = measure_tab_w(ui, &tab.title);
+                    let w = measure_tab_w(ui, tab);
                     let tab_r = egui::Rect::from_min_size(pos2(x, strip_tl.y), vec2(w, HEADER_H));
                     let (out, _) = place_at(ui, tab_r, Layout::top_down(Align::Min), |ui| {
                         tab_button(ui, t, tab, tab_count, can_reopen)
@@ -238,8 +249,26 @@ fn tab_label(files: &FileCache, dest: &Destination) -> String {
     }
 }
 
-fn measure_tab_w(ui: &Ui, name: &str) -> f32 {
-    let nw = crate::components::measure_file_name(ui, display_file_name(name));
+/// A file tab's display name and folder crumbs, for [`tab_folders`]; `None`
+/// for tabs that are not files. Takes the files `show` already holds.
+fn file_place<'a>(files: &'a FileCache, dest: &Destination) -> Option<(&'a str, Vec<String>)> {
+    let Destination::File(id) = dest else { return None };
+    let f = files.get_by_id(*id)?;
+    Some((display_file_name(&f.name), folder_crumbs(&files.path(f.parent))))
+}
+
+/// For each tab, the folder that tells it apart from a same-named file tab,
+/// by the rule pins use; `None` for unique names and tabs that are not files.
+fn tab_folders(tabs: &[Option<(&str, Vec<String>)>]) -> Vec<Option<String>> {
+    let files: Vec<(&str, Vec<String>)> = tabs.iter().flatten().cloned().collect();
+    let mut folders = disambiguating_folders(&files).into_iter();
+    tabs.iter()
+        .map(|tab| tab.as_ref().and_then(|_| folders.next().flatten()))
+        .collect()
+}
+
+fn measure_tab_w(ui: &Ui, tab: &TabInfo) -> f32 {
+    let nw = name_trail::natural_width(ui, display_file_name(&tab.title), tab.folder.as_deref());
     let icon_w = TypeRole::Body.size() + Space::Xs.pts();
     (TAB_PAD_X + icon_w + nw + Space::Xs.pts() + CLOSE_SLOT + TAB_PAD_X).clamp(TAB_MIN_W, TAB_MAX_W)
 }
@@ -257,6 +286,8 @@ fn tab_scroll_w(bar_w: f32, left: f32, right: f32, content_w: f32) -> f32 {
 struct TabInfo {
     idx: usize,
     title: String,
+    /// Set when another file tab shows the same name.
+    folder: Option<String>,
     active: bool,
     file_id: Option<Uuid>,
     pinned: bool,
@@ -345,7 +376,7 @@ fn tab_button(ui: &mut Ui, t: &Theme, tab: &TabInfo, tab_count: usize, can_reope
     let name = &tab.title;
     let active = tab.active;
     let index = tab.idx;
-    let w = measure_tab_w(ui, name);
+    let w = measure_tab_w(ui, tab);
     let h = HEADER_H;
     let (rect, _) = ui.allocate_exact_size(vec2(w, h), Sense::hover());
     let id = ui.scope_id().with("shell_tab").with(index);
@@ -395,10 +426,11 @@ fn tab_button(ui: &mut Ui, t: &Theme, tab: &TabInfo, tab_count: usize, can_reope
         .galley(pos2(cx, cy - icon_g.size().y / 2.0), icon_g.clone(), ink);
     cx += icon_g.size().x + Space::Xs.pts();
     let name_lh = TypeRole::Body.line_height();
-    crate::components::paint_file_name(
+    name_trail::paint(
         ui,
+        t,
         label,
-        ink,
+        tab.folder.as_deref(),
         egui::Rect::from_min_size(pos2(cx, cy - name_lh / 2.0), vec2(text_max, name_lh)),
     );
 
@@ -568,6 +600,70 @@ mod tests {
             (claimed_h - HEADER_H).abs() < 0.5,
             "empty strip claimed {claimed_h:.1}, want HEADER_H={HEADER_H:.1}"
         );
+    }
+
+    #[test]
+    fn same_named_file_tabs_show_their_folders() {
+        use workspace_rs::style::home_crumb;
+        let file = |name, folder| Some((name, folder_crumbs(folder)));
+        let tabs = [
+            file("todo", "/"),
+            file("todo", "/work/"),
+            file("plan", "/work/"),
+            file("notes", "/a/"),
+            file("notes", "/a/"), // the same file in two tabs
+            None,                 // a Search tab
+            file("Search", "/"),
+        ];
+        assert_eq!(
+            tab_folders(&tabs),
+            [Some(home_crumb()), Some("work".into()), None, None, None, None, None]
+        );
+    }
+
+    fn with_ui(f: impl FnOnce(&mut Ui)) {
+        let ctx = Context::default();
+        // as the host does: file names lay out in the note fonts
+        workspace_rs::register_font_system(&ctx);
+        let input = RawInput {
+            screen_rect: Some(Rect::from_min_size(Pos2::ZERO, Vec2::new(1200.0, 800.0))),
+            ..Default::default()
+        };
+        ctx.run_pass(input.clone(), install).textures_delta.clear();
+        let mut f = Some(f);
+        ctx.run_pass(input, |ctx| {
+            install(ctx);
+            ctx.root_ui(|ui| {
+                CentralPanel::default().show(ui, |ui| f.take().unwrap()(ui));
+            });
+        })
+        .textures_delta
+        .clear();
+    }
+
+    fn file_tab(title: &str, folder: Option<&str>) -> TabInfo {
+        TabInfo {
+            idx: 0,
+            title: title.into(),
+            folder: folder.map(Into::into),
+            active: false,
+            file_id: None,
+            pinned: false,
+            in_files: false,
+            note: false,
+            place: Place::new(Destination::File(Uuid::nil())),
+        }
+    }
+
+    #[test]
+    fn a_tab_widens_for_its_folder_up_to_the_cap() {
+        with_ui(|ui| {
+            let bare = measure_tab_w(ui, &file_tab("todo.md", None));
+            let with_folder = measure_tab_w(ui, &file_tab("todo.md", Some("work")));
+            assert!(with_folder > bare, "{with_folder} should exceed {bare}");
+            let long = file_tab("a rather long note name.md", Some("projects/2026/q4"));
+            assert!(measure_tab_w(ui, &long) <= TAB_MAX_W);
+        });
     }
 
     #[test]
