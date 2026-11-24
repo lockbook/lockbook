@@ -6,8 +6,9 @@ import android.graphics.Canvas
 import android.graphics.ColorFilter
 import android.graphics.Paint
 import android.graphics.PixelFormat
-import android.graphics.Typeface
 import android.graphics.drawable.Drawable
+import android.text.TextPaint
+import android.text.style.TextAppearanceSpan
 import android.util.AttributeSet
 import androidx.core.content.ContextCompat
 import androidx.core.graphics.ColorUtils
@@ -25,15 +26,6 @@ class UsernameChip
         defStyleAttr: Int = com.google.android.material.R.attr.chipStyle,
     ) : Chip(context, attrs, defStyleAttr) {
         private var boundUsername: String? = null
-
-        init {
-            isCheckedIconVisible = false
-            isCloseIconVisible = false
-            isChipIconVisible = true
-            chipIconSize = 24f * resources.displayMetrics.density
-            chipIconTint = null
-            chipStrokeColor = ContextCompat.getColorStateList(this.context, R.color.recent_editor_chip_stroke)
-        }
 
         fun bindUsername(username: String) {
             if (username == boundUsername) return
@@ -89,31 +81,35 @@ private class EditorAvatar(
 ) : Drawable() {
     private val colors = harmonizedIdentityColors(context, username)
     private val initial = username.take(1).uppercase()
-    private var drawableAlpha = 255
+    private val background =
+        ContextCompat.getDrawable(context, R.drawable.username_avatar_background)!!.mutate().apply {
+            setTint(colors.accentContainer)
+        }
     private val paint =
-        Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
+            TextAppearanceSpan(context, R.style.TextAppearance_Lockbook_UsernameAvatar).updateMeasureState(this)
             textAlign = Paint.Align.CENTER
-            typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
+            color = colors.onAccentContainer
         }
 
+    override fun getIntrinsicWidth(): Int = background.intrinsicWidth
+
+    override fun getIntrinsicHeight(): Int = background.intrinsicHeight
+
     override fun draw(canvas: Canvas) {
-        val cx = bounds.exactCenterX()
-        val cy = bounds.exactCenterY()
-        paint.color = colors.accentContainer
-        paint.alpha = drawableAlpha
-        canvas.drawCircle(cx, cy, minOf(bounds.width(), bounds.height()) / 2f, paint)
-        paint.color = colors.onAccentContainer
-        paint.alpha = drawableAlpha
-        paint.textSize = bounds.height() * 0.55f
-        canvas.drawText(initial, cx, cy - (paint.ascent() + paint.descent()) / 2f, paint)
+        background.bounds = bounds
+        background.draw(canvas)
+        canvas.drawText(initial, bounds.exactCenterX(), bounds.exactCenterY() - (paint.ascent() + paint.descent()) / 2f, paint)
     }
 
     override fun setAlpha(alpha: Int) {
-        drawableAlpha = alpha
+        background.alpha = alpha
+        paint.alpha = alpha
         invalidateSelf()
     }
 
     override fun setColorFilter(colorFilter: ColorFilter?) {
+        background.colorFilter = colorFilter
         paint.colorFilter = colorFilter
         invalidateSelf()
     }
