@@ -1,5 +1,3 @@
-#![recursion_limit = "256"]
-
 use app_links::app_link_routes;
 use db_rs::View;
 use lockbook_server_lib::billing::google_play_client::get_google_play_client;
