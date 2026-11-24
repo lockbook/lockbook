@@ -394,11 +394,36 @@ where
         &self, public_key: &PublicKey, free_username: bool,
     ) -> Result<(), ServerError<DeleteAccountHelperError>> {
         let mut docs_to_delete = Vec::new();
+        let mut stripe_customer_to_cancel = None;
+        let mut stripe_subscription_to_cancel = None;
 
         {
             let mut lock = self.index_db.lock().await;
             let mut tx = ServerTx::begin(&mut lock)?;
             let db = &mut *tx;
+
+            let owner = Owner(*public_key);
+            if !db.sub_accounts.contains_key(&owner) {
+                if let Some(account) = db.accounts.get(&owner) {
+                    if let Some(BillingPlatform::Stripe(info)) =
+                        &account.billing_info.billing_platform
+                    {
+                        if !info.customer_id.is_empty() {
+                            stripe_customer_to_cancel = Some(info.customer_id.clone());
+                        }
+                        if !info.subscription_id.is_empty() {
+                            stripe_subscription_to_cancel = Some(info.subscription_id.clone());
+                        }
+                    }
+                }
+                if stripe_customer_to_cancel.is_none() {
+                    stripe_customer_to_cancel = db
+                        .stripe_ids
+                        .iter()
+                        .find(|(_, o)| **o == owner)
+                        .map(|(cus_id, _)| cus_id.clone());
+                }
+            }
 
             let mut owners = vec![Owner(*public_key)];
             owners.extend(Self::live_sub_accounts(db, Owner(*public_key)));
@@ -467,6 +492,14 @@ where
 
             tx.end()?;
             drop(lock);
+        }
+
+        if stripe_customer_to_cancel.is_some() || stripe_subscription_to_cancel.is_some() {
+            self.cancel_stripe_on_account_delete(
+                stripe_customer_to_cancel.as_deref(),
+                stripe_subscription_to_cancel.as_deref(),
+            )
+            .await;
         }
 
         for (id, version) in docs_to_delete {
