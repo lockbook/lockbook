@@ -61,7 +61,7 @@ class RecentFilesFragment :
         val filters = RecentEditorFilterAdapter(editorFilter)
         filterChips = filters
         binding.recentFilesList.adapter = ConcatAdapter(filters, adapter)
-        binding.recentFilesList.itemAnimator = null
+        binding.recentFilesList.itemAnimator = RecentsItemAnimator(requireContext())
         originalListPaddingBottom = binding.recentFilesList.paddingBottom
         (requireActivity() as MainScreenActivity).configureBottomNavigationFor(binding.recentFilesList) { height ->
             if (_binding == null) return@configureBottomNavigationFor

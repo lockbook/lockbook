@@ -119,6 +119,7 @@ dependencies {
     implementation "org.jetbrains.kotlin:kotlin-stdlib:$core_ktx_version"
 
     // Ui Libraries
+    implementation "androidx.dynamicanimation:dynamicanimation:1.1.0"
     implementation "com.google.android.material:material:$material_ui_version"
     implementation "com.vanniktech:emoji-androidx-emoji2:$emoji_picker_version"
     implementation "androidx.preference:preference-ktx:$preference_version"
