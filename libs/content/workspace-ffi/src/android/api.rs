@@ -306,6 +306,23 @@ fn jrect_obj<'local>(env: &mut JNIEnv<'local>, rect: JRect) -> JObject<'local> {
 }
 
 #[no_mangle]
+pub extern "system" fn Java_app_lockbook_workspace_Workspace_supportedImageExtensionsNative(
+    mut env: JNIEnv, _: JClass,
+) -> jobjectArray {
+    let extensions = workspace_rs::tab::image_viewer::SUPPORTED_IMAGE_EXTENSIONS;
+    let strings = env.find_class("java/lang/String").unwrap();
+    let array = env
+        .new_object_array(extensions.len() as i32, strings, JObject::null())
+        .unwrap();
+    for (index, extension) in extensions.iter().enumerate() {
+        let value = env.new_string(*extension).unwrap();
+        env.set_object_array_element(&array, index as i32, value)
+            .unwrap();
+    }
+    array.into_raw()
+}
+
+#[no_mangle]
 pub extern "system" fn Java_app_lockbook_workspace_Workspace_sendKeyEvent(
     mut env: JNIEnv, _: JClass, obj: jlong, key_code: jint, content: JString, pressed: jboolean,
     alt: jboolean, ctrl: jboolean, shift: jboolean,

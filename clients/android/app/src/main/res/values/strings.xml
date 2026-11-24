@@ -370,4 +370,8 @@
     <string name="metadata_loading">Loading your files…</string>
     <string name="metadata_retry">Try again</string>
     <string name="create_file_choose_another_location">%1$s Choose another location.</string>
+    <string name="recent_filter_notes">Notes</string>
+    <string name="recent_filter_drawings">Drawings</string>
+    <string name="recent_filter_images">Images</string>
+    <string name="recent_filters_empty">No files match these filters</string>
 </resources>

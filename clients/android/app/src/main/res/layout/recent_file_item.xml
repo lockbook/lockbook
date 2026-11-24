@@ -107,23 +107,16 @@
                     android:textAppearance="?attr/textAppearanceBodyMedium"
                     android:textColor="@color/file_tree_item_description_color" />
 
-                <com.google.android.material.chip.Chip
+                <app.lockbook.ui.UsernameChip
                     android:id="@+id/recent_file_editor"
-                    style="@style/Widget.Material3.Chip.Assist"
+                    style="@style/Widget.Lockbook.UsernameChip"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="8dp"
                     android:layout_marginBottom="8dp"
+                    android:checkable="false"
                     android:clickable="false"
                     android:focusable="false"
-                    android:minHeight="32dp"
-                    android:textColor="?attr/colorPrimary"
-                    app:chipBackgroundColor="?attr/colorPrimaryContainer"
-                    app:chipIcon="@drawable/ic_baseline_person_24"
-                    app:chipIconSize="18dp"
-                    app:chipIconTint="?attr/colorPrimary"
-                    app:chipMinHeight="32dp"
-                    app:chipStrokeWidth="0dp"
                     app:ensureMinTouchTargetSize="false" />
 
             </LinearLayout>
