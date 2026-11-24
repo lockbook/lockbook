@@ -13,7 +13,7 @@ use super::ShellApp;
 use super::action::{Action, OnboardLookup, OnboardStep};
 use super::apply_share::spawn_username_exists;
 use super::nudge::Nudges;
-use super::onboard::phrase_grid::{all_words_filled, words_joined};
+use super::onboard::phrase_grid::{all_words_filled, parse_pasted_words, words_joined};
 use super::session::{self, Session};
 
 /// Seed the onboard URL field: `API_URL` when it isn’t the hosted default.
@@ -116,7 +116,7 @@ pub(crate) fn onboard_poll_uname(app: &mut ShellApp, ctx: &Context) {
                 && state.uname.trim().eq_ignore_ascii_case(&name);
             state.uname_lookup = lookup;
             if submit {
-                app.queue.push(Action::OnboardSubmit { show_error: true });
+                app.queue.push(Action::OnboardSubmit);
                 ctx.request_repaint();
             }
         }
@@ -198,9 +198,20 @@ pub(crate) fn onboard_verify_uname(app: &mut ShellApp, ctx: &Context) {
 
 /// Flatten paste so both compact keys and phrases work.
 ///
-/// 24 tokens → phrase (spaces kept). Otherwise drop whitespace so a wrapped
-/// compact key still base64-decodes.
+/// 24 tokens (or a numbered / comma-separated 24-word phrase) → phrase
+/// (spaces kept). Otherwise drop whitespace so a wrapped compact key still
+/// base64-decodes.
 pub(crate) fn onboard_import_secret(account_key: &str) -> String {
+    let parsed = parse_pasted_words(account_key);
+    if parsed.len() == 24
+        && parsed
+            .iter()
+            .filter(|w| lb::model::account::is_valid_phrase_word(w))
+            .count()
+            >= 2
+    {
+        return parsed.join(" ");
+    }
     let words: Vec<&str> = account_key.split_whitespace().collect();
     if words.len() == 24 { words.join(" ") } else { words.concat() }
 }
@@ -226,10 +237,7 @@ pub(crate) enum OnboardWorkerMsg {
         sub_info: Option<SubscriptionInfo>,
     },
     /// `import_account` itself failed (invalid key / wrong server).
-    ImportFailed {
-        err: String,
-        show_error: bool,
-    },
+    ImportFailed(String),
     /// Account was imported, but initial `core.sync()` failed — keep on syncing screen with Retry.
     ImportSyncFailed(String),
 }
@@ -342,14 +350,12 @@ pub(crate) fn poll_onboard_worker(app: &mut ShellApp, ctx: &Context) {
                 app.nudges = Some(Nudges::load(&ready));
                 app.session = Session::Ready(Box::new(ready));
             }
-            OnboardWorkerMsg::ImportFailed { err, show_error } => {
+            OnboardWorkerMsg::ImportFailed(err) => {
                 saw_terminal = true;
                 app.onboard_worker_rx = None;
                 if let Some(s) = &mut app.onboard {
                     s.busy = false;
-                    if show_error {
-                        s.err = Some(err);
-                    }
+                    s.err = Some(err);
                 }
             }
             OnboardWorkerMsg::ImportSyncFailed(err) => {
@@ -378,7 +384,7 @@ pub(crate) fn poll_onboard_worker(app: &mut ShellApp, ctx: &Context) {
 }
 
 /// Handle `Action::OnboardSubmit` on Create or Import.
-pub(crate) fn onboard_submit(app: &mut ShellApp, ctx: &Context, show_error: bool) {
+pub(crate) fn onboard_submit(app: &mut ShellApp, ctx: &Context) {
     if app.onboard_worker_rx.is_some() {
         return;
     }
@@ -387,19 +393,19 @@ pub(crate) fn onboard_submit(app: &mut ShellApp, ctx: &Context, show_error: bool
         None => return,
     };
 
-    if step == OnboardStep::Create && show_error {
+    if step == OnboardStep::Create {
         onboard_verify_uname(app, ctx);
     }
 
     match step {
-        OnboardStep::Create => submit_create(app, ctx, show_error),
-        OnboardStep::Import => submit_import(app, ctx, show_error),
+        OnboardStep::Create => submit_create(app, ctx),
+        OnboardStep::Import => submit_import(app, ctx),
         OnboardStep::Look => onboard_finish_look(app, ctx),
         OnboardStep::Welcome | OnboardStep::ImportSyncing => {}
     }
 }
 
-fn submit_create(app: &mut ShellApp, ctx: &Context, show_error: bool) {
+fn submit_create(app: &mut ShellApp, ctx: &Context) {
     let (uname, lookup_ok, api) = match &app.onboard {
         Some(s) => {
             let u = s.uname.trim().to_owned();
@@ -413,16 +419,14 @@ fn submit_create(app: &mut ShellApp, ctx: &Context, show_error: bool) {
     if uname.is_empty() {
         if let Some(s) = &mut app.onboard {
             s.busy = false;
-            if show_error {
-                s.err = Some("Username required".into());
-            }
+            s.err = Some("Username required".into());
         }
         return;
     }
     if !lookup_ok {
         if let Some(s) = &mut app.onboard {
             if let OnboardLookup::Checking { then_submit } = &mut s.uname_lookup {
-                *then_submit = show_error;
+                *then_submit = true;
             }
             s.err = None;
         }
@@ -509,7 +513,7 @@ fn spawn_create_account(app: &mut ShellApp, ctx: &Context, uname: String, api: S
     });
 }
 
-fn submit_import(app: &mut ShellApp, ctx: &Context, show_error: bool) {
+fn submit_import(app: &mut ShellApp, ctx: &Context) {
     let (secret, api) = match &app.onboard {
         Some(s) => {
             let secret = if s.import_compact {
@@ -527,13 +531,11 @@ fn submit_import(app: &mut ShellApp, ctx: &Context, show_error: bool) {
     if secret.is_empty() {
         if let Some(s) = &mut app.onboard {
             s.busy = false;
-            if show_error {
-                s.err = Some(if s.import_compact {
-                    "Account key required".into()
-                } else {
-                    "Enter all 24 words to sign in".into()
-                });
-            }
+            s.err = Some(if s.import_compact {
+                "Account key required".into()
+            } else {
+                "Enter all 24 words to sign in".into()
+            });
         }
         return;
     }
@@ -557,7 +559,7 @@ fn submit_import(app: &mut ShellApp, ctx: &Context, show_error: bool) {
         let account = match core.import_account(&secret, Some(&api)) {
             Ok(acc) => acc,
             Err(e) => {
-                let _ = tx.send(OnboardWorkerMsg::ImportFailed { err: e.to_string(), show_error });
+                let _ = tx.send(OnboardWorkerMsg::ImportFailed(e.to_string()));
                 ctx.request_repaint();
                 return;
             }
@@ -663,13 +665,13 @@ mod tests {
         state.uname_lookup_seq = 1;
         app.onboard = Some(state);
 
-        apply(&mut app, &ctx, Action::OnboardSubmit { show_error: true });
+        apply(&mut app, &ctx, Action::OnboardSubmit);
         record_uname_verify_done(&ctx, 1, "alice".to_owned(), OnboardLookup::Available);
         onboard_poll_uname(&mut app, &ctx);
 
         let state = app.onboard.as_ref().unwrap();
         assert_eq!((&state.uname_lookup, &state.err), (&OnboardLookup::Available, &None));
-        assert!(matches!(app.queue[..], [Action::OnboardSubmit { show_error: true }]));
+        assert!(matches!(app.queue[..], [Action::OnboardSubmit]));
     }
 
     #[test]
@@ -711,7 +713,7 @@ mod tests {
 
         let state = app.onboard.as_ref().unwrap();
         assert_eq!(state.uname_lookup, OnboardLookup::Available);
-        assert!(matches!(app.queue[..], [Action::OnboardSubmit { show_error: true }]));
+        assert!(matches!(app.queue[..], [Action::OnboardSubmit]));
     }
 
     #[test]
@@ -776,7 +778,7 @@ mod tests {
         state.uname_lookup_for = upper;
         app.onboard = Some(state);
 
-        apply(&mut app, &ctx, Action::OnboardSubmit { show_error: true });
+        apply(&mut app, &ctx, Action::OnboardSubmit);
         assert_eq!(app.onboard.as_ref().unwrap().step, OnboardStep::Look);
     }
 
@@ -787,6 +789,21 @@ mod tests {
             .collect::<Vec<_>>()
             .join(" ");
         assert_eq!(onboard_import_secret(&phrase), phrase);
+        let numbered = (1..=24)
+            .map(|i| format!("{i}. Abandon,"))
+            .collect::<Vec<_>>()
+            .join("\n");
+        let expected_bip39 = vec!["abandon"; 24].join(" ");
+        assert_eq!(onboard_import_secret(&numbered), expected_bip39);
+        // A numbered 24-word phrase with a typo still normalizes as a phrase
+        // so lb-rs returns the phrase error rather than compact-key corruption.
+        let mut numbered_typo: Vec<String> = (1..=24).map(|i| format!("{i}. abandon")).collect();
+        numbered_typo[3] = "4. notaword".into();
+        let expected_typo = (0..24)
+            .map(|i| if i == 3 { "notaword" } else { "abandon" })
+            .collect::<Vec<_>>()
+            .join(" ");
+        assert_eq!(onboard_import_secret(&numbered_typo.join("\n")), expected_typo);
         assert_eq!(onboard_import_secret("abcd\n efgh"), "abcdefgh");
         assert_eq!(onboard_import_secret("  abcd  "), "abcd");
     }

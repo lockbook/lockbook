@@ -1,7 +1,9 @@
-//! Step 2 & 3 (Sign in) — 3×8 phrase grid, compact key mode, and in-place
+//! Step 2 & 3 (Sign in) — compact key mode, 3×8 phrase grid, and in-place
 //! `"Welcome back, {username}"` initial sync screen.
 
-use egui::{Align, Id, Layout, Rect, Sense, Ui, pos2, vec2};
+use egui::{Align, Event, Id, Layout, Rect, Sense, Ui, pos2, vec2};
+use lb::model::account::{Account, is_valid_compact_key, is_valid_phrase_word};
+use workspace_rs::widgets::GlyphonTextEdit;
 
 use crate::components::{
     Button, Field, Radius, Space, Spacer, Theme, TypeRole, control_height, icon_button, phosphor,
@@ -9,8 +11,13 @@ use crate::components::{
 };
 use crate::shell::ShellApp;
 use crate::shell::action::{Action as A, OnboardStep};
+use crate::shell::apply_onboard::onboard_import_focus;
 
-use super::phrase_grid::{all_words_filled, grid_height, show_import_grid};
+use super::phrase_grid::{
+    PasteOutcome, WORD_COUNT, all_words_filled, all_words_valid, apply_paste_to_words, grid_height,
+    looks_like_compact_key, next_incomplete_or_invalid_slot, parse_pasted_words,
+    request_import_slot_caret_end, show_import_grid,
+};
 use super::{centered_column, measure_text_h, paint_logo};
 
 const GRID_COL_W: f32 = 570.0;
@@ -18,7 +25,7 @@ const COMPACT_COL_W: f32 = 410.0;
 const LOGO_SIDE: f32 = 44.0;
 const GRID_SUBTITLE: &str =
     "Enter or paste your 24-word secret key. Each word masks once you move to the next slot.";
-const COMPACT_SUBTITLE: &str = "Paste your compact account key.";
+const COMPACT_SUBTITLE: &str = "Paste your compact key or 24-word phrase.";
 
 pub(super) fn show_import(app: &mut ShellApp, ui: &mut Ui, t: &Theme, queue: &mut Vec<A>) {
     let compact = app.onboard.as_ref().is_some_and(|s| s.import_compact);
@@ -91,6 +98,7 @@ fn show_phrase_grid(app: &mut ShellApp, ui: &mut Ui, t: &Theme, queue: &mut Vec<
                     state.import_compact = true;
                     state.compact_key = compact.clone();
                     state.err = None;
+                    onboard_import_focus(ui.ctx(), true);
                 }
                 res
             };
@@ -100,7 +108,7 @@ fn show_phrase_grid(app: &mut ShellApp, ui: &mut Ui, t: &Theme, queue: &mut Vec<
             });
 
             if !busy && (grid_res.compact_key_pasted.is_some() || grid_res.pasted_full_phrase) {
-                queue.push(A::OnboardSubmit { show_error: true });
+                queue.push(A::OnboardSubmit);
             }
 
             if let Some(e) = &err {
@@ -132,6 +140,96 @@ fn show_compact(app: &mut ShellApp, ui: &mut Ui, t: &Theme, queue: &mut Vec<A>) 
         Some(s) => (s.busy, s.err.clone(), s.compact_visible),
         None => return,
     };
+
+    let edit_id = Id::unique("onboard_account_key").with("edit");
+    let mut pasted_secret = false;
+    if !busy {
+        let mut intercepted: Option<String> = None;
+        ui.input_mut(|i| {
+            let mut idx_to_remove = None;
+            for (idx, ev) in i.events.iter().enumerate() {
+                if let Event::Paste(text) = ev {
+                    let is_compact = is_valid_compact_key(text) || looks_like_compact_key(text);
+                    let is_phrase = !is_compact && looks_like_phrase_paste(text);
+                    if is_compact || is_phrase {
+                        intercepted = Some(text.clone());
+                        idx_to_remove = Some(idx);
+                        break;
+                    }
+                }
+            }
+            if let Some(idx) = idx_to_remove {
+                i.events.remove(idx);
+            }
+        });
+
+        if let Some(pasted) = intercepted {
+            if let Some(state) = &mut app.onboard {
+                if is_valid_compact_key(&pasted) || looks_like_compact_key(&pasted) {
+                    let compact: String = pasted.split_whitespace().collect();
+                    let len = compact.len();
+                    state.last_auto_submit_hash = Some(super::secret_hash(&compact));
+                    state.compact_key = compact;
+                    state.err = None;
+                    GlyphonTextEdit::place_cursor(ui, edit_id, len, len);
+                    ui.memory_mut(|m| m.request_focus(edit_id));
+                    pasted_secret = true;
+                    queue.push(A::OnboardSubmit);
+                } else {
+                    let mut candidate: [String; WORD_COUNT] = Default::default();
+                    if let PasteOutcome::Words { start_slot, count, all_filled } =
+                        apply_paste_to_words(&mut candidate, 0, &pasted)
+                    {
+                        if all_filled && valid_phrase_with_checksum(&candidate) {
+                            // Valid 24-word phrase: submit directly from compact mode so the
+                            // 24-word grid never flashes briefly during sign-in.
+                            let phrase = candidate.join(" ");
+                            let len = phrase.len();
+                            state.last_auto_submit_hash = Some(super::secret_hash(&phrase));
+                            state.compact_key = phrase;
+                            state.err = None;
+                            GlyphonTextEdit::place_cursor(ui, edit_id, len, len);
+                            ui.memory_mut(|m| m.request_focus(edit_id));
+                            pasted_secret = true;
+                            queue.push(A::OnboardSubmit);
+                        } else {
+                            // Partial phrase, typo, or checksum mismatch: switch to the 24-word
+                            // grid so the user can inspect and fix words in place.
+                            state.import_words = candidate;
+                            state.import_compact = false;
+                            state.compact_key.clear();
+                            state.err = None;
+                            if all_filled && all_words_valid(&state.import_words) {
+                                let next = (start_slot + count).min(WORD_COUNT - 1);
+                                state.import_focus = next;
+                                request_import_slot_caret_end(
+                                    ui.ctx(),
+                                    next,
+                                    &state.import_words[next],
+                                );
+                                onboard_import_focus(ui.ctx(), false);
+                                queue.push(A::OnboardSubmit);
+                            } else {
+                                let target = next_incomplete_or_invalid_slot(
+                                    &state.import_words,
+                                    WORD_COUNT - 1,
+                                )
+                                .unwrap_or(0);
+                                state.import_focus = target;
+                                request_import_slot_caret_end(
+                                    ui.ctx(),
+                                    target,
+                                    &state.import_words[target],
+                                );
+                                onboard_import_focus(ui.ctx(), false);
+                            }
+                            ui.ctx().request_repaint();
+                        }
+                    }
+                }
+            }
+        }
+    }
 
     let err_for_h = err.clone();
     centered_column(
@@ -165,7 +263,6 @@ fn show_compact(app: &mut ShellApp, ui: &mut Ui, t: &Theme, queue: &mut Vec<A>) 
             );
             ui.add(Spacer::new(Space::Lg));
 
-            let edit_id = Id::unique("onboard_account_key").with("edit");
             let need_focus = ui.ctx().data(|d| {
                 d.get_temp::<bool>(Id::unique("onboard_account_key_need_focus"))
                     .unwrap_or(false)
@@ -197,6 +294,7 @@ fn show_compact(app: &mut ShellApp, ui: &mut Ui, t: &Theme, queue: &mut Vec<A>) 
                     }
                     if state.compact_key != before {
                         state.err = None;
+                        state.last_auto_submit_hash = None;
                     }
                 }
                 ui.add(Spacer::new(Space::Xs).fill_cross(eye_w));
@@ -215,10 +313,10 @@ fn show_compact(app: &mut ShellApp, ui: &mut Ui, t: &Theme, queue: &mut Vec<A>) 
                 .unwrap_or_default();
             let can_import = !secret.is_empty();
 
-            // Auto-submit silently when compact key changes (deduped via `last_auto_submit_hash`,
-            // shared with `submit_import` so a compact key pasted into the 24-word grid does not
-            // re-submit silently and wipe its own error).
-            if can_import && !busy {
+            // Auto-submit once when the buffer holds a syntactically valid compact key
+            // (deduped via `last_auto_submit_hash`, shared with `submit_import` so failed
+            // attempts surface their error and wait for an edit or explicit retry).
+            if !pasted_secret && !busy && is_valid_compact_key(&secret) {
                 let secret_hash = super::secret_hash(&secret);
                 let already_tried =
                     app.onboard.as_ref().and_then(|s| s.last_auto_submit_hash) == Some(secret_hash);
@@ -226,7 +324,7 @@ fn show_compact(app: &mut ShellApp, ui: &mut Ui, t: &Theme, queue: &mut Vec<A>) 
                     if let Some(state) = &mut app.onboard {
                         state.last_auto_submit_hash = Some(secret_hash);
                     }
-                    queue.push(A::OnboardSubmit { show_error: false });
+                    queue.push(A::OnboardSubmit);
                 }
             }
 
@@ -247,6 +345,16 @@ fn show_compact(app: &mut ShellApp, ui: &mut Ui, t: &Theme, queue: &mut Vec<A>) 
             );
         },
     );
+}
+
+fn looks_like_phrase_paste(raw: &str) -> bool {
+    let words = parse_pasted_words(raw);
+    words.len() >= 2 && words.iter().filter(|w| is_valid_phrase_word(w)).count() >= 2
+}
+
+fn valid_phrase_with_checksum(words: &[String; WORD_COUNT]) -> bool {
+    let refs: [&str; WORD_COUNT] = std::array::from_fn(|i| words[i].as_str());
+    Account::phrase_to_private_key(refs).is_ok()
 }
 
 fn import_footer(
@@ -281,7 +389,7 @@ fn import_footer(
                     primary = primary.shortcut(shortcut_enter());
                 }
                 if primary.show(ui).clicked() {
-                    queue.push(A::OnboardSubmit { show_error: true });
+                    queue.push(A::OnboardSubmit);
                 }
                 ui.add(Spacer::new(Space::Sm).fill_cross(row_h));
                 if Button::quiet(t, toggle_label)
@@ -395,5 +503,97 @@ fn paint_progress_bar(ui: &mut Ui, t: &Theme) {
     if bar.width() > 0.0 {
         ui.painter()
             .rect_filled(bar, Radius::Sm.corner(), t.accent());
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::components::{ThemeExt, install};
+    use crate::shell::onboard::OnboardState;
+    use egui::{Context, Pos2, RawInput};
+
+    fn test_ctx() -> Context {
+        let ctx = Context::default();
+        workspace_rs::register_font_system(&ctx);
+        ctx
+    }
+
+    fn run_import_pass(ctx: &Context, app: &mut ShellApp, events: Vec<Event>) -> Vec<A> {
+        let mut queue = Vec::new();
+        let input = RawInput {
+            screen_rect: Some(Rect::from_min_size(Pos2::ZERO, vec2(800.0, 600.0))),
+            events,
+            ..Default::default()
+        };
+        ctx.run_pass(input, |ctx| {
+            install(ctx);
+            let t = ctx.get_lb_theme();
+            ctx.root_ui(|ui| {
+                show_import(app, ui, &t, &mut queue);
+            });
+        })
+        .textures_delta
+        .clear();
+        queue
+    }
+
+    #[test]
+    fn compact_partial_input_waits_valid_key_submits_once_and_second_paste_replaces() {
+        let ctx = test_ctx();
+        let mut st = OnboardState::new();
+        st.step = OnboardStep::Import;
+        let mut app = ShellApp { onboard: Some(st), ..Default::default() };
+
+        let valid_v2 = "nvo7SItwXYmoxxzmOCUrNJiw85V8CwJ+SXb8cOHPIlo=";
+
+        // Partial typed key does not auto-submit.
+        app.onboard.as_mut().unwrap().compact_key = valid_v2[..20].into();
+        let q = run_import_pass(&ctx, &mut app, vec![]);
+        assert!(q.is_empty());
+
+        // Completing a valid compact key auto-submits once (deduped on subsequent frames).
+        app.onboard.as_mut().unwrap().compact_key = valid_v2.into();
+        let q = run_import_pass(&ctx, &mut app, vec![]);
+        assert!(matches!(q[..], [A::OnboardSubmit]));
+        let q = run_import_pass(&ctx, &mut app, vec![]);
+        assert!(q.is_empty());
+
+        // Pasting a replacement compact key replaces the buffer (never concatenates) and submits.
+        let other_v1 = "BQAAAAAAAAB0ZXN0MQkAAAAAAAAAdGVzdDEuY29tIAAAAAAAAAATIlUEJFM0ejFr3ywfEAKgZGfBAEMPuIUhb1uPiejwKg==";
+        let q = run_import_pass(&ctx, &mut app, vec![Event::Paste(other_v1.into())]);
+        assert_eq!(app.onboard.as_ref().unwrap().compact_key, other_v1);
+        assert!(matches!(q[..], [A::OnboardSubmit]));
+    }
+
+    #[test]
+    fn compact_screen_routes_pasted_phrase_to_grid_and_focuses_typos() {
+        let ctx = test_ctx();
+        let mut st = OnboardState::new();
+        st.step = OnboardStep::Import;
+        let mut app = ShellApp { onboard: Some(st), ..Default::default() };
+
+        // Phrase with a typo in slot 2 routes to the 24-word grid, focuses slot 2, and does not submit.
+        let mut bad_phrase = vec!["abandon"; 24];
+        bad_phrase[2] = "notaword";
+        let q = run_import_pass(&ctx, &mut app, vec![Event::Paste(bad_phrase.join(" "))]);
+        let s = app.onboard.as_ref().unwrap();
+        assert!(!s.import_compact);
+        assert!(s.compact_key.is_empty());
+        assert_eq!(s.import_focus, 2);
+        assert_eq!(s.import_words[2], "notaword");
+        assert!(q.is_empty());
+
+        // Starting back on compact, pasting 24 valid words with a valid checksum stays on the
+        // compact screen (no brief 24-word grid flash) and submits directly.
+        let mut st = OnboardState::new();
+        st.step = OnboardStep::Import;
+        let mut app = ShellApp { onboard: Some(st), ..Default::default() };
+        let good_phrase = "turkey era velvet detail prison income dose royal fever truly unique couple party example piece art leaf follow rose access vacant gather wasp audit";
+        let q = run_import_pass(&ctx, &mut app, vec![Event::Paste(good_phrase.into())]);
+        let s = app.onboard.as_ref().unwrap();
+        assert!(s.import_compact);
+        assert_eq!(s.compact_key, good_phrase);
+        assert!(matches!(q[..], [A::OnboardSubmit]));
     }
 }

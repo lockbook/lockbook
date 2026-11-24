@@ -559,7 +559,7 @@ pub fn apply(app: &mut ShellApp, ctx: &Context, action: A) {
             onboard_import_focus(ctx, compact);
         }
         A::OnboardVerifyUname => onboard_verify_uname(app, ctx),
-        A::OnboardSubmit { show_error } => onboard_submit(app, ctx, show_error),
+        A::OnboardSubmit => onboard_submit(app, ctx),
         A::OnboardFinishLook => onboard_finish_look(app, ctx),
         A::OnboardRetryImportSync => onboard_retry_import_sync(app, ctx),
         A::OpenBackupKey => {

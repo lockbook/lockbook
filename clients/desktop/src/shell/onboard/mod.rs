@@ -1,7 +1,7 @@
 //! Full-window onboarding experience on `t.neutral_bg()`.
 //!
 //! Create flow: Welcome → Choose a username → Choose a look (experiment) → Live workspace.
-//! Sign in flow: Welcome → 3×8 phrase grid / compact key → Welcome back syncing → Live workspace.
+//! Sign in flow: Welcome → compact key / 3×8 phrase grid → Welcome back syncing → Live workspace.
 
 mod create;
 mod import;
@@ -70,7 +70,7 @@ impl OnboardState {
             uname_lookup_seq: 0,
             import_words: Default::default(),
             import_focus: 0,
-            import_compact: false,
+            import_compact: true,
             compact_key: String::new(),
             compact_visible: false,
             api_url: initial_api_url(),

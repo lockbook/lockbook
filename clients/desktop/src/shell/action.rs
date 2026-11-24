@@ -394,10 +394,8 @@ pub enum Action {
     OnboardToggleCompact(bool),
     /// Debounced create-username availability (share-style network verify).
     OnboardVerifyUname,
-    /// `show_error`: false for silent auto-import; true for explicit submit.
-    OnboardSubmit {
-        show_error: bool,
-    },
+    /// Submit the active onboarding step (Create, Import, or Look).
+    OnboardSubmit,
     /// Finish `Choose a look` (Create-only experiment) and create the account.
     OnboardFinishLook,
     /// Retry initial sync after Sign in authenticated the account.
@@ -582,7 +580,7 @@ impl Action {
             Self::OnboardSetStep(_) => "OnboardSetStep",
             Self::OnboardToggleCompact(_) => "OnboardToggleCompact",
             Self::OnboardVerifyUname => "OnboardVerifyUname",
-            Self::OnboardSubmit { .. } => "OnboardSubmit",
+            Self::OnboardSubmit => "OnboardSubmit",
             Self::OnboardFinishLook => "OnboardFinishLook",
             Self::OnboardRetryImportSync => "OnboardRetryImportSync",
             Self::OpenBackupKey => "OpenBackupKey",
