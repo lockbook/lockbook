@@ -251,6 +251,14 @@
 
             </com.google.android.material.textfield.TextInputLayout>
 
+            <com.google.android.material.chip.ChipGroup
+                android:id="@+id/share_file_suggestions"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:visibility="gone"
+                app:chipSpacingVertical="0dp" />
+
             <com.google.android.material.textfield.TextInputLayout
                 style="@style/Widget.Material3.TextInputLayout.FilledBox.ExposedDropdownMenu"
                 android:layout_width="match_parent"

@@ -20,6 +20,12 @@ public class Lb {
     public static native String exportAccountPhrase() throws LbError;
     public static native byte[] exportAccountQR() throws LbError;
 
+    public static native String createSubAccount(String label) throws LbError;
+    public static native SubAccount[] listSubAccounts() throws LbError;
+    public static native void deleteSubAccount(String username) throws LbError;
+    public static native String exportSubAccountPrivateKey(String username) throws LbError;
+    public static native String exportSubAccountPhrase(String username) throws LbError;
+
     public static native File getRoot() throws LbError;
     public static native File[] listMetadatas() throws LbError;
     public static native File[] getChildren(String id) throws LbError;

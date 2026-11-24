@@ -8,6 +8,7 @@ package app.lockbook.ui
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
+import android.content.res.ColorStateList
 import android.graphics.Color
 import android.graphics.drawable.GradientDrawable
 import android.os.Bundle
@@ -18,6 +19,7 @@ import android.view.View
 import android.view.ViewGroup
 import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InputMethodManager
+import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.activity.OnBackPressedCallback
@@ -32,11 +34,13 @@ import app.lockbook.R
 import app.lockbook.databinding.SheetShareFileBinding
 import app.lockbook.model.FileMetadataStore
 import app.lockbook.model.FileTreeViewModel
+import app.lockbook.model.subAccountSuggestions
 import app.lockbook.screen.UpdateFilesUI
 import app.lockbook.util.harmonizedIdentityColors
 import com.google.android.material.bottomsheet.BottomSheetBehavior
 import com.google.android.material.bottomsheet.BottomSheetDialog
 import com.google.android.material.bottomsheet.BottomSheetDialogFragment
+import com.google.android.material.chip.Chip
 import com.google.android.material.color.MaterialColors
 import com.google.android.material.snackbar.Snackbar
 import kotlinx.coroutines.Dispatchers
@@ -55,6 +59,9 @@ class ShareFileBottomSheetFragment : BottomSheetDialogFragment() {
     private val fileTreeViewModel: FileTreeViewModel by activityViewModels()
     private val fileId by lazy { requireArguments().getString(FILE_ID_KEY)!! }
     private var sharedUsernames: List<String> = emptyList()
+    private var subAccounts: List<String> = emptyList()
+    private var fileShares: List<String> = emptyList()
+    private val parentUsername by lazy { runCatching { Lb.getAccount().username }.getOrDefault("") }
 
     companion object {
         const val TAG = "ShareFileBottomSheetFragment"
@@ -100,6 +107,8 @@ class ShareFileBottomSheetFragment : BottomSheetDialogFragment() {
                 } else {
                     binding.shareFileName.text = current.name
                     binding.shareFileInviteName.text = current.name
+                    fileShares = current.shares.map { it.sharedWith }
+                    updateSuggestions()
                 }
             }
         }
@@ -107,6 +116,12 @@ class ShareFileBottomSheetFragment : BottomSheetDialogFragment() {
             sharedUsernames = contacts.map { it.username }
             updateAccessRow()
         }
+        fileTreeViewModel.subAccounts.observe(viewLifecycleOwner) { loaded ->
+            subAccounts = loaded.map { it.username }
+            updateAccessRow()
+            updateSuggestions()
+        }
+        fileTreeViewModel.refreshSubAccounts()
         binding.shareFileAccessPeople.doOnLayout { updateAccessRow() }
         binding.shareFileAddPerson.setOnClickListener { showInviteForm() }
         binding.shareFileAddFirstPerson.setOnClickListener { showInviteForm() }
@@ -131,6 +146,7 @@ class ShareFileBottomSheetFragment : BottomSheetDialogFragment() {
         binding.shareFileUsername.doAfterTextChanged {
             binding.shareFileUsernameLayout.error = null
             binding.shareFileErrorContainer.isVisible = false
+            updateSuggestions()
         }
         binding.shareFileUsername.setOnEditorActionListener { _, actionId, _ ->
             if (actionId == EditorInfo.IME_ACTION_DONE) {
@@ -185,12 +201,38 @@ class ShareFileBottomSheetFragment : BottomSheetDialogFragment() {
         binding.shareFileName.requestFocus()
     }
 
+    private fun updateSuggestions() {
+        val query =
+            binding.shareFileUsername.text
+                ?.toString()
+                .orEmpty()
+        val suggestions = subAccountSuggestions(query, subAccounts, parentUsername, fileShares)
+        binding.shareFileSuggestions.removeAllViews()
+        binding.shareFileSuggestions.isVisible = suggestions.isNotEmpty()
+        suggestions.forEach { username ->
+            binding.shareFileSuggestions.addView(
+                Chip(requireContext()).apply {
+                    text = username
+                    setChipIconResource(R.drawable.ic_baseline_key_24)
+                    setOnClickListener {
+                        binding.shareFileUsername.setText(username)
+                        binding.shareFileUsername.setSelection(binding.shareFileUsername.length())
+                    }
+                },
+            )
+        }
+    }
+
     private fun updateAccessRow() {
-        val hasShares = sharedUsernames.isNotEmpty()
-        binding.shareFileAccessEmpty.isVisible = !hasShares
-        binding.shareFileAccessPeople.isVisible = hasShares
+        val people =
+            sharedUsernames +
+                subAccountSuggestions("", subAccounts, parentUsername, emptyList())
+                    .filter { name -> sharedUsernames.none { it.equals(name, ignoreCase = true) } }
+        val hasPeople = people.isNotEmpty()
+        binding.shareFileAccessEmpty.isVisible = !hasPeople
+        binding.shareFileAccessPeople.isVisible = hasPeople
         binding.shareFileAvatarList.removeAllViews()
-        if (!hasShares) return
+        if (!hasPeople) return
 
         val avatarSize = (56 * resources.displayMetrics.density).toInt()
         val avatarSpacing = (4 * resources.displayMetrics.density).toInt()
@@ -201,36 +243,48 @@ class ShareFileBottomSheetFragment : BottomSheetDialogFragment() {
             binding.shareFileAddPerson.width.takeIf { it > 0 } ?: avatarSize
         val availableWidth =
             (binding.shareFileAccessPeople.width - addButtonWidth - avatarSpacing).coerceAtLeast(minLabelWidth)
-        val labelWidth = (availableWidth / sharedUsernames.size).coerceIn(minLabelWidth, maxLabelWidth)
+        val labelWidth = (availableWidth / people.size).coerceIn(minLabelWidth, maxLabelWidth)
         val backgroundColors =
             intArrayOf(
                 MaterialColors.getColor(binding.root, com.google.android.material.R.attr.colorSurface),
                 MaterialColors.getColor(binding.root, com.google.android.material.R.attr.colorSurfaceContainerLow),
             )
-        sharedUsernames.forEachIndexed { index, username ->
+        people.forEachIndexed { index, username ->
+            val isSubAccount = subAccounts.any { it.equals(username, ignoreCase = true) }
             val colorRoles = harmonizedIdentityColors(requireContext(), username)
             val avatarColor = colorRoles.accentContainer
             val initialColor = colorRoles.onAccentContainer
             val labelColor = readableUsernameColor(colorRoles.accent, backgroundColors)
+            val avatarBackground =
+                GradientDrawable().apply {
+                    shape = GradientDrawable.OVAL
+                    setColor(avatarColor)
+                }
             val avatar =
-                TextView(requireContext()).apply {
-                    text = username.take(1).uppercase()
-                    contentDescription = username
-                    gravity = Gravity.CENTER
-                    setTextColor(initialColor)
-                    textSize = 21f
-                    background =
-                        GradientDrawable().apply {
-                            shape = GradientDrawable.OVAL
-                            setColor(avatarColor)
-                        }
+                if (isSubAccount) {
+                    ImageView(requireContext()).apply {
+                        setImageResource(R.drawable.ic_baseline_key_24)
+                        imageTintList = ColorStateList.valueOf(initialColor)
+                        scaleType = ImageView.ScaleType.CENTER
+                        contentDescription = username
+                        background = avatarBackground
+                    }
+                } else {
+                    TextView(requireContext()).apply {
+                        text = username.take(1).uppercase()
+                        contentDescription = username
+                        gravity = Gravity.CENTER
+                        setTextColor(initialColor)
+                        textSize = 21f
+                        background = avatarBackground
+                    }
                 }
             val label =
                 TextView(requireContext()).apply {
                     text = username
                     gravity = Gravity.CENTER
-                    maxLines = 1
-                    ellipsize = TextUtils.TruncateAt.END
+                    isSingleLine = true
+                    ellipsize = if (isSubAccount) TextUtils.TruncateAt.START else TextUtils.TruncateAt.END
                     setTextColor(labelColor)
                     textSize = 12f
                 }

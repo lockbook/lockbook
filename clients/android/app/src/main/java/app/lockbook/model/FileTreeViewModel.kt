@@ -35,6 +35,7 @@ import net.lockbook.Lb
 import net.lockbook.LbError
 import net.lockbook.LbStatus
 import net.lockbook.SharingContact
+import net.lockbook.SubAccount
 import net.lockbook.Usage
 import org.json.JSONArray
 import org.json.JSONObject
@@ -91,6 +92,9 @@ class FileTreeViewModel(
 
     private val _sharingContacts = MutableLiveData<List<SharingContact>>(emptyList())
     val sharingContacts: LiveData<List<SharingContact>> = _sharingContacts
+
+    private val _subAccounts = MutableLiveData<List<SubAccount>>(emptyList())
+    val subAccounts: LiveData<List<SubAccount>> = _subAccounts
 
     // / the list of files that the file tree displays in the UI
     val _files = MutableLiveData<List<FileViewHolderInfo>>(emptyList())
@@ -175,6 +179,20 @@ class FileTreeViewModel(
                 hydrateStatusUpdate(status)
             } catch (error: LbError) {
                 Timber.e(error, "Unable to load account status.")
+            }
+        }
+    }
+
+    fun refreshSubAccounts() {
+        viewModelScope.launch {
+            try {
+                val subAccounts: List<SubAccount> =
+                    withContext(Dispatchers.IO) {
+                        if (Lb.getAccount().isSubAccount()) emptyList() else Lb.listSubAccounts().toList()
+                    }
+                _subAccounts.value = subAccounts
+            } catch (error: LbError) {
+                Timber.e(error, "Unable to load sub-accounts")
             }
         }
     }

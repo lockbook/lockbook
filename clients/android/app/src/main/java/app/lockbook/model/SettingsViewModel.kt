@@ -49,7 +49,7 @@ class SettingsViewModel(
     private fun computeUsage() {
         try {
             val usage = Lb.refreshUsage()
-            val subscriptionInfo = Lb.getSubscriptionInfo()
+            val subscriptionInfo = if (Lb.getAccount().isSubAccount()) null else Lb.getSubscriptionInfo()
             _determineSettingsInfo.postValue(SettingsInfo(usage, subscriptionInfo))
         } catch (err: LbError) {
             _notifyError.postValue(err)

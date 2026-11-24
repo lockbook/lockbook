@@ -2,16 +2,9 @@
 
 package app.lockbook.screen
 
-import android.content.ClipData
-import android.content.ClipboardManager
-import android.content.Context
 import android.content.Intent
 import android.os.Bundle
-import android.view.Gravity
 import android.view.View
-import android.view.ViewGroup
-import android.widget.ImageView
-import android.widget.PopupWindow
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.app.ActivityCompat.finishAffinity
 import androidx.fragment.app.viewModels
@@ -23,11 +16,11 @@ import app.lockbook.model.*
 import app.lockbook.ui.NumberPickerPreference
 import app.lockbook.ui.NumberPickerPreferenceDialogFragment
 import app.lockbook.ui.UsageBarPreference
+import app.lockbook.util.copyToClipboard
 import app.lockbook.util.getSettingsActivity
+import app.lockbook.util.showAccountKeyQR
 import com.google.android.material.color.MaterialColors
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
-import com.google.zxing.BarcodeFormat
-import com.journeyapps.barcodescanner.BarcodeEncoder
 import net.lockbook.Lb
 import net.lockbook.LbError
 import net.lockbook.SubscriptionInfo.AppStore
@@ -51,6 +44,10 @@ class SettingsFragment : PreferenceFragmentCompat() {
 
     val alertModel by lazy {
         AlertModel(WeakReference(requireActivity()))
+    }
+
+    private val isSubAccount by lazy {
+        runCatching { Lb.getAccount().isSubAccount() }.getOrDefault(false)
     }
 
     val model: SettingsViewModel by viewModels(
@@ -123,11 +120,13 @@ class SettingsFragment : PreferenceFragmentCompat() {
                 (maybePaymentPlatform as? Stripe) != null ||
                 (maybePaymentPlatform as? AppStore)?.accountState == AppStore.AppStoreAccountState.Ok
 
-        findPreference<PreferenceCategory>(getString(R.string.premium_key))!!.isVisible = isPremium
+        findPreference<PreferenceCategory>(getString(R.string.premium_key))!!.isVisible = isPremium && !isSubAccount
         findPreference<Preference>(getString(R.string.cancel_subscription_key))!!.isVisible = isPremium && isOkState
     }
 
     private fun setUpPreferences() {
+        findPreference<PreferenceCategory>(getString(R.string.sub_accounts_category_key))?.isVisible = !isSubAccount
+
         findPreference<Preference>(getString(R.string.biometric_key))?.setOnPreferenceChangeListener { _, newValue ->
             if (newValue is String) {
                 BiometricModel.verify(
@@ -194,6 +193,10 @@ class SettingsFragment : PreferenceFragmentCompat() {
                 )
             }
 
+            getString(R.string.sub_accounts_key) -> {
+                startActivity(Intent(context, SubAccountsActivity::class.java))
+            }
+
             getString(R.string.debug_info_key) -> {
                 startActivity(Intent(context, DebugInfoActivity::class.java))
             }
@@ -249,23 +252,7 @@ class SettingsFragment : PreferenceFragmentCompat() {
 
     private fun exportAccountQR() {
         try {
-            val bitmap =
-                BarcodeEncoder().encodeBitmap(
-                    Lb.exportAccountPrivateKey(),
-                    BarcodeFormat.QR_CODE,
-                    400,
-                    400,
-                )
-
-            val qrCodeView =
-                layoutInflater.inflate(
-                    R.layout.popup_window_qr_code,
-                    view as ViewGroup,
-                    false,
-                )
-            qrCodeView.findViewById<ImageView>(R.id.qr_code).setImageBitmap(bitmap)
-            val popUpWindow = PopupWindow(qrCodeView, 900, 900, true)
-            popUpWindow.showAtLocation(view, Gravity.CENTER, 0, 0)
+            showAccountKeyQR(Lb.exportAccountPrivateKey())
         } catch (err: LbError) {
             alertModel.notifyError(err)
         }
@@ -273,10 +260,7 @@ class SettingsFragment : PreferenceFragmentCompat() {
 
     private fun exportAccountRaw() {
         try {
-            val clipBoard: ClipboardManager =
-                requireContext().getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-            val clipBoardData = ClipData.newPlainText("account string", Lb.exportAccountPrivateKey())
-            clipBoard.setPrimaryClip(clipBoardData)
+            copyToClipboard("account string", Lb.exportAccountPrivateKey())
             alertModel.notify(getString(R.string.settings_export_account_copied))
         } catch (err: LbError) {
             alertModel.notifyError(err)
@@ -285,10 +269,7 @@ class SettingsFragment : PreferenceFragmentCompat() {
 
     private fun exportAccountPhrase() {
         try {
-            val clipBoard: ClipboardManager =
-                requireContext().getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-            val clipBoardData = ClipData.newPlainText("account phrase", Lb.exportAccountPhrase())
-            clipBoard.setPrimaryClip(clipBoardData)
+            copyToClipboard("account phrase", Lb.exportAccountPhrase())
             alertModel.notify(getString(R.string.settings_export_account_phrase_copied))
         } catch (err: LbError) {
             alertModel.notifyError(err)
