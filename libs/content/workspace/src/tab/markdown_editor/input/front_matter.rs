@@ -10,7 +10,9 @@ use lb_rs::model::text::operation_types::{Operation, Replace};
 use unicode_segmentation::UnicodeSegmentation as _;
 
 use super::{Advance, Bound, FrontMatterAction, Increment, Region};
-use crate::front_matter::{FrontMatter, ListStyle, Quotes, RowKind as Kind, Value, needs_quotes};
+use crate::front_matter::{
+    FrontMatter, ListStyle, Quotes, RowKind as Kind, Value, needs_quotes, yaml_scalar,
+};
 use crate::tab::markdown_editor::{MdEdit, View};
 
 impl MdEdit {
@@ -583,17 +585,6 @@ impl MdEdit {
             text: "\"".into(),
         }));
         true
-    }
-}
-
-/// `s` written as a YAML scalar: escaped for the quote it goes inside,
-/// else quoted when a plain scalar would read as something else.
-pub fn yaml_scalar(s: &str, quote: Option<char>, flow: bool) -> String {
-    match quote {
-        Some('\'') => s.replace('\'', "''"),
-        Some(_) => s.replace('\\', "\\\\").replace('"', "\\\""),
-        None if needs_quotes(s, flow) => format!("\"{}\"", yaml_scalar(s, Some('"'), flow)),
-        None => s.into(),
     }
 }
 

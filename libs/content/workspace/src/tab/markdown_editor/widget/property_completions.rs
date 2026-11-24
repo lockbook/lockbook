@@ -12,9 +12,9 @@ use lb_rs::model::text::buffer::Buffer;
 use lb_rs::model::text::offset_types::{Grapheme, RangeExt as _};
 
 use crate::file_cache::{FileCache, FilesExt as _};
+use crate::front_matter::yaml_scalar;
 use crate::front_matter::{FrontMatter, ListStyle, Quotes, RowKind as Kind, Value};
 use crate::tab::markdown_editor::MdEdit;
-use crate::tab::markdown_editor::input::front_matter::yaml_scalar;
 use crate::tab::markdown_editor::input::{Event, Location, Region};
 use crate::tab::markdown_editor::widget::{
     CompletionStep, completion_accepted, completion_dismissed, completion_step,

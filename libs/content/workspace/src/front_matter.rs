@@ -121,6 +121,50 @@ impl<O: Copy> FrontMatter<O> {
     }
 }
 
+/// A one-line value or a list item: the key it is under, its text
+/// between any quotes, its quotes, and whether it sits in brackets.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Scalar<O = usize> {
+    pub key: (O, O),
+    pub text: (O, O),
+    pub quotes: Quotes<O>,
+    pub flow: bool,
+}
+
+impl<O: Copy> Scalar<O> {
+    /// The scalar as written, quotes included.
+    pub fn written(&self) -> (O, O) {
+        match self.quotes {
+            Some((open, close)) => (open.0, close.1),
+            None => self.text,
+        }
+    }
+}
+
+impl<O: Copy> FrontMatter<O> {
+    /// Every one-line value and list item, in order.
+    pub fn scalars(&self) -> impl Iterator<Item = Scalar<O>> + '_ {
+        self.rows.iter().flat_map(|row| {
+            let RowKind::Property { key, value, .. } = &row.kind else { return vec![] };
+            match value {
+                Value::Text { text, quotes, .. } => {
+                    vec![Scalar { key: *key, text: *text, quotes: *quotes, flow: false }]
+                }
+                Value::Empty { .. } => vec![],
+                Value::List { style, items, .. } => items
+                    .iter()
+                    .map(|i| Scalar {
+                        key: *key,
+                        text: i.text,
+                        quotes: i.quotes,
+                        flow: *style == ListStyle::Flow,
+                    })
+                    .collect(),
+            }
+        })
+    }
+}
+
 impl<O: Copy + Ord> FrontMatter<O> {
     /// The row whose line holds `offset`, line end included.
     pub fn row_at(&self, offset: O) -> Option<usize> {
@@ -394,6 +438,32 @@ fn colon_without_space(line: &str) -> bool {
         }
         None => false,
     }
+}
+
+/// `s` written as a YAML scalar: escaped for the quote it goes inside,
+/// else quoted when a plain scalar would read as something else.
+pub fn yaml_scalar(s: &str, quote: Option<char>, flow: bool) -> String {
+    match quote {
+        Some('\'') => s.replace('\'', "''"),
+        Some(_) => s.replace('\\', "\\\\").replace('"', "\\\""),
+        None if needs_quotes(s, flow) => format!("\"{}\"", yaml_scalar(s, Some('"'), flow)),
+        None => s.into(),
+    }
+}
+
+/// The URL a value means, when the whole of it is one `scheme://…` URL
+/// with no spaces. `written` is the value as written, quotes included.
+pub fn url_value(written: &str) -> Option<String> {
+    let value = match written.starts_with(['\'', '"']) {
+        true => unquote(written)?,
+        false => written.to_string(),
+    };
+    let (scheme, rest) = value.split_once("://")?;
+    let is_scheme = scheme.starts_with(|c: char| c.is_ascii_alphabetic())
+        && scheme
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || matches!(c, '+' | '-' | '.'));
+    (is_scheme && !rest.is_empty() && !value.contains(char::is_whitespace)).then_some(value)
 }
 
 /// Whether a plain scalar reading `s` would mean something else to YAML

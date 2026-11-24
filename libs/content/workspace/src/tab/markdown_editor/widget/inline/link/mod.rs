@@ -8,6 +8,7 @@ use lb_rs::model::text::offset_types::{Grapheme, RangeExt as _};
 use lb_rs::model::text::operation_types::Operation;
 
 use crate::file_cache::{FilesExt as _, ResolvedLink, split_fragment, wiki_fragment};
+use crate::front_matter::url_value;
 use crate::link_preview::{self, LinkMeta, Preview, Status};
 use crate::show::DocType;
 use crate::style::{TypeRole, file_row_icon, phosphor};
@@ -34,7 +35,11 @@ const LINK_TIP_W: f32 = 300.0;
 
 impl<'ast> MdRender {
     pub fn text_format_link(&self, parent: &AstNode<'_>, state: LinkState) -> Format {
-        let parent_text_format = self.text_format(parent);
+        self.link_format(self.text_format(parent), state)
+    }
+
+    /// `base` in a link's colour, underlined.
+    fn link_format(&self, base: Format, state: LinkState) -> Format {
         let theme = self.ctx.get_lb_theme();
         let color = match state {
             LinkState::Normal => theme.accent(),
@@ -42,14 +47,18 @@ impl<'ast> MdRender {
             LinkState::Broken { .. } => theme.fg().red,
             LinkState::Placeholder { .. } => theme.fg().cyan,
         };
-        Format { color, underline: true, ..parent_text_format }
+        Format { color, underline: true, ..base }
+    }
+
+    pub fn text_format_link_pill(&self, parent: &AstNode<'_>, state: LinkState) -> Format {
+        self.link_pill_format(self.text_format(parent), state)
     }
 
     /// A chip's format: the link colour on a surface washed toward it, read
     /// against that surface, with no underline (the pill is the affordance).
     /// Paired with `StyleInfo { chip: true }`, the wrap layout paints the pill.
-    pub fn text_format_link_pill(&self, parent: &AstNode<'_>, state: LinkState) -> Format {
-        let link = self.text_format_link(parent, state);
+    pub(crate) fn link_pill_format(&self, base: Format, state: LinkState) -> Format {
+        let link = self.link_format(base, state);
         let surface = self.ctx.get_lb_theme().neutral_bg_secondary();
         let background = surface.lerp_to_gamma(link.color, CHIP_WASH);
         let color = readable_on(link.color, background);
@@ -171,15 +180,7 @@ impl<'ast> MdRender {
                 if !self.link_is_auto(node, &l.url) {
                     return None;
                 }
-                let title = self.get_link_title(&l.url)?;
-                let icon = match self.get_link_meta(&l.url) {
-                    LinkMetaLookup::Internal { icon, .. } => Some(ChipIcon::Glyph(icon)),
-                    LinkMetaLookup::Loaded(meta) if self.contact_linked_sites => {
-                        meta.favicon_url.map(ChipIcon::Favicon)
-                    }
-                    _ => None,
-                };
-                Some(Chip { title, state: self.link_state_for_url(&l.url), icon })
+                self.url_chip(&l.url)
             }
             NodeValue::WikiLink(wl) => {
                 if wl.embed || self.buffer[self.node_range(node)].contains('|') {
@@ -195,6 +196,19 @@ impl<'ast> MdRender {
             }
             _ => None,
         }
+    }
+
+    /// How a bare URL shows as a chip, if it has a title to show.
+    pub(crate) fn url_chip(&self, url: &str) -> Option<Chip> {
+        let title = self.get_link_title(url)?;
+        let icon = match self.get_link_meta(url) {
+            LinkMetaLookup::Internal { icon, .. } => Some(ChipIcon::Glyph(icon)),
+            LinkMetaLookup::Loaded(meta) if self.contact_linked_sites => {
+                meta.favicon_url.map(ChipIcon::Favicon)
+            }
+            _ => None,
+        };
+        Some(Chip { title, state: self.link_state_for_url(url), icon })
     }
 
     /// A chip: the pill that behaves like an inline image. Tap selects,
@@ -216,7 +230,8 @@ impl<'ast> MdRender {
             caret_inside: false,
         });
         // `show_capsule_overlays` paints the icon over the lead
-        let text = format!("{lead}{}", self.chip_title(node, lead, &chip.title, &fmt).0);
+        let (room, em) = self.chip_room(node);
+        let text = format!("{lead}{}", self.chip_title(room, em, lead, &chip.title, &fmt).0);
         layout.push_override(trimmed, &text, fmt);
         layout.style_close();
         layout.interaction_close();
@@ -298,20 +313,119 @@ impl<'ast> MdRender {
         );
     }
 
-    /// A chip's title cut to fit on one row; `true` when cut short. `lead`
-    /// comes before it.
-    pub(crate) fn chip_title(
-        &self, node: &'ast AstNode<'ast>, lead: &str, title: &str, fmt: &Format,
-    ) -> (String, bool) {
-        let Some(block) = node
+    /// The width a chip in `node` may take, and its block's em: no wider
+    /// than its block either, which in a table cell is a column's widest.
+    fn chip_room(&self, node: &'ast AstNode<'ast>) -> (f32, f32) {
+        match node
             .ancestors()
             .find(|a| a.data.borrow().value.is_leaf_block())
-        else {
-            return (title.into(), false);
-        };
-        let em = self.row_height(block);
-        // no wider than its block either, which in a table cell is a column's widest
-        let room = CHIP_MAX.min(self.embed_room(block)) - 2.0 * em * CHIP_SIDE_PAD;
+        {
+            Some(block) => (self.embed_room(block), self.row_height(block)),
+            None => (f32::INFINITY, self.layout.row_height),
+        }
+    }
+
+    /// How a link drawn as a chip is drawn: a body link's chip, if it is
+    /// one, or a property's.
+    fn drawn_chip(&self, root: &'ast AstNode<'ast>, link: &DocLink<'ast>) -> Option<DrawnChip> {
+        match link.node {
+            Some(node) => {
+                let chip = self.chip(node)?;
+                let fmt = self.text_format_link_pill(node.parent()?, chip.state.clone());
+                let (room, em) = self.chip_room(node);
+                Some(DrawnChip { chip, fmt, room, em })
+            }
+            None => {
+                let room = self.property_value_width(root.first_child()?)?;
+                let chip = self.property_chip(&link.url);
+                let fmt = self.link_pill_format(self.text_format_document(), chip.state.clone());
+                Some(DrawnChip { chip, fmt, room, em: self.layout.row_height })
+            }
+        }
+    }
+
+    /// A property's link as a chip: its title, else its URL.
+    fn property_chip(&self, url: &str) -> Chip {
+        self.url_chip(url).unwrap_or_else(|| Chip {
+            title: url.into(),
+            state: self.link_state_for_url(url),
+            icon: None,
+        })
+    }
+
+    /// A property's value that is a link, as a chip in `room`. It opens as
+    /// a plain link does: on a cmd-click, a click when read-only, and a tap
+    /// that selects it on touch; a plain click places the caret.
+    pub(crate) fn layout_property_link(
+        &self, layout: &mut Layout, text: (Grapheme, Grapheme), url: &str, room: f32,
+    ) {
+        let chip = self.property_chip(url);
+        let fmt = self.link_pill_format(self.text_format_document(), chip.state.clone());
+        let clickable = self.readonly || self.touch_mode || self.ctx.input(|i| i.modifiers.command);
+        let sense = self.link_sense(clickable);
+        if let Some(sense) = sense {
+            layout.interaction_open(Self::link_interaction_id_salt(text), sense);
+        }
+        layout.style_open(StyleInfo {
+            format: fmt.clone(),
+            source_range: text,
+            chip: true,
+            wrap: false,
+            caret_inside: false,
+        });
+        // `show_capsule_overlays` paints the icon over the lead
+        let lead = chip.lead();
+        let title = self
+            .chip_title(room, self.layout.row_height, lead, &chip.title, &fmt)
+            .0;
+        layout.push_override(text, &format!("{lead}{title}"), fmt);
+        layout.style_close();
+        if sense.is_some() {
+            layout.interaction_close();
+        }
+    }
+
+    /// Every link in the document, its properties' first, in order.
+    pub(crate) fn doc_links(&self, root: &'ast AstNode<'ast>) -> Vec<DocLink<'ast>> {
+        let mut out: Vec<DocLink<'ast>> = self
+            .property_links()
+            .into_iter()
+            .map(|(url, range)| DocLink { url, wikilink: false, image: false, range, node: None })
+            .collect();
+        for node in root.descendants() {
+            let is_image = image_url(node).is_some();
+            let (url, wikilink, image) = match &node.data.borrow().value {
+                NodeValue::Link(l) => (l.url.clone(), false, false),
+                NodeValue::Image(l) => (l.url.clone(), false, true),
+                NodeValue::WikiLink(l) => (l.url.clone(), true, is_image),
+                _ => continue,
+            };
+            out.push(DocLink {
+                url,
+                wikilink,
+                image,
+                range: self.node_range(node),
+                node: Some(node),
+            });
+        }
+        out
+    }
+
+    /// The front matter's values that are one URL each: the URL, and the
+    /// value's text between any quotes.
+    pub(crate) fn property_links(&self) -> Vec<(String, (Grapheme, Grapheme))> {
+        let Some(fm) = &self.bounds.front_matter else { return vec![] };
+        fm.scalars()
+            .filter_map(|s| Some((url_value(&self.buffer[s.written()])?, s.text)))
+            .collect()
+    }
+
+    /// A chip's title cut to fit on one row of `room` at `em`; `true` when
+    /// cut short. `lead` comes before it.
+    pub(crate) fn chip_title(
+        &self, room: f32, em: f32, lead: &str, title: &str, fmt: &Format,
+    ) -> (String, bool) {
+        let room = CHIP_MAX.min(room) - 2.0 * em * CHIP_SIDE_PAD;
         let fits = |t: &str| self.text_advance(&format!("{lead}{t}"), fmt, em) <= room;
         if fits(title) {
             return (title.into(), false);
@@ -330,14 +444,10 @@ impl<'ast> MdRender {
     /// fill over the pill's rounded end, painted over the text; and the x the
     /// fade begins at.
     fn cut_chip_fade(
-        &self, node: &'ast AstNode<'ast>, chip: &Chip, node_range: (Grapheme, Grapheme),
+        &self, drawn: &DrawnChip, node_range: (Grapheme, Grapheme),
     ) -> Option<(Vec<egui::Shape>, f32)> {
-        let block = node
-            .ancestors()
-            .find(|a| a.data.borrow().value.is_leaf_block())?;
-        let lead = chip.lead();
-        let fmt = self.text_format_link_pill(node.parent()?, chip.state.clone());
-        if !self.chip_title(node, lead, &chip.title, &fmt).1 {
+        let DrawnChip { chip, fmt, room, em } = drawn;
+        if !self.chip_title(*room, *em, chip.lead(), &chip.title, fmt).1 {
             return None;
         }
         let chip = self
@@ -358,7 +468,7 @@ impl<'ast> MdRender {
         );
         let cap = pill.height() / 2.0;
         let end = (pill.right() - cap).min(text.right());
-        let from = end - CHIP_FADE_EMS * self.row_height(block);
+        let from = end - CHIP_FADE_EMS * em;
         let fill = fmt.background;
         let mut mesh = egui::Mesh::default();
         let clear = egui::Color32::TRANSPARENT;
@@ -394,11 +504,11 @@ impl<'ast> MdRender {
         let sel = self
             .in_progress_selection
             .unwrap_or(self.buffer.current.selection);
-        for node in root.descendants() {
-            if !matches!(node.data.borrow().value, NodeValue::Link(_) | NodeValue::WikiLink(_)) {
+        for link in self.doc_links(root) {
+            if link.image {
                 continue;
             }
-            let node_range = self.node_range(node);
+            let node_range = link.range;
             let chip_rects: Vec<egui::Rect> = self.fragments[frag_start..]
                 .iter()
                 .filter(|f| chip_of(f) == Some(node_range))
@@ -407,7 +517,8 @@ impl<'ast> MdRender {
             if chip_rects.is_empty() {
                 continue; // not rendered as a capsule
             }
-            let Some(chip) = self.chip(node) else { continue };
+            let Some(drawn) = self.drawn_chip(root, &link) else { continue };
+            let chip = &drawn.chip;
 
             // The icon over the lead; a web chip's slot holds a link glyph
             // until its favicon loads, or for good if it never does.
@@ -425,18 +536,14 @@ impl<'ast> MdRender {
                 egui::Vec2::splat(size),
             );
             if let Some(ChipIcon::Glyph(glyph)) = chip.icon {
-                let link_color = self
-                    .text_format_link_pill(node.parent().unwrap(), chip.state.clone())
-                    .color;
-                GlyphonLabel::icon(glyph, link_color, size)
+                GlyphonLabel::icon(glyph, drawn.fmt.color, size)
                     .build(ui.ctx())
                     .paint_centered(ui.painter(), icon_rect.center());
             }
             if let Some(ChipIcon::Favicon(favicon_url)) = &chip.icon {
-                let url = node_link_url(node);
                 self.embeds.prefetch(favicon_url);
                 // an issue or pull request shows where it stands instead
-                let status = match self.get_link_meta(&url) {
+                let status = match self.get_link_meta(&link.url) {
                     LinkMetaLookup::Loaded(meta) => meta.status,
                     _ => None,
                 };
@@ -466,8 +573,7 @@ impl<'ast> MdRender {
             ui.set_clip_rect(row_clip);
 
             // a cut chip's fade, and where it begins
-            let fade =
-                if frag_start == 0 { self.cut_chip_fade(node, &chip, node_range) } else { None };
+            let fade = if frag_start == 0 { self.cut_chip_fade(&drawn, node_range) } else { None };
             let fade_from = fade.as_ref().map(|(_, x)| *x);
             if let Some((shapes, _)) = fade {
                 self.over_text.extend(shapes);
@@ -660,16 +766,9 @@ impl<'ast> MdRender {
         let arena = Arena::new();
         let root = self.reparse(&arena);
         let selection = self.buffer.current.selection;
-        root.descendants().find_map(|node| {
-            let is_image = image_url(node).is_some();
-            let target = match &node.data.borrow().value {
-                NodeValue::Link(l) => (l.url.clone(), false, false),
-                NodeValue::Image(l) => (l.url.clone(), false, true),
-                NodeValue::WikiLink(nwl) => (nwl.url.clone(), true, is_image),
-                _ => return None,
-            };
-            (!target.0.is_empty() && self.node_range(node).intersects(&selection, true))
-                .then_some(target)
+        self.doc_links(root).into_iter().find_map(|l| {
+            (!l.url.is_empty() && l.range.intersects(&selection, true))
+                .then_some((l.url, l.wikilink, l.image))
         })
     }
 
@@ -689,21 +788,10 @@ impl<'ast> MdRender {
         let mut urls = vec![];
         let mut broken = vec![];
 
-        for node in root.descendants() {
-            let node_range = self.node_range(node);
-            if !node_range.intersects(&selection, true) {
+        for DocLink { url, wikilink: is_wikilink, range, .. } in self.doc_links(root) {
+            if !range.intersects(&selection, true) {
                 continue;
             }
-
-            let (url, is_wikilink) = {
-                let data = node.data.borrow();
-                match &data.value {
-                    NodeValue::WikiLink(nwl) => (nwl.url.clone(), true),
-                    NodeValue::Link(nl) => (nl.url.clone(), false),
-                    NodeValue::Image(ni) => (ni.url.clone(), false),
-                    _ => continue,
-                }
-            };
 
             if is_wikilink {
                 if self.resolve_wikilink(&url).is_some() {
@@ -760,35 +848,23 @@ impl<'ast> MdRender {
         &mut self, root: &'ast AstNode<'ast>, ui: &egui::Ui, chips: bool,
     ) {
         let parent_base = ui.scope_id();
-        for node in root.descendants() {
-            if !matches!(
-                node.data.borrow().value,
-                NodeValue::WikiLink(_) | NodeValue::Link(_) | NodeValue::Image(_)
-            ) {
-                continue;
-            }
+        for link in self.doc_links(root) {
             let salt = match chips {
-                true => Self::link_capsule_id_salt(self.node_range(node)),
-                false => Self::link_interaction_id_salt(self.node_range(node)),
+                true => Self::link_capsule_id_salt(link.range),
+                false => Self::link_interaction_id_salt(link.range),
             };
             let id = parent_base.with(salt);
             // not drawn this frame
             if !self.interaction_responses.contains_key(&id) {
                 continue;
             }
-            let (url, is_wikilink, is_image) = match &node.data.borrow().value {
-                NodeValue::WikiLink(nwl) => (nwl.url.clone(), true, false),
-                NodeValue::Link(nl) => (nl.url.clone(), false, false),
-                NodeValue::Image(nl) => (nl.url.clone(), false, true),
-                _ => unreachable!(),
-            };
+            let DocLink { url, wikilink: is_wikilink, range, node, .. } = link;
+            // an image's wiki embed isn't a link
+            let is_image = link.image && !is_wikilink;
 
             let open = Event::OpenLink { url: url.clone(), wikilink: is_wikilink };
-            let tap = if self.readonly {
-                open.clone()
-            } else {
-                Event::Select { region: self.node_range(node).into() }
-            };
+            let tap =
+                if self.readonly { open.clone() } else { Event::Select { region: range.into() } };
             self.touch_consume_interaction(id, TouchTarget::Tap(tap));
 
             let Some(response) = self.interaction_responses.get(&id) else {
@@ -798,7 +874,13 @@ impl<'ast> MdRender {
             if response.hovered() && response.sense.senses_click() {
                 crate::style::link_cursor(ui.ctx());
             }
-            let shows_url = !chips && !is_wikilink && self.link_is_auto(node, &url);
+            // a property's chip shows its URL until it has a title
+            let shows_url = !chips
+                && !is_wikilink
+                && match node {
+                    Some(node) => self.link_is_auto(node, &url),
+                    None => self.get_link_title(&url).is_none(),
+                };
             let preview = (!is_image).then_some((url.as_str(), shows_url, is_wikilink));
             self.show_link_tip(
                 ui.ctx(),
@@ -823,7 +905,7 @@ impl<'ast> MdRender {
     /// The text an autolink shows in place of its URL: a file's name, what a
     /// known site's URL says it is, or the page's title once fetched. With
     /// sites off a web link shows its URL, so it reads as previews being off.
-    fn get_link_title(&self, url: &str) -> Option<String> {
+    pub(crate) fn get_link_title(&self, url: &str) -> Option<String> {
         match self.get_link_meta(url) {
             LinkMetaLookup::Internal { title, .. } => Some(title),
             LinkMetaLookup::Loaded(meta) => Some(link_preview::label(url).unwrap_or(meta.title)),
@@ -888,18 +970,36 @@ impl<'ast> MdRender {
         let arena = Arena::new();
         let root = self.reparse(&arena);
         let selection = self.buffer.current.selection;
-        let mut urls = vec![];
-        for node in root.descendants() {
-            if let NodeValue::Link(l) = &node.data.borrow().value {
-                if !l.url.is_empty() && self.node_range(node).intersects(&selection, true) {
-                    urls.push(l.url.clone());
-                }
-            }
-        }
+        let urls: Vec<String> = self
+            .doc_links(root)
+            .into_iter()
+            .filter(|l| !l.wikilink && !l.image && !l.url.is_empty())
+            .filter(|l| l.range.intersects(&selection, true))
+            .map(|l| l.url)
+            .collect();
         for url in urls {
             self.refresh_link_meta(&url);
         }
     }
+}
+
+/// A link in the document: a node's, or a property value's.
+pub(crate) struct DocLink<'ast> {
+    pub url: String,
+    pub wikilink: bool,
+    pub image: bool,
+    /// The node's range, or the value's text between any quotes.
+    pub range: (Grapheme, Grapheme),
+    /// None for a property's value.
+    pub node: Option<&'ast AstNode<'ast>>,
+}
+
+/// A chip as drawn: its format, and the room and em it is cut to.
+struct DrawnChip {
+    chip: Chip,
+    fmt: Format,
+    room: f32,
+    em: f32,
 }
 
 /// A link shown as a pill: see [`MdRender::chip`].
@@ -1050,23 +1150,20 @@ impl<'ast> MdEdit {
     ) -> Option<LinkMenuTarget> {
         let frag = self.renderer.fragment_at_pos(pos)?;
         let offset = frag.source_range.start();
-        for node in root.descendants() {
-            let is_image = image_url(node).is_some();
-            let (url, is_wikilink, is_image) = match &node.data.borrow().value {
-                NodeValue::WikiLink(nwl) => (nwl.url.clone(), true, is_image),
-                NodeValue::Image(l) => (l.url.clone(), false, true),
-                NodeValue::Link(l) => (l.url.clone(), false, false),
-                _ => continue,
-            };
-            let node_range = self.renderer.node_range(node);
-            if url.is_empty() || offset < node_range.start() || offset >= node_range.end() {
+        for link in self.renderer.doc_links(root) {
+            let node_range = link.range;
+            if link.url.is_empty() || offset < node_range.start() || offset >= node_range.end() {
                 continue;
             }
-            let (select, force_reveal) = self.atom_edit_selection(node);
+            // a property's value is its URL, as a bare autolink is
+            let (select, force_reveal) = match link.node {
+                Some(node) => self.atom_edit_selection(node),
+                None => (node_range, true),
+            };
             return Some(LinkMenuTarget {
-                url,
-                is_wikilink,
-                is_image,
+                url: link.url,
+                is_wikilink: link.wikilink,
+                is_image: link.image,
                 node_range,
                 select,
                 force_reveal,
@@ -1125,12 +1222,11 @@ impl<'ast> MdEdit {
             return;
         }
         let parent_base = ui.scope_id();
-        for node in root.descendants() {
-            match &node.data.borrow().value {
-                NodeValue::Link(_) | NodeValue::WikiLink(_) => {}
-                _ => continue,
+        for link in self.renderer.doc_links(root) {
+            if link.image && !link.wikilink {
+                continue;
             }
-            let node_range = self.renderer.node_range(node);
+            let node_range = link.range;
             let salt = MdRender::link_interaction_id_salt(node_range);
             let response = match self
                 .renderer

@@ -9,6 +9,7 @@ pub mod landing;
 pub mod link_plan;
 pub mod link_preview;
 pub mod links;
+pub mod local_time;
 #[cfg(not(target_family = "wasm"))]
 pub mod mind_map;
 pub mod note_index;

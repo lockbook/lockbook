@@ -468,3 +468,33 @@ fn typing_source(md: &str, at_: usize, script: &str) -> String {
     keys(&mut t, script);
     shown(&t)
 }
+
+/// A timestamp with a time zone shows the time it is here after it; a date
+/// or a word shows as written. The caret at its end stays beside it.
+#[test]
+fn timestamps_show_their_local_time() {
+    use crate::local_time;
+    use chrono::{DateTime, Local};
+    let stamp = "2026-11-15T17:57:20-05:00";
+    let md = format!("---\nat: {stamp}\nday: 2026-11-15\nword: soon\nlist: [{stamp}]\n---\n");
+    let at = DateTime::parse_from_rfc3339(stamp).unwrap();
+    let label = local_time::label(at.with_timezone(&Local), Local::now());
+    let t = TestEditor::new(&md);
+    let text = t.drawn();
+    assert_eq!(text.matches(&format!("{stamp}  {label}")).count(), 2, "{text}");
+    // keys and values draw back to back; nothing follows a date or a word
+    assert!(text.contains("day2026-11-15wordsoonlist"), "{text}");
+
+    let end = Grapheme(md.find(stamp).unwrap() + stamp.len());
+    let suffix = t
+        .editor
+        .edit
+        .renderer
+        .fragments
+        .iter()
+        .find(|f| f.source_range == (end, end) && f.rect.width() > 0.0)
+        .expect("the local time draws")
+        .rect;
+    let [top, _] = t.editor.edit.cursor_line(end).unwrap();
+    assert!(top.x <= suffix.left() + 0.5, "caret at {top:?}, time at {suffix:?}");
+}
