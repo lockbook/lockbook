@@ -11,11 +11,11 @@ internal data class RecentsFilterState(
     val selected: Set<String>? = null,
     val documentTypes: Set<RecentDocumentType> = emptySet(),
 ) {
-    // Editor controls are only useful when there is another known account.
-    val isVisible: Boolean get() = usernames.size > 1
+    // Only editor filtering requires another known account; document type controls are always available.
+    val hasMultipleEditors: Boolean get() = usernames.size > 1
 
     // Shared editor predicate; null selection includes everyone.
-    fun includesEditor(username: String): Boolean = !isVisible || selected == null || username in selected
+    fun includesEditor(username: String): Boolean = !hasMultipleEditors || selected == null || username in selected
 
     // Refresh the contact roster without changing selections; keep the account first and contact ranking intact.
     fun withContacts(

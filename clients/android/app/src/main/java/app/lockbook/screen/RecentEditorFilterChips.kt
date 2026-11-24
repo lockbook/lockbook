@@ -28,7 +28,7 @@ internal class RecentEditorFilterAdapter(
         updated: RecentsFilterState,
         files: List<File>,
     ) {
-        val updatedUsernames = if (updated.isVisible) updated.recentUsernames(files) else emptyList()
+        val updatedUsernames = if (updated.hasMultipleEditors) updated.recentUsernames(files) else emptyList()
         if (state == updated && usernames == updatedUsernames) return
         state = updated
         usernames = updatedUsernames
