@@ -177,7 +177,7 @@ internal class WorkspaceWelcomeScreen(
             }
         }
         editorFilter.state.observe(fragment.viewLifecycleOwner) { state ->
-            workspaceDocuments.setEditorFilter(state)
+            workspaceDocuments.setEditorFilter(state.editorFilter)
         }
         workspaceDocuments.documents.observe(fragment.viewLifecycleOwner) { items ->
             empty.documentSection.isVisible = items.isNotEmpty()

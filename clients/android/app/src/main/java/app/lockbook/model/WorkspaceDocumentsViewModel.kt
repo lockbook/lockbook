@@ -21,10 +21,10 @@ import timber.log.Timber
 internal class WorkspaceDocumentsViewModel(
     application: Application,
 ) : AndroidViewModel(application) {
-    private val editorFilter = MutableStateFlow(RecentsFilterState())
+    private val editorFilter = MutableStateFlow(EditorFilter())
 
-    fun setEditorFilter(state: RecentsFilterState) {
-        editorFilter.value = state
+    fun setEditorFilter(filter: EditorFilter) {
+        editorFilter.value = filter
     }
 
     val previews = DocumentPreviewLoader(application, DocumentCoverStore(application))
@@ -45,7 +45,7 @@ internal class WorkspaceDocumentsViewModel(
                         withContext(Dispatchers.IO) {
                             val files = snapshot.files
                             val cursors = previews.cursorPositions()
-                            workspaceDocumentItems(pins, filter.filterByEditor(files)).map { it.copy(cursor = cursors[it.file.id] ?: 0) }
+                            workspaceDocumentItems(pins, filter.filter(files)).map { it.copy(cursor = cursors[it.file.id] ?: 0) }
                         }
                     val previous = items.value.orEmpty()
                     if (previous.size != updated.size ||

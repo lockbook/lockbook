@@ -28,7 +28,7 @@ internal class RecentEditorFilterAdapter(
         updated: RecentsFilterState,
         files: List<File>,
     ) {
-        val updatedUsernames = if (updated.hasMultipleEditors) updated.recentUsernames(files) else emptyList()
+        val updatedUsernames = if (updated.editorFilter.hasMultipleEditors) updated.editorFilter.recentUsernames(files) else emptyList()
         if (state == updated && usernames == updatedUsernames) return
         state = updated
         usernames = updatedUsernames
@@ -103,7 +103,7 @@ internal class RecentEditorFilterChips(
         // Update in place so toggling keeps horizontal position and accessibility focus.
         for (index in 0 until group.childCount) {
             val chip = group.getChildAt(index) as Chip
-            val selected = state.selected == null || chip.tag in state.selected
+            val selected = state.editorFilter.selected == null || chip.tag in state.editorFilter.selected
             chip.isChecked = selected
         }
     }
