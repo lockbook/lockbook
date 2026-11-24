@@ -98,9 +98,9 @@ fn keys_in_the_grid_edit_one_cell_or_row() {
         (rows, c(15), "{cmd-bs}", "---\na: 1\nb: |\nc: 3\n---\nBody"),
         (rows, c(15), "{cmd-bs}{cmd-bs}{bs}", "---\na: 1|\nc: 3\n---\nBody"),
         ("---\nk: [a, b]\n---\n", c(12), "{cmd-bs}", "---\nk: [a, |]\n---\n"),
-        // ⌥↑ and ⌥↓ move the row, the caret with it
-        (rows, c(15), "{alt-ArrowUp}", "---\nb: two|\na: 1\nc: 3\n---\nBody"),
-        (rows, c(15), "{alt-ArrowDown}", "---\na: 1\nc: 3\nb: two|\n---\nBody"),
+        // ⌥⇧↑ and ⌥⇧↓ move the row, the caret with it
+        (rows, c(15), "{alt-S-ArrowUp}", "---\nb: two|\na: 1\nc: 3\n---\nBody"),
+        (rows, c(15), "{alt-S-ArrowDown}", "---\na: 1\nc: 3\nb: two|\n---\nBody"),
         // a selection through the closing fence takes the block from its
         // first row, else stops at the fence; one over the opening fence,
         // or typing as the note opens, types into the first key

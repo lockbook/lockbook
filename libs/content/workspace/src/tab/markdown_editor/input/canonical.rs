@@ -69,14 +69,14 @@ impl<'ast> MdEdit {
         &self, event: egui::Event, root: &'ast AstNode<'ast>,
     ) -> Option<Event> {
         match event {
-            // Option+Up/Down moves a front matter row
+            // Option+Shift+Up/Down moves a front matter row
             egui::Event::Key {
                 key: key @ (Key::ArrowUp | Key::ArrowDown),
                 pressed: true,
                 modifiers,
                 ..
             } if modifiers.alt
-                && !modifiers.shift
+                && modifiers.shift
                 && !modifiers.command
                 && !self.renderer.readonly
                 && self.front_matter_row_at_caret().is_some() =>
