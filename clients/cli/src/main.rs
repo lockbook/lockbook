@@ -71,11 +71,15 @@ fn run() -> CliResult<()> {
                         .handler(|skip_check, phrase| account::export(skip_check.get(), phrase.get()))
                 )
                 .subcommand(
-                    Command::name("subscribe").description("start a monthly subscription for massively increased storage")
+                    Command::name("subscribe").description("get a link to subscribe to premium for 30 GB of storage")
                         .handler(account::subscribe)
                 )
                 .subcommand(
-                    Command::name("unsubscribe").description("cancel an existing subscription")
+                    Command::name("billing").description("get a link to manage your stripe billing, card, invoices, or cancellation")
+                        .handler(account::billing)
+                )
+                .subcommand(
+                    Command::name("unsubscribe").description("stop renewing your subscription; premium lasts until the period ends")
                         .handler(account::unsubscribe)
                 )
                 .subcommand(

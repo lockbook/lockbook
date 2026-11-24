@@ -148,6 +148,7 @@
         <item>@string/biometric_strict</item>
     </array>
 
+    <string name="settings_manage_billing">Manage billing</string>
     <string name="settings_cancel_subscription">Cancel your subscription</string>
 
     <string name="settings_cancel_sub_confirmation_title">Cancel Subscription</string>
@@ -228,6 +229,7 @@
     <string name="settings_spell_check_summary">Misspelled words get a red dotted underline.</string>
     <string name="settings_contact_linked_sites">Fetch link previews</string>
     <string name="settings_contact_linked_sites_summary">Showing titles and preview cards means contacting the linked site, which reveals your IP address and that you opened the note. Off by default.</string>
+    <string name="manage_billing_key" translatable="false">manage_billing</string>
     <string name="cancel_subscription_key" translatable="false">cancel_subscription</string>
 
     <string name="subscription_info_key" translatable="false">subscription_info</string>
@@ -269,6 +271,7 @@
     <string name="update_payment_method">Update Payment Method</string>
     <string name="payment_platform">Payment Platform:</string>
     <string name="next_renewal_day">Next Renewal Date:</string>
+    <string name="paid_through_day">Paid Through:</string>
     <string name="expiration_day">Expiration Date:</string>
     <string name="grace_period">End of Grace Period:</string>
 

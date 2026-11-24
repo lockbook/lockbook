@@ -8,7 +8,6 @@ pub mod google_play_model;
 pub mod google_play_service;
 pub mod stripe_client;
 pub mod stripe_error;
-pub mod stripe_model;
 pub mod stripe_service;
 
 use async_trait::async_trait;
@@ -21,7 +20,7 @@ use crate::config::{AppleConfig, Config};
 use self::app_store_client::AppStoreClient;
 use self::app_store_model::{LastTransactionItem, TransactionInfo};
 use self::google_play_client::{GooglePlayClient, SimpleGCPError};
-use self::stripe_client::StripeClient;
+use self::stripe_client::{StripeClient, StripeSubscription};
 use self::stripe_error::SimplifiedStripeError;
 
 #[derive(Clone)]
@@ -29,51 +28,49 @@ pub struct Nop {}
 
 #[async_trait]
 impl StripeClient for Nop {
-    async fn create_customer(
-        &self, _customer_name: String, _payment_method_id: stripe::PaymentMethodId,
-    ) -> Result<stripe::Customer, SimplifiedStripeError> {
+    async fn create_customer(&self) -> Result<String, SimplifiedStripeError> {
         todo!()
     }
 
-    async fn create_payment_method(
-        &self, _card_number: &str, _exp_month: i32, _exp_year: i32, _cvc: &str,
-    ) -> Result<stripe::PaymentMethod, SimplifiedStripeError> {
+    async fn create_checkout_session(
+        &self, _customer_id: &str, _price_id: &str, _success_url: &str, _cancel_url: &str,
+    ) -> Result<String, SimplifiedStripeError> {
         todo!()
     }
 
-    async fn create_setup_intent(
-        &self, _customer_id: stripe::CustomerId, _payment_method_id: stripe::PaymentMethodId,
-    ) -> Result<stripe::SetupIntent, SimplifiedStripeError> {
+    async fn create_billing_portal_session(
+        &self, _customer_id: &str, _return_url: &str,
+    ) -> Result<String, SimplifiedStripeError> {
         todo!()
     }
 
-    async fn create_subscription(
-        &self, _customer_id: stripe::CustomerId, _payment_method_id: &str, _price_id: &str,
-    ) -> Result<stripe::Subscription, SimplifiedStripeError> {
+    async fn cancel_subscription_at_period_end(
+        &self, _subscription_id: &str,
+    ) -> Result<StripeSubscription, SimplifiedStripeError> {
         todo!()
     }
 
-    async fn detach_payment_method_from_customer(
-        &self, _payment_method_id: &stripe::PaymentMethodId,
+    async fn cancel_subscription_immediately(
+        &self, _subscription_id: &str,
     ) -> Result<(), SimplifiedStripeError> {
-        todo!()
-    }
-
-    async fn cancel_subscription(
-        &self, _subscription_id: &stripe::SubscriptionId,
-    ) -> Result<(), SimplifiedStripeError> {
-        todo!()
+        Ok(())
     }
 
     async fn get_subscription(
-        &self, _subscription_id: &stripe::SubscriptionId,
-    ) -> Result<stripe::Subscription, SimplifiedStripeError> {
+        &self, _subscription_id: &str,
+    ) -> Result<StripeSubscription, SimplifiedStripeError> {
         todo!()
     }
 
-    async fn retrieve_invoice(
-        &self, _invoice_id: &stripe::InvoiceId,
-    ) -> Result<stripe::Invoice, SimplifiedStripeError> {
+    async fn list_subscriptions(
+        &self, _customer_id: &str,
+    ) -> Result<Vec<StripeSubscription>, SimplifiedStripeError> {
+        Ok(Vec::new())
+    }
+
+    async fn expire_open_checkout_sessions(
+        &self, _customer_id: &str,
+    ) -> Result<(), SimplifiedStripeError> {
         todo!()
     }
 }

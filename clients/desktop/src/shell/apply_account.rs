@@ -1,14 +1,55 @@
 //! Account: logout, delete, QR, upgrade, debug dump.
 
 use std::fs;
+use std::sync::mpsc;
 use std::thread;
+use std::time::{Duration, Instant};
 
 use egui::Context;
+use lb::model::api::{FREE_TIER_USAGE_SIZE, SubscriptionInfo};
+use lb::model::errors::LbErrKind;
+use lb::service::usage::UsageMetrics;
 
 use super::DebugInfoCache;
 use super::ShellApp;
 use super::action::{Modal, SettingsCat, UpgradeStage};
 use super::prefs::AccountPanel;
+
+/// How often the Browser stage asks the server whether the payment landed.
+const UPGRADE_POLL: Duration = Duration::from_secs(3);
+/// Stop background polling if a Checkout tab is abandoned for 15 minutes.
+const UPGRADE_POLL_TIMEOUT: Duration = Duration::from_secs(15 * 60);
+
+struct BillingRefreshResult {
+    usage: Option<UsageMetrics>,
+    /// `Some(sub)` = request succeeded (`sub` may be `None` for Free); `None` = transient error.
+    sub_info: Option<Option<SubscriptionInfo>>,
+}
+
+enum CheckoutResult {
+    Opened,
+    AlreadyPremium,
+    Failed(String),
+}
+
+/// Typed state for async billing refreshes, Stripe Checkout, and Billing Portal.
+#[derive(Default)]
+pub(crate) struct BillingState {
+    refresh_rx: Option<mpsc::Receiver<BillingRefreshResult>>,
+    checkout_rx: Option<mpsc::Receiver<CheckoutResult>>,
+    portal_rx: Option<mpsc::Receiver<Result<String, String>>>,
+    portal_awaiting_return: bool,
+    portal_was_focused: bool,
+    browser_poll_started: Option<Instant>,
+    last_poll: Option<Instant>,
+}
+
+impl BillingState {
+    pub(crate) fn stop_browser_poll(&mut self) {
+        self.browser_poll_started = None;
+        self.last_poll = None;
+    }
+}
 
 pub(crate) fn ensure_settings_account(app: &mut ShellApp) {
     if !matches!(app.modal, Some(Modal::Settings { .. })) {
@@ -79,125 +120,204 @@ pub(crate) fn spawn_account_qr(app: &mut ShellApp, ctx: &Context) {
     });
 }
 
-fn upgrade_card_digits(s: &str) -> String {
-    s.chars().filter(|c| c.is_ascii_digit()).collect()
-}
-
-/// Parse `MM/YY` (or bare digits) → (month 1–12, full year).
-fn parse_card_exp(exp: &str) -> Option<(i32, i32)> {
-    let d = upgrade_card_digits(exp);
-    if d.len() != 4 {
-        return None;
-    }
-    let month: i32 = d[..2].parse().ok()?;
-    if !(1..=12).contains(&month) {
-        return None;
-    }
-    let yy: i32 = d[2..].parse().ok()?;
-    Some((month, 2000 + yy))
-}
-
-pub(crate) fn upgrade_validate_and_confirm(app: &mut ShellApp) {
-    let AccountPanel::Upgrade { stage: UpgradeStage::EnterCard, number, exp, cvc, .. } =
-        &app.account_panel
-    else {
+/// Refreshes usage cap and subscription info off the UI thread (deduped while in flight).
+pub(crate) fn spawn_billing_refresh(app: &mut ShellApp, ctx: &Context) {
+    if app.billing.refresh_rx.is_some() {
         return;
-    };
-    let number = upgrade_card_digits(number);
-    if number.is_empty() || number.len() < 12 {
-        if let AccountPanel::Upgrade { error, .. } = &mut app.account_panel {
-            *error = Some("Enter a valid card number".into());
-        }
-        return;
-    }
-    let Some((exp_month, exp_year)) = parse_card_exp(exp) else {
-        if let AccountPanel::Upgrade { error, .. } = &mut app.account_panel {
-            *error = Some("Invalid expiry (MM/YY)".into());
-        }
-        return;
-    };
-    let cvc = cvc.trim().to_string();
-    if cvc.len() < 3 {
-        if let AccountPanel::Upgrade { error, .. } = &mut app.account_panel {
-            *error = Some("Enter CVC".into());
-        }
-        return;
-    }
-    // Normalize buffers + advance (digits-only number for API; MM/YY for display).
-    if let AccountPanel::Upgrade { stage, number: n, exp: e, cvc: c, error, .. } =
-        &mut app.account_panel
-    {
-        *n = number;
-        *e = format!("{exp_month:02}/{:02}", exp_year % 100);
-        *c = cvc;
-        *error = None;
-        *stage = UpgradeStage::Confirm;
-    }
-}
-
-pub(crate) fn upgrade_start_pay(app: &mut ShellApp, ctx: &Context) {
-    let (number, exp_month, exp_year, cvc) = match &app.account_panel {
-        AccountPanel::Upgrade { stage: UpgradeStage::Confirm, number, exp, cvc, .. } => {
-            let (m, y) = parse_card_exp(exp).unwrap_or((0, 0));
-            (upgrade_card_digits(number), m, y, cvc.clone())
-        }
-        _ => return,
-    };
-    if let AccountPanel::Upgrade { stage, done, error, .. } = &mut app.account_panel {
-        *stage = UpgradeStage::Paying;
-        *done = None;
-        *error = None;
     }
     let Some(r) = app.session.ready() else {
-        if let AccountPanel::Upgrade { done, .. } = &mut app.account_panel {
-            *done = Some(Err("Not signed in".into()));
-        }
         return;
     };
+    let (tx, rx) = mpsc::channel();
+    app.billing.refresh_rx = Some(rx);
+    app.billing.last_poll = Some(Instant::now());
+
     let core = r.workspace.core.clone();
     let ctx = ctx.clone();
-    // Result channel via temp Id — worker can't mut ShellApp.
-    // Wrapper: `remove_temp` requires Default (Result doesn't implement it).
-    let result_id = egui::Id::unique("shell_upgrade_result");
-    ctx.data_mut(|d| d.remove::<UpgradePayResult>(result_id));
     thread::spawn(move || {
-        use lb::model::api::{PaymentMethod, StripeAccountTier};
-        let method = PaymentMethod::NewCard { number, exp_month, exp_year, cvc };
-        let out = core
-            .upgrade_account_stripe(StripeAccountTier::Premium(method))
-            .map_err(|e| format!("{e:?}"));
-        ctx.data_mut(|d| d.insert_temp(result_id, UpgradePayResult(Some(out))));
+        let usage = core.refresh_usage().ok();
+        let sub_info = core.get_subscription_info().ok();
+        let _ = tx.send(BillingRefreshResult { usage, sub_info });
         ctx.request_repaint();
     });
 }
 
-#[derive(Clone, Default)]
-struct UpgradePayResult(Option<Result<(), String>>);
+/// Opens Stripe Checkout in the browser; the page then waits for Premium.
+pub(crate) fn upgrade_open_checkout(app: &mut ShellApp, ctx: &Context) {
+    if app.billing.checkout_rx.is_some() {
+        return;
+    }
+    let AccountPanel::Upgrade { stage } = &mut app.account_panel else {
+        return;
+    };
+    *stage = UpgradeStage::Browser;
+    app.billing.browser_poll_started = Some(Instant::now());
+    app.billing.last_poll = None;
 
-/// Poll Stripe upgrade worker + refresh sub/usage on success.
-pub(crate) fn poll_upgrade(app: &mut ShellApp, ctx: &Context) {
-    let AccountPanel::Upgrade { stage: UpgradeStage::Paying, done: None, .. } = &app.account_panel
-    else {
+    let Some(r) = app.session.ready() else {
         return;
     };
-    let result_id = egui::Id::unique("shell_upgrade_result");
-    let Some(UpgradePayResult(Some(out))) =
-        ctx.data_mut(|d| d.remove_temp::<UpgradePayResult>(result_id))
-    else {
-        return;
-    };
-    if out.is_ok() {
-        if let Some(r) = app.session.ready_mut() {
-            if let Ok(usage) = r.workspace.core.get_usage() {
-                r.status.usage = usage;
+    let (tx, rx) = mpsc::channel();
+    app.billing.checkout_rx = Some(rx);
+
+    let core = r.workspace.core.clone();
+    let ctx = ctx.clone();
+    thread::spawn(move || {
+        let res = match core.stripe_checkout_url() {
+            Ok(url) => {
+                ctx.open_url(egui::OpenUrl::new_tab(url));
+                CheckoutResult::Opened
             }
-            r.sub_info = r.workspace.core.get_subscription_info().ok().flatten();
-            r.refresh_status();
+            // Server self-healed any live subscription; the refresh below finds Premium.
+            Err(e) if e.kind == LbErrKind::AlreadyPremium => CheckoutResult::AlreadyPremium,
+            Err(e) => CheckoutResult::Failed(format!("Couldn’t open checkout: {e}")),
+        };
+        let _ = tx.send(res);
+        ctx.request_repaint();
+    });
+}
+
+/// Opens Stripe's billing page, where the account changes its card, gets receipts, or cancels.
+pub(crate) fn open_billing_portal(app: &mut ShellApp, ctx: &Context) {
+    if app.billing.portal_rx.is_some() {
+        return;
+    }
+    let Some(r) = app.session.ready() else {
+        return;
+    };
+    let (tx, rx) = mpsc::channel();
+    app.billing.portal_rx = Some(rx);
+    app.billing.portal_awaiting_return = true;
+    app.billing.portal_was_focused = true;
+
+    let core = r.workspace.core.clone();
+    let ctx = ctx.clone();
+    thread::spawn(move || {
+        let res = core
+            .stripe_billing_portal_url()
+            .map_err(|e| format!("Couldn’t open billing: {e}"));
+        let _ = tx.send(res);
+        ctx.request_repaint();
+    });
+}
+
+/// Applies background billing refreshes, refreshes once on return from the billing portal,
+/// and polls while the Upgrade Browser stage is visible and waiting for Premium.
+pub(crate) fn poll_upgrade(app: &mut ShellApp, ctx: &Context) {
+    // 1. Drain completed billing refresh.
+    if let Some(rx) = &app.billing.refresh_rx {
+        match rx.try_recv() {
+            Ok(res) => {
+                app.billing.refresh_rx = None;
+                if let Some(r) = app.session.ready_mut() {
+                    let sub_ok = res.sub_info.is_some();
+                    if let Some(sub_info) = res.sub_info {
+                        r.sub_info = sub_info;
+                    }
+                    // `refresh_status()` pulls the fresh usage cap that `core.refresh_usage()` wrote.
+                    if res.usage.is_some() || sub_ok {
+                        r.refresh_status();
+                    }
+                }
+            }
+            Err(mpsc::TryRecvError::Disconnected) => app.billing.refresh_rx = None,
+            Err(mpsc::TryRecvError::Empty) => {}
         }
     }
-    if let AccountPanel::Upgrade { done, .. } = &mut app.account_panel {
-        *done = Some(out);
+
+    // 2. Drain completed portal-URL request.
+    if let Some(rx) = &app.billing.portal_rx {
+        match rx.try_recv() {
+            Ok(Ok(url)) => {
+                app.billing.portal_rx = None;
+                ctx.open_url(egui::OpenUrl::new_tab(url));
+            }
+            Ok(Err(msg)) => {
+                app.billing.portal_rx = None;
+                app.billing.portal_awaiting_return = false;
+                app.toasts.error(msg);
+            }
+            Err(mpsc::TryRecvError::Disconnected) => {
+                app.billing.portal_rx = None;
+                app.billing.portal_awaiting_return = false;
+            }
+            Err(mpsc::TryRecvError::Empty) => {}
+        }
     }
+
+    // 3. Drain completed checkout-URL request.
+    if let Some(rx) = &app.billing.checkout_rx {
+        match rx.try_recv() {
+            Ok(CheckoutResult::Opened) => app.billing.checkout_rx = None,
+            Ok(CheckoutResult::AlreadyPremium) => {
+                app.billing.checkout_rx = None;
+                app.billing.last_poll = None;
+                spawn_billing_refresh(app, ctx);
+            }
+            Ok(CheckoutResult::Failed(msg)) => {
+                app.billing.checkout_rx = None;
+                app.toasts.error(msg);
+                if let AccountPanel::Upgrade { stage: stage @ UpgradeStage::Browser } =
+                    &mut app.account_panel
+                {
+                    *stage = UpgradeStage::Choose;
+                    app.billing.stop_browser_poll();
+                }
+            }
+            Err(mpsc::TryRecvError::Disconnected) => app.billing.checkout_rx = None,
+            Err(mpsc::TryRecvError::Empty) => {}
+        }
+    }
+
+    // 4. Refresh once when returning to Lockbook from the Billing Portal.
+    if app.billing.portal_awaiting_return {
+        let focused = ctx.input(|i| i.focused);
+        if !focused {
+            app.billing.portal_was_focused = false;
+        } else if !app.billing.portal_was_focused {
+            app.billing.portal_awaiting_return = false;
+            spawn_billing_refresh(app, ctx);
+        }
+    }
+
+    // 5. Only poll while Settings → Account → Upgrade(Browser) is actually on screen.
+    let browser_visible = matches!(app.modal, Some(Modal::Settings { cat: SettingsCat::Account }))
+        && matches!(app.account_panel, AccountPanel::Upgrade { stage: UpgradeStage::Browser });
+    if !browser_visible {
+        return;
+    }
+
+    let premium = app
+        .session
+        .ready()
+        .and_then(|r| r.status.usage.data_cap.as_ref())
+        .is_some_and(|cap| cap.exact > FREE_TIER_USAGE_SIZE);
+    if premium {
+        if let AccountPanel::Upgrade { stage } = &mut app.account_panel {
+            *stage = UpgradeStage::Done;
+        }
+        app.billing.stop_browser_poll();
+        // Whatever the old cap held back uploads now.
+        app.push(super::action::Action::RequestSync);
+        return;
+    }
+
+    let Some(started) = app.billing.browser_poll_started else {
+        return;
+    };
+    if started.elapsed() >= UPGRADE_POLL_TIMEOUT {
+        app.billing.stop_browser_poll();
+        return;
+    }
+
+    if app
+        .billing
+        .last_poll
+        .is_none_or(|t| t.elapsed() >= UPGRADE_POLL)
+    {
+        spawn_billing_refresh(app, ctx);
+    }
+    ctx.request_repaint_after(UPGRADE_POLL);
 }
 
 /// Background `Lb::debug_info` (can take a beat).
