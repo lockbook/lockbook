@@ -1585,7 +1585,7 @@ impl<S: Server, D: LocalDocuments> Lb<S, D> {
     }
 
     async fn fetcher(&self) -> LbResult<()> {
-        let mut files_to_pull = vec![];
+        let mut candidates = vec![];
 
         let tx = self.ro_tx().await;
         let db = tx.db();
@@ -1599,19 +1599,17 @@ impl<S: Server, D: LocalDocuments> Lb<S, D> {
 
         for id in tree.descendants_using_links(root)? {
             let file = tree.find(&id)?;
-            let hmac = file.document_hmac().copied();
 
-            // skip non-documents
+            // skip non-documents and documents with no content
             if !file.is_document() {
                 continue;
             }
+            let Some(hmac) = file.document_hmac().copied() else {
+                continue;
+            };
 
             // skip deleted files
             if tree.calculate_deleted(&id)? {
-                continue;
-            }
-
-            if hmac.is_some_and(|hmac| self.docs.exists(id, hmac)) {
                 continue;
             }
 
@@ -1621,18 +1619,17 @@ impl<S: Server, D: LocalDocuments> Lb<S, D> {
                 continue;
             }
 
-            files_to_pull.push((id, hmac));
+            candidates.push((id, hmac));
         }
 
+        // checking the disk for every document is slow, so it waits until the lock is released
         drop(tx);
 
         // this could all be done in parallel, but for now going to not do it that way
         // benefits: less work, but also ensures that a file that needs to be fetched immediately
         // can be
-        for (id, hmac) in files_to_pull {
-            if let Some(hmac) = hmac {
-                self.ensure_doc_available(id, hmac).await?;
-            }
+        for (id, hmac) in candidates {
+            self.ensure_doc_available(id, hmac).await?;
         }
 
         Ok(())
