@@ -245,7 +245,7 @@ impl BillingConfig {
             millis_between_user_payment_flows: env_or_panic("MILLIS_BETWEEN_PAYMENT_FLOWS")
                 .parse()
                 .unwrap(),
-            time_between_lock_attempts: Duration::from_secs(
+            time_between_lock_attempts: Duration::from_millis(
                 env_or_panic("MILLIS_BETWEEN_LOCK_ATTEMPTS")
                     .parse::<u64>()
                     .unwrap(),

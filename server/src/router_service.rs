@@ -277,6 +277,7 @@ macro_rules! core_req {
                     .instrument(span1)
                 },
             )
+            .boxed()
     }};
 }
 
@@ -306,9 +307,7 @@ pub fn build_response(
 
 pub fn core_routes<S, A, G, D>(
     server_state: &Arc<ServerState<S, A, G, D>>,
-) -> impl Filter<Extract = (impl warp::Reply + use<S, A, G, D>,), Error = Rejection>
-+ Clone
-+ use<S, A, G, D>
+) -> warp::filters::BoxedFilter<(warp::reply::Response,)>
 where
     S: StripeClient,
     A: AppStoreClient,
@@ -372,6 +371,8 @@ where
         .or(core_req!(AdminFileInfoRequest, ServerState::admin_file_info, server_state))
         .or(core_req!(AdminRebuildIndexRequest, ServerState::admin_rebuild_index, server_state))
         .or(core_req!(AdminSetUserTierRequest, ServerState::admin_set_user_tier, server_state))
+        .map(warp::Reply::into_response)
+        .boxed()
 }
 
 pub fn build_info() -> impl Filter<Extract = (impl warp::Reply,), Error = warp::Rejection> + Clone {
