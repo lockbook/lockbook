@@ -11,19 +11,13 @@ internal data class RecentsFilterState(
     val selected: Set<String>? = null,
     val documentTypes: Set<RecentDocumentType> = emptySet(),
 ) {
-    // Only editor filtering requires another known account; document type controls are always available.
     val hasMultipleEditors: Boolean get() = usernames.size > 1
 
-    // Shared editor predicate; null selection includes everyone.
-    fun includesEditor(username: String): Boolean = !hasMultipleEditors || selected == null || username in selected
-
-    // Refresh the contact roster without changing selections; keep the account first and contact ranking intact.
     fun withContacts(
         contacts: List<String>,
         yourself: String,
     ): RecentsFilterState = copy(usernames = listOf(yourself) + contacts.filter { it.isNotBlank() && it != yourself }.distinct())
 
-    // Return the state after changing one editor chip; other editor and type selections are preserved.
     fun withUserEnabled(
         username: String,
         enabled: Boolean,
@@ -33,24 +27,25 @@ internal data class RecentsFilterState(
         return copy(selected = users)
     }
 
-    // Build editor chips from the full, unfiltered Recents list so deselected editors stay available.
+    // An empty type selection includes all document types.
+    fun withDocumentTypeToggled(type: RecentDocumentType): RecentsFilterState =
+        copy(documentTypes = if (type in documentTypes) documentTypes - type else documentTypes + type)
+
+    // Use the full, unfiltered Recents list so deselected editor chips stay available.
     fun recentUsernames(files: List<File>): List<String> {
         val editors = files.mapTo(mutableSetOf()) { it.lastModifiedBy }
         return usernames.filter { it in editors }
     }
 
-    // Toggle one type chip; an empty type selection leaves all document types visible.
-    fun withDocumentTypeToggled(type: RecentDocumentType): RecentsFilterState =
-        copy(documentTypes = if (type in documentTypes) documentTypes - type else documentTypes + type)
-
-    // Recents applies editor AND type filters; selected types match with OR.
     fun filterRecents(files: List<File>): List<File> =
         files.filter { file ->
             includesEditor(file.lastModifiedBy) && (documentTypes.isEmpty() || documentTypes.any { it.matches(file.name) })
         }
 
-    // Welcome shares editor selection only, before choosing pinned and recent cards.
+    // Welcome shares the editor selection, but ignores document types.
     fun filterByEditor(files: List<File>): List<File> = files.filter { includesEditor(it.lastModifiedBy) }
+
+    fun includesEditor(username: String): Boolean = !hasMultipleEditors || selected == null || username in selected
 }
 
 internal class RecentsFilterViewModel : ViewModel() {
