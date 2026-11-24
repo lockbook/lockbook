@@ -87,7 +87,7 @@ private class EditorAvatar(
         }
     private val paint =
         TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
-            TextAppearanceSpan(context, R.style.TextAppearance_Lockbook_UsernameAvatar).updateMeasureState(this)
+            TextAppearanceSpan(context, com.google.android.material.R.style.TextAppearance_Material3_LabelMedium).updateMeasureState(this)
             textAlign = Paint.Align.CENTER
             color = colors.onAccentContainer
         }

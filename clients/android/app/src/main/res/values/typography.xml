@@ -6,8 +6,4 @@
         <item name="lineHeight">32sp</item>
         <item name="android:letterSpacing">0</item>
     </style>
-    <style name="TextAppearance.Lockbook.UsernameAvatar" parent="TextAppearance.Material3.LabelMedium">
-        <item name="android:fontFamily">sans-serif-medium</item>
-        <item name="android:textSize">13.2sp</item>
-    </style>
 </resources>
