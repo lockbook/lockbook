@@ -28,6 +28,7 @@ pub struct Search {
     building_started: web_time::Instant,
 
     core: Lb,
+    files: Arc<RwLock<FileCache>>,
 }
 
 #[derive(Default, Debug, Eq, PartialEq, Hash, Clone, Copy, Serialize, Deserialize)]
@@ -47,9 +48,9 @@ pub struct SearchState {
 }
 
 impl SearchType {
-    fn create_executor(&self, lb: &Lb) -> Box<dyn SearchExecutor> {
+    fn create_executor(&self, lb: &Lb, files: Arc<RwLock<FileCache>>) -> Box<dyn SearchExecutor> {
         match self {
-            SearchType::Path => Box::new(PathSearch::new(lb)),
+            SearchType::Path => Box::new(PathSearch::new(lb, files)),
             SearchType::Content => Box::new(ContentSearch::new(lb)),
         }
     }
@@ -131,7 +132,9 @@ pub trait SearchExecutor: Send + Sync {
 }
 
 impl Search {
-    pub fn new(lb: &Lb, ctx: &Context, state: &SearchState) -> Search {
+    pub fn new(
+        lb: &Lb, files: Arc<RwLock<FileCache>>, ctx: &Context, state: &SearchState,
+    ) -> Search {
         let mut search = Search {
             search_type: state.search_type,
             query: state.query.clone(),
@@ -151,6 +154,7 @@ impl Search {
             building: Arc::new(AtomicBool::new(false)),
             building_started: web_time::Instant::now(),
             core: lb.clone(),
+            files,
         };
         search.spawn_build(ctx);
         search
@@ -182,9 +186,10 @@ impl Search {
         let executor = self.executor.clone();
         let building = self.building.clone();
         let core = self.core.clone();
+        let files = self.files.clone();
         let ctx = ctx.clone();
         let search_type = self.search_type;
-        thread::spawn(move || build_index(executor, building, core, ctx, search_type));
+        thread::spawn(move || build_index(executor, building, core, files, ctx, search_type));
     }
 
     /// Swap the executor when the search type changes and dispatch the current
@@ -976,7 +981,7 @@ use lb_rs::search::SearchFilter;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    file_cache::FilesExt,
+    file_cache::{FileCache, FilesExt},
     search::{content::ContentSearch, path::PathSearch},
     style::{
         Field, LIST_PAD, Space, Spacer, Theme, ThemeExt, TypeRole, control_height, phosphor,
@@ -989,10 +994,10 @@ use crate::{
 #[tracing::instrument(level = "trace", skip_all)]
 fn build_index(
     executor: Arc<RwLock<Option<Box<dyn SearchExecutor>>>>, building: Arc<AtomicBool>, core: Lb,
-    ctx: Context, search_type: SearchType,
+    files: Arc<RwLock<FileCache>>, ctx: Context, search_type: SearchType,
 ) {
     let mut guard = executor.write().unwrap();
-    *guard = Some(search_type.create_executor(&core));
+    *guard = Some(search_type.create_executor(&core, files));
     drop(guard);
     building.store(false, Ordering::SeqCst);
     ctx.request_repaint();

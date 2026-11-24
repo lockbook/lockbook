@@ -1,10 +1,12 @@
-use std::sync::Arc;
+use std::iter;
+use std::sync::{Arc, RwLock};
 
 use egui::{Color32, Context, FontFamily, FontId, Galley, Id, Key, Modifiers, Ui, pos2};
 use lb_rs::blocking::Lb;
 use lb_rs::search::{SearchFilter, SearchResult};
 
 use crate::{
+    file_cache::{FileCache, FilesExt, canonicalize, link_id},
     search::{SearchExecutor, SearchType},
     show::InputStateExt,
     style::{
@@ -22,8 +24,78 @@ pub struct PathSearch {
     kb_mode: bool,
     selected_id: Option<lb_rs::Uuid>,
     scoped: bool,
+    files: Arc<RwLock<FileCache>>,
+    /// The file the query names when it's a link.
+    link: Option<Link>,
 }
 
+/// A query that is a link, with the file it names.
+#[derive(Debug)]
+enum Link {
+    /// An id link or a bare id: that file alone, wherever search is scoped.
+    /// None when no file here has the id.
+    Id(Option<Row>),
+    /// An absolute path to a file: it leads the name matches.
+    Path(Row),
+}
+
+/// What a query names when it's a link to a file.
+#[derive(Debug, PartialEq)]
+enum Linked {
+    /// `lb://<id>`, `https://<host>/open/<id>`, or a bare id; None when no
+    /// file here has it.
+    Id(Option<lb_rs::Uuid>),
+    /// An absolute path, URL-encoded or not, that reaches a file.
+    Path(lb_rs::Uuid),
+}
+
+/// The file `query` links to, read from the file cache. Surrounding
+/// whitespace, a trailing `/`, and a `#fragment` are ignored. Relative paths
+/// and wikilinks have no note to resolve from, so they aren't links here.
+fn linked<F: FilesExt + ?Sized>(files: &F, query: &str) -> Option<Linked> {
+    let query = query.trim();
+    let bare = || {
+        let id = query.split(['#', '?']).next()?.trim_end_matches('/');
+        lb_rs::Uuid::try_parse(id).ok()
+    };
+    if let Some(id) = link_id(query).or_else(bare) {
+        return Some(Linked::Id(files.get_by_id(id).map(|f| f.id)));
+    }
+    if !query.starts_with('/') {
+        return None;
+    }
+    let path = canonicalize(query.split('#').next()?);
+    if path.is_empty() {
+        return None;
+    }
+    let decoded = urlencoding::decode(&path).map_or(path.clone(), |p| p.into_owned());
+    files.by_path(&decoded).map(|f| Linked::Path(f.id))
+}
+
+/// `id`'s result row.
+fn file_row<F: FilesExt + ?Sized>(files: &F, id: lb_rs::Uuid) -> Option<Row> {
+    let file = files.get_by_id(id)?;
+    Some(Row {
+        id,
+        filename: file.name.clone(),
+        parent_path: files.path(file.parent),
+        is_folder: file.is_folder(),
+    })
+}
+
+/// The rows a query shows: a link's file, then for a path the name matches
+/// without it.
+fn compose(link: Option<&Link>, matches: impl Iterator<Item = Row>) -> Vec<Row> {
+    match link {
+        Some(Link::Id(row)) => row.iter().cloned().collect(),
+        Some(Link::Path(row)) => iter::once(row.clone())
+            .chain(matches.filter(|r| r.id != row.id))
+            .collect(),
+        None => matches.collect(),
+    }
+}
+
+#[derive(Clone, Debug)]
 struct Row {
     id: lb_rs::Uuid,
     filename: String,
@@ -39,6 +111,13 @@ impl SearchExecutor for PathSearch {
     fn handle_query(&mut self, query: &str) {
         self.submitted_query = query.to_string();
         self.searcher.query(query);
+        self.link = {
+            let files = self.files.read().unwrap();
+            linked(&*files, query).and_then(|linked| match linked {
+                Linked::Id(id) => Some(Link::Id(id.and_then(|id| file_row(&*files, id)))),
+                Linked::Path(id) => file_row(&*files, id).map(Link::Path),
+            })
+        };
         self.selected = None;
         self.kb_mode = false;
         self.selected_id = None;
@@ -65,7 +144,11 @@ impl SearchExecutor for PathSearch {
     }
 
     fn has_rows(&self) -> bool {
-        self.visible().next().is_some()
+        match &self.link {
+            Some(Link::Id(row)) => row.is_some(),
+            Some(Link::Path(_)) => true,
+            None => self.visible().next().is_some(),
+        }
     }
 
     fn show_result_picker(
@@ -185,7 +268,7 @@ impl SearchExecutor for PathSearch {
 }
 
 impl PathSearch {
-    pub fn new(lb: &Lb) -> Self {
+    pub fn new(lb: &Lb, files: Arc<RwLock<FileCache>>) -> Self {
         Self {
             searcher: lb.path_searcher(),
             submitted_query: String::new(),
@@ -195,6 +278,8 @@ impl PathSearch {
             kb_mode: false,
             selected_id: None,
             scoped: false,
+            files,
+            link: None,
         }
     }
 
@@ -208,14 +293,13 @@ impl PathSearch {
     }
 
     fn rows(&self) -> Vec<Row> {
-        self.visible()
-            .map(|r| Row {
-                id: r.id,
-                filename: r.filename.clone(),
-                parent_path: r.parent_path.clone(),
-                is_folder: r.is_folder,
-            })
-            .collect()
+        let matches = self.visible().map(|r| Row {
+            id: r.id,
+            filename: r.filename.clone(),
+            parent_path: r.parent_path.clone(),
+            is_folder: r.is_folder,
+        });
+        compose(self.link.as_ref(), matches)
     }
 
     fn process_keys(&mut self, ctx: &Context, allow_kb_nav: bool) {
@@ -263,6 +347,17 @@ impl PathSearch {
     }
 
     fn show_empty_state(&self, ui: &mut Ui, scope_name: &str, center: bool) -> bool {
+        if matches!(self.link, Some(Link::Id(None))) {
+            let subtitle = "It may be deleted or not shared with you.";
+            return super::paint_search_empty(
+                ui,
+                "No file with this id",
+                subtitle,
+                false,
+                None,
+                center,
+            );
+        }
         let (title, subtitle, in_folder) = if self.submitted_query.is_empty() {
             ("No recent files", "Start typing to search by name", None)
         } else {
@@ -329,4 +424,65 @@ pub(crate) fn paint_row_shortcut(ui: &Ui, t: &crate::style::Theme, row: egui::Re
     x -= Space::Xxs.pts() + mg.size().x;
     ui.painter()
         .galley(pos2(x, cy - mg.size().y / 2.0), mg, ink);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{Link, Linked, Row, compose, file_row, linked};
+    use crate::test_utils::files::{at, cache, tree};
+
+    #[test]
+    fn id_links_name_their_file() {
+        let files = cache(tree("alice", &["/notes/plan.md", "/notes/archive/"]));
+        for path in ["/notes/plan.md", "/notes/archive/"] {
+            let id = at(&files, path);
+            for query in [
+                format!("lb://{id}"),
+                format!("https://app.lockbook.net/open/{id}"),
+                format!("{id}"),
+                format!("  LB://{}/#intro \n", id.to_string().to_uppercase()),
+                format!("{id}#intro"),
+            ] {
+                assert_eq!(linked(&files, &query), Some(Linked::Id(Some(id))), "{query}");
+            }
+        }
+    }
+
+    #[test]
+    fn an_unknown_id_names_nothing() {
+        let files = cache(tree("alice", &["/plan.md"]));
+        let query = "https://app.lockbook.net/open/00000000-0000-0000-0000-00000000002a";
+        assert_eq!(linked(&files, query), Some(Linked::Id(None)));
+    }
+
+    #[test]
+    fn absolute_paths_name_their_file() {
+        let files = cache(tree("alice", &["/my notes/Q3 plan.md", "/plan.md"]));
+        let id = at(&files, "/my notes/Q3 plan.md");
+        for query in
+            ["/my notes/Q3 plan.md", "/my%20notes/Q3%20plan.md", " /my notes/./Q3 plan.md#goals"]
+        {
+            assert_eq!(linked(&files, query), Some(Linked::Path(id)), "{query}");
+        }
+        for query in ["/my notes/Q3", "plan.md", "[[plan]]", "/", "plan"] {
+            assert_eq!(linked(&files, query), None, "{query}");
+        }
+    }
+
+    /// Name matches stand for what the searcher returns, scope applied.
+    #[test]
+    fn a_path_leads_its_matches_and_an_id_stands_alone() {
+        let files = cache(tree("alice", &["/plan.md", "/notes/plan.md"]));
+        let row = |path| file_row(&files, at(&files, path)).unwrap();
+        let matches = || [row("/plan.md"), row("/notes/plan.md")].into_iter();
+        let ids = |rows: Vec<Row>| rows.into_iter().map(|r| r.id).collect::<Vec<_>>();
+
+        let path = Link::Path(row("/notes/plan.md"));
+        let expected = vec![at(&files, "/notes/plan.md"), at(&files, "/plan.md")];
+        assert_eq!(ids(compose(Some(&path), matches())), expected);
+
+        let id = Link::Id(Some(row("/notes/plan.md")));
+        assert_eq!(ids(compose(Some(&id), std::iter::empty())), vec![at(&files, "/notes/plan.md")]);
+        assert!(compose(Some(&Link::Id(None)), matches()).is_empty());
+    }
 }
