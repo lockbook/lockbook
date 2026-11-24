@@ -122,15 +122,6 @@
                     android:textColor="?attr/colorOnSurface"
                     android:textStyle="normal" />
 
-                <com.google.android.material.textview.MaterialTextView
-                    android:id="@+id/document_filter_empty"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="16dp"
-                    android:text="@string/last_editor_filter_empty"
-                    android:textAppearance="?attr/textAppearanceBodyMedium"
-                    android:visibility="gone" />
-
                 <androidx.recyclerview.widget.RecyclerView
                     android:id="@+id/document_grid"
                     android:layout_width="match_parent"

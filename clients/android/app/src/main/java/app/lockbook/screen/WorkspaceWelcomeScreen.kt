@@ -178,11 +178,9 @@ internal class WorkspaceWelcomeScreen(
         }
         editorFilter.state.observe(fragment.viewLifecycleOwner) { state ->
             workspaceDocuments.setEditorFilter(state)
-            empty.documentSection.isVisible = state.hasMultipleEditors || !workspaceDocuments.documents.value.isNullOrEmpty()
         }
         workspaceDocuments.documents.observe(fragment.viewLifecycleOwner) { items ->
-            empty.documentSection.isVisible = items.isNotEmpty() || editorFilter.state.value!!.hasMultipleEditors
-            empty.documentFilterEmpty.isVisible = items.isEmpty() && editorFilter.state.value!!.hasMultipleEditors
+            empty.documentSection.isVisible = items.isNotEmpty()
             adapter.submitList(items)
         }
         model.bottomInset.observe(fragment.viewLifecycleOwner) { inset ->
