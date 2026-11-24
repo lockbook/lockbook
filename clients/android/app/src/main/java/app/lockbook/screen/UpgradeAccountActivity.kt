@@ -63,6 +63,11 @@ class UpgradeAccountActivity : AppCompatActivity() {
         }
     }
 
+    override fun onResume() {
+        super.onResume()
+        (application as App).billingClientLifecycle.checkCheckoutReturn(this)
+    }
+
     private fun handleBillingEvent(billingEvent: BillingEvent) {
         when (billingEvent) {
             BillingEvent.NotifyUnrecoverableError -> {

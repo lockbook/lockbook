@@ -71,7 +71,7 @@ class SubscriptionInfoPreference(
                     }
 
                     is Stripe -> {
-                        context.resources.getString(R.string.next_renewal_day)
+                        context.resources.getString(R.string.paid_through_day)
                     }
 
                     is AppStore -> {
