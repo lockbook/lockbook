@@ -277,6 +277,10 @@ macro_rules! core_req {
                     .instrument(span1)
                 },
             )
+            // Boxed, so the `or` chain of routes holds a pointer to each route's future rather
+            // than the future itself. Unboxed, an unoptimized build overflows a worker's stack
+            // polling the nested chain on its first request.
+            .boxed()
     }};
 }
 
