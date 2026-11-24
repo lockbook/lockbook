@@ -13,7 +13,10 @@ use super::ShellApp;
 use super::action::{Action, OnboardLookup, OnboardStep};
 use super::apply_share::spawn_username_exists;
 use super::nudge::Nudges;
-use super::onboard::phrase_grid::{all_words_filled, parse_pasted_words, words_joined};
+use super::onboard::PendingCrossImport;
+use super::onboard::phrase_grid::{
+    all_words_filled, parse_pasted_words, request_import_slot_caret_end, words_joined,
+};
 use super::session::{self, Session};
 
 /// Seed the onboard URL field: `API_URL` when it isn’t the hosted default.
@@ -324,6 +327,7 @@ pub(crate) fn poll_onboard_worker(app: &mut ShellApp, ctx: &Context) {
             }
             OnboardWorkerMsg::ImportAuthenticated { username } => {
                 if let Some(s) = &mut app.onboard {
+                    s.pending_cross_import = None;
                     s.step = OnboardStep::ImportSyncing;
                     s.sync_username = username;
                     s.sync_status = "Syncing your encrypted files…".into();
@@ -353,9 +357,32 @@ pub(crate) fn poll_onboard_worker(app: &mut ShellApp, ctx: &Context) {
             OnboardWorkerMsg::ImportFailed(err) => {
                 saw_terminal = true;
                 app.onboard_worker_rx = None;
+                let mut switch_focus: Option<bool> = None;
                 if let Some(s) = &mut app.onboard {
                     s.busy = false;
+                    if let Some(cross) = s.pending_cross_import.take() {
+                        match cross {
+                            PendingCrossImport::Compact(compact) => {
+                                s.import_compact = true;
+                                s.last_auto_submit_hash =
+                                    Some(super::onboard::secret_hash(compact.trim()));
+                                s.compact_key = compact;
+                                switch_focus = Some(true);
+                            }
+                            PendingCrossImport::Phrase { words, focus } => {
+                                s.import_compact = false;
+                                s.compact_key.clear();
+                                s.import_words = words;
+                                s.import_focus = focus;
+                                request_import_slot_caret_end(ctx, focus, &s.import_words[focus]);
+                                switch_focus = Some(false);
+                            }
+                        }
+                    }
                     s.err = Some(err);
+                }
+                if let Some(compact) = switch_focus {
+                    onboard_import_focus(ctx, compact);
                 }
             }
             OnboardWorkerMsg::ImportSyncFailed(err) => {
@@ -375,6 +402,7 @@ pub(crate) fn poll_onboard_worker(app: &mut ShellApp, ctx: &Context) {
         if !saw_terminal {
             if let Some(s) = &mut app.onboard {
                 s.busy = false;
+                s.pending_cross_import = None;
                 if s.step == OnboardStep::ImportSyncing && s.err.is_none() {
                     s.err = Some("Sync was interrupted. Please try again.".into());
                 }
@@ -516,12 +544,12 @@ fn spawn_create_account(app: &mut ShellApp, ctx: &Context, uname: String, api: S
 fn submit_import(app: &mut ShellApp, ctx: &Context) {
     let (secret, api) = match &app.onboard {
         Some(s) => {
-            let secret = if s.import_compact {
-                onboard_import_secret(&s.compact_key)
-            } else if all_words_filled(&s.import_words) {
-                words_joined(&s.import_words)
-            } else {
-                String::new()
+            let secret = match &s.pending_cross_import {
+                Some(PendingCrossImport::Compact(key)) => onboard_import_secret(key),
+                Some(PendingCrossImport::Phrase { words, .. }) => words_joined(words),
+                None if s.import_compact => onboard_import_secret(&s.compact_key),
+                None if all_words_filled(&s.import_words) => words_joined(&s.import_words),
+                None => String::new(),
             };
             (secret, resolved_api_url(&s.api_url))
         }
@@ -531,6 +559,7 @@ fn submit_import(app: &mut ShellApp, ctx: &Context) {
     if secret.is_empty() {
         if let Some(s) = &mut app.onboard {
             s.busy = false;
+            s.pending_cross_import = None;
             s.err = Some(if s.import_compact {
                 "Account key required".into()
             } else {
@@ -544,7 +573,7 @@ fn submit_import(app: &mut ShellApp, ctx: &Context) {
         return;
     };
     if let Some(s) = &mut app.onboard {
-        if s.import_compact {
+        if s.pending_cross_import.is_none() && s.import_compact {
             s.last_auto_submit_hash = Some(super::onboard::secret_hash(s.compact_key.trim()));
         }
         s.busy = true;
@@ -806,5 +835,59 @@ mod tests {
         assert_eq!(onboard_import_secret(&numbered_typo.join("\n")), expected_typo);
         assert_eq!(onboard_import_secret("abcd\n efgh"), "abcdefgh");
         assert_eq!(onboard_import_secret("  abcd  "), "abcd");
+    }
+
+    #[test]
+    fn failed_cross_format_paste_switches_to_target_view_with_error() {
+        let ctx = egui::Context::default();
+
+        // Compact key pasted on 24-word grid → failure switches to compact view with key + error.
+        let mut app = ShellApp::default();
+        let mut st = OnboardState::new();
+        st.step = OnboardStep::Import;
+        st.import_compact = false;
+        st.busy = true;
+        st.pending_cross_import = Some(super::PendingCrossImport::Compact(
+            "nvo7SItwXYmoxxzmOCUrNJiw85V8CwJ+SXb8cOHPIlo=".into(),
+        ));
+        app.onboard = Some(st);
+
+        let (tx, rx) = mpsc::channel();
+        tx.send(OnboardWorkerMsg::ImportFailed("Could not reach server".into()))
+            .unwrap();
+        app.onboard_worker_rx = Some(rx);
+        poll_onboard_worker(&mut app, &ctx);
+
+        let s = app.onboard.as_ref().unwrap();
+        assert!(s.import_compact);
+        assert!(!s.busy);
+        assert_eq!(s.compact_key, "nvo7SItwXYmoxxzmOCUrNJiw85V8CwJ+SXb8cOHPIlo=");
+        assert!(s.pending_cross_import.is_none());
+        assert!(s.last_auto_submit_hash.is_some());
+        assert_eq!(s.err.as_deref(), Some("Could not reach server"));
+
+        // 24-word phrase pasted on compact screen → failure switches to 24-word grid with words + error.
+        let mut app = ShellApp::default();
+        let mut st = OnboardState::new();
+        st.step = OnboardStep::Import;
+        st.import_compact = true;
+        st.busy = true;
+        let words: [String; 24] = std::array::from_fn(|_| "abandon".to_owned());
+        st.pending_cross_import = Some(super::PendingCrossImport::Phrase { words, focus: 23 });
+        app.onboard = Some(st);
+
+        let (tx, rx) = mpsc::channel();
+        tx.send(OnboardWorkerMsg::ImportFailed("Your private key phrase is wrong".into()))
+            .unwrap();
+        app.onboard_worker_rx = Some(rx);
+        poll_onboard_worker(&mut app, &ctx);
+
+        let s = app.onboard.as_ref().unwrap();
+        assert!(!s.import_compact);
+        assert!(!s.busy);
+        assert_eq!(s.import_words[0], "abandon");
+        assert_eq!(s.import_focus, 23);
+        assert!(s.pending_cross_import.is_none());
+        assert_eq!(s.err.as_deref(), Some("Your private key phrase is wrong"));
     }
 }

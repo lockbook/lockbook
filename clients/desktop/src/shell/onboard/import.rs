@@ -2,7 +2,7 @@
 //! `"Welcome back, {username}"` initial sync screen.
 
 use egui::{Align, Event, Id, Layout, Rect, Sense, Ui, pos2, vec2};
-use lb::model::account::{Account, is_valid_compact_key, is_valid_phrase_word};
+use lb::model::account::{is_valid_compact_key, is_valid_phrase_word};
 use workspace_rs::widgets::GlyphonTextEdit;
 
 use crate::components::{
@@ -18,7 +18,7 @@ use super::phrase_grid::{
     looks_like_compact_key, next_incomplete_or_invalid_slot, parse_pasted_words,
     request_import_slot_caret_end, show_import_grid,
 };
-use super::{centered_column, measure_text_h, paint_logo};
+use super::{PendingCrossImport, centered_column, measure_text_h, paint_logo};
 
 const GRID_COL_W: f32 = 570.0;
 const COMPACT_COL_W: f32 = 410.0;
@@ -94,11 +94,12 @@ fn show_phrase_grid(app: &mut ShellApp, ui: &mut Ui, t: &Theme, queue: &mut Vec<
                 if res.changed {
                     state.err = None;
                 }
-                if let Some(compact) = &res.compact_key_pasted {
-                    state.import_compact = true;
-                    state.compact_key = compact.clone();
-                    state.err = None;
-                    onboard_import_focus(ui.ctx(), true);
+                if !busy {
+                    if let Some(compact) = &res.compact_key_pasted {
+                        state.pending_cross_import =
+                            Some(PendingCrossImport::Compact(compact.clone()));
+                        state.err = None;
+                    }
                 }
                 res
             };
@@ -168,6 +169,7 @@ fn show_compact(app: &mut ShellApp, ui: &mut Ui, t: &Theme, queue: &mut Vec<A>) 
                 if is_valid_compact_key(&pasted) || looks_like_compact_key(&pasted) {
                     let compact: String = pasted.split_whitespace().collect();
                     let len = compact.len();
+                    state.pending_cross_import = None;
                     state.last_auto_submit_hash = Some(super::secret_hash(&compact));
                     state.compact_key = compact;
                     state.err = None;
@@ -180,49 +182,35 @@ fn show_compact(app: &mut ShellApp, ui: &mut Ui, t: &Theme, queue: &mut Vec<A>) 
                     if let PasteOutcome::Words { start_slot, count, all_filled } =
                         apply_paste_to_words(&mut candidate, 0, &pasted)
                     {
-                        if all_filled && valid_phrase_with_checksum(&candidate) {
-                            // Valid 24-word phrase: submit directly from compact mode so the
-                            // 24-word grid never flashes briefly during sign-in.
-                            let phrase = candidate.join(" ");
-                            let len = phrase.len();
-                            state.last_auto_submit_hash = Some(super::secret_hash(&phrase));
-                            state.compact_key = phrase;
+                        if all_filled && all_words_valid(&candidate) {
+                            // Auto-submit while staying on the compact screen; only switch to
+                            // the 24-word grid if sign-in fails.
+                            let focus = (start_slot + count).min(WORD_COUNT - 1);
+                            state.pending_cross_import =
+                                Some(PendingCrossImport::Phrase { words: candidate, focus });
                             state.err = None;
-                            GlyphonTextEdit::place_cursor(ui, edit_id, len, len);
-                            ui.memory_mut(|m| m.request_focus(edit_id));
                             pasted_secret = true;
                             queue.push(A::OnboardSubmit);
                         } else {
-                            // Partial phrase, typo, or checksum mismatch: switch to the 24-word
-                            // grid so the user can inspect and fix words in place.
+                            // Partial phrase or typo (not auto-submitting): switch to the
+                            // 24-word grid immediately so the user can fill or fix words.
+                            state.pending_cross_import = None;
                             state.import_words = candidate;
                             state.import_compact = false;
                             state.compact_key.clear();
                             state.err = None;
-                            if all_filled && all_words_valid(&state.import_words) {
-                                let next = (start_slot + count).min(WORD_COUNT - 1);
-                                state.import_focus = next;
-                                request_import_slot_caret_end(
-                                    ui.ctx(),
-                                    next,
-                                    &state.import_words[next],
-                                );
-                                onboard_import_focus(ui.ctx(), false);
-                                queue.push(A::OnboardSubmit);
-                            } else {
-                                let target = next_incomplete_or_invalid_slot(
-                                    &state.import_words,
-                                    WORD_COUNT - 1,
-                                )
-                                .unwrap_or(0);
-                                state.import_focus = target;
-                                request_import_slot_caret_end(
-                                    ui.ctx(),
-                                    target,
-                                    &state.import_words[target],
-                                );
-                                onboard_import_focus(ui.ctx(), false);
-                            }
+                            let target = next_incomplete_or_invalid_slot(
+                                &state.import_words,
+                                WORD_COUNT - 1,
+                            )
+                            .unwrap_or(0);
+                            state.import_focus = target;
+                            request_import_slot_caret_end(
+                                ui.ctx(),
+                                target,
+                                &state.import_words[target],
+                            );
+                            onboard_import_focus(ui.ctx(), false);
                             ui.ctx().request_repaint();
                         }
                     }
@@ -350,11 +338,6 @@ fn show_compact(app: &mut ShellApp, ui: &mut Ui, t: &Theme, queue: &mut Vec<A>) 
 fn looks_like_phrase_paste(raw: &str) -> bool {
     let words = parse_pasted_words(raw);
     words.len() >= 2 && words.iter().filter(|w| is_valid_phrase_word(w)).count() >= 2
-}
-
-fn valid_phrase_with_checksum(words: &[String; WORD_COUNT]) -> bool {
-    let refs: [&str; WORD_COUNT] = std::array::from_fn(|i| words[i].as_str());
-    Account::phrase_to_private_key(refs).is_ok()
 }
 
 fn import_footer(
@@ -584,8 +567,8 @@ mod tests {
         assert_eq!(s.import_words[2], "notaword");
         assert!(q.is_empty());
 
-        // Starting back on compact, pasting 24 valid words with a valid checksum stays on the
-        // compact screen (no brief 24-word grid flash) and submits directly.
+        // Starting back on compact, pasting 24 valid words stays on the compact screen while
+        // auto-submitting (deferring any switch to the 24-word grid until sign-in fails).
         let mut st = OnboardState::new();
         st.step = OnboardStep::Import;
         let mut app = ShellApp { onboard: Some(st), ..Default::default() };
@@ -593,7 +576,22 @@ mod tests {
         let q = run_import_pass(&ctx, &mut app, vec![Event::Paste(good_phrase.into())]);
         let s = app.onboard.as_ref().unwrap();
         assert!(s.import_compact);
-        assert_eq!(s.compact_key, good_phrase);
+        assert!(matches!(s.pending_cross_import, Some(PendingCrossImport::Phrase { .. })));
+        assert!(matches!(q[..], [A::OnboardSubmit]));
+
+        // Symmetrically, pasting a compact key on the 24-word grid stays on the grid while
+        // auto-submitting (deferring any switch to compact until sign-in fails).
+        let mut st = OnboardState::new();
+        st.step = OnboardStep::Import;
+        st.import_compact = false;
+        let mut app = ShellApp { onboard: Some(st), ..Default::default() };
+        let v2 = "nvo7SItwXYmoxxzmOCUrNJiw85V8CwJ+SXb8cOHPIlo=";
+        let q = run_import_pass(&ctx, &mut app, vec![Event::Paste(v2.into())]);
+        let s = app.onboard.as_ref().unwrap();
+        assert!(!s.import_compact);
+        assert!(
+            matches!(s.pending_cross_import, Some(PendingCrossImport::Compact(ref k)) if k == v2)
+        );
         assert!(matches!(q[..], [A::OnboardSubmit]));
     }
 }

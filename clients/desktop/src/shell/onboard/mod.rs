@@ -31,6 +31,14 @@ pub(crate) fn secret_hash(secret: &str) -> u64 {
     h.finish()
 }
 
+/// Cross-format paste waiting on auto-submit before switching sign-in views.
+pub enum PendingCrossImport {
+    /// Compact key pasted while on the 24-word grid.
+    Compact(String),
+    /// 24-word phrase pasted while on the compact key screen.
+    Phrase { words: [String; WORD_COUNT], focus: usize },
+}
+
 /// Full-window onboarding state held on [`ShellApp::onboard`].
 /// Intentionally does not implement `Debug` because it holds secret sign-in inputs.
 pub struct OnboardState {
@@ -44,6 +52,8 @@ pub struct OnboardState {
     pub import_compact: bool,
     pub compact_key: String,
     pub compact_visible: bool,
+    /// Active cross-format paste auto-submit; switches view only if sign-in fails.
+    pub pending_cross_import: Option<PendingCrossImport>,
     pub api_url: String,
     pub sync_username: String,
     pub sync_status: String,
@@ -73,6 +83,7 @@ impl OnboardState {
             import_compact: true,
             compact_key: String::new(),
             compact_visible: false,
+            pending_cross_import: None,
             api_url: initial_api_url(),
             sync_username: String::new(),
             sync_status: String::new(),
