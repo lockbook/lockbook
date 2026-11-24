@@ -299,7 +299,7 @@ impl ShellApp {
                 if let Some(s) = &mut self.onboard {
                     s.compact_key = key.trim().to_owned();
                 }
-                apply::apply(self, ctx, A::OnboardSubmit { show_error: true });
+                apply::apply(self, ctx, A::OnboardSubmit);
             }
             StressKind::Loading => {
                 ctx.request_repaint();
@@ -724,12 +724,12 @@ impl ShellApp {
                             }
                         }
                         action::OnboardStep::Create => {
-                            self.queue.push(A::OnboardSubmit { show_error: true });
+                            self.queue.push(A::OnboardSubmit);
                         }
                         action::OnboardStep::Import => {
                             let compact = self.onboard.as_ref().is_some_and(|s| s.import_compact);
                             if cmd_enter || compact {
-                                self.queue.push(A::OnboardSubmit { show_error: true });
+                                self.queue.push(A::OnboardSubmit);
                             } else if let Some(s) = &mut self.onboard {
                                 // Accept an active unique BIP-39 prefix completion first.
                                 let cur = s.import_focus.min(onboard::phrase_grid::WORD_COUNT - 1);
@@ -739,7 +739,7 @@ impl ShellApp {
                                     s.import_words[cur] = full.to_owned();
                                 }
                                 if onboard::phrase_grid::all_words_valid(&s.import_words) {
-                                    self.queue.push(A::OnboardSubmit { show_error: true });
+                                    self.queue.push(A::OnboardSubmit);
                                 } else if let Some(next) =
                                     onboard::phrase_grid::next_incomplete_or_invalid_slot(
                                         &s.import_words,

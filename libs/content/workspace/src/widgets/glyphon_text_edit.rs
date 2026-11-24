@@ -152,6 +152,7 @@ fn apply_event(event: Event, state: &mut State, text: &mut String, ctx: &Context
             }
         }
         Event::Paste(s) => {
+            let s = s.replace("\r\n", " ").replace(['\n', '\r'], " ");
             if state.has_selection() {
                 state.delete_selection(text);
             }
@@ -990,5 +991,13 @@ mod tests {
         assert_eq!(run("ab", 1, &[preedit("ü"), preedit("")]), ("ab".into(), 1, 1));
         let typed = Event::Text("c".into());
         assert_eq!(run("ab", 1, &[preedit("ü"), typed, preedit("x")]), ("aücxb".into(), 5, 5));
+    }
+
+    #[test]
+    fn paste_normalizes_line_breaks_to_spaces() {
+        assert_eq!(
+            run("", 0, &[Event::Paste("line1\r\nline2\nline3\rline4".into())]),
+            ("line1 line2 line3 line4".into(), 23, 23)
+        );
     }
 }

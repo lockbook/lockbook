@@ -175,7 +175,7 @@ pub(super) fn show(app: &mut ShellApp, ui: &mut Ui, t: &Theme, queue: &mut Vec<A
                 queue.push(A::OnboardSetStep(OnboardStep::Welcome));
             }
             if foot.primary {
-                queue.push(A::OnboardSubmit { show_error: true });
+                queue.push(A::OnboardSubmit);
             }
         },
     );

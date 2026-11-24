@@ -533,6 +533,7 @@ pub fn apply(app: &mut ShellApp, ctx: &Context, action: A) {
             if let Some(s) = &mut app.onboard {
                 s.step = step;
                 s.err = None;
+                s.pending_cross_import = None;
                 if step == OnboardStep::Create {
                     s.uname_lookup = OnboardLookup::Idle;
                     s.uname_lookup_for.clear();
@@ -555,11 +556,12 @@ pub fn apply(app: &mut ShellApp, ctx: &Context, action: A) {
             if let Some(s) = &mut app.onboard {
                 s.import_compact = compact;
                 s.err = None;
+                s.pending_cross_import = None;
             }
             onboard_import_focus(ctx, compact);
         }
         A::OnboardVerifyUname => onboard_verify_uname(app, ctx),
-        A::OnboardSubmit { show_error } => onboard_submit(app, ctx, show_error),
+        A::OnboardSubmit => onboard_submit(app, ctx),
         A::OnboardFinishLook => onboard_finish_look(app, ctx),
         A::OnboardRetryImportSync => onboard_retry_import_sync(app, ctx),
         A::OpenBackupKey => {

@@ -10,6 +10,18 @@ use super::errors::{LbErrKind, LbResult};
 pub const MAX_USERNAME_LENGTH: usize = 32;
 pub const SUB_ACCOUNT_SEPARATOR: char = '+';
 
+/// True when `key` (after stripping whitespace) decodes as a valid v1 or v2 compact account key.
+pub fn is_valid_compact_key(key: &str) -> bool {
+    let compact: String = key.split_whitespace().collect();
+    if compact.is_empty() {
+        return false;
+    }
+    let Ok(bytes) = base64::decode(&compact) else {
+        return false;
+    };
+    bincode::deserialize::<Account>(&bytes).is_ok() || SecretKey::parse_slice(&bytes).is_ok()
+}
+
 /// True when `word` (trimmed, ASCII case-insensitive) is in the English BIP-39 word list.
 pub fn is_valid_phrase_word(word: &str) -> bool {
     let w = word.trim();
@@ -394,5 +406,21 @@ mod test_account_key_and_phrase {
         assert_eq!(match_phrase_prefix("art"), PhrasePrefixMatch::Multiple { exact: true });
         assert_eq!(match_phrase_prefix("ar"), PhrasePrefixMatch::Multiple { exact: false });
         assert_eq!(match_phrase_prefix("artist"), PhrasePrefixMatch::Unique("artist"));
+    }
+
+    #[test]
+    fn valid_compact_key_accepts_v1_v2_and_rejects_partial_or_phrase() {
+        use crate::model::account::is_valid_compact_key;
+        let v1 = "BQAAAAAAAAB0ZXN0MQkAAAAAAAAAdGVzdDEuY29tIAAAAAAAAAATIlUEJFM0ejFr3ywfEAKgZGfBAEMPuIUhb1uPiejwKg==";
+        let v2 = "nvo7SItwXYmoxxzmOCUrNJiw85V8CwJ+SXb8cOHPIlo=";
+        assert!(is_valid_compact_key(v1));
+        assert!(is_valid_compact_key(v2));
+        assert!(is_valid_compact_key("  nvo7SItwXYmoxxzmOCUr\nNJiw85V8CwJ+SXb8cOHPIlo=  "));
+        assert!(!is_valid_compact_key(""));
+        assert!(!is_valid_compact_key(&v2[..20]));
+        assert!(!is_valid_compact_key("not-a-valid-key!"));
+        assert!(!is_valid_compact_key(
+            "turkey era velvet detail prison income dose royal fever truly unique couple party example piece art leaf follow rose access vacant gather wasp audit"
+        ));
     }
 }
