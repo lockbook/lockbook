@@ -128,6 +128,7 @@ pub struct ShellApp {
     pub import_job: Option<workspace_rs::import::ImportJob>,
     /// An import waiting on an upgrade: its paths, its folder, and the cap it must outgrow.
     pub(crate) import_after_upgrade: Option<(Vec<std::path::PathBuf>, Uuid, u64)>,
+    pub(crate) billing: apply_account::BillingState,
     pub(crate) storage: settings_storage::StorageView,
 }
 
@@ -200,6 +201,7 @@ impl Default for ShellApp {
             nudges: None,
             import_job: None,
             import_after_upgrade: None,
+            billing: apply_account::BillingState::default(),
             storage: Default::default(),
         }
     }
@@ -213,6 +215,7 @@ impl ShellApp {
 
     pub fn close_account_panel(&mut self) {
         self.account_panel = AccountPanel::Closed;
+        self.billing.stop_browser_poll();
     }
 
     /// Dev-gated renderer extras.
@@ -332,6 +335,7 @@ impl ShellApp {
         apply::poll_native_dialog(self, ctx);
         apply::poll_pdf_export(self);
         apply::poll_incoming_link(self, ctx);
+        apply::poll_upgrade(self, ctx);
         if let Session::Ready(r) = &self.session {
             if self.lb_rx.is_none() {
                 self.lb_rx = Some(r.workspace.core.subscribe());
@@ -616,11 +620,9 @@ impl ShellApp {
                 let action = match &self.modal {
                     // Account subpanels (incl. upgrade) stay in Settings — Esc backs the panel.
                     Some(Modal::Settings { .. }) => match &self.account_panel {
-                        AccountPanel::Upgrade {
-                            stage: action::UpgradeStage::Paying,
-                            done: None,
-                            ..
-                        } => None, // mid-charge
+                        AccountPanel::Upgrade { stage: action::UpgradeStage::Done } => {
+                            Some(A::UpgradeDone)
+                        }
                         AccountPanel::Upgrade { .. } => Some(A::UpgradeBack),
                         AccountPanel::Closed => Some(A::CloseModal),
                         _ => Some(A::HideAccountKey),
@@ -868,18 +870,11 @@ impl ShellApp {
                     self.queue.push(A::ShareStageField);
                 }
             } else {
-                // Pay (upgrade confirm): ⌘⏎ only. Other primaries: ⏎ or ⌘⏎.
+                // Other primaries: ⏎ or ⌘⏎.
                 let cmd_enter = ctx.input_mut(|i| i.consume_key(CMD, egui::Key::Enter));
                 let plain_enter =
                     ctx.input_mut(|i| i.consume_key(egui::Modifiers::NONE, egui::Key::Enter));
-                let cmd_only = matches!(
-                    (&modal, &self.account_panel),
-                    (
-                        Modal::Settings { .. },
-                        AccountPanel::Upgrade { stage: action::UpgradeStage::Confirm, .. }
-                    )
-                );
-                let commit = if cmd_only { cmd_enter } else { cmd_enter || plain_enter };
+                let commit = cmd_enter || plain_enter;
                 if commit {
                     match modal {
                         Modal::Delete { .. } => self.queue.push(A::ConfirmDelete),
@@ -904,22 +899,11 @@ impl ShellApp {
                             }
                             AccountPanel::CancelSub => self.queue.push(A::ConfirmCancelSub),
                             AccountPanel::Upgrade {
-                                stage: action::UpgradeStage::EnterCard,
-                                ..
-                            } => self.queue.push(A::UpgradeNext),
-                            AccountPanel::Upgrade {
-                                stage: action::UpgradeStage::Confirm, ..
-                            } => self.queue.push(A::UpgradeConfirmPay),
-                            AccountPanel::Upgrade {
-                                stage: action::UpgradeStage::Paying,
-                                done: Some(Ok(())),
-                                ..
-                            } => self.queue.push(A::UpgradeDone),
-                            AccountPanel::Upgrade {
-                                stage: action::UpgradeStage::Paying,
-                                done: Some(Err(_)),
-                                ..
-                            } => self.queue.push(A::UpgradeBack),
+                                stage: action::UpgradeStage::Choose, ..
+                            } => self.queue.push(A::UpgradeCheckout),
+                            AccountPanel::Upgrade { stage: action::UpgradeStage::Done, .. } => {
+                                self.queue.push(A::UpgradeDone)
+                            }
                             _ => {}
                         },
                         Modal::ImportParent { .. } => self.queue.push(A::ConfirmImportParent),

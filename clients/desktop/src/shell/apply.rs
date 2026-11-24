@@ -197,16 +197,25 @@ pub fn apply(app: &mut ShellApp, ctx: &Context, action: A) {
         }
         A::OpenSettings => {
             app.modal = Some(Modal::Settings { cat: SettingsCat::Account });
+            spawn_billing_refresh(app, ctx);
         }
         A::CloseModal => {
             if matches!(app.modal, Some(Modal::BackupKey(_))) {
                 clear_backup_key_secrets(app, ctx);
+            }
+            if matches!(app.modal, Some(Modal::Settings { .. })) {
+                app.close_account_panel();
             }
             app.modal = None;
         }
         A::SetSettingsCat(cat) => {
             if let Some(Modal::Settings { cat: c }) = &mut app.modal {
                 *c = cat;
+            }
+            if cat == SettingsCat::Account {
+                spawn_billing_refresh(app, ctx);
+            } else {
+                app.close_account_panel();
             }
         }
         A::OpenDelete(ids) => {
@@ -902,50 +911,23 @@ pub fn apply(app: &mut ShellApp, ctx: &Context, action: A) {
         A::OpenUpgrade => {
             // Stay in Settings → Account in-content (not a separate sheet).
             ensure_settings_account(app);
-            app.account_panel = AccountPanel::Upgrade {
-                stage: UpgradeStage::EnterCard,
-                number: String::new(),
-                exp: String::new(),
-                cvc: String::new(),
-                error: None,
-                done: None,
-            };
-            ctx.data_mut(|d| d.insert_temp(egui::Id::unique("shell_upgrade_need_focus"), true));
+            app.account_panel = AccountPanel::Upgrade { stage: UpgradeStage::Choose };
         }
-        A::UpgradeBack => {
-            match &app.account_panel {
-                AccountPanel::Upgrade { stage: UpgradeStage::Confirm, .. } => {
-                    if let AccountPanel::Upgrade { stage, error, .. } = &mut app.account_panel {
-                        *stage = UpgradeStage::EnterCard;
-                        *error = None;
-                    }
-                }
-                // Payment failed — edit card again.
-                AccountPanel::Upgrade {
-                    stage: UpgradeStage::Paying, done: Some(Err(_)), ..
-                } => {
-                    if let AccountPanel::Upgrade { stage, done, error, .. } = &mut app.account_panel
-                    {
-                        *stage = UpgradeStage::EnterCard;
-                        *done = None;
-                        *error = None;
-                    }
-                }
-                AccountPanel::Upgrade { stage: UpgradeStage::EnterCard, .. }
-                | AccountPanel::Upgrade {
-                    stage: UpgradeStage::Paying, done: Some(Ok(())), ..
-                } => {
-                    app.close_account_panel();
-                }
-                // Mid-charge: ignore back.
-                _ => {}
+        A::UpgradeBack => match &mut app.account_panel {
+            AccountPanel::Upgrade { stage: stage @ UpgradeStage::Browser } => {
+                *stage = UpgradeStage::Choose;
+                app.billing.stop_browser_poll();
             }
-        }
-        A::UpgradeNext => upgrade_validate_and_confirm(app),
-        A::UpgradeConfirmPay => upgrade_start_pay(app, ctx),
+            _ => app.close_account_panel(),
+        },
+        A::UpgradeCheckout => upgrade_open_checkout(app, ctx),
         A::UpgradeDone => {
             app.close_account_panel();
+            if app.import_after_upgrade.is_some() {
+                app.modal = None;
+            }
         }
+        A::ManageBilling => open_billing_portal(app, ctx),
         A::OpenLogout => {
             ensure_settings_account(app);
             app.account_panel = AccountPanel::Logout { acked: false };
@@ -1493,15 +1475,26 @@ pub(crate) fn poll_incoming_link(app: &mut ShellApp, ctx: &Context) {
     };
     match app.incoming_link.take() {
         None => {}
-        Some(IncomingLink::Waiting(url)) => match Place::from_url(&url) {
-            Some(place) if known(r, &place) => open_incoming_link(r, place),
-            Some(place) => {
-                app.incoming_link = Some(IncomingLink::Syncing(sync_for_link(r, ctx, place)))
+        Some(IncomingLink::Waiting(url)) => {
+            // Bare `lb://` just brings the app to the front and refreshes billing.
+            let trimmed = url.trim();
+            if trimmed.eq_ignore_ascii_case("lb://")
+                || trimmed.eq_ignore_ascii_case("lb:///")
+                || trimmed.eq_ignore_ascii_case("lb:")
+            {
+                spawn_billing_refresh(app, ctx);
+                return;
             }
-            None => app
-                .toasts
-                .error("This link doesn't name a note or a search."),
-        },
+            match Place::from_url(&url) {
+                Some(place) if known(r, &place) => open_incoming_link(r, place),
+                Some(place) => {
+                    app.incoming_link = Some(IncomingLink::Syncing(sync_for_link(r, ctx, place)))
+                }
+                None => app
+                    .toasts
+                    .error("This link doesn't name a note or a search."),
+            }
+        }
         Some(IncomingLink::Syncing(rx)) => match rx.try_recv() {
             Ok(LinkSynced { place, synced }) => {
                 note_files_changed(r);

@@ -49,7 +49,11 @@ fn draw_free_tier(ui: &mut egui::Ui) {
 }
 
 fn draw_stripe(ui: &mut egui::Ui, last4: &str) -> Option<SubscriptionResponse> {
-    ui.heading(format!("Stripe ({last4})"));
+    if last4.is_empty() {
+        ui.heading("Stripe");
+    } else {
+        ui.heading(format!("Stripe ({last4})"));
+    }
     None
 }
 
