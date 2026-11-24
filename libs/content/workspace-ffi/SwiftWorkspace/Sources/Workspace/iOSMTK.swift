@@ -388,7 +388,13 @@
             set_spell_check(wsHandle, UserDefaults.standard.object(forKey: "spellCheck") as? Bool ?? true)
 
             set_scale(wsHandle, Float(scale()))
-            let keyboardTop = mtkView.keyboardLayoutGuide.layoutFrame.minY
+            // Follow the keyboard's live (animating) top so the bottom inset
+            // tracks it frame by frame. layoutFrame alone gives the final
+            // position at once, leaving a blank band between the text and the
+            // still-moving keyboard until it settles. See keyboardTracker and
+            // keyboardWillAnimate(_:).
+            let keyboardTop = mtkView.keyboardTracker.layer.presentation()?.frame.minY
+                ?? mtkView.keyboardLayoutGuide.layoutFrame.minY
             var overlap = max(0, mtkView.bounds.maxY - keyboardTop)
             // The toolbar is chrome: it clears the home indicator the page runs under.
             if mtkView.workspaceOutput?.mobileToolbarShown == true {
@@ -637,6 +643,15 @@
         var redrawTask: DispatchWorkItem?
         var redrawDeadline: DispatchTime?
 
+        // Follows the keyboard's animated frame. A 1pt invisible view pinned to
+        // the keyboard layout guide has its layer animated alongside the
+        // keyboard, so its presentation layer gives the live position each
+        // frame; the guide's own layoutFrame jumps to the final position at
+        // once, which left a blank band under the text during the animation.
+        let keyboardTracker = UIView()
+        private var keyboardFollowLink: CADisplayLink?
+        private var keyboardFollowDeadline: CFTimeInterval = 0
+
         // workspace
         var workspaceOutput: WorkspaceOutputState?
         var workspaceInput: WorkspaceInputState?
@@ -683,6 +698,28 @@
             preferredFramesPerSecond = 144
             isUserInteractionEnabled = true
 
+            // Pin the tracker to the keyboard layout guide so its presentation
+            // layer follows the keyboard's animation (see keyboardTracker).
+            keyboardTracker.isUserInteractionEnabled = false
+            keyboardTracker.backgroundColor = .clear
+            addSubview(keyboardTracker)
+            keyboardTracker.translatesAutoresizingMaskIntoConstraints = false
+            NSLayoutConstraint.activate([
+                keyboardTracker.topAnchor.constraint(equalTo: keyboardLayoutGuide.topAnchor),
+                keyboardTracker.leadingAnchor.constraint(equalTo: leadingAnchor),
+                keyboardTracker.widthAnchor.constraint(equalToConstant: 1),
+                keyboardTracker.heightAnchor.constraint(equalToConstant: 1),
+            ])
+            for name in [
+                UIResponder.keyboardWillShowNotification,
+                UIResponder.keyboardWillHideNotification,
+                UIResponder.keyboardWillChangeFrameNotification,
+            ] {
+                NotificationCenter.default.addObserver(
+                    self, selector: #selector(keyboardWillAnimate(_:)), name: name, object: nil
+                )
+            }
+
             NotificationCenter.default.addObserver(
                 self,
                 selector: #selector(appDidBecomeActive),
@@ -709,6 +746,32 @@
         /// The editor's layout follows the hardware keyboard; redraw when one comes or goes.
         @objc private func hardwareKeyboardChanged() {
             DispatchQueue.main.async { self.requestFrame() }
+        }
+
+        /// Draw every display refresh for the length of a keyboard animation so
+        /// the bottom inset can follow the keyboard's live position (via
+        /// keyboardTracker). Without this the editor draws once and jumps to the
+        /// final inset, leaving a blank band between the text and the keyboard
+        /// until the keyboard finishes moving.
+        @objc private func keyboardWillAnimate(_ note: Notification) {
+            let duration =
+                (note.userInfo?[UIResponder.keyboardAnimationDurationUserInfoKey] as? Double) ?? 0.25
+            keyboardFollowDeadline = CACurrentMediaTime() + max(duration, 0.1) + 0.05
+            if keyboardFollowLink == nil {
+                let link = CADisplayLink(target: self, selector: #selector(keyboardFollowTick))
+                link.add(to: .main, forMode: .common)
+                keyboardFollowLink = link
+            }
+            requestFrame()
+        }
+
+        @objc private func keyboardFollowTick() {
+            if CACurrentMediaTime() >= keyboardFollowDeadline {
+                keyboardFollowLink?.invalidate()
+                keyboardFollowLink = nil
+            }
+            // Redraw now so draw(in:) resamples the tracker's presentation layer.
+            drawImmediately()
         }
 
         @objc private func appDidEnterBackground() {
