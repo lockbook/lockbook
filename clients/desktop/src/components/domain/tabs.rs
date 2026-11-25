@@ -267,6 +267,9 @@ struct TabInfo {
     place: Place,
 }
 
+/// Temporarily hidden from the tab context menu while PDF export issues are addressed.
+const PDF_EXPORT_ENABLED: bool = false;
+
 #[derive(Clone, Copy)]
 enum TabMenu {
     Close,
@@ -508,7 +511,7 @@ fn tab_button(ui: &mut Ui, t: &Theme, tab: &TabInfo, tab_count: usize, can_reope
         }
         if is_file {
             m.item(phosphor::DOWNLOAD_SIMPLE, "Export…", TabMenu::Export);
-            if tab.note {
+            if PDF_EXPORT_ENABLED && tab.note {
                 m.item(phosphor::FILE_PDF, "Export as PDF…", TabMenu::ExportPdf);
             }
         }
