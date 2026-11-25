@@ -26,6 +26,7 @@ fn typing_over(md: &str, select: Option<(usize, usize)>, script: &str) -> String
 /// Rule: a key in the grid edits one cell or one row, never the syntax
 /// between them, and never joins two rows or a key and its value.
 #[test]
+#[ignore = "front matter grid temporarily disabled"]
 fn keys_in_the_grid_edit_one_cell_or_row() {
     let c = |g: usize| Some((g, g));
     let hello = "---\ntitle: Hello\n---\n\nBody";
@@ -143,6 +144,7 @@ fn keys_in_the_grid_edit_one_cell_or_row() {
 /// text the caret goes through and Backspace takes, and a dash list goes
 /// on as a markdown list does.
 #[test]
+#[ignore = "front matter grid temporarily disabled"]
 fn keys_in_source_edit_the_yaml() {
     let hi = "---\ntitle: Hi\nstatus: done\n---\n\nBody";
     let flag = "---\ntitle: Hi\nflag: true\n---\n\nBody";
@@ -174,6 +176,7 @@ fn keys_in_source_edit_the_yaml() {
 /// typed is no candidate, so Return and Tab move on; the character that
 /// ends a key or item takes the candidate it finishes.
 #[test]
+#[ignore = "front matter grid temporarily disabled"]
 fn completions_open_on_typing_with_nothing_highlighted() {
     #[derive(Debug, PartialEq)]
     enum Popup {
@@ -284,6 +287,7 @@ fn completions_open_on_typing_with_nothing_highlighted() {
 /// pill opens it at a value's end, it stays open, and the body below moves
 /// back.
 #[test]
+#[ignore = "front matter grid temporarily disabled"]
 fn the_block_collapses_and_the_caret_opens_it() {
     let md = "---\ntitle: Hello\nstatus: done\ntags: [a, b]\n---\nA long body line here";
     let node_end = md.find("\n---\n").unwrap() + 4;
@@ -368,6 +372,7 @@ fn the_block_collapses_and_the_caret_opens_it() {
 /// Rule: other notes' properties come from the note index, which reads the
 /// vault only once something asks (#5267).
 #[test]
+#[ignore = "front matter grid temporarily disabled"]
 fn typing_a_key_asks_for_the_note_index() {
     use crate::test_utils::files::{at as path_at, cache, tree};
     let files = tree("alice", &["/a/one.md", "/a/two.md"]);

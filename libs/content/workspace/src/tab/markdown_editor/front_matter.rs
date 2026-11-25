@@ -12,10 +12,18 @@ use lb_rs::model::text::operation_types::Operation;
 use crate::front_matter::{self, FrontMatter, RowKind, Value};
 use crate::tab::markdown_editor::{MdEdit, MdRender, View};
 
+/// Temporarily disabled while front matter grid issues are addressed.
+/// When `false`, front matter blocks fall back to fenced YAML code blocks.
+pub(crate) const FRONT_MATTER_ENABLED: bool = false;
+
 impl<'ast> MdRender {
     /// Recompute [`Bounds::front_matter`](super::bounds::Bounds). Depends
     /// on text only, so source view has them for its front matter edits too.
     pub fn calc_front_matter_bounds(&mut self, root: &'ast AstNode<'ast>) {
+        if !FRONT_MATTER_ENABLED {
+            self.bounds.front_matter = None;
+            return;
+        }
         let node = root
             .first_child()
             .filter(|node| matches!(node.data.borrow().value, NodeValue::FrontMatter(_)));

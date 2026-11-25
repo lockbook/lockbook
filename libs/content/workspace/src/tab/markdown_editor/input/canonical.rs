@@ -278,7 +278,9 @@ impl<'ast> MdEdit {
                 }
             }
             egui::Event::Key { key: Key::Semicolon, pressed: true, modifiers, .. }
-                if modifiers.command && !cfg!(target_os = "ios") =>
+                if markdown_editor::front_matter::FRONT_MATTER_ENABLED
+                    && modifiers.command
+                    && !cfg!(target_os = "ios") =>
             {
                 if self.renderer.readonly {
                     return None;

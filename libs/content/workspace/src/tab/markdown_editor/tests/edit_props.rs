@@ -369,30 +369,31 @@ fn undo_then_ime_in_one_frame() {
 // front matter
 // typed into a cell is what the YAML reads back, the caret after it
 #[test]
-
+#[ignore = "front matter grid temporarily disabled"]
 fn front_matter_value_round_trips() {
     run_front_matter(front_matter_value_round_trips_check, cell_doc, 1000);
 }
 // a comma at an item's end adds exactly one item, Backspace undoes it
 #[test]
-
+#[ignore = "front matter grid temporarily disabled"]
 fn front_matter_list_comma() {
     run_front_matter(front_matter_list_comma_check, |s| list_doc(s).0, 1000);
 }
 // row moves, removes, and kind changes round-trip, conserving the other rows
 #[test]
-
+#[ignore = "front matter grid temporarily disabled"]
 fn front_matter_row_actions_round_trip() {
     run_front_matter(front_matter_row_actions_check, front_matter_doc, 1000);
 }
 // every ← or → in the block draws the caret elsewhere, and they retrace
 #[test]
-
+#[ignore = "front matter grid temporarily disabled"]
 fn front_matter_arrows_step_and_retrace() {
     run_front_matter(front_matter_arrows_check, spaced_front_matter_doc, 1000);
 }
 // a \r\n note edits as its \n copy
 #[test]
+#[ignore = "front matter grid temporarily disabled"]
 fn front_matter_crlf_edits_as_lf() {
     run_front_matter(front_matter_crlf_check, front_matter_doc, 1000);
 }

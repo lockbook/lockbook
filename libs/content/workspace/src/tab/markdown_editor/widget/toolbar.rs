@@ -611,7 +611,12 @@ impl<'ast> Editor {
         ]));
 
         // link, front matter, and image
-        let mut media = 2 * count(&[persistence.link]) + count(&[persistence.front_matter]);
+        let mut media = 2 * count(&[persistence.link])
+            + if markdown_editor::front_matter::FRONT_MATTER_ENABLED {
+                count(&[persistence.front_matter])
+            } else {
+                0
+            };
         if (persistence.image || is_default) && supports_attachments {
             media += 1;
         }
@@ -1000,7 +1005,9 @@ impl<'ast> Editor {
                         .map(|e| events.push(e));
                     any_media = true;
                 }
-                if persistence.front_matter || toolbar_is_default {
+                if markdown_editor::front_matter::FRONT_MATTER_ENABLED
+                    && (persistence.front_matter || toolbar_is_default)
+                {
                     if any_media {
                         ui.add_space(5.);
                     }
@@ -1622,23 +1629,25 @@ impl<'ast> Editor {
                             }
                             top_left.y += self.menu_toggle_height("[Link](url)");
 
-                            if self
-                                .menu_toggle(
-                                    ui,
-                                    top_left,
-                                    md_width,
-                                    "Property",
-                                    phosphor::TAG,
-                                    persistence.front_matter,
-                                )
-                                .clicked()
-                            {
-                                let mut persistence = self.persistence.data.write().unwrap();
-                                let persistence = &mut persistence.markdown.toolbar;
-                                persistence.front_matter ^= true;
-                                self.persistence.write_to_file();
+                            if markdown_editor::front_matter::FRONT_MATTER_ENABLED {
+                                if self
+                                    .menu_toggle(
+                                        ui,
+                                        top_left,
+                                        md_width,
+                                        "Property",
+                                        phosphor::TAG,
+                                        persistence.front_matter,
+                                    )
+                                    .clicked()
+                                {
+                                    let mut persistence = self.persistence.data.write().unwrap();
+                                    let persistence = &mut persistence.markdown.toolbar;
+                                    persistence.front_matter ^= true;
+                                    self.persistence.write_to_file();
+                                }
+                                top_left.y += self.menu_toggle_height("Property");
                             }
-                            top_left.y += self.menu_toggle_height("Property");
 
                             if supports_attachments {
                                 if self
