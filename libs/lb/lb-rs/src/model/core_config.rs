@@ -68,8 +68,9 @@ pub struct Config {
     #[serde(default)]
     pub read_only: bool,
 
-    /// Should listings, recents, suggestions, pending shares and search include attachments
-    /// folders and their contents? The apps leave them out; the CLI and the Files app show them.
+    /// Should listings, recents, pending shares and search include attachments folders and their
+    /// contents? The apps leave them out; the CLI and the Files app show them. The recipient of an
+    /// individually shared note never sees its attachments folder listed, whatever this is set to.
     #[serde(default)]
     pub list_attachments: bool,
 

@@ -37,6 +37,17 @@ enum Tone {
     Accent,
 }
 
+/// Invisible pill-slot metrics for button keyboard shortcuts: matches the
+/// spacing of an 18pt tonal keycap (`8pt` gap + `5pt` inner x-pad = `13pt`
+/// from label, `5pt` inner x-pad + `6pt` trailing button pad = `11pt` to the
+/// right edge) without painting a background fill.
+const SHORTCUT_FONT_SIZE: f32 = 11.5;
+const SHORTCUT_PART_GAP: f32 = 1.5;
+const SHORTCUT_SLOT_GAP: f32 = 8.0;
+const SHORTCUT_SLOT_PAD_X: f32 = 5.0;
+const SHORTCUT_SLOT_MIN_W: f32 = 18.0;
+const SHORTCUT_TRAILING_PAD_X: f32 = 6.0;
+
 /// How long a copy control shows the check instead of its label.
 pub const COPY_FEEDBACK_SECS: f64 = 1.2;
 
@@ -139,14 +150,59 @@ impl<'a> Button<'a> {
         self
     }
 
+    /// Exact width [`Self::show`] will allocate, for explicit rect placement.
+    pub fn measure_width(&self, ui: &Ui) -> f32 {
+        let font = TypeRole::Body.font_id();
+        let pad_x = control_space::PAD_X.pts();
+        let icon_gap = control_space::ICON_GAP.pts();
+        let icon_w = self
+            .icon
+            .map(|g| {
+                ui.painter()
+                    .layout_no_wrap(g.to_owned(), phosphor_ui_font_id(), Color32::PLACEHOLDER)
+                    .size()
+                    .x
+            })
+            .unwrap_or(0.0);
+        let has_label = !self.label.is_empty();
+        let icon_block =
+            if self.icon.is_some() { icon_w + if has_label { icon_gap } else { 0.0 } } else { 0.0 };
+        let sc_parts: Vec<ShortcutPart> = self
+            .shortcut
+            .map(|sc| layout_shortcut_parts(ui, sc))
+            .unwrap_or_default();
+        let has_shortcut = !sc_parts.is_empty();
+        let sc_slot_w = if has_shortcut {
+            (shortcut_content_width(&sc_parts) + SHORTCUT_SLOT_PAD_X * 2.0).max(SHORTCUT_SLOT_MIN_W)
+        } else {
+            0.0
+        };
+        let sc_w = if has_shortcut { SHORTCUT_SLOT_GAP + sc_slot_w } else { 0.0 };
+        let pad_x_right = if has_shortcut { SHORTCUT_TRAILING_PAD_X } else { pad_x };
+        let label_w = if has_label {
+            ui.painter()
+                .layout_no_wrap(self.label.clone(), font, Color32::PLACEHOLDER)
+                .size()
+                .x
+        } else {
+            0.0
+        };
+        let mut w = label_w + icon_block + sc_w + pad_x + pad_x_right;
+        if let Some(min_w) = self.min_width {
+            w = w.max(min_w);
+        }
+        if let Some(mw) = self.max_width {
+            w = w.min(mw).max(0.0);
+        }
+        w.ceil()
+    }
+
     pub fn show(mut self, ui: &mut Ui) -> Response {
         let t = self.tokens;
         let font = TypeRole::Body.font_id();
         let pad_x = control_space::PAD_X.pts();
         let pad_y = control_space::PAD_Y.pts();
         let icon_gap = control_space::ICON_GAP.pts();
-        let sc_gap = control_space::SHORTCUT_GAP.pts();
-        let part_gap = control_space::PART_GAP.pts();
 
         // Copy feedback: hold rest-state width, paint check for 1s after click.
         let feedback_id = self.copy_feedback;
@@ -187,21 +243,26 @@ impl<'a> Button<'a> {
             0.0
         };
 
-        // (phosphor icon?, galley) — mono vs icon paint differently (bottom vs mid).
-        let sc_parts: Vec<(bool, Arc<Galley>)> = self
+        // Shortcut parts laid out in unified Proportional UI sans (avoiding
+        // Monospace's +0.1 MONO_Y_OFFSET sag and serifed I) inside an invisible
+        // pill-shaped slot so spacing matches a keycap without adding a fill.
+        let sc_parts: Vec<ShortcutPart> = self
             .shortcut
             .map(|sc| layout_shortcut_parts(ui, sc))
             .unwrap_or_default();
-        let sc_inner_w: f32 = sc_parts
-            .iter()
-            .enumerate()
-            .map(|(i, (_, g))| g.size().x + if i > 0 { part_gap } else { 0.0 })
-            .sum();
-        let sc_w = if sc_parts.is_empty() { 0.0 } else { sc_inner_w + sc_gap };
+        let has_shortcut = !sc_parts.is_empty();
+        let sc_content_w = shortcut_content_width(&sc_parts);
+        let sc_slot_w = if has_shortcut {
+            (sc_content_w + SHORTCUT_SLOT_PAD_X * 2.0).max(SHORTCUT_SLOT_MIN_W)
+        } else {
+            0.0
+        };
+        let sc_w = if has_shortcut { SHORTCUT_SLOT_GAP + sc_slot_w } else { 0.0 };
+        let pad_x_right = if has_shortcut { SHORTCUT_TRAILING_PAD_X } else { pad_x };
 
         let label_max = self
             .max_width
-            .map(|mw| (mw - pad_x * 2.0 - sc_w - icon_block).max(24.0));
+            .map(|mw| (mw - pad_x - pad_x_right - sc_w - icon_block).max(24.0));
         let galley = if !has_label {
             None
         } else if let Some(max_w) = label_max {
@@ -221,7 +282,7 @@ impl<'a> Button<'a> {
             .y
             .max(icon_galley.as_ref().map(|g| g.size().y).unwrap_or(0.0));
         let mut desired =
-            vec2(label_size.x + icon_block + sc_w + pad_x * 2.0, content_h + pad_y * 2.0);
+            vec2(label_size.x + icon_block + sc_w + pad_x + pad_x_right, content_h + pad_y * 2.0);
         desired.y = self.height.unwrap_or(desired.y.max(control_height()));
         if let Some(min_w) = self.min_width {
             desired.x = desired.x.max(min_w);
@@ -240,8 +301,15 @@ impl<'a> Button<'a> {
             fills.rest
         };
         let kbd = match self.treatment {
-            // Same ink as the label on the solid plate (brand or danger).
-            Treatment::Primary => text,
+            // Quieter hint ink on the solid primary plate so the shortcut doesn't
+            // compete with the label; secondary/quiet already use secondary fg.
+            Treatment::Primary => {
+                if self.enabled {
+                    text.gamma_multiply(0.58)
+                } else {
+                    text
+                }
+            }
             Treatment::Secondary | Treatment::Quiet => {
                 if self.enabled {
                     t.neutral_fg_secondary()
@@ -257,22 +325,26 @@ impl<'a> Button<'a> {
         // Measure → place: pads + content x-walk (no horizontal placer / Center air).
         paint_control_pads(ui, rect, control_space::PAD_X, control_space::PAD_Y);
         let mid = inset(rect, pad_x, pad_y);
-        // Label + kbd share layout-box **bottoms** (mesh-centering made mono `esc`
-        // sit high vs body — #21). Block is vertically centered in the control.
-        let sc_max_h = sc_parts
-            .iter()
-            .map(|(_, g)| g.size().y)
-            .fold(0.0_f32, f32::max);
-        let icon_h = icon_galley.as_ref().map(|g| g.size().y).unwrap_or(0.0);
-        let block_h = label_size.y.max(icon_h).max(sc_max_h).max(1.0);
-        let block_top = mid.center().y - block_h / 2.0;
-        // Icon-only (copy check): center in the content band so width can match "Copy".
+
+        // Optical vertical alignment:
+        // - Label and text shortcut parts share one typographic baseline, centered
+        //   on the label's cap height inside the control.
+        // - Icons (leading glyph, ⌘, ↩) center their actual ink bounds on that
+        //   cap-height midpoint so symbols and letters align optically.
+        let h_ref =
+            ui.painter()
+                .layout_no_wrap("H".into(), TypeRole::Body.font_id(), Color32::PLACEHOLDER);
+        let h_ink_mid = galley_ink_mid_y(&h_ref);
+        let cap_mid_y = rect.center().y;
+        let label_top = cap_mid_y - h_ink_mid;
+        let baseline_y = label_top + galley_baseline(&h_ref);
+
+        // Icon-only (copy check): center horizontally in the content band so width can match "Copy".
         let mut x = if icon_only { mid.center().x - icon_w / 2.0 } else { mid.left() };
 
         if let Some(ig) = icon_galley {
             let iw = ig.size().x;
-            let ir = egui::Rect::from_min_size(pos2(x, block_top), vec2(iw, block_h));
-            paint_galley_layout_mid(ui.painter(), ir, ig, text);
+            paint_galley_ink_mid(ui.painter(), x, cap_mid_y, ig, text);
             x += iw;
             if has_label {
                 x += icon_gap;
@@ -280,25 +352,29 @@ impl<'a> Button<'a> {
         }
         if let Some(galley) = galley {
             let label_w = galley.size().x;
-            let label_rect = egui::Rect::from_min_size(pos2(x, block_top), vec2(label_w, block_h));
-            paint_galley_layout_bottom(ui.painter(), label_rect, galley, text);
+            paint_galley_baseline(ui.painter(), x, baseline_y, galley, text);
             x += label_w;
         }
         if !sc_parts.is_empty() {
-            x += sc_gap;
-            for (i, (mid_align, sg)) in sc_parts.into_iter().enumerate() {
-                if i > 0 {
-                    x += part_gap;
-                }
-                let w = sg.size().x;
-                let pr = egui::Rect::from_min_size(pos2(x, block_top), vec2(w, block_h));
-                if mid_align {
-                    paint_galley_layout_mid(ui.painter(), pr, sg, kbd);
+            let sc_font = FontId::new(SHORTCUT_FONT_SIZE, FontFamily::Proportional);
+            let kbd_h = ui
+                .painter()
+                .layout_no_wrap("H".into(), sc_font, Color32::PLACEHOLDER);
+            let slot_mid_y = rect.center().y;
+            let slot_baseline = slot_mid_y - galley_ink_mid_y(&kbd_h) + galley_baseline(&kbd_h);
+            let slot_center_x = x + SHORTCUT_SLOT_GAP + sc_slot_w / 2.0;
+            let mut gx = slot_center_x - sc_content_w / 2.0;
+            for part in sc_parts {
+                gx += part.gap_before;
+                let w = part.galley.size().x;
+                if part.center_ink {
+                    paint_galley_ink_mid(ui.painter(), gx, slot_mid_y, part.galley, kbd);
                 } else {
-                    paint_galley_layout_bottom(ui.painter(), pr, sg, kbd);
+                    paint_galley_baseline(ui.painter(), gx, slot_baseline, part.galley, kbd);
                 }
-                x += w;
+                gx += w;
             }
+            x += sc_w;
         }
         let _ = x;
 
@@ -400,42 +476,98 @@ impl<'a> Button<'a> {
     }
 }
 
-/// `(mid_align, galley)` — Icon + body Mono mid-align (⌘N energy); MonoSm
-/// (`esc`) bottom-aligns with the button label.
-fn layout_shortcut_parts(ui: &Ui, sc: Shortcut) -> Vec<(bool, Arc<Galley>)> {
-    let mono_body = FontId::new(TypeRole::Body.size(), FontFamily::Monospace);
-    let mono_sm = TypeRole::Mono.font_id();
-    let icon = phosphor_ui_font_id();
+struct ShortcutPart {
+    galley: Arc<Galley>,
+    center_ink: bool,
+    gap_before: f32,
+}
+
+/// Lay out shortcut parts in unified Proportional UI sans so modifiers and key
+/// letters share one stroke weight without `Monospace`'s `MONO_Y_OFFSET` sag.
+/// On macOS, `⌘` and `⏎` use native Unicode glyphs in the same Proportional
+/// font; elsewhere Phosphor icons stay on the icon font to avoid missing glyphs.
+fn layout_shortcut_parts(ui: &Ui, sc: Shortcut) -> Vec<ShortcutPart> {
+    let text_font = FontId::new(SHORTCUT_FONT_SIZE, FontFamily::Proportional);
+    let icon_font = phosphor_font_id(SHORTCUT_FONT_SIZE + 0.5);
+    let mut prev_ended_plus = false;
     sc.parts
         .iter()
-        .map(|part| {
-            let (mid, text, font) = match *part {
-                KbdPart::Icon(s) => (true, s.to_owned(), icon.clone()),
-                KbdPart::Mono(s) => (true, s.to_owned(), mono_body.clone()),
-                KbdPart::MonoSm(s) => (false, s.to_owned(), mono_sm.clone()),
+        .enumerate()
+        .map(|(i, part)| {
+            let gap_before = if i == 0 {
+                0.0
+            } else if prev_ended_plus {
+                0.5
+            } else {
+                SHORTCUT_PART_GAP
             };
-            (
-                mid,
-                ui.painter()
-                    .layout_no_wrap(text, font, Color32::PLACEHOLDER),
-            )
+            let (center_ink, text, font) = match *part {
+                KbdPart::Icon(s) => {
+                    #[cfg(target_os = "macos")]
+                    let native = match s {
+                        phosphor::COMMAND => Some("⌘"),
+                        phosphor::KEY_RETURN => Some("⏎"),
+                        _ => None,
+                    };
+                    #[cfg(not(target_os = "macos"))]
+                    let native: Option<&str> = None;
+
+                    if let Some(sym) = native {
+                        (true, sym.to_owned(), text_font.clone())
+                    } else {
+                        (true, s.to_owned(), icon_font.clone())
+                    }
+                }
+                KbdPart::Mono(s) | KbdPart::MonoSm(s) => {
+                    // Lowercase-only words like "esc" have no cap height; center
+                    // their ink directly on the slot midline instead of using "H".
+                    let lowercase_only = !s.is_empty() && s.chars().all(|c| !c.is_uppercase());
+                    (lowercase_only, s.to_owned(), text_font.clone())
+                }
+            };
+            prev_ended_plus = text.ends_with('+');
+            let galley = ui
+                .painter()
+                .layout_no_wrap(text, font, Color32::PLACEHOLDER);
+            ShortcutPart { galley, center_ink, gap_before }
         })
         .collect()
 }
 
-/// Layout-box bottom on `slot.bottom()` — body + mono kbd.
-fn paint_galley_layout_bottom(
-    painter: &egui::Painter, slot: egui::Rect, galley: Arc<Galley>, color: Color32,
+fn shortcut_content_width(parts: &[ShortcutPart]) -> f32 {
+    parts.iter().map(|p| p.gap_before + p.galley.size().x).sum()
+}
+
+/// First row's typographic baseline relative to the galley's top-left origin.
+fn galley_baseline(g: &Galley) -> f32 {
+    g.rows.first().map_or(g.size().y, |r| {
+        r.pos.y
+            + r.row
+                .glyphs
+                .first()
+                .map_or(r.rect().bottom(), |gl| gl.pos.y)
+    })
+}
+
+/// Optical vertical center of a galley's actual inked pixels (falls back to
+/// layout-box center in headless contexts with empty mesh bounds).
+fn galley_ink_mid_y(g: &Galley) -> f32 {
+    if g.mesh_bounds.height() > 0.0 { g.mesh_bounds.center().y } else { g.size().y / 2.0 }
+}
+
+/// Place a text galley so its first baseline sits on `baseline_y`.
+fn paint_galley_baseline(
+    painter: &egui::Painter, x: f32, baseline_y: f32, galley: Arc<Galley>, color: Color32,
 ) {
-    let pos = pos2(slot.left(), slot.bottom() - galley.size().y);
+    let pos = pos2(x, baseline_y - galley_baseline(&galley));
     painter.galley(pos, galley, color);
 }
 
-/// Layout-box vertical mid in `slot` — Phosphor (no mesh_bounds).
-fn paint_galley_layout_mid(
-    painter: &egui::Painter, slot: egui::Rect, galley: Arc<Galley>, color: Color32,
+/// Place an icon galley so its inked center sits on `cap_mid_y`.
+fn paint_galley_ink_mid(
+    painter: &egui::Painter, x: f32, cap_mid_y: f32, galley: Arc<Galley>, color: Color32,
 ) {
-    let pos = pos2(slot.left(), slot.center().y - galley.size().y / 2.0);
+    let pos = pos2(x, cap_mid_y - galley_ink_mid_y(&galley));
     painter.galley(pos, galley, color);
 }
 

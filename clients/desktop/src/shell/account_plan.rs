@@ -38,8 +38,8 @@ pub struct AccountStanding {
 
 /// Local calendar date for a subscription period end.
 ///
-/// Stripe writes `current_period_end` in **seconds**; Google Play / App Store
-/// use **millis**. ≥ 1e12 → millis, else seconds.
+/// Current server writes **millis** for all platforms; legacy Stripe rows
+/// written before the Checkout migration may hold **seconds**. ≥ 1e12 → millis, else seconds.
 pub fn format_period_end(period_end: u64) -> String {
     use chrono::Local;
     period_end_datetime(period_end)
@@ -89,9 +89,15 @@ impl AccountStanding {
                         card_last_4: last4,
                     }
                 } else {
+                    // Stripe's renewal choice lives on its billing page; the paid period is certain.
+                    let paid_through = if date == "the end of the billing period" {
+                        "Paid through the current billing period.".to_owned()
+                    } else {
+                        format!("Paid through {date}.")
+                    };
                     Self {
                         tier: AccountTier::Premium,
-                        detail: Some(renews),
+                        detail: Some(paid_through),
                         source: Some("Stripe"),
                         card_last_4: last4,
                     }
@@ -174,7 +180,7 @@ impl AccountStanding {
 
     pub fn payment_line(&self) -> Option<String> {
         match (self.source, &self.card_last_4) {
-            (Some("Stripe"), Some(last4)) => Some(format!("Stripe · {last4}")),
+            (Some("Stripe"), Some(last4)) if !last4.is_empty() => Some(format!("Stripe · {last4}")),
             (Some(src), _) => Some((*src).to_owned()),
             _ => None,
         }

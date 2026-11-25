@@ -128,6 +128,7 @@ class MainScreenActivity : AppCompatActivity() {
     private val fileSelectionModel: FileSelectionViewModel by viewModels()
 
     private val fileTreeViewModel: FileTreeViewModel by viewModels()
+    private val recentsFilter: RecentsFilterViewModel by viewModels()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -138,6 +139,8 @@ class MainScreenActivity : AppCompatActivity() {
             } else {
                 null
             }
+
+        recentsFilter.observeContacts(fileTreeViewModel.sharingContacts)
 
         enableEdgeToEdge(
             navigationBarStyle =
@@ -422,7 +425,7 @@ class MainScreenActivity : AppCompatActivity() {
         }
 
         try {
-            Lb.getAccount()
+            AccountStore.load()
         } catch (_: LbError) {
             if (coldStart) finish()
             return null

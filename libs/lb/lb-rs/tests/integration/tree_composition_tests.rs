@@ -35,6 +35,7 @@ async fn test_stage_promote() {
             root.id(),
             "test",
             FileType::Folder,
+            None,
             &keychain,
         )
         .unwrap();
@@ -66,6 +67,7 @@ async fn test_stage_unstage() {
             root.id(),
             "test",
             FileType::Folder,
+            None,
             &keychain,
         )
         .unwrap();

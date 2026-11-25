@@ -13,6 +13,6 @@ pub use list_chrome::{LIST_PAD, SECTION_GAP, SECTION_HEAD_GAP, paint_list_sectio
 pub use scroll::{fixed_height_list, with_overlay_scroll};
 pub use sheet::{
     SheetFooterOpts, sheet_band, sheet_band_centered, sheet_dim, sheet_equal_row, sheet_footer,
-    sheet_panel_fit, sheet_panel_fixed, sheet_title_muted,
+    sheet_panel_fit, sheet_panel_fixed, sheet_title, sheet_title_muted,
 };
 pub use tip::{TIP_MARGIN, tip_card_placed, tip_text};

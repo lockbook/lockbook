@@ -7,7 +7,8 @@ use crate::io::network::Network;
 use crate::model::account::{Account, Username};
 use crate::model::api::{
     AccountFilter, AccountIdentifier, AccountInfo, AdminFileInfoResponse, AdminSetUserTierInfo,
-    AdminValidateAccount, AdminValidateServer, ServerIndex, StripeAccountTier, SubscriptionInfo,
+    AdminStripeAccountCheck, AdminValidateAccount, AdminValidateServer, ServerIndex,
+    SubAccountInfo, SubscriptionInfo,
 };
 use crate::model::core_config::Config;
 use crate::model::crypto::DecryptedDocument;
@@ -379,8 +380,12 @@ impl Lb {
         self.block_on(self.lb.test_repo_integrity(true))
     }
 
-    pub fn upgrade_account_stripe(&self, account_tier: StripeAccountTier) -> LbResult<()> {
-        self.block_on(self.lb.upgrade_account_stripe(account_tier))
+    pub fn stripe_checkout_url(&self) -> LbResult<String> {
+        self.block_on(self.lb.stripe_checkout_url())
+    }
+
+    pub fn stripe_billing_portal_url(&self) -> LbResult<String> {
+        self.block_on(self.lb.stripe_billing_portal_url())
     }
 
     pub fn upgrade_account_google_play(
@@ -411,6 +416,26 @@ impl Lb {
 
     pub fn delete_account(&self) -> LbResult<()> {
         self.block_on(self.lb.delete_account())
+    }
+
+    pub fn create_sub_account(&self, label: &str) -> LbResult<Username> {
+        self.block_on(self.lb.create_sub_account(label))
+    }
+
+    pub fn list_sub_accounts(&self) -> LbResult<Vec<SubAccountInfo>> {
+        self.block_on(self.lb.list_sub_accounts())
+    }
+
+    pub fn delete_sub_account(&self, username: &str) -> LbResult<()> {
+        self.block_on(self.lb.delete_sub_account(username))
+    }
+
+    pub fn export_sub_account_private_key(&self, username: &str) -> LbResult<String> {
+        self.block_on(self.lb.export_sub_account_private_key(username))
+    }
+
+    pub fn export_sub_account_phrase(&self, username: &str) -> LbResult<String> {
+        self.block_on(self.lb.export_sub_account_phrase(username))
     }
 
     pub fn admin_disappear_account(&self, username: &str) -> LbResult<()> {
@@ -447,6 +472,12 @@ impl Lb {
 
     pub fn admin_set_user_tier(&self, username: &str, info: AdminSetUserTierInfo) -> LbResult<()> {
         self.block_on(self.lb.set_user_tier(username, info))
+    }
+
+    pub fn admin_sync_stripe(
+        &self, username: Option<String>, apply: bool,
+    ) -> LbResult<Vec<AdminStripeAccountCheck>> {
+        self.block_on(self.lb.sync_stripe(username, apply))
     }
 
     pub fn subscribe(&self) -> Receiver<Event> {

@@ -2,7 +2,7 @@ use lb_rs::io::network::ApiError;
 use lb_rs::io::server::Server;
 use lb_rs::model::api::{
     FREE_TIER_USAGE_SIZE, GetSubscriptionInfoError, GetSubscriptionInfoRequest,
-    PREMIUM_TIER_USAGE_SIZE, PaymentMethod, StripeAccountState, StripeAccountTier,
+    PREMIUM_TIER_USAGE_SIZE, StripeAccountState,
 };
 use lb_rs::model::errors::LbErrKind;
 use lb_rs::model::file::ShareMode;
@@ -239,9 +239,10 @@ async fn billing_is_not_permitted() {
     let result = sub_account.get_subscription_info().await;
     assert_eq!(result.unwrap_err().kind, LbErrKind::InsufficientPermission);
 
-    let result = sub_account
-        .upgrade_account_stripe(StripeAccountTier::Premium(PaymentMethod::OldCard))
-        .await;
+    let result = sub_account.stripe_checkout_url().await;
+    assert_eq!(result.unwrap_err().kind, LbErrKind::InsufficientPermission);
+
+    let result = sub_account.stripe_billing_portal_url().await;
     assert_eq!(result.unwrap_err().kind, LbErrKind::InsufficientPermission);
 
     let result = sub_account.cancel_subscription().await;

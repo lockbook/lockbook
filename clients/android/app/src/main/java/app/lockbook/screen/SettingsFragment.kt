@@ -18,7 +18,9 @@ import androidx.fragment.app.viewModels
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.preference.*
+import app.lockbook.App
 import app.lockbook.R
+import app.lockbook.billing.BillingEvent
 import app.lockbook.model.*
 import app.lockbook.ui.NumberPickerPreference
 import app.lockbook.ui.NumberPickerPreferenceDialogFragment
@@ -112,19 +114,46 @@ class SettingsFragment : PreferenceFragmentCompat() {
         ) { error ->
             alertModel.notifyError(error)
         }
+
+        (requireActivity().application as App).billingClientLifecycle.billingEvent.observe(
+            viewLifecycleOwner,
+        ) { event ->
+            when (event) {
+                BillingEvent.SuccessfulPurchase -> model.updateUsage()
+                is BillingEvent.NotifyError -> alertModel.notifyError(event.error)
+                is BillingEvent.NotifyErrorMsg -> alertModel.notifyWithToast(event.error)
+                BillingEvent.NotifyUnrecoverableError -> alertModel.notify(getString(R.string.unrecoverable_billing_error))
+                is BillingEvent.GooglePlayPurchase -> Unit
+            }
+        }
+    }
+
+    private var hasResumedOnce = false
+
+    override fun onResume() {
+        super.onResume()
+        if (hasResumedOnce) {
+            model.updateUsage()
+        } else {
+            hasResumedOnce = true
+        }
     }
 
     private fun addDataToPreferences(settingsInfo: SettingsInfo) {
         val maybePaymentPlatform = settingsInfo.subscriptionInfo?.paymentPlatform
+        val billingManager = (requireActivity().application as App).billingClientLifecycle
 
         val isPremium = settingsInfo.usage.dataCap?.exact == UsageBarPreference.PAID_TIER_USAGE_BYTES
+        val showStripePortal = isPremium && maybePaymentPlatform is Stripe && billingManager.supportsExternalBillingPortal
         val isOkState =
             (maybePaymentPlatform as? GooglePlay)?.accountState == GooglePlay.GooglePlayAccountState.Ok ||
                 (maybePaymentPlatform as? Stripe) != null ||
                 (maybePaymentPlatform as? AppStore)?.accountState == AppStore.AppStoreAccountState.Ok
 
         findPreference<PreferenceCategory>(getString(R.string.premium_key))!!.isVisible = isPremium
-        findPreference<Preference>(getString(R.string.cancel_subscription_key))!!.isVisible = isPremium && isOkState
+        findPreference<Preference>(getString(R.string.manage_billing_key))!!.isVisible = showStripePortal
+        findPreference<Preference>(getString(R.string.cancel_subscription_key))!!.isVisible =
+            isPremium && isOkState && !showStripePortal
     }
 
     private fun setUpPreferences() {
@@ -201,6 +230,12 @@ class SettingsFragment : PreferenceFragmentCompat() {
             getString(R.string.background_sync_enabled_key) -> {
                 findPreference<Preference>(getString(R.string.background_sync_period_key))?.isEnabled =
                     (preference as SwitchPreference).isChecked
+            }
+
+            getString(R.string.manage_billing_key) -> {
+                (requireActivity().application as App)
+                    .billingClientLifecycle
+                    .launchBillingPortal(requireActivity())
             }
 
             getString(R.string.cancel_subscription_key) -> {

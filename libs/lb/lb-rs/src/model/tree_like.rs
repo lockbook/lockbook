@@ -28,9 +28,8 @@ pub trait TreeLike: Sized {
             .ok_or_else(|| LbErrKind::FileParentNonexistent.into())
     }
 
-    /// The document whose attachments `file` holds, if it is here.
     fn maybe_find_attached<F2: FileLike>(&self, file: &F2) -> Option<&Self::F> {
-        self.maybe_find(&file.attachments_of()?.id)
+        self.maybe_find(&file.attachment_of()?.id)
     }
 
     fn all_files(&self) -> LbResult<Vec<&Self::F>> {

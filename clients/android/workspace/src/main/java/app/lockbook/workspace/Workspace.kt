@@ -117,6 +117,9 @@ object Workspace {
         print("do nothing")
     }
 
+    private external fun supportedImageExtensionsNative(): Array<String>
+    val supportedImageExtensions: Set<String> by lazy { supportedImageExtensionsNative().toSet() }
+
     external fun initWSOffloaded(surface: Surface, core: Long, theme: Any, repaint: RepaintCallback): Long
 
     external fun dropWS(rustObj: Long)

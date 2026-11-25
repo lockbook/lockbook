@@ -79,6 +79,7 @@ impl From<crate::Response> for AndroidResponse {
                     file_cache_updated: _,
                     open_search: _,
                     spreadsheet_export_file,
+                    open_import: _,
                 },
             redraw_in,
             copied_text,

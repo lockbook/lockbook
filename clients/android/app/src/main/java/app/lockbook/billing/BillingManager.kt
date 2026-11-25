@@ -9,7 +9,14 @@ interface BillingManager : DefaultLifecycleObserver {
     val billingEvent: LiveData<BillingEvent>
     val premiumPrice: LiveData<String>
 
+    val supportsExternalBillingPortal: Boolean
+        get() = false
+
     fun launchBillingFlow(activity: Activity)
+
+    fun launchBillingPortal(activity: Activity) {}
+
+    fun checkCheckoutReturn(activity: Activity) {}
 
     fun showInAppMessaging(activity: Activity) {}
 }

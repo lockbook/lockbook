@@ -421,48 +421,51 @@ impl Request for DeleteAccountRequest {
     const ROUTE: &'static str = "/delete-account";
 }
 
+/// Asks for a Stripe Checkout page where this account pays for Premium.
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
-pub enum PaymentMethod {
-    NewCard { number: String, exp_year: i32, exp_month: i32, cvc: String },
-    OldCard,
+pub struct StripeCheckoutRequest {}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
+pub struct StripeCheckoutResponse {
+    pub url: String,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
-pub enum StripeAccountTier {
-    Premium(PaymentMethod),
-}
-
-#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
-pub struct UpgradeAccountStripeRequest {
-    pub account_tier: StripeAccountTier,
-}
-
-#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
-pub struct UpgradeAccountStripeResponse {}
-
-#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
-pub enum UpgradeAccountStripeError {
-    OldCardDoesNotExist,
+pub enum StripeCheckoutError {
     AlreadyPremium,
-    CardDecline,
-    InsufficientFunds,
-    TryAgain,
-    CardNotSupported,
-    ExpiredCard,
-    InvalidCardNumber,
-    InvalidCardExpYear,
-    InvalidCardExpMonth,
-    InvalidCardCvc,
     ExistingRequestPending,
     UserNotFound,
     NotPermissioned,
 }
 
-impl Request for UpgradeAccountStripeRequest {
-    type Response = UpgradeAccountStripeResponse;
-    type Error = UpgradeAccountStripeError;
+impl Request for StripeCheckoutRequest {
+    type Response = StripeCheckoutResponse;
+    type Error = StripeCheckoutError;
     const METHOD: Method = Method::POST;
-    const ROUTE: &'static str = "/upgrade-account-stripe";
+    const ROUTE: &'static str = "/stripe-checkout";
+}
+
+/// Asks for a Stripe billing page where this account manages its subscription.
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
+pub struct StripeBillingPortalRequest {}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
+pub struct StripeBillingPortalResponse {
+    pub url: String,
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
+pub enum StripeBillingPortalError {
+    NotStripeCustomer,
+    UserNotFound,
+    NotPermissioned,
+}
+
+impl Request for StripeBillingPortalRequest {
+    type Response = StripeBillingPortalResponse;
+    type Error = StripeBillingPortalError;
+    const METHOD: Method = Method::POST;
+    const ROUTE: &'static str = "/stripe-billing-portal";
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
@@ -739,6 +742,8 @@ pub struct AdminValidateServer {
     pub files_mapped_as_parent_to_self: HashSet<Uuid>,
     pub files_unmapped_as_parent_to_children: HashMap<Uuid, HashSet<Uuid>>,
     pub files_unmapped_as_parent: HashSet<Uuid>,
+    pub files_mapped_to_non_attachments: HashMap<Uuid, HashSet<Uuid>>,
+    pub files_unmapped_to_attachments: HashMap<Uuid, HashSet<Uuid>>,
     pub sizes_mapped_for_files_without_hmac: HashSet<Uuid>,
     pub sizes_mapped_for_nonexistent_files: HashSet<Uuid>,
     pub sizes_unmapped_for_files_with_hmac: HashSet<Uuid>,
@@ -904,6 +909,61 @@ impl Request for AdminSetUserTierRequest {
     const ROUTE: &'static str = "/admin-set-user-tier";
 }
 
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
+pub struct AdminStripeSnapshot {
+    pub subscription_id: String,
+    pub last_4: String,
+    pub expiration_time: UnixTimeMillis,
+    pub account_state: StripeAccountState,
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
+pub enum AdminStripeAccountStatus {
+    /// Cached DB matches Stripe's live subscription state.
+    InSync,
+    /// Cached DB differs from Stripe; when `apply` is true, DB was updated to `stripe`.
+    Drifted { cached: Option<AdminStripeSnapshot>, stripe: Option<AdminStripeSnapshot> },
+    /// Account is currently Premium on App Store or Google Play; never overwritten.
+    OtherPlatformPremium { stripe: Option<AdminStripeSnapshot> },
+    /// Stripe lookup or billing lock failed for this customer.
+    Error(String),
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
+pub struct AdminStripeAccountCheck {
+    pub username: String,
+    pub customer_id: String,
+    pub status: AdminStripeAccountStatus,
+}
+
+/// Checks cached Stripe billing against live Stripe, and when `apply` is true, updates the DB.
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
+pub struct AdminSyncStripeRequest {
+    /// One account to check/sync, or `None` for every account with a Stripe customer ID.
+    pub username: Option<String>,
+    /// `false` = read-only diff; `true` = write drifted accounts from Stripe.
+    pub apply: bool,
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
+pub struct AdminSyncStripeResponse {
+    pub results: Vec<AdminStripeAccountCheck>,
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
+pub enum AdminSyncStripeError {
+    NotPermissioned,
+    UserNotFound,
+    NotStripeCustomer,
+}
+
+impl Request for AdminSyncStripeRequest {
+    type Response = AdminSyncStripeResponse;
+    type Error = AdminSyncStripeError;
+    const METHOD: Method = Method::POST;
+    const ROUTE: &'static str = "/admin-sync-stripe";
+}
+
 // number of milliseconds that have elapsed since the unix epoch
 pub type UnixTimeMillis = u64;
 
@@ -912,6 +972,7 @@ pub enum ServerIndex {
     OwnedFiles,
     SharedFiles,
     FileChildren,
+    FileAttachments,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]

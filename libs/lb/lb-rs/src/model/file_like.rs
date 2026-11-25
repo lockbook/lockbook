@@ -2,13 +2,13 @@ use std::fmt::Debug;
 
 use uuid::Uuid;
 
-use crate::model::access_info::{EncryptedFolderAccessKey, UserAccessInfo, UserAccessMode};
+use crate::model::access_info::{EncryptedKey, UserAccessInfo, UserAccessMode};
 use crate::model::file_metadata::{DocumentHmac, FileMetadata, FileType, Owner};
 use crate::model::secret_filename::SecretFileName;
 use crate::model::server_file::ServerFile;
 use crate::model::signed_file::SignedFile;
 
-use super::meta::{AttachmentsOf, Meta};
+use super::meta::{AttachmentAccessInfo, Meta};
 use super::server_meta::ServerMeta;
 use super::signed_meta::SignedMeta;
 
@@ -21,10 +21,9 @@ pub trait FileLike: PartialEq + Debug + Clone {
     fn explicitly_deleted(&self) -> bool;
     fn document_hmac(&self) -> Option<&DocumentHmac>;
     fn user_access_keys(&self) -> &Vec<UserAccessInfo>;
-    fn folder_access_key(&self) -> &EncryptedFolderAccessKey;
+    fn folder_access_key(&self) -> &EncryptedKey;
     fn doc_size(&self) -> Option<usize>;
-    /// On an attachments folder, the document it belongs to.
-    fn attachments_of(&self) -> Option<&AttachmentsOf>;
+    fn attachment_of(&self) -> Option<&AttachmentAccessInfo>;
 
     fn display(&self) -> String {
         match self.file_type() {
@@ -118,7 +117,7 @@ impl FileLike for Meta {
         }
     }
 
-    fn folder_access_key(&self) -> &EncryptedFolderAccessKey {
+    fn folder_access_key(&self) -> &EncryptedKey {
         match self {
             Meta::V1 { folder_access_key, .. } | Meta::V2 { folder_access_key, .. } => {
                 folder_access_key
@@ -132,10 +131,10 @@ impl FileLike for Meta {
         }
     }
 
-    fn attachments_of(&self) -> Option<&AttachmentsOf> {
+    fn attachment_of(&self) -> Option<&AttachmentAccessInfo> {
         match self {
             Meta::V1 { .. } => None,
-            Meta::V2 { attachments_of, .. } => Some(attachments_of),
+            Meta::V2 { attachment_of, .. } => attachment_of.as_ref(),
         }
     }
 }
@@ -184,7 +183,7 @@ where
         &fm.user_access_keys
     }
 
-    fn folder_access_key(&self) -> &EncryptedFolderAccessKey {
+    fn folder_access_key(&self) -> &EncryptedKey {
         let fm: &FileMetadata = self.as_ref();
         &fm.folder_access_key
     }
@@ -194,7 +193,7 @@ where
         None
     }
 
-    fn attachments_of(&self) -> Option<&AttachmentsOf> {
+    fn attachment_of(&self) -> Option<&AttachmentAccessInfo> {
         None
     }
 }
@@ -250,7 +249,7 @@ impl FileLike for SignedMeta {
         self.timestamped_value.value.user_access_keys()
     }
 
-    fn folder_access_key(&self) -> &EncryptedFolderAccessKey {
+    fn folder_access_key(&self) -> &EncryptedKey {
         self.timestamped_value.value.folder_access_key()
     }
 
@@ -258,8 +257,8 @@ impl FileLike for SignedMeta {
         *self.timestamped_value.value.doc_size()
     }
 
-    fn attachments_of(&self) -> Option<&AttachmentsOf> {
-        self.timestamped_value.value.attachments_of()
+    fn attachment_of(&self) -> Option<&AttachmentAccessInfo> {
+        self.timestamped_value.value.attachment_of()
     }
 }
 
@@ -296,7 +295,7 @@ impl FileLike for ServerMeta {
         self.file.timestamped_value.value.user_access_keys()
     }
 
-    fn folder_access_key(&self) -> &EncryptedFolderAccessKey {
+    fn folder_access_key(&self) -> &EncryptedKey {
         self.file.timestamped_value.value.folder_access_key()
     }
 
@@ -304,7 +303,7 @@ impl FileLike for ServerMeta {
         *self.file.timestamped_value.value.doc_size()
     }
 
-    fn attachments_of(&self) -> Option<&AttachmentsOf> {
-        self.file.timestamped_value.value.attachments_of()
+    fn attachment_of(&self) -> Option<&AttachmentAccessInfo> {
+        self.file.timestamped_value.value.attachment_of()
     }
 }

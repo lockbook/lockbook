@@ -67,6 +67,7 @@ struct ShareFileSheet: View {
             }
         }
         .task {
+            SubAccountsModel.shared.load()
             await loadKnownUsernames()
         }
         .task(id: trimmedQuery) {
@@ -175,12 +176,12 @@ struct ShareFileSheet: View {
 
             if !suggestions.isEmpty {
                 ChipFlow(spacing: 6) {
-                    ForEach(suggestions, id: \.self) { name in
+                    ForEach(suggestions) { suggestion in
                         Button {
-                            stage(name)
+                            stage(suggestion.username)
                             query = ""
                         } label: {
-                            Label(name, systemImage: "person.crop.circle")
+                            Label(suggestion.username, systemImage: suggestion.icon)
                                 .font(.callout)
                         }
                         .buttonStyle(.bordered)
@@ -364,24 +365,20 @@ struct ShareFileSheet: View {
         return ShareSummary.sentence(subject: file.name, people: names, edit: mode == .write)
     }
 
-    private var suggestions: [String] {
-        let prefix = trimmedQuery.lowercased()
-        let me = AppState.shared.account?.username.lowercased()
-        guard !prefix.isEmpty else {
-            return []
-        }
-
-        let matches = knownUsernames.filter { name in
-            let lower = name.lowercased()
-            return lower.hasPrefix(prefix) && lower != prefix && lower != me
-                && !staged.contains { $0.id == lower }
-        }
-
-        return Array(matches.sorted { ($0.count, $0.lowercased()) < ($1.count, $1.lowercased()) }.prefix(3))
+    private var suggestions: [ShareSuggestion] {
+        ShareSuggestion.list(
+            query: trimmedQuery,
+            known: knownUsernames,
+            subAccounts: SubAccountsModel.shared.subAccounts.map(\.username),
+            me: AppState.shared.account?.username ?? "",
+            staged: staged.map(\.id),
+            shared: file?.shares.map { $0.with.lowercased() } ?? []
+        )
     }
 
     private func isKnown(_ name: String) -> Bool {
         knownUsernames.contains { $0.caseInsensitiveCompare(name) == .orderedSame }
+            || SubAccountsModel.shared.subAccounts.contains { $0.username.caseInsensitiveCompare(name) == .orderedSame }
     }
 
     private func remember(_ name: String) {
@@ -620,6 +617,51 @@ struct ShareFileSheet: View {
                 linkCopied = false
             }
         }
+    }
+}
+
+struct ShareSuggestion: Identifiable, Equatable {
+    let username: String
+    let isSubAccount: Bool
+
+    var id: String {
+        username.lowercased()
+    }
+
+    var icon: String {
+        isSubAccount ? "person.badge.key" : "person.crop.circle"
+    }
+
+    static func list(
+        query: String, known: [String], subAccounts: [String], me: String, staged: [String], shared: [String]
+    ) -> [ShareSuggestion] {
+        let prefix = query.lowercased()
+        let me = me.lowercased()
+        let byLength = { (a: String, b: String) in (a.count, a.lowercased()) < (b.count, b.lowercased()) }
+
+        let own = subAccounts.filter { name in
+            let lower = name.lowercased()
+            guard lower != prefix, !staged.contains(lower) else {
+                return false
+            }
+
+            if prefix.isEmpty {
+                return !shared.contains(lower)
+            }
+
+            let label = lower.hasPrefix(me + "+") ? String(lower.dropFirst(me.count + 1)) : lower
+            return lower.hasPrefix(prefix) || label.hasPrefix(prefix) || ("+" + label).hasPrefix(prefix)
+        }
+
+        let ownIds = Set(subAccounts.map { $0.lowercased() })
+        let people = prefix.isEmpty ? [] : known.filter { name in
+            let lower = name.lowercased()
+            return lower.hasPrefix(prefix) && lower != prefix && lower != me
+                && !staged.contains(lower) && !ownIds.contains(lower)
+        }
+
+        return own.sorted(by: byLength).prefix(5).map { ShareSuggestion(username: $0, isSubAccount: true) }
+            + people.sorted(by: byLength).prefix(3).map { ShareSuggestion(username: $0, isSubAccount: false) }
     }
 }
 

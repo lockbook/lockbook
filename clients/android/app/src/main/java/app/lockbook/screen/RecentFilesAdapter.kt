@@ -14,8 +14,8 @@ import app.lockbook.R
 import app.lockbook.model.RecentPeriod
 import app.lockbook.model.groupRecentDocuments
 import app.lockbook.model.recentFileParentPath
+import app.lockbook.ui.UsernameChip
 import app.lockbook.util.getIconResource
-import com.google.android.material.chip.Chip
 import com.google.android.material.listitem.ListItemLayout
 import net.lockbook.File
 import net.lockbook.Lb
@@ -37,12 +37,18 @@ internal sealed interface RecentListItem {
 internal class RecentFilesAdapter(
     private val onFileClick: (File) -> Unit,
     private val onFileLongClick: (File) -> Unit,
-    private val currentUsername: String?,
+    private var currentUsername: String?,
 ) : ListAdapter<RecentListItem, RecyclerView.ViewHolder>(RecentListItemDiffCallback()) {
     private var files: Collection<File> = emptyList()
     private var filesById: Map<String, File> = emptyMap()
     private val collapsedPeriods = mutableSetOf<RecentPeriod>()
     private var selectedFileIds: Set<String> = emptySet()
+
+    fun setCurrentUsername(username: String?) {
+        if (currentUsername == username) return
+        currentUsername = username
+        notifyItemRangeChanged(0, itemCount)
+    }
 
     fun setSelectedFileIds(newSelection: Set<String>) {
         if (selectedFileIds == newSelection) return
@@ -179,7 +185,7 @@ private class RecentDocumentViewHolder(
     private val title: TextView = itemView.findViewById(R.id.recent_file_title)
     private val modified: TextView = itemView.findViewById(R.id.recent_file_modified)
     private val path: TextView = itemView.findViewById(R.id.recent_file_path)
-    private val editor: Chip = itemView.findViewById(R.id.recent_file_editor)
+    private val editor: UsernameChip = itemView.findViewById(R.id.recent_file_editor)
 
     fun bind(
         item: RecentListItem.Document,
@@ -197,7 +203,10 @@ private class RecentDocumentViewHolder(
                 item.file.lastModifiedBy.isNotBlank() &&
                 item.file.lastModifiedBy != currentUsername
         editor.isVisible = showEditor
-        editor.text = item.file.lastModifiedBy
+        if (showEditor) {
+            editor.bindUsername(item.file.lastModifiedBy)
+            editor.isSelected = true
+        }
         control.isSelected = selected
         control.isChecked = selected
         control.setCardBackgroundColor(ContextCompat.getColorStateList(itemView.context, R.color.file_tree_list_item_background))

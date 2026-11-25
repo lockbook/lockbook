@@ -117,12 +117,22 @@ impl<C: PadContent> PadContent for SheetPadWrap<'_, C> {
     }
 }
 
+/// Sheet title: **heading** size, primary ink + trailing dismiss **X**.
+///
+/// Returns `true` when the X is clicked.
+pub fn sheet_title(ui: &mut Ui, t: &Theme, title: &str) -> bool {
+    sheet_title_with_ink(ui, t, title, t.neutral_fg())
+}
+
 /// Sheet title: **heading** size, secondary ink + trailing dismiss **X**.
 ///
 /// Returns `true` when the X is clicked.
 pub fn sheet_title_muted(ui: &mut Ui, t: &Theme, title: &str) -> bool {
+    sheet_title_with_ink(ui, t, title, t.neutral_fg_secondary())
+}
+
+fn sheet_title_with_ink(ui: &mut Ui, t: &Theme, title: &str, title_ink: egui::Color32) -> bool {
     let title_font = TypeRole::Heading.font_id();
-    let title_ink = t.neutral_fg_secondary();
     let title_g = ui
         .painter()
         .layout_no_wrap(title.to_owned(), title_font, title_ink);

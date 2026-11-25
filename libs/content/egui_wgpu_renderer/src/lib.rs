@@ -174,9 +174,24 @@ impl<'w> RendererState<'w> {
         self.context.begin_pass(self.raw_input.take());
     }
 
+    /// Run a complete egui frame through [`egui::Context::run_pass`] so built-in
+    /// plugins (`LabelSelectionState`, `DragAndDrop`, `CallbackPlugin`) run
+    /// `on_begin_pass` / `on_end_pass` and multi-pass discards work.
+    pub fn run_frame(&mut self, run_ui: impl FnMut(&egui::Context)) -> PreparedFrame {
+        self.frame_start = Some(Instant::now());
+        self.set_egui_screen();
+        self.raw_input.time = Some(self.start_time.elapsed().as_secs_f64());
+        let input = self.raw_input.take();
+        let full_output = self.context.run_pass(input, run_ui);
+        self.finish_frame(full_output)
+    }
+
     pub fn prepare_frame(&mut self) -> PreparedFrame {
         let full_output = self.context.end_pass();
+        self.finish_frame(full_output)
+    }
 
+    fn finish_frame(&mut self, full_output: egui::FullOutput) -> PreparedFrame {
         self.shame_slow_frame();
 
         // Update the screen ppp based on an up-to-date screen ppp from egui.

@@ -1,6 +1,6 @@
 [package]
 name = "lockbook-server"
-version = "26.11.13"
+version = "26.11.24"
 edition = "2021"
 description = "Lockbook's server, exposed as a library for testing."
 license = "BSD-3-Clause"
@@ -35,14 +35,8 @@ libsecp256k1 = "0.7.1"
 prometheus = "0.13.0"
 prometheus-static-metric = "0.5.1"
 lazy_static = "1.4.0"
-async-stripe = { version = "0.37.0", default-features = false, features = [
-    "runtime-tokio-hyper-rustls",
-    "billing",
-    # unused, but webhook-events' EventObject names their types
-    "checkout",
-    "connect",
-    "webhook-events",
-] }
+hex = "0.4.3"
+hmac = "0.12.1"
 sha2 = "0.10.2"
 google-androidpublisher3 = "5.0.5"
 constant_time_eq = "0.2.2"

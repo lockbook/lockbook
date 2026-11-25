@@ -22,9 +22,11 @@ import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.StaggeredGridLayoutManager
 import app.lockbook.R
 import app.lockbook.databinding.WorkspaceEmptyBinding
+import app.lockbook.model.FileTreeViewModel
 import app.lockbook.model.MainNavigationAction
 import app.lockbook.model.MainScreenViewModel
 import app.lockbook.model.QuickCaptureViewModel
+import app.lockbook.model.RecentsFilterViewModel
 import app.lockbook.model.WorkspaceDocumentsViewModel
 import app.lockbook.model.WorkspaceTab
 import app.lockbook.model.WorkspaceTabType
@@ -49,6 +51,8 @@ internal class WorkspaceWelcomeScreen(
     private val workspaceDocuments: WorkspaceDocumentsViewModel by fragment.viewModels()
     private val model: WorkspaceViewModel by fragment.activityViewModels()
     private val mainScreenModel: MainScreenViewModel by fragment.activityViewModels()
+
+    private val editorFilter: RecentsFilterViewModel by fragment.activityViewModels()
 
     private var viewBinding: WorkspaceEmptyBinding? = null
     private val binding get() = viewBinding!!
@@ -161,6 +165,9 @@ internal class WorkspaceWelcomeScreen(
         empty.documentGrid.addOnLayoutChangeListener { view, _, _, _, _, _, _, _, _ ->
             val columns = (view.width / (180 * fragment.resources.displayMetrics.density)).toInt().coerceIn(2, 4)
             if (grid.spanCount != columns) grid.spanCount = columns
+        }
+        editorFilter.state.observe(fragment.viewLifecycleOwner) { state ->
+            workspaceDocuments.setEditorFilter(state.editorFilter)
         }
         workspaceDocuments.documents.observe(fragment.viewLifecycleOwner) { items ->
             empty.documentSection.isVisible = items.isNotEmpty()

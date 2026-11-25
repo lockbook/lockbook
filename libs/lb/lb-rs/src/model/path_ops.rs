@@ -25,39 +25,25 @@ where
             } else {
                 current
             };
-            let children = self.children(&id)?;
-            if let Some(child) = self.child_named(children, name, keychain)? {
-                current = child;
-                continue 'path;
-            }
-            // looked up only when nothing else matches, since finding these reads the whole tree
-            let beside = self.attachments_beside(&id)?;
-            if let Some(child) = self.child_named(beside, name, keychain)? {
-                current = child;
-                continue 'path;
+            'child: for child in self.children(&id)? {
+                if self.calculate_deleted(&child)? {
+                    continue 'child;
+                }
+
+                if self.name_using_links(&child, keychain)? == name {
+                    current = match self.find(&child)?.file_type() {
+                        FileType::Link { target } => target,
+                        _ => child,
+                    };
+
+                    continue 'path;
+                }
             }
 
             return Err(LbErrKind::FileNonexistent.into());
         }
 
         Ok(current)
-    }
-
-    fn child_named(
-        &mut self, children: Vec<Uuid>, name: &str, keychain: &Keychain,
-    ) -> LbResult<Option<Uuid>> {
-        for child in children {
-            if self.calculate_deleted(&child)? {
-                continue;
-            }
-            if self.name_using_links(&child, keychain)? == name {
-                return Ok(Some(match self.find(&child)?.file_type() {
-                    FileType::Link { target } => target,
-                    _ => child,
-                }));
-            }
-        }
-        Ok(None)
     }
 
     pub fn id_to_path(&mut self, id: &Uuid, keychain: &Keychain) -> LbResult<String> {
@@ -84,13 +70,13 @@ where
             } else {
                 self.find(&current)?
             };
+            if self.maybe_find(current_meta.parent()).is_none() {
+                return Err(LbErrKind::FileParentNonexistent.into());
+            }
             if current_meta.is_root() {
                 return Ok(path);
             }
-            let next = self.parent_using_links(&current)?;
-            if self.maybe_find(&next).is_none() {
-                return Err(LbErrKind::FileParentNonexistent.into());
-            }
+            let next = *current_meta.parent();
             let current_name = self.name_using_links(&current, keychain)?;
             path = format!("/{current_name}{path}");
             current = next;

@@ -1,9 +1,14 @@
+use lb_rs::io::server::Server;
 use lb_rs::model::ValidationFailure;
+use lb_rs::model::account::Account;
+use lb_rs::model::api::UpsertRequestV2;
 use lb_rs::model::core_config::Config;
 use lb_rs::model::errors::LbErrKind;
 use lb_rs::model::file::ShareMode;
 use lb_rs::model::file_like::FileLike;
-use lb_rs::model::file_metadata::FileType;
+use lb_rs::model::file_metadata::{FileDiff, FileType};
+use lb_rs::model::meta::Meta;
+use lb_rs::model::signed_meta::SignedMeta;
 use lb_rs::model::tree_like::TreeLike;
 use test_utils::*;
 
@@ -104,8 +109,10 @@ async fn only_the_folder_is_written_as_v2() {
     let db = tx.db();
     for id in db.base_metadata.ids() {
         let file = db.base_metadata.find(&id).unwrap();
-        let of = file.attachments_of().map(|of| of.id);
+        let of = file.attachment_of().map(|of| of.id);
         assert_eq!(of, (id == folder.id).then_some(doc.id), "{id}");
+        let v2 = matches!(file.timestamped_value.value, Meta::V2 { .. });
+        assert_eq!(v2, id == folder.id, "{id}");
     }
     drop(tx);
     assert_eq!(
@@ -117,6 +124,91 @@ async fn only_the_folder_is_written_as_v2() {
             .id,
         folder.id
     );
+}
+
+fn rewritten_as_v2(file: &SignedMeta, account: &Account) -> SignedMeta {
+    let Meta::V1 {
+        id,
+        file_type,
+        parent,
+        name,
+        owner,
+        is_deleted,
+        doc_size,
+        doc_hmac,
+        user_access_keys,
+        folder_access_key,
+    } = file.timestamped_value.value.clone()
+    else {
+        panic!("already V2")
+    };
+    Meta::V2 {
+        id,
+        file_type,
+        parent,
+        name,
+        owner,
+        is_deleted,
+        doc_size,
+        doc_hmac,
+        user_access_keys,
+        folder_access_key,
+        attachment_of: None,
+    }
+    .sign_with(account)
+    .unwrap()
+}
+
+#[tokio::test]
+async fn any_file_can_be_rewritten_as_v2() {
+    let core = test_core_with_account().await;
+    let account = core.get_account().unwrap();
+    let doc = core.create_at_path("/notes/plan.md").await.unwrap();
+    core.write_document(doc.id, b"plan").await.unwrap();
+    core.sync().await.unwrap();
+
+    // the root, a folder and a document are rewritten under a device with a rename to push
+    let updates: Vec<_> = {
+        let tx = core.ro_tx().await;
+        let base = &tx.db().base_metadata;
+        base.ids()
+            .into_iter()
+            .map(|id| {
+                let old = base.find(&id).unwrap().clone();
+                let new = rewritten_as_v2(&old, account);
+                assert!(old.timestamped_value.value != new.timestamped_value.value);
+                FileDiff::edit(old, new)
+            })
+            .collect()
+    };
+    assert_eq!(updates.len(), 3);
+    core.rename_file(&doc.id, "idea.md").await.unwrap();
+    Server::upsert_file_metadata_v2(&core.client, account, UpsertRequestV2 { updates })
+        .await
+        .unwrap();
+    core.sync().await.unwrap();
+
+    let other = test_core_from(&core).await;
+    for device in [&core, &other] {
+        let tx = device.ro_tx().await;
+        let base = &tx.db().base_metadata;
+        for id in base.ids() {
+            let file = &base.find(&id).unwrap().timestamped_value.value;
+            assert!(matches!(file, Meta::V2 { attachment_of: None, .. }), "{id}");
+        }
+        drop(tx);
+        let doc = device.get_by_path("/notes/idea.md").await.unwrap();
+        assert_eq!(device.read_document(doc.id, false).await.unwrap(), b"plan");
+    }
+
+    // and they are edited as before
+    let root = other.root().await.unwrap();
+    other.move_file(&doc.id, &root.id).await.unwrap();
+    other.write_document(doc.id, b"idea").await.unwrap();
+    other.sync().await.unwrap();
+    core.sync().await.unwrap();
+    let doc = core.get_by_path("/idea.md").await.unwrap();
+    assert_eq!(core.read_document(doc.id, false).await.unwrap(), b"idea");
 }
 
 #[tokio::test]
@@ -151,7 +243,8 @@ async fn cannot_be_moved_or_renamed_itself() {
     let err = core.move_file(&folder.id, &dest.id).await.unwrap_err();
     assert_eq!(err.kind, LbErrKind::AttachmentsFolderFixed);
 
-    // what a host asks to leave rename and move off the folder, and only off it
+    // this is the question the Files app asks so it can grey out Rename and Move on the attachments
+    // folder and on nothing else
     assert_eq!(core.attachments_of(&folder.id).await.unwrap(), Some(doc.id));
     assert_eq!(core.attachments_of(&doc.id).await.unwrap(), None);
     assert_eq!(core.attachments_of(&dest.id).await.unwrap(), None);
@@ -241,52 +334,52 @@ async fn a_reader_lists_a_note_shared_alone_with_its_folder() {
 }
 
 #[tokio::test]
-async fn a_note_shared_alone_has_its_folder_beside_the_link() {
+async fn the_folder_of_a_note_shared_alone_has_no_path() {
     let owner = test_core_with_attachments().await;
     let reader = test_core_with_account().await;
     let reader =
         test_core_from_with(&reader, Config { list_attachments: true, ..test_config() }).await;
-    let notes = owner.create_at_path("/notes/").await.unwrap();
     let doc = owner.create_at_path("/notes/plan.md").await.unwrap();
     let folder = owner.create_attachments_folder(&doc.id).await.unwrap();
     let image = owner
         .create_at_path("/notes/plan-attachments/image.png")
         .await
         .unwrap();
+    owner.write_document(image.id, b"pixels").await.unwrap();
     let reader_name = reader.get_account().unwrap().username.clone();
     owner
         .share_file(doc.id, &reader_name, ShareMode::Read)
         .await
         .unwrap();
-    // the folder around them is shared too, but the reader leaves that share pending
-    owner
-        .share_file(notes.id, &reader_name, ShareMode::Read)
-        .await
-        .unwrap();
     owner.sync().await.unwrap();
     reader.sync().await.unwrap();
-
     let link = reader
         .create_link_at_path("/shared/renamed.md", doc.id)
         .await
         .unwrap();
 
-    let folder_path = reader.get_path_by_id(folder.id).await.unwrap();
-    assert_eq!(folder_path, "/shared/plan-attachments/");
-    assert_eq!(
-        reader.get_path_by_id(image.id).await.unwrap(),
-        "/shared/plan-attachments/image.png"
-    );
-    assert_eq!(reader.get_by_path(&folder_path).await.unwrap().id, folder.id);
+    // reached through the note
     assert_eq!(
         reader
-            .get_by_path("/shared/plan-attachments/image.png")
+            .get_attachments_folder(&doc.id)
             .await
             .unwrap()
+            .unwrap()
             .id,
-        image.id
+        folder.id
     );
-    assert_eq!(reader.get_file_by_id(folder.id).await.unwrap().parent, link.parent);
+    assert_eq!(reader.read_document(image.id, false).await.unwrap(), b"pixels");
+
+    // nowhere in the reader's tree
+    assert!(reader.get_path_by_id(folder.id).await.is_err());
+    assert!(reader.get_path_by_id(image.id).await.is_err());
+    assert!(
+        reader
+            .get_by_path("/shared/plan-attachments/")
+            .await
+            .is_err()
+    );
+    reader.list_paths(None).await.unwrap();
     let listed: Vec<_> = reader
         .list_metadatas()
         .await
@@ -294,8 +387,26 @@ async fn a_note_shared_alone_has_its_folder_beside_the_link() {
         .into_iter()
         .map(|f| f.id)
         .collect();
-    assert!(listed.contains(&folder.id) && listed.contains(&image.id));
-    assert!(!listed.contains(&notes.id));
+    assert!(!listed.contains(&folder.id) && !listed.contains(&image.id));
+    let children: Vec<_> = reader
+        .get_children(&link.parent)
+        .await
+        .unwrap()
+        .into_iter()
+        .map(|f| f.id)
+        .collect();
+    assert_eq!(children, [doc.id]);
+
+    // an export takes it with the note
+    let dest = std::env::temp_dir().join(uuid::Uuid::new_v4().to_string());
+    std::fs::create_dir_all(&dest).unwrap();
+    reader
+        .export_file(link.parent, dest.clone(), false, &Some(|_| {}))
+        .await
+        .unwrap();
+    assert!(dest.join("shared/renamed.md").exists());
+    assert_eq!(std::fs::read(dest.join("shared/plan-attachments/image.png")).unwrap(), b"pixels");
+    std::fs::remove_dir_all(dest).unwrap();
 }
 
 #[tokio::test]
@@ -433,7 +544,7 @@ async fn a_writer_of_a_note_shared_alone_adds_images() {
 }
 
 #[tokio::test]
-async fn the_second_device_folds_its_folder_into_the_servers() {
+async fn the_second_devices_folder_is_replaced_by_the_servers() {
     let a = test_core_with_attachments().await;
     let doc = a.create_at_path("/plan.md").await.unwrap();
     a.sync().await.unwrap();

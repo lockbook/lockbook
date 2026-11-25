@@ -39,7 +39,7 @@ See `clients/linux/default.nix` for the formal specification. Nix-users can just
 
 # Android
 Dependencies:
-- Android SDK. The version mentioned in [this build.gradle](/clients/android/app/build.gradle) ([gh](https://github.com/lockbook/lockbook/blob/master/clients/android/app/build.gradle)), at the `targetSdkVersion` field.
+- Android SDK. The version mentioned in [this build.gradle](https://github.com/lockbook/lockbook/blob/master/clients/android/app/build.gradle), at the `targetSdkVersion` field.
 - Android NDK. Set the environment variable `ANDROID_NDK_HOME` to the NDK's location.
 - Native development support for cargo:
 ```shell script
@@ -107,6 +107,6 @@ lb-rs & server have no system dependencies.
 
 lb-rs can be pointed to a server via the `API_URL` env var, by default clients are engineered to connect to our production server: `https://api.prod.lockbook.net`. See [self-hosting](self-hosting.md) for more information.
 
-Tests are configured to connect to `http://localhost:8000`. To run only the tests that need no server, set `LB_TEST_IN_PROCESS=1`. The rest return early, and CI runs them against a real server.
+Tests are configured to connect to `https://localhost:8000`.
 
 You can run the server locally by executing `lbdev server` for local dev.

@@ -10,76 +10,62 @@
 
 # Pricing
 
-Pricing will be on an `Annual` basis or a `Monthly` basis.
-
-Billing will be:
-
-+ `$2.99 / month per 30gb`
-+ `$30 / year per 30gb`
+Premium buys room, not features. Every account syncs; Free holds `25 MB` and Premium holds `30 GB`, for `$2.99 / month`.
 
 # Data Model
 
-Upon write operations we want to be able to check to see if a user has space available for this action or not.
-
-We'll keep a table that will store:
-
-+ `account`
-+ `tier-max`
-+ `valid_until`
-+ `type` -- one of `stripe`, `apple` or `google`
-+ `billing failed` -- boolean to prompt user to go through billing cycle again
+Each account's `SubscriptionProfile` holds the billing platform it pays through, if any: Stripe, Google Play, or the App Store, with that platform's ids, the end of the paid period, and its state. The data cap follows from that state, and writes over the cap are refused.
 
 # Stripe
 
-Used for: 
+Used for desktop (macOS, Windows, Linux), the CLI, and the F-Droid Android build.
 
-+ macOS
-+ Linux
-+ Cli
-+ Windows
+People pay on Stripe's own pages, so card numbers never reach our server.
 
 ## Flow
 
-User performs a sync, a new error type is returned saying they're out of space.
+1. The client asks for `/stripe-checkout`.
+2. The server finds or creates the account's Stripe customer, records it in `stripe_ids`, expires any older open checkout sessions for that customer, and returns the URL of a [Checkout Session](https://docs.stripe.com/payments/checkout).
+3. The client opens the URL in a browser. Paying returns the buyer to `lockbook.net/checkout/thanks/`; leaving returns them to `lockbook.net/checkout/canceled/`.
+4. Stripe sends a webhook. The server fetches the customer's subscriptions from Stripe and updates the account to match; the client sees Premium the next time it refreshes usage.
 
-A dialog pops up to explain your situation, allows you to select a plan & a payment method (if you have a choice).
+`/stripe-billing-portal` returns the URL of Stripe's [customer portal](https://docs.stripe.com/customer-management), where the account changes its card, gets receipts, or cancels.
 
-For now [Stripe](https://stripe.com/) will be our payment processor. Their subscription overview can be found [here](https://stripe.com/docs/billing/subscriptions/overview) will be the processing service.
+## Webhooks
 
-To setup payment for the first time you need to send `Plan` info and `Payment` info.
+`/stripe-webhooks` verifies the `Stripe-Signature` HMAC-SHA256 header and timestamp tolerance, extracts `data.object.customer` from JSON for these events, and reconciles the account against Stripe's current subscriptions:
 
-`lockbook_server` will then:
++ `checkout.session.completed`
++ `customer.subscription.created`, `customer.subscription.updated`, `customer.subscription.deleted`
++ `invoice.paid`, `invoice.payment_failed`
 
-1. [Create a `PaymentMethod`](https://stripe.com/docs/api/payment_methods/create)
-2. [Create a `Customer`](https://stripe.com/docs/api/customers/create)
-3. [Create and confirm a `SetUpIntent`](https://stripe.com/docs/api/setup_intents/create)
-4. [Create a `Subscription`](https://stripe.com/docs/api/subscriptions/create)
+Other events are acknowledged and ignored. Both webhook parsing and outbound Stripe REST calls read only the small set of JSON fields Lockbook uses (no closed-enum Stripe SDK and no buyer PII logged), so Stripe API version upgrades or newly enabled payment methods won't break deserialization.
 
-Lockbook server will store `StripeUserInfo`, a struct containing user's [customer_id](https://stripe.com/docs/api/customers/object#customer_object-id), [payment_method](https://stripe.com/docs/api/payment_methods/object) history, and [subscription](https://stripe.com/docs/api/subscriptions/object) history.
+The subscription's status decides the account's state: `active`, `trialing` and `past_due` are Premium, so Stripe's payment retries don't take it away; anything else ends Stripe billing (`billing_platform = None`, matching Google Play). A lapsed Stripe customer never overwrites a newer live Stripe customer or an App Store / Google Play record (including recoverable `OnHold` / `FailedToRenew` states).
 
-After stripe api calls, `lockbook_server` will:
-1. store info
-2. cleanup stripe upon failure
-3. look for customer already exists errors
+## Canceling & Account Deletion
 
-Stripe will inform us about billing success and failures via [webhooks](https://stripe.com/docs/webhooks). We'll tell them a URL to send info to. Upon failures, stripe will [retry](https://stripe.com/docs/webhooks/best-practices#retry-logic), [email us](https://stripe.com/docs/webhooks/best-practices#disable-logic) and ultimately stop trying. We can also [query for missed events](https://stripe.com/docs/api/events/list) and [see failures in their UI](https://dashboard.stripe.com/events).
+Canceling, from the portal or `/cancel-subscription`, sets `cancel_at_period_end`. Premium lasts until the end of the period already paid for, when Stripe sends `customer.subscription.deleted`. An account over the free limit after that keeps its files and can't write more until it frees space.
 
-We will likely only need to listen for billing failures. In the case of a billing failure we're going to want to indicate to the user their card was declined. We don't want to just communicate that they're out of space. We want to communicate specifically that their card was declined. Likely what we'll do in this situation is keep them in that tier with that expiry information and set `billing_failed` to `true`. Next time they try to write we'll send them to the flow for declined cards. When the new request comes in it will have to complete logic to cancel the old subscription, especially if it's being transferred from one platform to another.
+Deleting a Lockbook account best-effort looks up the customer in Stripe (via `billing_platform` or `stripe_ids`) and immediately cancels any live Stripe subscriptions so deleted accounts aren't left billed.
 
-When consuming webhook events we'll need to [verify that the event is coming from stripe](https://stripe.com/docs/webhooks/signatures) and not some random person.
-We listen for two particular events:
-- `invoice.payment_failed`: To cancel a subscription when a payment failure happens.
-- `invoice.paid`: To increase `period_end` of `StripeSubscriptionInfo`. Currently this is unused but is useful information to have in the future.
+## Admin Reconciliation
 
-Before this flow is completable we'll have to pre-register our [prices](https://stripe.com/docs/api/prices) with stripe.
+`admin check-stripe [--username=<name>]` compares cached DB state against live Stripe without writing. `admin sync-stripe [--username=<name>]` reconciles drifted rows from Stripe (and backfills any missing `stripe_ids` mappings). Legacy rows stored in Unix seconds before this migration report as drifted until synced.
 
-## Billing States
+## Setup
 
-Our current implementation is simple. A user is either subscribed or not. When a user misses a payment or chooses to cancel their subscription, their data cap is immediately reduced to 1 MB.
+The Stripe dashboard holds branding (icon, colors, public business name), payment methods (Card, Apple Pay, Google Pay, Link — no async/delayed methods), portal features (cancel at period end, card update, invoices), and customer emails (receipts, failed renewals). The server reads `STRIPE_SECRET`, `STRIPE_SIGNING_SECRET`, and `STRIPE_PREMIUM_PRICE_ID`.
+
+Required Dashboard settings before deploy:
++ **Webhook endpoint:** must subscribe to `checkout.session.completed`, `customer.subscription.created`, `customer.subscription.updated`, `customer.subscription.deleted`, `invoice.paid`, and `invoice.payment_failed` (`customer.subscription.deleted` is what ends canceled subscriptions).
++ **Smart Retries / Failed payment behavior:** configure Stripe to **cancel** or **mark unpaid** once retries exhaust (otherwise a non-paying `past_due` subscription stays Premium indefinitely).
++ **Duplicate prevention:** enable Stripe's *Limit customers to one subscription* Checkout setting and configure the Customer Portal.
++ **Deploy order:** deploy `public-site` (`/checkout/thanks/` and `/checkout/canceled/`) before the server, and verify `MILLIS_BETWEEN_LOCK_ATTEMPTS` is set in milliseconds in production.
 
 ## Testing
 
-A stripe integration can only be tested if provided a [secret testing API key](https://stripe.com/docs/keys#obtain-api-keys). [`stripe_cli`](https://stripe.com/docs/stripe-cli) also provides a way to emulate webhook events locally.  
+Run a local server with the test key in `server/local.env`, and forward events with the [Stripe CLI](https://docs.stripe.com/stripe-cli): `stripe listen --api-key <test key> --events checkout.session.completed,customer.subscription.created,customer.subscription.updated,customer.subscription.deleted,invoice.paid,invoice.payment_failed --forward-to localhost:8000/stripe-webhooks`, putting the `whsec_` secret it prints in `STRIPE_SIGNING_SECRET`. Pay with Stripe's [test cards](https://docs.stripe.com/testing); `4000 0025 0000 3155` asks for bank approval. [Test clocks](https://docs.stripe.com/billing/testing/test-clocks) fast-forward renewals and cancellations.
 
 # Apple Integration 
 

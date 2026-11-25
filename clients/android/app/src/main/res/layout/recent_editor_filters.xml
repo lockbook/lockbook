@@ -1,0 +1,74 @@
+<?xml version="1.0" encoding="utf-8"?>
+<HorizontalScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:clipToPadding="false"
+    android:fadingEdgeLength="32dp"
+    android:requiresFadingEdge="horizontal"
+    android:scrollbars="none">
+
+    <LinearLayout
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:paddingStart="16dp"
+        android:paddingEnd="16dp">
+
+        <com.google.android.material.chip.ChipGroup
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            app:chipSpacingHorizontal="8dp"
+            app:singleLine="true"
+            app:singleSelection="false">
+
+            <com.google.android.material.chip.Chip
+                android:id="@+id/recent_filter_notes"
+                style="@style/Widget.Material3.Chip.Filter"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/recent_filter_notes"
+                app:chipIcon="@drawable/ic_outline_insert_drive_file_24"
+                app:chipIconVisible="true"
+                app:chipStrokeColor="@color/recent_editor_chip_stroke" />
+
+            <com.google.android.material.chip.Chip
+                android:id="@+id/recent_filter_drawings"
+                style="@style/Widget.Material3.Chip.Filter"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/recent_filter_drawings"
+                app:chipIcon="@drawable/ic_outline_draw_24"
+                app:chipIconVisible="true"
+                app:chipStrokeColor="@color/recent_editor_chip_stroke" />
+
+            <com.google.android.material.chip.Chip
+                android:id="@+id/recent_filter_images"
+                style="@style/Widget.Material3.Chip.Filter"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/recent_filter_images"
+                app:chipIcon="@drawable/ic_outline_image_24"
+                app:chipIconVisible="true"
+                app:chipStrokeColor="@color/recent_editor_chip_stroke" />
+        </com.google.android.material.chip.ChipGroup>
+
+        <View
+            android:id="@+id/filter_category_divider"
+            android:layout_width="1dp"
+            android:layout_height="24dp"
+            android:layout_marginHorizontal="12dp"
+            android:alpha="0.4"
+            android:background="?attr/colorOutlineVariant"
+            android:importantForAccessibility="no" />
+
+        <com.google.android.material.chip.ChipGroup
+            android:id="@+id/recent_editor_chips"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            app:chipSpacingHorizontal="8dp"
+            app:singleLine="true"
+            app:singleSelection="false" />
+    </LinearLayout>
+</HorizontalScrollView>

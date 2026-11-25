@@ -34,6 +34,7 @@ import app.lockbook.databinding.FragmentOnBoardingCopyKeyBinding
 import app.lockbook.databinding.FragmentOnBoardingCreateAccountBinding
 import app.lockbook.databinding.FragmentOnBoardingImportAccountBinding
 import app.lockbook.databinding.FragmentOnBoardingWelcomeBinding
+import app.lockbook.model.AccountStore
 import app.lockbook.util.getString
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
@@ -194,7 +195,7 @@ class CreateFragment : Fragment() {
     private fun createAccount(username: String) {
         uiScope.launch {
             try {
-                Lb.createAccount(username, model.apiUrl.value, true)
+                AccountStore.set(Lb.createAccount(username, model.apiUrl.value, true))
 
                 withContext(Dispatchers.Main) {
                     parentFragmentManager
@@ -404,7 +405,7 @@ class ImportFragment : Fragment() {
 
         uiScope.launch {
             try {
-                Lb.importAccount(account, model.apiUrl.value)
+                AccountStore.set(Lb.importAccount(account, model.apiUrl.value))
                 onBoardingActivity.startActivity(Intent(context, ImportAccountActivity::class.java))
                 onBoardingActivity.finishAffinity()
             } catch (err: LbError) {

@@ -180,41 +180,56 @@ pub enum Modal {
             Option<std::sync::mpsc::Receiver<Result<workspace_rs::import::ImportPlan, String>>>,
     },
     Help,
-    Onboard {
-        mode: OnboardMode,
-        uname: String,
-        /// Create: debounced server availability.
-        uname_lookup: OnboardLookup,
-        /// Username last settled by network / invalid local check.
-        uname_lookup_for: String,
-        /// Compact key or 24-word phrase — `import_account` accepts either.
-        account_key: String,
-        /// Custom API URL. Empty = [`lb::DEFAULT_API_LOCATION`].
-        api_url: String,
-        busy: bool,
-        err: Option<String>,
-        /// Backup step: user confirmed they stored the key.
-        key_stored: bool,
-    },
+    /// Unified secret-key backup sheet (QR code | 24 words).
+    BackupKey(BackupKeyState),
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Default)]
+pub enum OnboardStep {
+    #[default]
+    Welcome,
+    Create,
+    Import,
+    ImportSyncing,
+    /// Create-only experiment (`OnboardLook::Show`): accent + font preview.
+    Look,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
-pub enum OnboardMode {
+pub enum BackupKeyTab {
     #[default]
-    Choice,
-    Create,
-    Import,
-    /// After create: show the 24-word key and require a backup ack.
-    Backup,
+    Qr,
+    Phrase,
 }
 
-/// Stripe upgrade sheet stages.
+#[derive(Clone, Copy, Debug, Default)]
+pub struct BackupKeyState {
+    pub tab: BackupKeyTab,
+    pub qr_revealed: bool,
+    pub qr_ever_revealed: bool,
+    pub compact_key_copied: bool,
+    pub phrase_revealed: bool,
+    pub phrase_ever_revealed: bool,
+    pub phrase_copied: bool,
+}
+
+impl BackupKeyState {
+    pub fn can_complete(&self) -> bool {
+        match self.tab {
+            BackupKeyTab::Qr => self.qr_ever_revealed || self.compact_key_copied,
+            BackupKeyTab::Phrase => self.phrase_ever_revealed || self.phrase_copied,
+        }
+    }
+}
+
+/// Upgrade page stages: review plan, pay on Stripe's page, then Premium.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
 pub enum UpgradeStage {
     #[default]
-    EnterCard,
-    Confirm,
-    Paying,
+    Choose,
+    /// Stripe Checkout is open in the browser; Premium arrives with the account.
+    Browser,
+    Done,
 }
 
 /// Create-sheet file type.
@@ -378,15 +393,28 @@ pub enum Action {
     /// Confirmed decline (delete pending share link only).
     ConfirmDeclineShare(Uuid),
     OpenHelp,
-    OnboardSetMode(OnboardMode),
+    OnboardSetStep(OnboardStep),
+    /// Toggle between 24-word grid and single-field compact key mode on Sign in.
+    OnboardToggleCompact(bool),
     /// Debounced create-username availability (share-style network verify).
     OnboardVerifyUname,
-    /// `show_error`: false for auto-submit (silent fail; Import button surfaces).
-    OnboardSubmit {
-        show_error: bool,
-    },
-    /// Backup step finished (key ack). Dismisses onboard.
-    OnboardFinishBackup,
+    /// Submit the active onboarding step (Create, Import, or Look).
+    OnboardSubmit,
+    /// Finish `Choose a look` (Create-only experiment) and create the account.
+    OnboardFinishLook,
+    /// Retry initial sync after Sign in authenticated the account.
+    OnboardRetryImportSync,
+    /// Open unified `Back up your secret key` sheet.
+    OpenBackupKey,
+    BackupKeySetTab(BackupKeyTab),
+    BackupKeyRevealQr,
+    BackupKeyHideQr,
+    BackupKeyCopyCompactKey,
+    BackupKeyRevealPhrase,
+    BackupKeyHidePhrase,
+    BackupKeyCopyPhrase,
+    /// Backup confirmed (QR/compact key revealed or copied, or 24 words revealed/copied); retires nudge.
+    BackupKeyComplete,
     RequestSync,
     TogglePin(Uuid),
     /// Toggle pin on each id (own state).
@@ -438,8 +466,12 @@ pub enum Action {
     /// Shows a family without saving it; `None` shows the saved theme again.
     PreviewThemeFamily(Option<crate::components::ThemeFamily>),
     SetThemeAccent(workspace_rs::theme::palette_v2::Palette),
+    /// Shows an accent hue without saving it; `None` restores the saved theme.
+    PreviewThemeAccent(Option<workspace_rs::theme::palette_v2::Palette>),
     /// An installed family for notes' text; `None` is the platform's.
     SetTextFont(Option<String>),
+    /// Shows a text font without saving it; `None` restores the saved choice.
+    PreviewTextFont(Option<Option<String>>),
     /// An installed family for notes' code; `None` is the platform's.
     SetCodeFont(Option<String>),
     SetPrefLinkPreviews(bool),
@@ -453,10 +485,8 @@ pub enum Action {
 
     /// Linux only — persisted; takes effect after restart.
     SetPrefAllowWayland(bool),
-    /// The nudge card's button: it's done, and the sign-in QR code shows.
+    /// The checklist card's action: open the secret-key backup sheet.
     NudgeAccept,
-    /// The nudge card's X: it doesn't come back.
-    NudgeDismiss,
     /// Settings → Account: show 24-word phrase in-content.
     RevealPhrase,
     /// Settings → Account: show account key QR in-content.
@@ -464,6 +494,7 @@ pub enum Action {
     /// Close in-content Account panel (phrase / QR / manage) — Esc / Back.
     HideAccountKey,
     CopyPhrase,
+    CopyCompactKey,
     RevealDebugInfo,
     HideDebugInfo,
     /// Kick off background `Lb::debug_info` if idle (Debug settings tab).
@@ -472,13 +503,14 @@ pub enum Action {
     RefreshDebugInfo,
     /// Copy ready debug info to the OS clipboard.
     CopyDebugInfo,
-    /// Open Stripe upgrade sheet (free tier).
+    /// Open the upgrade page (free tier).
     OpenUpgrade,
     UpgradeBack,
-    UpgradeNext,
-    UpgradeConfirmPay,
-    /// After success/error, leave Paying for Settings → Plan.
+    /// Open Stripe Checkout in the browser.
+    UpgradeCheckout,
     UpgradeDone,
+    /// Open Stripe's billing portal (card, invoices, cancel).
+    ManageBilling,
     OpenLogout,
     LogoutAck(bool),
     ConfirmLogout,
@@ -549,10 +581,21 @@ impl Action {
             Self::OpenDeclineShare { .. } => "OpenDeclineShare",
             Self::ConfirmDeclineShare(_) => "ConfirmDeclineShare",
             Self::OpenHelp => "OpenHelp",
-            Self::OnboardSetMode(_) => "OnboardSetMode",
+            Self::OnboardSetStep(_) => "OnboardSetStep",
+            Self::OnboardToggleCompact(_) => "OnboardToggleCompact",
             Self::OnboardVerifyUname => "OnboardVerifyUname",
-            Self::OnboardSubmit { .. } => "OnboardSubmit",
-            Self::OnboardFinishBackup => "OnboardFinishBackup",
+            Self::OnboardSubmit => "OnboardSubmit",
+            Self::OnboardFinishLook => "OnboardFinishLook",
+            Self::OnboardRetryImportSync => "OnboardRetryImportSync",
+            Self::OpenBackupKey => "OpenBackupKey",
+            Self::BackupKeySetTab(_) => "BackupKeySetTab",
+            Self::BackupKeyRevealQr => "BackupKeyRevealQr",
+            Self::BackupKeyHideQr => "BackupKeyHideQr",
+            Self::BackupKeyCopyCompactKey => "BackupKeyCopyCompactKey",
+            Self::BackupKeyRevealPhrase => "BackupKeyRevealPhrase",
+            Self::BackupKeyHidePhrase => "BackupKeyHidePhrase",
+            Self::BackupKeyCopyPhrase => "BackupKeyCopyPhrase",
+            Self::BackupKeyComplete => "BackupKeyComplete",
             Self::RequestSync => "RequestSync",
             Self::TogglePin(_) => "TogglePin",
             Self::TogglePinMany(_) => "TogglePinMany",
@@ -580,7 +623,9 @@ impl Action {
             Self::SetThemeFamily(_) => "SetThemeFamily",
             Self::PreviewThemeFamily(_) => "PreviewThemeFamily",
             Self::SetThemeAccent(_) => "SetThemeAccent",
+            Self::PreviewThemeAccent(_) => "PreviewThemeAccent",
             Self::SetTextFont(_) => "SetTextFont",
+            Self::PreviewTextFont(_) => "PreviewTextFont",
             Self::SetCodeFont(_) => "SetCodeFont",
             Self::SetPrefLinkPreviews(_) => "SetPrefLinkPreviews",
             Self::SetPrefSpellCheck(_) => "SetPrefSpellCheck",
@@ -590,11 +635,11 @@ impl Action {
             Self::SetPrefSidebarUsage(_) => "SetPrefSidebarUsage",
             Self::SetPrefAllowWayland(_) => "SetPrefAllowWayland",
             Self::NudgeAccept => "NudgeAccept",
-            Self::NudgeDismiss => "NudgeDismiss",
             Self::RevealPhrase => "RevealPhrase",
             Self::OpenAccountQr => "OpenAccountQr",
             Self::HideAccountKey => "HideAccountKey",
             Self::CopyPhrase => "CopyPhrase",
+            Self::CopyCompactKey => "CopyCompactKey",
             Self::RevealDebugInfo => "RevealDebugInfo",
             Self::HideDebugInfo => "HideDebugInfo",
             Self::EnsureDebugInfo => "EnsureDebugInfo",
@@ -602,8 +647,8 @@ impl Action {
             Self::CopyDebugInfo => "CopyDebugInfo",
             Self::OpenUpgrade => "OpenUpgrade",
             Self::UpgradeBack => "UpgradeBack",
-            Self::UpgradeNext => "UpgradeNext",
-            Self::UpgradeConfirmPay => "UpgradeConfirmPay",
+            Self::UpgradeCheckout => "UpgradeCheckout",
+            Self::ManageBilling => "ManageBilling",
             Self::UpgradeDone => "UpgradeDone",
             Self::OpenLogout => "OpenLogout",
             Self::LogoutAck(_) => "LogoutAck",

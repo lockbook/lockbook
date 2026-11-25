@@ -1,5 +1,7 @@
 use crate::config::Environment::{Local, Prod, Unknown};
 use lb_rs::model::account::Username;
+use lb_rs::model::meta::Meta;
+use lb_rs::model::signed_meta::SignedMeta;
 use semver::VersionReq;
 use std::collections::HashSet;
 use std::fmt::Display;
@@ -79,9 +81,9 @@ pub struct FeatureFlags {
     pub new_accounts: bool,
     pub new_account_rate_limit: bool,
     pub bandwidth_controls: bool,
-    /// Accept metadata V2, which only attachments folders are written as. Set in code, not read
-    /// from the environment: off in production until the change that turns creation on, on in the
-    /// in-process server tests use.
+    /// Accept metadata V2 (attachments). Set from [lb_rs::ATTACHMENTS_FOLDERS]; only turn that on
+    /// while also forcing clients, with `MIN_CORE_VERSION`, to upgrade to the version that
+    /// introduced this flag.
     pub meta_v2: bool,
 }
 
@@ -100,7 +102,16 @@ impl FeatureFlags {
                 .unwrap_or_else(|_| "true".to_string())
                 .parse()
                 .unwrap(),
-            meta_v2: false,
+            meta_v2: lb_rs::ATTACHMENTS_FOLDERS,
+        }
+    }
+
+    /// Whether `file` is more recent than the max version supported by all the server's clients
+    /// (via forced upgrades)
+    pub fn refuses(&self, file: &SignedMeta) -> bool {
+        match file.timestamped_value.value {
+            Meta::V1 { .. } => false,
+            Meta::V2 { .. } => !self.meta_v2,
         }
     }
 }
@@ -234,7 +245,7 @@ impl BillingConfig {
             millis_between_user_payment_flows: env_or_panic("MILLIS_BETWEEN_PAYMENT_FLOWS")
                 .parse()
                 .unwrap(),
-            time_between_lock_attempts: Duration::from_secs(
+            time_between_lock_attempts: Duration::from_millis(
                 env_or_panic("MILLIS_BETWEEN_LOCK_ATTEMPTS")
                     .parse::<u64>()
                     .unwrap(),

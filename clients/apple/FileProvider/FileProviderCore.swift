@@ -220,9 +220,10 @@ final class FileProviderCore {
             return NSError(domain: NSFileProviderErrorDomain, code: NSFileProviderError.cannotSynchronize.rawValue,
                            userInfo: [NSLocalizedDescriptionKey: "This file changed in Lockbook. Copy your Finder edits to a new file to keep both versions."])
         case InsufficientPermission: return CocoaError(.fileWriteNoPermission)
-        // Finder offers neither on an attachments folder; this reaches a move made around it, such
-        // as mv in a terminal, the way ReReadRequired reaches a stale write: shown on the folder with
-        // lb's reason rather than retried in a loop.
+        // Finder greys out Rename and Move on an attachments folder, but `mv` in a terminal can
+        // still try either. lb refuses, and this reports the refusal the way a stale write is
+        // reported (ReReadRequired): the folder shows lb's reason and the system doesn't keep
+        // retrying.
         case AttachmentsFolderFixed:
             return NSError(domain: NSFileProviderErrorDomain, code: NSFileProviderError.cannotSynchronize.rawValue,
                            userInfo: [NSLocalizedDescriptionKey: String(cString: error.pointee.msg)])

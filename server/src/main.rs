@@ -1,13 +1,12 @@
-#![recursion_limit = "256"]
-
 use app_links::app_link_routes;
 use db_rs::View;
 use lockbook_server_lib::billing::google_play_client::get_google_play_client;
+use lockbook_server_lib::billing::stripe_client::StripeHttpClient;
 use lockbook_server_lib::config::Config;
 use lockbook_server_lib::document_service::OnDiskDocuments;
 use lockbook_server_lib::router_service::{
     app_store_notification_webhooks, build_info, core_routes, get_metrics,
-    google_play_notification_webhooks, stripe_webhooks,
+    google_play_notification_webhooks, retired_card_upgrade, stripe_webhooks,
 };
 use lockbook_server_lib::schema::{self, ServerDb};
 use lockbook_server_lib::*;
@@ -24,7 +23,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 
     let config = cfg.clone();
 
-    let stripe_client = stripe::Client::new(&cfg.billing.stripe.stripe_secret);
+    let stripe_client = StripeHttpClient::new(&cfg.billing.stripe.stripe_secret);
     let google_play_client = get_google_play_client(&cfg.billing.google.service_account_key).await;
     let app_store_client = reqwest::Client::new();
     let discord_client = reqwest::Client::new();
@@ -49,6 +48,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     });
 
     let routes = core_routes(&server_state)
+        .or(retired_card_upgrade())
         .or(build_info())
         .or(stripe_webhooks(&server_state))
         .or(google_play_notification_webhooks(&server_state))

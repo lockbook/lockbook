@@ -220,6 +220,10 @@ pub struct MdRender {
     pub code_line_clips: Vec<(Rect, (Grapheme, Grapheme))>,
     /// [`crate::font::chosen_seq`] the layout cache was measured at
     font_seq: u64,
+    /// Per-renderer text font override `(family, size_adjust)`, used by
+    /// [`MdLabel::height_in_family`] to measure candidate faces without
+    /// touching global font state.
+    pub(crate) text_family_override: Option<(&'static str, f32)>,
     /// A code block whose code was copied, by its range, and until when its
     /// button says so.
     pub code_copied: Option<((Grapheme, Grapheme), f64)>,
@@ -269,6 +273,7 @@ pub struct MdRender {
     /// it is, for the landing to measure. Set each frame from the editor's
     /// landing.
     pub landing_text: Option<Grapheme>,
+    pub placeholder: Option<&'static str>,
     pub interactive: bool, // enables fold buttons
     /// Laid out for print: tables share the width, folds are open, and
     /// [`Self::unbreakable`] collects what a page break mustn't cut.
@@ -874,6 +879,7 @@ impl MdRender {
             wheel: Default::default(),
             code_line_clips: Default::default(),
             font_seq: crate::font::chosen_seq(),
+            text_family_override: None,
             code_copied: None,
             diagrams,
             math,
@@ -903,6 +909,7 @@ impl MdRender {
             region: None,
             region_reveal: None,
             landing_text: None,
+            placeholder: None,
             interactive: false,
             print: false,
             readonly: true,
@@ -1002,6 +1009,7 @@ impl MdRender {
             wheel: Default::default(),
             code_line_clips: Default::default(),
             font_seq: crate::font::chosen_seq(),
+            text_family_override: None,
             code_copied: None,
             diagrams,
             math,
@@ -1038,6 +1046,7 @@ impl MdRender {
             region: None,
             region_reveal: None,
             landing_text: None,
+            placeholder: None,
             interactive: false,
             print: false,
             readonly: true,
@@ -1270,6 +1279,7 @@ impl Editor {
             wheel: Default::default(),
             code_line_clips: Default::default(),
             font_seq: crate::font::chosen_seq(),
+            text_family_override: None,
             code_copied: None,
             diagrams,
             math,
@@ -1300,6 +1310,7 @@ impl Editor {
             region: None,
             region_reveal: None,
             landing_text: None,
+            placeholder: None,
             interactive: true,
             print: false,
             readonly,
@@ -2317,6 +2328,11 @@ impl Editor {
 
                 let arena = Arena::new();
                 let root = self.edit.renderer.reparse(&arena);
+
+                let r = &mut self.edit.renderer;
+                let editable_note =
+                    r.kind == Syntax::Markdown && !r.readonly && !self.embedded && !self.in_preview;
+                r.placeholder = editable_note.then_some(PLACEHOLDER);
 
                 // Content column width caps at `max_width`; the affine
                 // widget spans the full canvas so its scrollbar lands
@@ -3639,6 +3655,8 @@ fn view_for(syntax: Syntax, persistence: &WsPersistentStore) -> View {
 /// it docks beside; in narrower windows it floats over the text.
 const SIDECAR_W: f32 = 260.0;
 const SIDECAR_GAP: f32 = 24.0;
+
+const PLACEHOLDER: &str = "Start writing";
 
 /// Where a landing puts text.
 #[derive(Clone, Copy)]

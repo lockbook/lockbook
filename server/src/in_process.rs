@@ -318,10 +318,18 @@ where
             .map_err(api_error)
     }
 
-    async fn upgrade_account_stripe(
-        &self, account: &Account, request: UpgradeAccountStripeRequest,
-    ) -> ApiResult<UpgradeAccountStripeRequest> {
-        ServerState::upgrade_account_stripe(self, context(account, request))
+    async fn stripe_checkout(
+        &self, account: &Account, request: StripeCheckoutRequest,
+    ) -> ApiResult<StripeCheckoutRequest> {
+        ServerState::stripe_checkout(self, context(account, request))
+            .await
+            .map_err(api_error)
+    }
+
+    async fn stripe_billing_portal(
+        &self, account: &Account, request: StripeBillingPortalRequest,
+    ) -> ApiResult<StripeBillingPortalRequest> {
+        ServerState::stripe_billing_portal(self, context(account, request))
             .await
             .map_err(api_error)
     }
@@ -434,6 +442,14 @@ where
         &self, account: &Account, request: AdminSetUserTierRequest,
     ) -> ApiResult<AdminSetUserTierRequest> {
         ServerState::admin_set_user_tier(self, context(account, request))
+            .await
+            .map_err(api_error)
+    }
+
+    async fn admin_sync_stripe(
+        &self, account: &Account, request: AdminSyncStripeRequest,
+    ) -> ApiResult<AdminSyncStripeRequest> {
+        ServerState::admin_sync_stripe(self, context(account, request))
             .await
             .map_err(api_error)
     }

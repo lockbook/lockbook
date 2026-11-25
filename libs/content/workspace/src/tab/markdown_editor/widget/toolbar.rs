@@ -1005,14 +1005,7 @@ impl<'ast> Editor {
                         ui.add_space(5.);
                     }
                     let in_block = self.edit.in_front_matter();
-                    if toolbar_icon(
-                        ui,
-                        &t,
-                        phosphor::LIST_DASHES,
-                        in_block,
-                        menu_open,
-                        "Add Property",
-                    ) {
+                    if toolbar_icon(ui, &t, phosphor::TAG, in_block, menu_open, "Add Property") {
                         events.push(Event::FrontMatter(FrontMatterAction::Add));
                     }
                     any_media = true;
@@ -1635,7 +1628,7 @@ impl<'ast> Editor {
                                     top_left,
                                     md_width,
                                     "Property",
-                                    phosphor::LIST_DASHES,
+                                    phosphor::TAG,
                                     persistence.front_matter,
                                 )
                                 .clicked()

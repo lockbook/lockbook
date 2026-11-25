@@ -31,32 +31,10 @@ use lb::subscribers::status::Status;
 use workspace_rs::file_cache::FileCache;
 use workspace_rs::workspace::Workspace;
 
-use super::action::OnboardMode;
-
 pub enum CoreLoad {
-    Ready {
-        core: Lb,
-        files: FileCache,
-        sub_info: Option<SubscriptionInfo>,
-    },
-    SignedOut {
-        core: Lb,
-    },
-    /// Create/import/sync failed — keep `core` for retry (may already hold keys).
-    OnboardFailed {
-        core: Lb,
-        fail: OnboardFail,
-    },
+    Ready { core: Lb, files: FileCache, sub_info: Option<SubscriptionInfo> },
+    SignedOut { core: Lb },
     Failed(String),
-}
-
-/// Form to restore after a **manual** onboard failure (errors stay on the sheet).
-pub struct OnboardFail {
-    pub err: String,
-    pub mode: OnboardMode,
-    pub uname: String,
-    pub account_key: String,
-    pub api_url: String,
 }
 
 /// Shared boot status for [`Session::Loading`] (worker may update mid-flight).
@@ -118,6 +96,7 @@ impl Ready {
         let root = file_cache.read().unwrap().root.id;
         let mut workspace = Workspace::new(&core, ctx, true, Some(file_cache));
         workspace.desktop_tab_policy = true;
+        workspace.empty_vault_welcome = true;
         workspace.sidebar_open = true;
 
         let status = core.status();
@@ -300,29 +279,23 @@ impl Session {
         Self::Loading { kind: LoadKind::Cold, status: load_status(""), rx }
     }
 
-    /// Poll a background load. Returns form state when a **manual** sign-in
-    /// failed but we still have a usable `SignedOut` core to retry with.
-    pub fn poll(&mut self, ctx: &Context) -> Option<OnboardFail> {
+    /// Poll a background load.
+    pub fn poll(&mut self, ctx: &Context) {
         let Session::Loading { rx, .. } = self else {
-            return None;
+            return;
         };
-        let load = rx.try_recv().ok()?;
+        let Ok(load) = rx.try_recv() else {
+            return;
+        };
         match load {
             CoreLoad::Ready { core, files, sub_info } => {
                 *self = Session::Ready(Box::new(Ready::new(core, files, ctx, sub_info)));
-                None
             }
             CoreLoad::SignedOut { core } => {
                 *self = Session::SignedOut { core };
-                None
-            }
-            CoreLoad::OnboardFailed { core, fail } => {
-                *self = Session::SignedOut { core };
-                Some(fail)
             }
             CoreLoad::Failed(e) => {
                 *self = Session::Error(e);
-                None
             }
         }
     }

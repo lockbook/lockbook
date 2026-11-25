@@ -12,16 +12,17 @@ mod apply_onboard;
 mod apply_share;
 mod editor;
 pub mod nudge;
+pub mod onboard;
 pub mod ops;
 pub mod prefs;
 pub mod session;
 pub mod settings;
 mod settings_account;
 mod settings_storage;
+mod sheet_backup_key;
 mod sheet_create;
 mod sheet_folder;
 mod sheet_links;
-mod sheet_onboard;
 mod sheet_share;
 mod sheets;
 pub mod sidebar;
@@ -35,7 +36,7 @@ pub(crate) use apply::native_file_dialog_open;
 // Domain surfaces live in the component library; re-export for shell-local paths.
 pub use crate::components::domain::{footer, sync_dots, tabs, tree};
 
-// OnboardMode / SettingsCat / Ready are used via module paths; re-export only what
+// OnboardStep / SettingsCat / Ready are used via module paths; re-export only what
 // other crates/bin need from `shell::`.
 
 use std::sync::mpsc;
@@ -89,7 +90,6 @@ pub struct ShellApp {
     pub account_panel: AccountPanel,
     /// Settings → Debug: expand JSON dump (session only).
     pub debug_info_revealed: bool,
-    pub phrase_cache: Option<String>,
     /// Shared with the debug-info worker thread.
     pub debug_info: Arc<Mutex<DebugInfoCache>>,
     /// Shared with the account-QR worker (mobile sign-in).
@@ -114,10 +114,12 @@ pub struct ShellApp {
     pub(crate) native_dialog_rx: Option<mpsc::Receiver<apply::NativeDialogResult>>,
     /// In-flight PDF export, once its destination is picked.
     pub(crate) pdf_export_rx: Option<mpsc::Receiver<Result<(), String>>>,
-    /// Auto-import worker (paste / complete key). Failures do not surface.
-    pub(crate) onboard_auto_rx: Option<mpsc::Receiver<apply_onboard::AutoOnboard>>,
-    /// After a successful create, show the account-key backup sheet.
-    pub(crate) onboard_backup_pending: bool,
+    /// Full-window onboarding state while signed out (Welcome / Create / Import / Look).
+    pub onboard: Option<onboard::OnboardState>,
+    /// Cached Markdown preview renderer for the `Choose a look` experiment step.
+    pub(crate) onboard_look_label: Option<workspace_rs::tab::markdown_editor::MdLabel>,
+    /// Background worker for onboard create / import / initial sync.
+    pub(crate) onboard_worker_rx: Option<mpsc::Receiver<apply_onboard::OnboardWorkerMsg>>,
     /// The file a link from outside the app names, until it opens.
     pub(crate) incoming_link: Option<apply::IncomingLink>,
     /// Loaded once the account is ready.
@@ -126,6 +128,7 @@ pub struct ShellApp {
     pub import_job: Option<workspace_rs::import::ImportJob>,
     /// An import waiting on an upgrade: its paths, its folder, and the cap it must outgrow.
     pub(crate) import_after_upgrade: Option<(Vec<std::path::PathBuf>, Uuid, u64)>,
+    pub(crate) billing: apply_account::BillingState,
     pub(crate) storage: settings_storage::StorageView,
 }
 
@@ -171,7 +174,6 @@ impl Default for ShellApp {
             settings,
             account_panel: AccountPanel::Closed,
             debug_info_revealed: false,
-            phrase_cache: None,
             debug_info: Arc::new(Mutex::new(DebugInfoCache::Idle)),
             account_qr: Arc::new(Mutex::new(AccountQrCache::Idle)),
             queue: Vec::new(),
@@ -192,12 +194,14 @@ impl Default for ShellApp {
             toasts: ToastHost::default(),
             native_dialog_rx: None,
             pdf_export_rx: None,
-            onboard_auto_rx: None,
-            onboard_backup_pending: false,
+            onboard: None,
+            onboard_look_label: None,
+            onboard_worker_rx: None,
             incoming_link: None,
             nudges: None,
             import_job: None,
             import_after_upgrade: None,
+            billing: apply_account::BillingState::default(),
             storage: Default::default(),
         }
     }
@@ -211,6 +215,7 @@ impl ShellApp {
 
     pub fn close_account_panel(&mut self) {
         self.account_panel = AccountPanel::Closed;
+        self.billing.stop_browser_poll();
     }
 
     /// Dev-gated renderer extras.
@@ -220,21 +225,13 @@ impl ShellApp {
             .is_some_and(|r| r.workspace.account.is_dev())
     }
 
-    fn showing_backup(&self) -> bool {
-        matches!(&self.modal, Some(Modal::Onboard { mode: action::OnboardMode::Backup, .. }))
-    }
-
-    /// Sidebar, editor, pane toggles. Hidden while the post-create key backup
-    /// sheet is up — that step is still onboard, not the signed-in app.
+    /// Sidebar, editor, pane toggles. Hidden while full-window onboarding is active.
     pub(crate) fn product_open(&self) -> bool {
-        matches!(self.session, Session::Ready(_)) && !self.showing_backup()
+        matches!(self.session, Session::Ready(_)) && self.onboard.is_none()
     }
 
     /// Auto logout / re-import loop for crash hunting (`LOCKBOOK_SESSION_STRESS=1`).
     fn session_stress_tick(&mut self, ctx: &egui::Context) {
-        if self.showing_backup() {
-            return;
-        }
         let Some(stress) = self.session_stress.as_mut() else {
             return;
         };
@@ -294,12 +291,15 @@ impl ShellApp {
                     return;
                 }
                 eprintln!("[session-stress] → import + promote");
-                // Drive onboard import via actions.
-                apply::apply(self, ctx, A::OnboardSetMode(action::OnboardMode::Import));
-                if let Some(Modal::Onboard { account_key, .. }) = &mut self.modal {
-                    *account_key = key.trim().to_owned();
+                if self.onboard.is_none() {
+                    self.onboard = Some(onboard::OnboardState::new());
                 }
-                apply::apply(self, ctx, A::OnboardSubmit { show_error: true });
+                apply::apply(self, ctx, A::OnboardSetStep(action::OnboardStep::Import));
+                apply::apply(self, ctx, A::OnboardToggleCompact(true));
+                if let Some(s) = &mut self.onboard {
+                    s.compact_key = key.trim().to_owned();
+                }
+                apply::apply(self, ctx, A::OnboardSubmit);
             }
             StressKind::Loading => {
                 ctx.request_repaint();
@@ -316,6 +316,10 @@ impl ShellApp {
 
     pub fn ui(&mut self, ctx: &egui::Context) {
         components::install(ctx);
+        // Settle font choices and interface fallbacks even while signed out
+        // (Workspace::show isn't running during onboarding, so Choose a look
+        // needs this to live-preview text font picks and load fallback glyphs).
+        workspace_rs::font::poll(ctx);
         // F2 = space overlay (rename is context menu, so no conflict).
         handle_toggle_shortcut(ctx);
         self.apply_theme_once(ctx);
@@ -323,46 +327,15 @@ impl ShellApp {
         if matches!(&self.session, Session::Error(s) if s == "not started") {
             self.session = Session::start(ctx);
         }
-        if let Some(fail) = self.session.poll(ctx) {
-            // Manual sign-in failed; restore the form with the error.
-            self.onboard_backup_pending = false;
-            let mode = fail.mode;
-            self.modal = Some(apply_onboard::onboard_form(
-                fail.mode,
-                fail.uname,
-                fail.account_key,
-                fail.api_url,
-                Some(fail.err),
-            ));
-            if mode == action::OnboardMode::Import {
-                apply_onboard::onboard_import_focus(ctx);
-            }
-        }
+        self.session.poll(ctx);
+        apply_onboard::poll_onboard_worker(self, ctx);
         if let Some(r) = self.session.ready() {
             self.nudges.get_or_insert_with(|| nudge::Nudges::load(r));
         }
-        if self.onboard_backup_pending && matches!(self.session, Session::Ready(_)) {
-            self.onboard_backup_pending = false;
-            if let Some(r) = self.session.ready() {
-                if let Some(nudges) = &mut self.nudges {
-                    nudges.created(r);
-                }
-                if let Ok(p) = r.workspace.core.export_account_phrase() {
-                    self.phrase_cache = Some(p);
-                }
-            }
-            self.modal = Some(apply_onboard::onboard_form(
-                action::OnboardMode::Backup,
-                String::new(),
-                String::new(),
-                apply_onboard::initial_api_url(),
-                None,
-            ));
-        }
-        apply_onboard::poll_auto_import(self, ctx);
         apply::poll_native_dialog(self, ctx);
         apply::poll_pdf_export(self);
         apply::poll_incoming_link(self, ctx);
+        apply::poll_upgrade(self, ctx);
         if let Session::Ready(r) = &self.session {
             if self.lb_rx.is_none() {
                 self.lb_rx = Some(r.workspace.core.subscribe());
@@ -381,9 +354,6 @@ impl ShellApp {
             }
         }
 
-        if let Some(nudges) = &self.nudges {
-            nudges.tick(ctx);
-        }
         if let Some(a) = apply::import_event(self) {
             self.queue.push(a);
         }
@@ -428,10 +398,9 @@ impl ShellApp {
                 return;
             }
             Session::SignedOut { .. } => {
-                // Offer onboard immediately
-                if self.modal.is_none() {
-                    self.modal =
-                        Some(apply_onboard::onboard_modal(action::OnboardMode::Choice, None));
+                // Full-window editorial onboarding on neutral_bg().
+                if self.onboard.is_none() {
+                    self.onboard = Some(onboard::OnboardState::new());
                 }
             }
             Session::Ready(_) => {}
@@ -500,14 +469,8 @@ impl ShellApp {
                 .show(root, |ui| {
                     if self.product_open() {
                         editor::show(self, ui, &t, &mut queue);
-                    } else if !self.showing_backup() {
-                        ui.centered_and_justified(|ui| {
-                            ui.label(
-                                TypeRole::Body
-                                    .rich("Create or import an account to continue.")
-                                    .color(t.neutral_fg_secondary()),
-                            );
-                        });
+                    } else if self.onboard.is_some() {
+                        onboard::show(self, ui, &t, &mut queue);
                     }
                 });
         });
@@ -650,65 +613,159 @@ impl ShellApp {
 
         // An open menu takes Escape first; egui closes it.
         if ctx.input(|i| i.key_pressed(egui::Key::Escape))
-            && self.modal.is_some()
+            && (self.modal.is_some() || self.onboard.is_some())
             && !egui::Popup::is_any_open(ctx)
         {
-            let revert_server = matches!(
-                &self.modal,
-                Some(Modal::Onboard { mode: action::OnboardMode::Choice, .. })
-            ) && ctx.data(|d| {
-                d.get_temp::<bool>(apply_onboard::onboard_server_editing_key())
-                    .unwrap_or(false)
-            });
-            let action = match &self.modal {
-                // Account subpanels (incl. upgrade) stay in Settings — Esc backs the panel.
-                Some(Modal::Settings { .. }) => match &self.account_panel {
-                    AccountPanel::Upgrade {
-                        stage: action::UpgradeStage::Paying,
-                        done: None,
-                        ..
-                    } => None, // mid-charge
-                    AccountPanel::Upgrade { .. } => Some(A::UpgradeBack),
-                    AccountPanel::Closed => Some(A::CloseModal),
-                    _ => Some(A::HideAccountKey),
-                },
-                Some(Modal::Onboard { mode, .. }) => match mode {
-                    action::OnboardMode::Choice | action::OnboardMode::Backup => None,
-                    _ => Some(A::OnboardSetMode(action::OnboardMode::Choice)),
-                },
-                Some(_) => Some(A::CloseModal),
-                None => None,
-            };
-            if let Some(a) = action {
-                self.queue.push(a);
-            }
-            ctx.input_mut(|i| i.consume_key(egui::Modifiers::NONE, egui::Key::Escape));
-            if revert_server {
-                if let Some(snap) =
-                    ctx.data(|d| d.get_temp::<String>(apply_onboard::onboard_server_snap_key()))
-                {
-                    if let Some(Modal::Onboard { api_url, .. }) = &mut self.modal {
-                        *api_url = snap;
-                    }
+            if self.modal.is_some() {
+                let action = match &self.modal {
+                    // Account subpanels (incl. upgrade) stay in Settings — Esc backs the panel.
+                    Some(Modal::Settings { .. }) => match &self.account_panel {
+                        AccountPanel::Upgrade { stage: action::UpgradeStage::Done } => {
+                            Some(A::UpgradeDone)
+                        }
+                        AccountPanel::Upgrade { .. } => Some(A::UpgradeBack),
+                        AccountPanel::Closed => Some(A::CloseModal),
+                        _ => Some(A::HideAccountKey),
+                    },
+                    Some(_) => Some(A::CloseModal),
+                    None => None,
+                };
+                if let Some(a) = action {
+                    self.queue.push(a);
                 }
-                ctx.data_mut(|d| {
-                    d.insert_temp(apply_onboard::onboard_server_editing_key(), false);
-                });
+                ctx.input_mut(|i| i.consume_key(egui::Modifiers::NONE, egui::Key::Escape));
+            } else if let Some(s) = &self.onboard {
+                let revert_server = s.step == action::OnboardStep::Welcome
+                    && ctx.data(|d| {
+                        d.get_temp::<bool>(apply_onboard::onboard_server_editing_key())
+                            .unwrap_or(false)
+                    });
+                let step_back = if s.busy {
+                    None
+                } else {
+                    match s.step {
+                        action::OnboardStep::Welcome => None,
+                        action::OnboardStep::Create | action::OnboardStep::Import => {
+                            Some(A::OnboardSetStep(action::OnboardStep::Welcome))
+                        }
+                        action::OnboardStep::Look => {
+                            Some(A::OnboardSetStep(action::OnboardStep::Create))
+                        }
+                        action::OnboardStep::ImportSyncing => None,
+                    }
+                };
+                if let Some(a) = step_back {
+                    self.queue.push(a);
+                }
+                ctx.input_mut(|i| i.consume_key(egui::Modifiers::NONE, egui::Key::Escape));
+                if revert_server {
+                    if let Some(snap) =
+                        ctx.data(|d| d.get_temp::<String>(apply_onboard::onboard_server_snap_key()))
+                    {
+                        if let Some(s) = &mut self.onboard {
+                            s.api_url = snap;
+                        }
+                    }
+                    ctx.data_mut(|d| {
+                        d.insert_temp(apply_onboard::onboard_server_editing_key(), false);
+                    });
+                }
             }
         }
 
-        // Onboard welcome: ⌘N Create account · ⌘I Import account.
-        if matches!(
-            &self.modal,
-            Some(Modal::Onboard { mode: action::OnboardMode::Choice, busy: false, .. })
-        ) {
+        // Onboard welcome: ⏎ (or ⌘N) Create account · S (or ⌘I) Sign in.
+        if self
+            .onboard
+            .as_ref()
+            .is_some_and(|s| s.step == action::OnboardStep::Welcome && !s.busy)
+        {
+            let editing_server = ctx.data(|d| {
+                d.get_temp::<bool>(apply_onboard::onboard_server_editing_key())
+                    .unwrap_or(false)
+            });
             if ctx.input_mut(|i| i.consume_key(CMD, egui::Key::N)) {
                 self.queue
-                    .push(A::OnboardSetMode(action::OnboardMode::Create));
+                    .push(A::OnboardSetStep(action::OnboardStep::Create));
             }
-            if ctx.input_mut(|i| i.consume_key(CMD, egui::Key::I)) {
+            if ctx.input_mut(|i| i.consume_key(CMD, egui::Key::I))
+                || (!editing_server
+                    && !ctx.egui_wants_keyboard_input()
+                    && ctx.input_mut(|i| i.consume_key(egui::Modifiers::NONE, egui::Key::S)))
+            {
                 self.queue
-                    .push(A::OnboardSetMode(action::OnboardMode::Import));
+                    .push(A::OnboardSetStep(action::OnboardStep::Import));
+            }
+        }
+
+        // Full-window onboard commit keys (Enter / ⌘↩).
+        if self.modal.is_none() {
+            if let Some(step) = self.onboard.as_ref().map(|s| s.step) {
+                let cmd_enter = ctx.input_mut(|i| i.consume_key(CMD, egui::Key::Enter));
+                let plain_enter =
+                    ctx.input_mut(|i| i.consume_key(egui::Modifiers::NONE, egui::Key::Enter));
+                if cmd_enter || plain_enter {
+                    match step {
+                        action::OnboardStep::Welcome => {
+                            if ctx.data(|d| {
+                                d.get_temp::<bool>(apply_onboard::onboard_server_editing_key())
+                                    .unwrap_or(false)
+                            }) {
+                                ctx.data_mut(|d| {
+                                    d.insert_temp(
+                                        apply_onboard::onboard_server_editing_key(),
+                                        false,
+                                    );
+                                });
+                            } else if self.onboard.as_ref().is_some_and(|s| !s.busy)
+                                && !ctx.egui_wants_keyboard_input()
+                            {
+                                self.queue
+                                    .push(A::OnboardSetStep(action::OnboardStep::Create));
+                            }
+                        }
+                        action::OnboardStep::Create => {
+                            self.queue.push(A::OnboardSubmit);
+                        }
+                        action::OnboardStep::Import => {
+                            let compact = self.onboard.as_ref().is_some_and(|s| s.import_compact);
+                            if cmd_enter || compact {
+                                self.queue.push(A::OnboardSubmit);
+                            } else if let Some(s) = &mut self.onboard {
+                                // Accept an active unique BIP-39 prefix completion first.
+                                let cur = s.import_focus.min(onboard::phrase_grid::WORD_COUNT - 1);
+                                if let lb::model::account::PhrasePrefixMatch::Unique(full) =
+                                    lb::model::account::match_phrase_prefix(&s.import_words[cur])
+                                {
+                                    s.import_words[cur] = full.to_owned();
+                                }
+                                if onboard::phrase_grid::all_words_valid(&s.import_words) {
+                                    self.queue.push(A::OnboardSubmit);
+                                } else if let Some(next) =
+                                    onboard::phrase_grid::next_incomplete_or_invalid_slot(
+                                        &s.import_words,
+                                        cur,
+                                    )
+                                {
+                                    s.import_focus = next;
+                                    onboard::phrase_grid::request_import_slot_caret_end(
+                                        ctx,
+                                        next,
+                                        &s.import_words[next],
+                                    );
+                                    apply_onboard::onboard_import_focus(ctx, false);
+                                }
+                            }
+                        }
+                        action::OnboardStep::Look => {
+                            self.queue.push(A::OnboardFinishLook);
+                        }
+                        action::OnboardStep::ImportSyncing => {
+                            if self.onboard.as_ref().is_some_and(|s| s.err.is_some()) {
+                                self.queue.push(A::OnboardRetryImportSync);
+                            }
+                        }
+                    }
+                }
             }
         }
 
@@ -787,6 +844,20 @@ impl ShellApp {
         }
 
         if let Some(modal) = &self.modal {
+            // Backup key sheet: Tab and Shift+Tab toggle between QR code and 24 words.
+            if let Modal::BackupKey(s) = modal {
+                if !egui::Popup::is_any_open(ctx)
+                    && (ctx.input_mut(|i| i.consume_key(egui::Modifiers::NONE, egui::Key::Tab))
+                        || ctx.input_mut(|i| i.consume_key(egui::Modifiers::SHIFT, egui::Key::Tab)))
+                {
+                    let next = match s.tab {
+                        action::BackupKeyTab::Qr => action::BackupKeyTab::Phrase,
+                        action::BackupKeyTab::Phrase => action::BackupKeyTab::Qr,
+                    };
+                    self.queue.push(A::BackupKeySetTab(next));
+                }
+            }
+
             // Share: ⏎ stages the field token; ⌘⏎ / Ctrl+⏎ commits Share.
             // Other sheets: either modifier form commits the primary action.
             if matches!(modal, Modal::Share { .. }) {
@@ -799,24 +870,11 @@ impl ShellApp {
                     self.queue.push(A::ShareStageField);
                 }
             } else {
-                // Pay (upgrade confirm) and onboard create / import: ⌘⏎ only. Other primaries: ⏎ or ⌘⏎.
+                // Other primaries: ⏎ or ⌘⏎.
                 let cmd_enter = ctx.input_mut(|i| i.consume_key(CMD, egui::Key::Enter));
                 let plain_enter =
                     ctx.input_mut(|i| i.consume_key(egui::Modifiers::NONE, egui::Key::Enter));
-                let cmd_only = matches!(
-                    (&modal, &self.account_panel),
-                    (
-                        Modal::Settings { .. },
-                        AccountPanel::Upgrade { stage: action::UpgradeStage::Confirm, .. }
-                    ) | (
-                        Modal::Onboard {
-                            mode: action::OnboardMode::Create | action::OnboardMode::Import,
-                            ..
-                        },
-                        _
-                    )
-                );
-                let commit = if cmd_only { cmd_enter } else { cmd_enter || plain_enter };
+                let commit = cmd_enter || plain_enter;
                 if commit {
                     match modal {
                         Modal::Delete { .. } => self.queue.push(A::ConfirmDelete),
@@ -841,53 +899,19 @@ impl ShellApp {
                             }
                             AccountPanel::CancelSub => self.queue.push(A::ConfirmCancelSub),
                             AccountPanel::Upgrade {
-                                stage: action::UpgradeStage::EnterCard,
-                                ..
-                            } => self.queue.push(A::UpgradeNext),
-                            AccountPanel::Upgrade {
-                                stage: action::UpgradeStage::Confirm, ..
-                            } => self.queue.push(A::UpgradeConfirmPay),
-                            AccountPanel::Upgrade {
-                                stage: action::UpgradeStage::Paying,
-                                done: Some(Ok(())),
-                                ..
-                            } => self.queue.push(A::UpgradeDone),
-                            AccountPanel::Upgrade {
-                                stage: action::UpgradeStage::Paying,
-                                done: Some(Err(_)),
-                                ..
-                            } => self.queue.push(A::UpgradeBack),
+                                stage: action::UpgradeStage::Choose, ..
+                            } => self.queue.push(A::UpgradeCheckout),
+                            AccountPanel::Upgrade { stage: action::UpgradeStage::Done, .. } => {
+                                self.queue.push(A::UpgradeDone)
+                            }
                             _ => {}
                         },
                         Modal::ImportParent { .. } => self.queue.push(A::ConfirmImportParent),
-                        Modal::Onboard { mode, key_stored, .. } => match mode {
-                            action::OnboardMode::Create | action::OnboardMode::Import => {
-                                self.queue.push(A::OnboardSubmit { show_error: true })
+                        Modal::BackupKey(s) => {
+                            if s.can_complete() {
+                                self.queue.push(A::BackupKeyComplete);
                             }
-                            action::OnboardMode::Backup
-                                if *key_stored
-                                    && self
-                                        .phrase_cache
-                                        .as_deref()
-                                        .is_some_and(|p| p.split_whitespace().count() == 24) =>
-                            {
-                                self.queue.push(A::OnboardFinishBackup)
-                            }
-                            action::OnboardMode::Backup => {}
-                            action::OnboardMode::Choice => {
-                                if ctx.data(|d| {
-                                    d.get_temp::<bool>(apply_onboard::onboard_server_editing_key())
-                                        .unwrap_or(false)
-                                }) {
-                                    ctx.data_mut(|d| {
-                                        d.insert_temp(
-                                            apply_onboard::onboard_server_editing_key(),
-                                            false,
-                                        );
-                                    });
-                                }
-                            }
-                        },
+                        }
                         Modal::Share { .. } => unreachable!(),
                         _ => {}
                     }

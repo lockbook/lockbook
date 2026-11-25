@@ -92,6 +92,12 @@
         android:title="@string/settings_premium"
         app:isPreferenceVisible="false">
         <Preference
+            android:key="@string/manage_billing_key"
+            app:title="@string/settings_manage_billing"
+            app:isPreferenceVisible="false"
+            app:iconSpaceReserved="false" />
+
+        <Preference
             android:key="@string/cancel_subscription_key"
             app:title="@string/settings_cancel_subscription"
             app:iconSpaceReserved="false" />

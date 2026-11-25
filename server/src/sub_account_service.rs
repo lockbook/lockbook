@@ -77,6 +77,7 @@ where
         if !root.is_root()
             || root.owner() != owner
             || pubkey::verify(&request.public_key, root, 0, 0, signed_at).is_err()
+            || self.config.features.refuses(root)
         {
             return Err(ClientError(RootInvalid));
         }
@@ -218,6 +219,7 @@ where
             &mut db.owned_files,
             &mut db.shared_files,
             &mut db.file_children,
+            &mut db.file_attachments,
             &mut db.metas,
         )
         .and_then(|tree| tree.to_lazy().calculate_usage(owner))

@@ -76,4 +76,18 @@
         <item name="cornerSizeBottomRight">0dp</item>
     </style>
 
+    <style name="Widget.Lockbook.UsernameChip" parent="Widget.Material3.Chip.Filter">
+        <item name="checkedIconVisible">false</item>
+        <item name="closeIconVisible">false</item>
+        <item name="chipIconVisible">true</item>
+        <item name="chipIconSize">@dimen/username_avatar_size</item>
+        <item name="chipIconTint">@null</item>
+        <item name="chipStrokeColor">@color/recent_editor_chip_stroke</item>
+    </style>
+
+    <!-- Scope Expressive motion to Recents without changing the rest of the app's theme. -->
+    <style name="RecentsMotion" parent="">
+        <item name="motionSpringDefaultSpatial">@style/Motion.Material3.Spring.Expressive.Default.Spatial</item>
+        <item name="motionSpringFastEffects">@style/Motion.Material3.Spring.Expressive.Fast.Effects</item>
+    </style>
 </resources>

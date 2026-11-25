@@ -22,8 +22,8 @@ use workspace_rs::tab::{ContentState, Destination, Place, TabSaveContent};
 
 use super::ShellApp;
 use super::action::{
-    Action as A, CreateKind, CreateLoc, Modal, OnboardLookup, OnboardMode, SettingsCat,
-    ShareLookup, UpgradeStage,
+    Action as A, BackupKeyState, CreateKind, CreateLoc, Modal, OnboardLookup, OnboardStep,
+    SettingsCat, ShareLookup, UpgradeStage,
 };
 use super::ops::{is_pinned, note_files_changed, refresh_pinned};
 use super::prefs::AccountPanel;
@@ -197,11 +197,25 @@ pub fn apply(app: &mut ShellApp, ctx: &Context, action: A) {
         }
         A::OpenSettings => {
             app.modal = Some(Modal::Settings { cat: SettingsCat::Account });
+            spawn_billing_refresh(app, ctx);
         }
-        A::CloseModal => app.modal = None,
+        A::CloseModal => {
+            if matches!(app.modal, Some(Modal::BackupKey(_))) {
+                clear_backup_key_secrets(app, ctx);
+            }
+            if matches!(app.modal, Some(Modal::Settings { .. })) {
+                app.close_account_panel();
+            }
+            app.modal = None;
+        }
         A::SetSettingsCat(cat) => {
             if let Some(Modal::Settings { cat: c }) = &mut app.modal {
                 *c = cat;
+            }
+            if cat == SettingsCat::Account {
+                spawn_billing_refresh(app, ctx);
+            } else {
+                app.close_account_panel();
             }
         }
         A::OpenDelete(ids) => {
@@ -503,47 +517,112 @@ pub fn apply(app: &mut ShellApp, ctx: &Context, action: A) {
             }
         }
         A::OpenHelp => app.modal = Some(Modal::Help),
-        A::OnboardSetMode(m) => {
-            if matches!(&app.modal, Some(Modal::Onboard { mode: OnboardMode::Backup, .. })) {
-                return;
-            }
-            if let Some(Modal::Onboard { mode, err, uname_lookup, uname_lookup_for, .. }) =
-                &mut app.modal
-            {
-                *mode = m;
-                *err = None;
-                if matches!(m, OnboardMode::Create) {
-                    *uname_lookup = OnboardLookup::Idle;
-                    uname_lookup_for.clear();
+        A::OnboardSetStep(step) => {
+            let leaving_look = app
+                .onboard
+                .as_ref()
+                .is_some_and(|s| s.step == OnboardStep::Look && step != OnboardStep::Look);
+            if let Some(s) = &app.onboard {
+                if s.busy && step != OnboardStep::ImportSyncing {
+                    return;
                 }
             }
-            // Default-focus the field when entering a form step (Create/Rename pattern).
-            match m {
-                OnboardMode::Create => {
-                    ctx.data_mut(|d| {
-                        d.insert_temp(egui::Id::unique("onboard_uname_need_focus"), true)
-                    });
+            if leaving_look {
+                super::apply_onboard::clear_look_preview(app, ctx);
+            }
+            if let Some(s) = &mut app.onboard {
+                s.step = step;
+                s.err = None;
+                s.pending_cross_import = None;
+                if step == OnboardStep::Create {
+                    s.uname_lookup = OnboardLookup::Idle;
+                    s.uname_lookup_for.clear();
                 }
-                OnboardMode::Import => {
-                    onboard_import_focus(ctx);
+                let compact = s.import_compact;
+                match step {
+                    OnboardStep::Create => {
+                        ctx.data_mut(|d| {
+                            d.insert_temp(egui::Id::unique("onboard_uname_need_focus"), true);
+                        });
+                    }
+                    OnboardStep::Import => {
+                        onboard_import_focus(ctx, compact);
+                    }
+                    OnboardStep::Welcome | OnboardStep::ImportSyncing | OnboardStep::Look => {}
                 }
-                OnboardMode::Choice | OnboardMode::Backup => {}
             }
         }
+        A::OnboardToggleCompact(compact) => {
+            if let Some(s) = &mut app.onboard {
+                s.import_compact = compact;
+                s.err = None;
+                s.pending_cross_import = None;
+            }
+            onboard_import_focus(ctx, compact);
+        }
         A::OnboardVerifyUname => onboard_verify_uname(app, ctx),
-        A::OnboardSubmit { show_error } => onboard_submit(app, ctx, show_error),
-        A::OnboardFinishBackup => {
-            let stored = matches!(
-                &app.modal,
-                Some(Modal::Onboard { mode: OnboardMode::Backup, key_stored: true, .. })
-            );
-            let phrase_ok = app
-                .phrase_cache
-                .as_deref()
-                .is_some_and(|p| p.split_whitespace().count() == 24);
-            if stored && phrase_ok {
+        A::OnboardSubmit => onboard_submit(app, ctx),
+        A::OnboardFinishLook => onboard_finish_look(app, ctx),
+        A::OnboardRetryImportSync => onboard_retry_import_sync(app, ctx),
+        A::OpenBackupKey => {
+            app.modal = Some(Modal::BackupKey(BackupKeyState::default()));
+        }
+        A::BackupKeySetTab(tab) => {
+            if let Some(Modal::BackupKey(s)) = &mut app.modal {
+                s.tab = tab;
+            }
+        }
+        A::BackupKeyRevealQr => {
+            if let Some(Modal::BackupKey(s)) = &mut app.modal {
+                s.qr_revealed = true;
+                s.qr_ever_revealed = true;
+            }
+            spawn_account_qr(app, ctx);
+        }
+        A::BackupKeyHideQr => {
+            if let Some(Modal::BackupKey(s)) = &mut app.modal {
+                s.qr_revealed = false;
+            }
+        }
+        A::BackupKeyCopyCompactKey => {
+            if let Some(r) = app.session.ready() {
+                if let Ok(key) = r.workspace.core.export_account_private_key() {
+                    ctx.copy_text(key);
+                    if let Some(Modal::BackupKey(s)) = &mut app.modal {
+                        s.compact_key_copied = true;
+                    }
+                }
+            }
+        }
+        A::BackupKeyRevealPhrase => {
+            if let Some(Modal::BackupKey(s)) = &mut app.modal {
+                s.phrase_revealed = true;
+                s.phrase_ever_revealed = true;
+            }
+        }
+        A::BackupKeyHidePhrase => {
+            if let Some(Modal::BackupKey(s)) = &mut app.modal {
+                s.phrase_revealed = false;
+            }
+        }
+        A::BackupKeyCopyPhrase => {
+            if let Some(r) = app.session.ready() {
+                if let Ok(p) = r.workspace.core.export_account_phrase() {
+                    ctx.copy_text(p);
+                    if let Some(Modal::BackupKey(s)) = &mut app.modal {
+                        s.phrase_copied = true;
+                    }
+                }
+            }
+        }
+        A::BackupKeyComplete => {
+            let can_complete = matches!(&app.modal, Some(Modal::BackupKey(s)) if s.can_complete());
+            if can_complete {
+                if let Some(nudges) = &mut app.nudges {
+                    nudges.complete();
+                }
+                clear_backup_key_secrets(app, ctx);
                 app.modal = None;
-                app.phrase_cache = None;
             }
         }
         A::RequestSync => request_sync(app, ctx),
@@ -678,7 +757,6 @@ pub fn apply(app: &mut ShellApp, ctx: &Context, action: A) {
         A::CancelSubscription => {
             ensure_settings_account(app);
             app.account_panel = AccountPanel::CancelSub;
-            app.phrase_cache = None;
         }
         A::SetThemeMode(pref) => {
             app.settings.theme_mode = pref;
@@ -699,13 +777,44 @@ pub fn apply(app: &mut ShellApp, ctx: &Context, action: A) {
             ctx.request_repaint();
         }
         A::SetThemeAccent(accent) => {
+            if let Some(s) = &mut app.onboard {
+                s.preview_accent = None;
+            }
             app.settings.theme_accent = Some(accent);
             set_theme_accent(ctx, accent);
             let _ = app.settings.to_file();
         }
+        A::PreviewThemeAccent(accent) => {
+            if let Some(s) = &mut app.onboard {
+                s.preview_accent = accent;
+            }
+            match accent {
+                Some(hue) => set_theme_accent(ctx, hue),
+                None => app.show_saved_theme(ctx),
+            }
+            ctx.request_repaint();
+        }
         A::SetTextFont(family) => {
+            if let Some(s) = &mut app.onboard {
+                s.preview_font = None;
+            }
             app.settings.text_font = family;
             apply_fonts(app, ctx);
+        }
+        A::PreviewTextFont(family) => {
+            if let Some(s) = &mut app.onboard {
+                s.preview_font = family.clone();
+            }
+            match family {
+                Some(choice) => {
+                    workspace_rs::font::choose(choice.as_deref(), app.settings.code_font.as_deref())
+                }
+                None => workspace_rs::font::choose(
+                    app.settings.text_font.as_deref(),
+                    app.settings.code_font.as_deref(),
+                ),
+            }
+            ctx.request_repaint();
         }
         A::SetCodeFont(family) => {
             app.settings.code_font = family;
@@ -755,37 +864,29 @@ pub fn apply(app: &mut ShellApp, ctx: &Context, action: A) {
                 apply(app, ctx, then);
             }
         }
-        A::NudgeDismiss => {
-            if let Some(nudges) = &mut app.nudges {
-                nudges.dismiss();
-            }
-        }
         A::RevealPhrase => {
             ensure_settings_account(app);
             app.account_panel = AccountPanel::Phrase;
-            if let Some(r) = app.session.ready() {
-                if let Ok(p) = r.workspace.core.export_account_phrase() {
-                    app.phrase_cache = Some(p);
-                }
-            }
         }
         A::OpenAccountQr => {
             ensure_settings_account(app);
             app.account_panel = AccountPanel::Qr;
-            app.phrase_cache = None;
             spawn_account_qr(app, ctx);
         }
         A::HideAccountKey => {
             app.close_account_panel();
-            app.phrase_cache = None;
         }
         A::CopyPhrase => {
-            if let Some(p) = &app.phrase_cache {
-                ctx.copy_text(p.clone());
-            } else if let Some(r) = app.session.ready() {
+            if let Some(r) = app.session.ready() {
                 if let Ok(p) = r.workspace.core.export_account_phrase() {
-                    ctx.copy_text(p.clone());
-                    app.phrase_cache = Some(p);
+                    ctx.copy_text(p);
+                }
+            }
+        }
+        A::CopyCompactKey => {
+            if let Some(r) = app.session.ready() {
+                if let Ok(key) = r.workspace.core.export_account_private_key() {
+                    ctx.copy_text(key);
                 }
             }
         }
@@ -812,55 +913,26 @@ pub fn apply(app: &mut ShellApp, ctx: &Context, action: A) {
         A::OpenUpgrade => {
             // Stay in Settings → Account in-content (not a separate sheet).
             ensure_settings_account(app);
-            app.account_panel = AccountPanel::Upgrade {
-                stage: UpgradeStage::EnterCard,
-                number: String::new(),
-                exp: String::new(),
-                cvc: String::new(),
-                error: None,
-                done: None,
-            };
-            app.phrase_cache = None;
-            ctx.data_mut(|d| d.insert_temp(egui::Id::unique("shell_upgrade_need_focus"), true));
+            app.account_panel = AccountPanel::Upgrade { stage: UpgradeStage::Choose };
         }
-        A::UpgradeBack => {
-            match &app.account_panel {
-                AccountPanel::Upgrade { stage: UpgradeStage::Confirm, .. } => {
-                    if let AccountPanel::Upgrade { stage, error, .. } = &mut app.account_panel {
-                        *stage = UpgradeStage::EnterCard;
-                        *error = None;
-                    }
-                }
-                // Payment failed — edit card again.
-                AccountPanel::Upgrade {
-                    stage: UpgradeStage::Paying, done: Some(Err(_)), ..
-                } => {
-                    if let AccountPanel::Upgrade { stage, done, error, .. } = &mut app.account_panel
-                    {
-                        *stage = UpgradeStage::EnterCard;
-                        *done = None;
-                        *error = None;
-                    }
-                }
-                AccountPanel::Upgrade { stage: UpgradeStage::EnterCard, .. }
-                | AccountPanel::Upgrade {
-                    stage: UpgradeStage::Paying, done: Some(Ok(())), ..
-                } => {
-                    app.close_account_panel();
-                }
-                // Mid-charge: ignore back.
-                _ => {}
+        A::UpgradeBack => match &mut app.account_panel {
+            AccountPanel::Upgrade { stage: stage @ UpgradeStage::Browser } => {
+                *stage = UpgradeStage::Choose;
+                app.billing.stop_browser_poll();
             }
-        }
-        A::UpgradeNext => upgrade_validate_and_confirm(app),
-        A::UpgradeConfirmPay => upgrade_start_pay(app, ctx),
+            _ => app.close_account_panel(),
+        },
+        A::UpgradeCheckout => upgrade_open_checkout(app, ctx),
         A::UpgradeDone => {
             app.close_account_panel();
+            if app.import_after_upgrade.is_some() {
+                app.modal = None;
+            }
         }
+        A::ManageBilling => open_billing_portal(app, ctx),
         A::OpenLogout => {
             ensure_settings_account(app);
             app.account_panel = AccountPanel::Logout { acked: false };
-            app.phrase_cache = None;
         }
         A::LogoutAck(on) => {
             if let AccountPanel::Logout { acked } = &mut app.account_panel {
@@ -877,7 +949,6 @@ pub fn apply(app: &mut ShellApp, ctx: &Context, action: A) {
         A::OpenDeleteAccount => {
             ensure_settings_account(app);
             app.account_panel = AccountPanel::DeleteAccount { typed: String::new() };
-            app.phrase_cache = None;
             ctx.data_mut(|d| {
                 d.insert_temp(egui::Id::unique("shell_delete_account_need_focus"), true)
             });
@@ -1406,15 +1477,26 @@ pub(crate) fn poll_incoming_link(app: &mut ShellApp, ctx: &Context) {
     };
     match app.incoming_link.take() {
         None => {}
-        Some(IncomingLink::Waiting(url)) => match Place::from_url(&url) {
-            Some(place) if known(r, &place) => open_incoming_link(r, place),
-            Some(place) => {
-                app.incoming_link = Some(IncomingLink::Syncing(sync_for_link(r, ctx, place)))
+        Some(IncomingLink::Waiting(url)) => {
+            // Bare `lb://` just brings the app to the front and refreshes billing.
+            let trimmed = url.trim();
+            if trimmed.eq_ignore_ascii_case("lb://")
+                || trimmed.eq_ignore_ascii_case("lb:///")
+                || trimmed.eq_ignore_ascii_case("lb:")
+            {
+                spawn_billing_refresh(app, ctx);
+                return;
             }
-            None => app
-                .toasts
-                .error("This link doesn't name a note or a search."),
-        },
+            match Place::from_url(&url) {
+                Some(place) if known(r, &place) => open_incoming_link(r, place),
+                Some(place) => {
+                    app.incoming_link = Some(IncomingLink::Syncing(sync_for_link(r, ctx, place)))
+                }
+                None => app
+                    .toasts
+                    .error("This link doesn't name a note or a search."),
+            }
+        }
         Some(IncomingLink::Syncing(rx)) => match rx.try_recv() {
             Ok(LinkSynced { place, synced }) => {
                 note_files_changed(r);
@@ -1836,4 +1918,11 @@ fn apply_fonts(app: &mut ShellApp, ctx: &Context) {
     workspace_rs::font::choose(settings.text_font.as_deref(), settings.code_font.as_deref());
     ctx.request_repaint();
     let _ = settings.to_file();
+}
+
+fn clear_backup_key_secrets(app: &mut ShellApp, ctx: &Context) {
+    if let Ok(mut g) = app.account_qr.lock() {
+        *g = super::AccountQrCache::Idle;
+    }
+    super::settings_account::clear_account_qr_texture(ctx);
 }

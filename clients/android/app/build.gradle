@@ -41,8 +41,8 @@ android {
         minSdkVersion 24
         targetSdk=36
 
-        versionCode 4466
-        versionName "26.11.13"
+        versionCode 4467
+        versionName "26.11.24"
 
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -119,6 +119,7 @@ dependencies {
     implementation "org.jetbrains.kotlin:kotlin-stdlib:$core_ktx_version"
 
     // Ui Libraries
+    implementation "androidx.dynamicanimation:dynamicanimation:1.1.0"
     implementation "com.google.android.material:material:$material_ui_version"
     implementation "com.vanniktech:emoji-androidx-emoji2:$emoji_picker_version"
     implementation "androidx.preference:preference-ktx:$preference_version"

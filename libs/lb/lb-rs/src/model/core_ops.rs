@@ -4,9 +4,9 @@ use crate::model::crypto::{AESKey, DecryptedDocument, EncryptedDocument};
 use crate::model::errors::{LbErrKind, LbResult};
 use crate::model::file::{File, Share, ShareMode};
 use crate::model::file_metadata::{DocumentHmac, FileType, Owner};
-use crate::model::filename::{NameComponents, attachments_folder_name};
+use crate::model::filename::NameComponents;
 use crate::model::lazy::LazyTree;
-use crate::model::meta::{AttachmentsOf, Meta};
+use crate::model::meta::{AttachmentAccessInfo, Meta};
 use crate::model::secret_filename::{HmacSha256, SecretFileName};
 use crate::model::staged::{StagedTree, StagedTreeLike};
 use crate::model::tree_like::{TreeLike, TreeLikeMut};
@@ -132,9 +132,10 @@ where
             || self.in_pending_share(&id)?)
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub fn create_op(
         &mut self, id: Uuid, key: AESKey, parent: &Uuid, name: &str, file_type: FileType,
-        keychain: &Keychain,
+        attachment_of: Option<AttachmentAccessInfo>, keychain: &Keychain,
     ) -> LbResult<(SignedMeta, Uuid)> {
         validate::file_name(name)?;
 
@@ -143,8 +144,17 @@ where
         }
         let parent_owner = self.find(parent)?.owner().0;
         let parent_key = self.decrypt_key(parent, keychain)?;
-        let file = Meta::create(id, key, &parent_owner, *parent, &parent_key, name, file_type)?
-            .sign(keychain)?;
+        let file = Meta::create(
+            id,
+            key,
+            &parent_owner,
+            *parent,
+            &parent_key,
+            name,
+            file_type,
+            attachment_of,
+        )?
+        .sign(keychain)?;
         let id = *file.id();
 
         debug!("new {:?} with id: {}", file_type, id);
@@ -161,41 +171,40 @@ where
         if self.maybe_find(&parent).is_none() {
             return Err(LbErrKind::InsufficientPermission.into());
         }
-        let name = self.attachments_name(document, keychain)?;
+
+        // Generate a name for a note's attachments folder: `note.md` becomes `note-attachments`
+        let stem = NameComponents::from(&self.name(document, keychain)?).stem();
+        let name = NameComponents::folder(&format!("{stem}-attachments"));
+        let name = self.free_name(&parent, &name, None, keychain)?;
+
         let document_key = self.decrypt_key(document, keychain)?;
-        let (file, _) = self.create_op(id, key, &parent, &name, FileType::Folder, keychain)?;
-        let attachments_of =
-            AttachmentsOf { id: *document, key: symkey::encrypt(&document_key, &key)? };
-        file.timestamped_value
-            .value
-            .into_attachments(attachments_of)
-            .sign(keychain)
+        let attachment_of =
+            AttachmentAccessInfo { id: *document, key: symkey::encrypt(&document_key, &key)? };
+        let (file, _) = self.create_op(
+            id,
+            key,
+            &parent,
+            &name,
+            FileType::Folder,
+            Some(attachment_of),
+            keychain,
+        )?;
+        Ok(file)
     }
 
-    /// The name a new attachments folder for `document` gets: the first name for it that no other
-    /// file beside the document has. The folder keeps it: nothing renames the folder to follow its
-    /// document, since the document's text names it.
-    pub fn attachments_name(&mut self, document: &Uuid, keychain: &Keychain) -> LbResult<String> {
-        let document_name = self.name(document, keychain)?;
-        let parent = *self.find(document)?.parent();
-        let taken = self.names_beside(&parent, None, keychain)?;
-        Ok((1..=taken.len() + 1)
-            .map(|n| attachments_folder_name(&document_name, n))
-            .find(|name| !taken.contains(name))
-            .expect("one of n + 1 names is free beside n files"))
-    }
-
-    /// The names of the live files in `parent`, but for `except`.
-    fn names_beside(
-        &mut self, parent: &Uuid, except: Option<Uuid>, keychain: &Keychain,
-    ) -> LbResult<HashSet<String>> {
+    fn free_name(
+        &mut self, parent: &Uuid, name: &NameComponents, except: Option<Uuid>, keychain: &Keychain,
+    ) -> LbResult<String> {
         let mut taken = HashSet::new();
         for sibling in self.children(parent)? {
             if Some(sibling) != except && !self.calculate_deleted(&sibling)? {
                 taken.insert(self.name(&sibling, keychain)?);
             }
         }
-        Ok(taken)
+        Ok((1..)
+            .map(|n| name.numbered(n))
+            .find(|name| !taken.contains(name))
+            .unwrap())
     }
 
     pub fn rename_op(
@@ -411,11 +420,12 @@ where
     Base: TreeLike<F = Staged::F>,
     Local: TreeLikeMut<F = Staged::F>,
 {
+    #[allow(clippy::too_many_arguments)]
     pub fn create_unvalidated(
         &mut self, id: Uuid, key: AESKey, parent: &Uuid, name: &str, file_type: FileType,
-        keychain: &Keychain,
+        attachment_of: Option<AttachmentAccessInfo>, keychain: &Keychain,
     ) -> LbResult<Uuid> {
-        let (op, id) = self.create_op(id, key, parent, name, file_type, keychain)?;
+        let (op, id) = self.create_op(id, key, parent, name, file_type, attachment_of, keychain)?;
         self.stage_and_promote(Some(op))?;
         Ok(id)
     }
@@ -428,7 +438,7 @@ where
             return Err(LbErrKind::FileParentNonexistent.into());
         }
 
-        let (op, id) = self.create_op(id, key, parent, name, file_type, keychain)?;
+        let (op, id) = self.create_op(id, key, parent, name, file_type, None, keychain)?;
         self.stage_validate_and_promote(Some(op), Owner(keychain.get_pk()?))?;
         Ok(id)
     }
@@ -445,16 +455,6 @@ where
         Ok(id)
     }
 
-    /// Makes the new folder `id` an attachments folder, as `attachments_of` says.
-    pub fn attach_unvalidated(
-        &mut self, id: &Uuid, attachments_of: AttachmentsOf, keychain: &Keychain,
-    ) -> LbResult<()> {
-        let file = self.find(id)?.timestamped_value.value.clone();
-        let op = file.into_attachments(attachments_of).sign(keychain)?;
-        self.stage_and_promote(Some(op))?;
-        Ok(())
-    }
-
     pub fn rename_unvalidated(
         &mut self, id: &Uuid, name: &str, keychain: &Keychain,
     ) -> LbResult<()> {
@@ -465,7 +465,7 @@ where
 
     /// Renames `id`. A document's attachments folder keeps its name, and can't be renamed itself.
     pub fn rename(&mut self, id: &Uuid, name: &str, keychain: &Keychain) -> LbResult<()> {
-        if self.find(id)?.attachments_of().is_some() {
+        if self.find(id)?.attachment_of().is_some() {
             return Err(LbErrKind::AttachmentsFolderFixed.into());
         }
         let op = self.rename_op(id, name, keychain)?;
@@ -473,10 +473,8 @@ where
         Ok(())
     }
 
-    /// Whether `id` is a live document of `me`'s with no attachments folder that someone else
-    /// writes by a share of its own. Sharing a document alone gives its writers no say in its
-    /// folder, so they can't make its attachments folder, and its owner makes it for them.
-    pub fn wants_shared_attachments(&mut self, id: &Uuid, me: Owner) -> LbResult<bool> {
+    /// Whether a document should have attachments, such as upon the first write share
+    pub fn wants_attachments(&mut self, id: &Uuid, me: Owner) -> LbResult<bool> {
         let file = self.find(id)?;
         let written = file
             .user_access_keys()
@@ -489,37 +487,18 @@ where
             && self.attachments_folder(id)?.is_none())
     }
 
-    /// Puts `document`'s attachments folder, if it has one, beside it, as
-    /// [Self::place_attachments_folder] does.
-    pub fn place_attachments(&mut self, document: &Uuid, keychain: &Keychain) -> LbResult<()> {
-        if !self.find(document)?.is_document() || self.calculate_deleted(document)? {
-            return Ok(());
-        }
-        let Some(folder) = self.attachments_folder(document)? else {
-            return Ok(());
-        };
-        self.place_attachments_folder(document, &folder, keychain)
-    }
-
-    /// Puts `folder`, an attachments folder of the live `document`, beside it. It keeps its name,
-    /// numbered as a conflict is (`plan-attachments 2`) where another file beside the document has
-    /// it.
-    pub fn place_attachments_folder(
+    /// Puts an attachments folder beside its target whether during a move or during a sync merge
+    /// repair
+    pub fn move_attachments_beside_note(
         &mut self, document: &Uuid, folder: &Uuid, keychain: &Keychain,
     ) -> LbResult<()> {
         let folder = *folder;
         let parent = *self.find(document)?.parent();
-        if *self.find(&folder)?.parent() != parent {
-            self.move_unvalidated(&folder, &parent, keychain)?;
-        }
-        let taken = self.names_beside(&parent, Some(folder), keychain)?;
+        self.move_unvalidated(&folder, &parent, keychain)?;
         let name = self.name(&folder, keychain)?;
-        if taken.contains(&name) {
-            let numbered = NameComponents::folder(&name);
-            let free = (2..=taken.len() + 2)
-                .map(|n| numbered.numbered(n))
-                .find(|name| !taken.contains(name))
-                .expect("one of n + 1 names is free beside n files");
+        let free =
+            self.free_name(&parent, &NameComponents::folder(&name), Some(folder), keychain)?;
+        if free != name {
             self.rename_unvalidated(&folder, &free, keychain)?;
         }
         Ok(())
@@ -537,12 +516,14 @@ where
         if self.maybe_find(new_parent).is_none() || self.calculate_deleted(new_parent)? {
             return Err(LbErrKind::FileParentNonexistent.into());
         }
-        if self.find(id)?.attachments_of().is_some() {
+        if self.find(id)?.attachment_of().is_some() {
             return Err(LbErrKind::AttachmentsFolderFixed.into());
         }
         let mut tree = StagedTree::new(&self.tree, Vec::new()).to_lazy();
         tree.move_unvalidated(id, new_parent, keychain)?;
-        tree.place_attachments(id, keychain)?;
+        if let Some(folder) = tree.attachments_folder(id)? {
+            tree.move_attachments_beside_note(id, &folder, keychain)?;
+        }
         let (_, ops) = tree.unstage();
         self.stage_validate_and_promote(ops, Owner(keychain.get_pk()?))?;
         Ok(())
@@ -565,27 +546,6 @@ where
     ) -> LbResult<()> {
         let op = self.add_share_op(id, sharee, mode, keychain)?;
         self.stage_and_promote(Some(op))?;
-        Ok(())
-    }
-
-    /// Shares `id`, and with `attachments`, an id and key for a new folder, makes the attachments
-    /// folder its owner makes for a document others write by a share of its own, in the same
-    /// change.
-    pub fn add_share_and_attach(
-        &mut self, id: Uuid, sharee: Owner, mode: ShareMode, attachments: Option<(Uuid, AESKey)>,
-        keychain: &Keychain,
-    ) -> LbResult<()> {
-        let me = Owner(keychain.get_pk()?);
-        let mut tree = StagedTree::new(&self.tree, Vec::new()).to_lazy();
-        tree.add_share_unvalidated(id, sharee, mode, keychain)?;
-        if let Some((folder, key)) = attachments {
-            if tree.wants_shared_attachments(&id, me)? {
-                let op = tree.create_attachments_op(folder, key, &id, keychain)?;
-                tree.stage_and_promote(Some(op))?;
-            }
-        }
-        let (_, ops) = tree.unstage();
-        self.stage_validate_and_promote(ops, me)?;
         Ok(())
     }
 
@@ -672,21 +632,12 @@ where
             for moved in undone {
                 let parent = *tree.find(&moved)?.parent();
                 let name = tree.name(&moved, keychain)?;
-                let mut taken = HashSet::new();
-                for sibling in tree.children(&parent)? {
-                    if sibling != moved && !tree.calculate_deleted(&sibling)? {
-                        taken.insert(tree.name(&sibling, keychain)?);
-                    }
-                }
                 let components = if tree.find(&moved)?.is_folder() {
                     NameComponents::folder(&name)
                 } else {
                     NameComponents::from(&name)
                 };
-                let free = (1..)
-                    .map(|n| components.numbered(n))
-                    .find(|name| !taken.contains(name))
-                    .unwrap();
+                let free = tree.free_name(&parent, &components, Some(moved), keychain)?;
                 if free != name {
                     tree.rename_unvalidated(&moved, &free, keychain)?;
                 }

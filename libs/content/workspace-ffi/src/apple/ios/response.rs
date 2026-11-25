@@ -81,6 +81,7 @@ impl From<crate::Response> for IOSResponse {
                     selected_folder_changed,
                     open_camera,
                     open_search,
+                    open_import: _,
                     file_cache_updated: _,
                     spreadsheet_export_file,
                 },

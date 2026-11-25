@@ -5,10 +5,10 @@ struct AccountPhraseView: View {
     let accountPhrasePart2: [String]
     let includeBackground: Bool
 
-    init(includeBackground: Bool = true) {
+    init(includeBackground: Bool = true, phrase: String? = nil) {
         self.includeBackground = includeBackground
 
-        switch AppState.lb.exportAccountPhrase() {
+        switch phrase.map({ .success($0) }) ?? AppState.lb.exportAccountPhrase() {
         case let .success(accountPhrase):
             let accountPhrase = accountPhrase.split(separator: " ")
             accountPhrasePart1 = accountPhrase.prefix(12).enumerated().map { index, item in

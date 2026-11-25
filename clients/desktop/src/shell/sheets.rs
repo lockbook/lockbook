@@ -62,7 +62,7 @@ enum ModalKind {
     DeclineShare,
     ImportParent,
     Help,
-    Onboard,
+    BackupKey,
 }
 
 pub fn show_modals(app: &mut ShellApp, ctx: &egui::Context, t: &Theme, queue: &mut Vec<Action>) {
@@ -78,14 +78,11 @@ pub fn show_modals(app: &mut ShellApp, ctx: &egui::Context, t: &Theme, queue: &m
         Some(Modal::DeclineShare { .. }) => ModalKind::DeclineShare,
         Some(Modal::ImportParent { .. }) => ModalKind::ImportParent,
         Some(Modal::Help) => ModalKind::Help,
-        Some(Modal::Onboard { .. }) => ModalKind::Onboard,
+        Some(Modal::BackupKey(_)) => ModalKind::BackupKey,
     };
 
     match kind {
         ModalKind::Settings => {
-            if matches!(app.account_panel, super::prefs::AccountPanel::Upgrade { .. }) {
-                super::apply::poll_upgrade(app, ctx);
-            }
             settings::show(app, ctx, t, queue);
         }
         ModalKind::Delete => {
@@ -138,10 +135,7 @@ pub fn show_modals(app: &mut ShellApp, ctx: &egui::Context, t: &Theme, queue: &m
             );
         }
         ModalKind::Help => show_help(ctx, t, queue),
-        ModalKind::Onboard => {
-            super::apply::onboard_poll_uname(app, ctx);
-            super::sheet_onboard::show_onboard(app, ctx, t, queue);
-        }
+        ModalKind::BackupKey => super::sheet_backup_key::show_backup_key(app, ctx, t, queue),
     }
 }
 

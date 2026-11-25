@@ -18,6 +18,7 @@ fn node(owner: &Account, parent: Uuid, kind: FileType) -> Meta {
         &symkey::generate_key(),
         "file",
         kind,
+        None,
     )
     .unwrap()
 }
