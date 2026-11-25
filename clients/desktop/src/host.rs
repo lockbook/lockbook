@@ -152,18 +152,6 @@ impl ApplicationHandler<UserEvent> for App {
             state.modifiers = modifiers.state();
         }
 
-        if let WindowEvent::DroppedFile(path) = &event {
-            let content = vec![ClipContent::Files(vec![path.clone()])];
-            state
-                .lb
-                .renderer
-                .context
-                .push_event(workspace_rs::Event::Drop {
-                    content,
-                    position: state.last_pointer_pos,
-                });
-        }
-
         // fcitx5 on Wayland answers each caret report with an empty preedit,
         // and egui-winit answers each event with a caret report, so passing
         // them on outside a composition repaints every frame. They clear nothing.
@@ -327,15 +315,6 @@ impl AppState {
 
         let Output { mut platform, viewport } = self.lb.frame();
 
-        // The shell queues saves on every frame a close is requested; the
-        // window closes once they're written.
-        if self.close_requested {
-            if self.lb.app.saves_settled() {
-                std::process::exit(0);
-            }
-            self.window.request_redraw();
-        }
-
         for command in &platform.commands {
             match command {
                 egui::OutputCommand::CopyText(text) => {
@@ -432,6 +411,26 @@ impl AppState {
             .any(|e| matches!(e, egui::ViewportEvent::Close))
         {
             self.close_requested = true;
+        }
+
+        // The shell flushes tabs on each frame while a close is pending.
+        if self.close_requested {
+            if self.lb.app.saves_settled() {
+                std::process::exit(0);
+            }
+            if self
+                .lb
+                .app
+                .session
+                .ready()
+                .is_some_and(|r| r.workspace.has_save_error())
+            {
+                self.close_requested = false;
+                self.lb
+                    .app
+                    .toasts
+                    .error("Resolve the spreadsheet error before closing Lockbook.");
+            }
             self.window.request_redraw();
         }
     }

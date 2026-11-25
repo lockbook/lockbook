@@ -493,6 +493,102 @@ impl Workspace {
         }
     }
 
+    #[cfg(not(target_family = "wasm"))]
+    pub fn import_current_spreadsheet_path(&mut self, filename: &str, path: &Path) {
+        use crate::tab::spreadsheet::MAX_FILE_BYTES;
+        use std::io::Read as _;
+
+        let mut bytes = Vec::new();
+        match fs::File::open(path)
+            .and_then(|file| file.take(MAX_FILE_BYTES as u64 + 1).read_to_end(&mut bytes))
+        {
+            Ok(_) => self.import_current_spreadsheet(filename, &bytes),
+            Err(error) => self
+                .out
+                .failure_messages
+                .push(format!("Could not read {}: {error}", path.display())),
+        }
+    }
+
+    #[cfg(not(target_family = "wasm"))]
+    pub fn import_dropped_spreadsheet(&mut self, paths: &[PathBuf]) -> bool {
+        let [path] = paths else { return false };
+        let Some(filename) = path.file_name().and_then(|name| name.to_str()) else {
+            return false;
+        };
+        if !crate::tab::spreadsheet::is_import_name(filename)
+            || !self.current_tab().is_some_and(|tab| {
+                !tab.read_only && matches!(&tab.content, ContentState::Open(TabContent::Spreadsheet(sheet)) if sheet.can_import())
+            })
+        {
+            return false;
+        }
+        self.import_current_spreadsheet_path(filename, path);
+        true
+    }
+
+    #[cfg(not(target_family = "wasm"))]
+    pub(crate) fn make_editable_spreadsheet_copy(&mut self) -> Result<File, String> {
+        use crate::tab::spreadsheet::NATIVE_EXTENSION;
+        use lb_rs::model::filename::MAX_FILENAME_LENGTH;
+
+        let Some(ContentState::Open(TabContent::Spreadsheet(sheet))) =
+            self.current_tab().map(|tab| &tab.content)
+        else {
+            return Err("No spreadsheet preview is open".into());
+        };
+        if sheet.editable() {
+            return Err("This spreadsheet is already editable".into());
+        }
+        let bytes = sheet.editable_copy_bytes()?;
+        let source = self
+            .core
+            .get_file_by_id(sheet.id)
+            .map_err(|error| error.to_string())?;
+        let source_parent_writable = {
+            let files = self.files.read().unwrap();
+            files.get_by_id(source.parent).is_some()
+                && files.access(source.parent, &self.account) != UserAccessMode::Read
+        };
+        let parent = if source_parent_writable {
+            source.parent
+        } else {
+            self.core.get_root().map_err(|error| error.to_string())?.id
+        };
+        let stem = Path::new(&source.name)
+            .file_stem()
+            .and_then(|name| name.to_str())
+            .unwrap_or("Spreadsheet");
+        // Reserve room for the extension and numbering if a copy already exists.
+        let stem =
+            &stem[..stem.floor_char_boundary(MAX_FILENAME_LENGTH - NATIVE_EXTENSION.len() - 22)];
+        let children = self
+            .core
+            .get_children(&parent)
+            .map_err(|error| error.to_string())?;
+        let name =
+            NameComponents::from(&format!("{stem}.{NATIVE_EXTENSION}")).free_number_in(&children);
+        let copy = self
+            .core
+            .create_file(&name, &parent, FileType::Document)
+            .map_err(|error| error.to_string())?;
+        if let Err(error) =
+            self.core
+                .safe_write_with_extension(copy.id, None, &bytes, None, NATIVE_EXTENSION)
+        {
+            if error.kind != LbErrKind::ReReadRequired {
+                let _ = self.core.delete_file(&copy.id);
+            }
+            return Err(error.to_string());
+        }
+        self.files
+            .write()
+            .unwrap()
+            .insert_created_file(copy.clone());
+        self.out.file_cache_updated = true;
+        Ok(copy)
+    }
+
     pub fn current_tab_markdown(&self) -> Option<&Markdown> {
         self.current_tab()?.markdown()
     }
@@ -671,19 +767,47 @@ impl Workspace {
         self.last_save_all = Some(Instant::now());
     }
 
+    /// Commits active cell edits before a close or background save.
+    pub fn flush_saves(&mut self) {
+        for tab in self.tabs.values_mut() {
+            tab.commit_pending_edit(&self.ctx);
+        }
+        self.save_all_tabs();
+    }
+
     /// Every edit is on disk: no save waits and none is needed. Quitting
     /// waits for this.
     pub fn saves_settled(&self) -> bool {
-        self.tasks.saves_idle() && self.unsaved().is_empty()
+        self.tasks.saves_idle()
+            && self.unsaved().is_empty()
+            && self
+                .tabs
+                .values()
+                .all(|tab| !tab.save_blocked() && !tab.has_pending_edit())
+    }
+
+    pub fn has_save_error(&self) -> bool {
+        #[cfg(not(target_family = "wasm"))]
+        return self.tabs.values().any(|tab| {
+            matches!(&tab.content, ContentState::Open(TabContent::Spreadsheet(sheet))
+                if sheet.save_error.is_some() || sheet.has_edit_error())
+        });
+        #[cfg(target_family = "wasm")]
+        false
     }
 
     pub fn save_tab(&mut self, i: usize) {
         let Some(slot) = self.tab_strip.get(i) else { return };
+        if let Some(tab) = self.tabs.get_any_mut(&slot.id) {
+            if !tab.commit_pending_edit(&self.ctx) {
+                return;
+            }
+        }
         self.queue_save_for_session(slot.id);
     }
 
     fn queue_save_for_session(&mut self, tab_id: SessionId) {
-        if let Some(tab) = self.tabs.get(&tab_id) {
+        if let Some(tab) = self.tabs.get_any(&tab_id) {
             if let Some(id) = tab.id() {
                 if tab.is_dirty(&self.tasks) && !tab.save_blocked() {
                     self.tasks.queue_save(SaveRequest { id, origin: tab_id });
@@ -806,6 +930,11 @@ impl Workspace {
             return;
         };
         let tab_id = self.tab_strip[slot_idx].id;
+        if self.tab_strip[slot_idx].place.dest != place.dest
+            && !self.save_spreadsheet_before_navigation(tab_id)
+        {
+            return;
+        }
         let fragment = place.fragment.clone();
         if self.tab_strip[slot_idx].place.dest == place.dest
             && self.tab_strip[slot_idx].back.is_empty()
@@ -855,6 +984,11 @@ impl Workspace {
     /// Moves session `i` to `place` with history, and lands there.
     fn navigate_session(&mut self, i: usize, place: Place) {
         let tab_id = self.tab_strip[i].id;
+        if self.tab_strip[i].place.dest != place.dest
+            && !self.save_spreadsheet_before_navigation(tab_id)
+        {
+            return;
+        }
         let here = match self.tab_strip[i].place.dest == place.dest {
             true => self.tabs.get_mut(&tab_id).and_then(|t| t.here()),
             false => None,
@@ -1004,6 +1138,15 @@ impl Workspace {
 
     pub fn back(&mut self) {
         let Some(slot_idx) = self.current_slot_index() else { return };
+        let slot = &self.tab_strip[slot_idx];
+        if slot
+            .back
+            .last()
+            .is_some_and(|place| place.dest != slot.place.dest)
+            && !self.save_spreadsheet_before_navigation(slot.id)
+        {
+            return;
+        }
         if !self.tab_strip[slot_idx].go_back() {
             return;
         }
@@ -1013,7 +1156,11 @@ impl Workspace {
     /// Android Back closes the active session and lands on Welcome, preserving other tabs.
     pub fn close_current_tab_to_welcome(&mut self) -> bool {
         let Some(i) = self.current_slot_index() else { return false };
+        let len = self.tab_strip.len();
         self.close_tab(i);
+        if self.tab_strip.len() == len {
+            return false;
+        }
         self.set_current_tab(None);
         self.out.tabs_changed = true;
         self.ctx.request_repaint();
@@ -1028,6 +1175,15 @@ impl Workspace {
 
     pub fn forward(&mut self) {
         let Some(slot_idx) = self.current_slot_index() else { return };
+        let slot = &self.tab_strip[slot_idx];
+        if slot
+            .forward
+            .last()
+            .is_some_and(|place| place.dest != slot.place.dest)
+            && !self.save_spreadsheet_before_navigation(slot.id)
+        {
+            return;
+        }
         if !self.tab_strip[slot_idx].go_forward() {
             return;
         }
@@ -1038,6 +1194,25 @@ impl Workspace {
         self.current_slot_index()
             .and_then(|i| self.tab_strip.get(i))
             .is_some_and(|s| !s.forward.is_empty())
+    }
+
+    fn save_spreadsheet_before_navigation(&mut self, _id: SessionId) -> bool {
+        #[cfg(not(target_family = "wasm"))]
+        if let Some(tab) = self.tabs.get_any_mut(&_id) {
+            if matches!(tab.content, ContentState::Open(TabContent::Spreadsheet(_))) {
+                if !tab.commit_pending_edit(&self.ctx) || tab.save_blocked() {
+                    return false;
+                }
+                if tab.last_changed > tab.last_saved {
+                    self.queue_save_for_session(_id);
+                    self.out
+                        .failure_messages
+                        .push("Saving spreadsheet. Try again when it finishes.".into());
+                    return false;
+                }
+            }
+        }
+        true
     }
 
     pub fn move_tab(&mut self, from: usize, to: usize) {
@@ -1054,6 +1229,12 @@ impl Workspace {
     pub fn close_tab(&mut self, i: usize) {
         let Some(slot) = self.tab_strip.get(i) else { return };
         let tab_id = slot.id;
+        if let Some(tab) = self.tabs.get_any_mut(&tab_id) {
+            if !tab.commit_pending_edit(&self.ctx) || tab.save_blocked() {
+                self.make_current(i);
+                return;
+            }
+        }
         if let Some(svg) = self.tabs.get_mut(&tab_id).and_then(|tab| tab.svg_mut()) {
             svg.flush_viewport();
         }
@@ -1064,7 +1245,7 @@ impl Workspace {
             }
         }
 
-        self.save_tab(i);
+        self.queue_save_for_session(tab_id);
 
         if let Some(tab) = self.tabs.get_mut(&tab_id) {
             if let Some(md) = tab.markdown_mut() {
@@ -1113,8 +1294,8 @@ impl Workspace {
     }
 
     pub fn close_all_tabs(&mut self) {
-        while !self.tab_strip.is_empty() {
-            self.close_tab(0);
+        for i in (0..self.tab_strip.len()).rev() {
+            self.close_tab(i);
         }
     }
 
@@ -1180,7 +1361,7 @@ impl Workspace {
         let exists = dest
             .backing_file()
             .is_none_or(|id| self.files.read().unwrap().get_by_id(id).is_some());
-        if !exists {
+        if !exists && !self.tabs.get_any(&tab_id).is_some_and(Tab::save_blocked) {
             return false;
         }
 
@@ -1336,25 +1517,25 @@ impl Workspace {
     /// other tab types (SVG, image viewer, PDF) handle clipboard events
     /// themselves. Non-clip events are left in the queue.
     pub fn process_clip_events(&mut self) {
-        let target = self.current_tab().and_then(|tab| {
-            if let Some(md) = tab.markdown() {
-                if md.edit.renderer.readonly || md.edit.renderer.kind != Syntax::Markdown {
-                    return None;
-                }
-                return Some((false, md.edit.file_id));
+        enum Target {
+            Markdown(Uuid),
+            #[cfg(not(target_family = "wasm"))]
+            Spreadsheet,
+        }
+        let Some(tab) = self.current_tab() else { return };
+        let target = match &tab.content {
+            ContentState::Open(TabContent::Markdown(md))
+                if !md.edit.renderer.readonly && md.edit.renderer.kind == Syntax::Markdown =>
+            {
+                Target::Markdown(md.edit.file_id)
             }
             #[cfg(not(target_family = "wasm"))]
-            if matches!(
-                &tab.content,
-                crate::tab::ContentState::Open(crate::tab::TabContent::Spreadsheet(_))
-            ) && !tab.read_only
+            ContentState::Open(TabContent::Spreadsheet(sheet))
+                if !tab.read_only && sheet.editable() =>
             {
-                return Some((true, Uuid::nil()));
+                Target::Spreadsheet
             }
-            None
-        });
-        let Some((spreadsheet, file_id)) = target else {
-            return;
+            _ => return,
         };
 
         let events = self.ctx.pop_events_where(&mut |e| {
@@ -1371,39 +1552,29 @@ impl Workspace {
                 _ => continue,
             };
             for clip in content {
-                let (name, data) = match clip {
-                    crate::tab::ClipContent::Files(paths) if spreadsheet => {
-                        for path in paths {
-                            let Some(filename) = path.file_name().and_then(|name| name.to_str())
-                            else {
-                                continue;
-                            };
-                            let Ok(metadata) = std::fs::metadata(&path) else {
-                                self.out
-                                    .failure_messages
-                                    .push(format!("Could not read {}", path.display()));
-                                continue;
-                            };
-                            if metadata.len() > 100 * 1024 * 1024 {
-                                self.out
-                                    .failure_messages
-                                    .push("Spreadsheet imports are limited to 100 MB".into());
-                                continue;
+                use crate::tab::ClipContent;
+                let (file_id, name, data) = match (&target, clip) {
+                    #[cfg(not(target_family = "wasm"))]
+                    (Target::Spreadsheet, ClipContent::Files(paths)) => {
+                        match paths.as_slice() {
+                            [path] => {
+                                let filename = path
+                                    .file_name()
+                                    .and_then(|name| name.to_str())
+                                    .unwrap_or_default();
+                                self.import_current_spreadsheet_path(filename, path);
                             }
-                            match std::fs::read(&path) {
-                                Ok(bytes) => self.import_current_spreadsheet(filename, &bytes),
-                                Err(error) => self
-                                    .out
-                                    .failure_messages
-                                    .push(format!("Could not read {}: {error}", path.display())),
-                            }
+                            [] => {}
+                            _ => self
+                                .out
+                                .failure_messages
+                                .push("Import one spreadsheet at a time".into()),
                         }
                         continue;
                     }
-                    crate::tab::ClipContent::Files(_) => continue,
-                    crate::tab::ClipContent::Image(data) if !spreadsheet => (None, data),
-                    crate::tab::ClipContent::NamedImage { name, data } if !spreadsheet => {
-                        (Some(name), data)
+                    (Target::Markdown(id), ClipContent::Image(data)) => (*id, None, data),
+                    (Target::Markdown(id), ClipContent::NamedImage { name, data }) => {
+                        (*id, Some(name), data)
                     }
                     _ => continue,
                 };
@@ -1505,10 +1676,13 @@ impl Workspace {
 
                     #[cfg(not(target_family = "wasm"))]
                     if let ContentState::Open(TabContent::Spreadsheet(sheet)) = &mut tab.content {
-                        if DocType::from_name(&file.name) == DocType::Spreadsheet
+                        if sheet.fits_name(&file.name)
                             && res.guard.refusal(id, &bytes, None).is_none()
                         {
-                            if let Err(failure) = sheet.reload(hmac, &bytes) {
+                            res.guard.enter(id);
+                            let reloaded = sheet.reload(hmac, &file.name, &bytes);
+                            res.guard.exit(id);
+                            if let Err(failure) = reloaded {
                                 self.out.failure_messages.push(failure.msg());
                                 tab.content = ContentState::Failed(failure);
                             }
@@ -1570,6 +1744,8 @@ impl Workspace {
         let _saves = (!completed_saves.is_empty()).then(|| {
             trace_span!("Workspace::apply_completed_saves", n = completed_saves.len()).entered()
         });
+        #[cfg(not(target_family = "wasm"))]
+        let mut reopen_failed_save = None;
         for save in completed_saves {
             // nested scope indentation preserves git history
             {
@@ -1595,6 +1771,11 @@ impl Workspace {
                                     &mut tab.content
                                 {
                                     if let Some(copy) = saved.recovery {
+                                        if sheet.recovered != Some(copy) {
+                                            self.out.failure_messages.push(
+                                                "Local spreadsheet edits were saved in a recovery copy.".into(),
+                                            );
+                                        }
                                         sheet.recovery = Some((copy, hmac));
                                         sheet.recovered = Some(copy);
                                         sheet.reload_pending = true;
@@ -1632,6 +1813,9 @@ impl Workspace {
                                     let message = format!("Could not save spreadsheet. {err}");
                                     sheet.save_error = Some(message.clone());
                                     self.out.failure_messages.push(message);
+                                    if !self.tab_strip.iter().any(|slot| slot.id == origin) {
+                                        reopen_failed_save = Some(origin);
+                                    }
                                     continue;
                                 }
                                 if err.kind == LbErrKind::ReReadRequired {
@@ -1658,6 +1842,10 @@ impl Workspace {
             }
         }
         drop(_saves);
+        #[cfg(not(target_family = "wasm"))]
+        if let Some(origin) = reopen_failed_save {
+            self.reopen_closed_session(origin);
+        }
         #[cfg(not(target_family = "wasm"))]
         for (&origin, tab) in self.tabs.iter_mut() {
             let Some(id) = tab.id() else { continue };
@@ -2283,7 +2471,7 @@ fn content_fits_name(content: &ContentState, name: &str) -> bool {
         ),
         ContentState::Open(TabContent::Svg(_)) => doc_type == DocType::SVG,
         #[cfg(not(target_family = "wasm"))]
-        ContentState::Open(TabContent::Spreadsheet(_)) => doc_type == DocType::Spreadsheet,
+        ContentState::Open(TabContent::Spreadsheet(sheet)) => sheet.fits_name(name),
         ContentState::Open(TabContent::Image(_)) => doc_type == DocType::Image,
         ContentState::Open(TabContent::Pdf(_)) => doc_type == DocType::PDF,
         #[cfg(not(target_family = "wasm"))]

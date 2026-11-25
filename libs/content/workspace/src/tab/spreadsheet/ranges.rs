@@ -1,4 +1,8 @@
+use std::{borrow::Cow, sync::Arc};
+
+use ironcalc_base::cell::CellValue;
 use ironcalc_base::expressions::types::CellReferenceIndex;
+use ironcalc_base::types::MergedCell;
 use ironcalc_base::{ClipboardData, Model};
 use serde::Deserialize;
 
@@ -53,6 +57,20 @@ struct EngineClipboard {
     data: ClipboardData,
 }
 
+struct CellClipboard {
+    owner: Uuid,
+    sheet_id: u32,
+    seq: usize,
+    cut: bool,
+    range: CellRange,
+    text: String,
+    values: String,
+    data: ClipboardData,
+    merges: Vec<MergedCell>,
+}
+
+const CELL_CLIPBOARD: &str = "spreadsheet cell clipboard";
+
 impl Spreadsheet {
     pub(super) fn sort_rows_by_selected_column(&mut self, descending: bool) {
         let Ok(worksheet) = self.model.get_model().workbook.worksheet(self.sheet) else {
@@ -61,7 +79,10 @@ impl Spreadsheet {
         let dimension = worksheet.dimension();
         let first = 2; // Keep row 1 as the table header.
         let last = dimension.max_row;
-        if last < first || i64::from(last - first + 1) > MAX_EDIT_CELLS {
+        if last < first {
+            return;
+        }
+        if i64::from(last - first + 1) > MAX_EDIT_CELLS {
             self.error = Some("This table is too large to sort at once".into());
             return;
         }
@@ -77,7 +98,7 @@ impl Spreadsheet {
             .map(|row| {
                 self.model
                     .get_formatted_cell_value(self.sheet, row, column)
-                    .map(|value| (row, value))
+                    .map(|value| (row, value.to_lowercase()))
             })
             .collect::<Result<Vec<_>, _>>();
         let Ok(ref mut ordered) = ordered else {
@@ -85,7 +106,7 @@ impl Spreadsheet {
             return;
         };
         ordered.sort_by(|(_, left), (_, right)| {
-            let order = left.to_lowercase().cmp(&right.to_lowercase());
+            let order = left.cmp(right);
             if descending { order.reverse() } else { order }
         });
         let sheet = self.sheet;
@@ -122,62 +143,52 @@ impl Spreadsheet {
             return;
         };
         let last = worksheet.dimension().max_row;
-        if last < 2 || i64::from(last - 1) > MAX_EDIT_CELLS {
+        if last < 2 {
+            return;
+        }
+        if i64::from(last - 1) > MAX_EDIT_CELLS {
             self.error = Some("This table is too large to filter at once".into());
             return;
         }
         let column = self.selected.column;
-        let mut previously_hidden = worksheet
-            .rows
-            .iter()
-            .filter(|row| row.hidden && (2..=last).contains(&row.r))
-            .map(|row| row.r)
-            .collect::<Vec<_>>();
-        let selected_value = self
-            .model
-            .get_formatted_cell_value(self.sheet, self.selected.row, column)
-            .unwrap_or_default();
-        let mut hidden = Vec::new();
-        let mut row = 2;
-        while row <= last {
-            let matches = self
-                .model
-                .get_formatted_cell_value(self.sheet, row, column)
-                .is_ok_and(|value| value == selected_value);
-            if !matches {
-                let start = row;
-                while row <= last
-                    && self
-                        .model
+        let previously_hidden = contiguous_spans(
+            worksheet
+                .rows
+                .iter()
+                .filter(|row| row.hidden && (2..=last).contains(&row.r))
+                .map(|row| row.r),
+        );
+        let selected_value =
+            self.model
+                .get_formatted_cell_value(self.sheet, self.selected.row, column);
+        let desired_hidden = selected_value.and_then(|selected_value| {
+            (2..=last)
+                .map(|row| {
+                    self.model
                         .get_formatted_cell_value(self.sheet, row, column)
-                        .is_ok_and(|value| value != selected_value)
-                {
-                    row += 1;
-                }
-                hidden.push((start, row - 1));
-            } else {
-                row += 1;
+                        .map(|value| (value != selected_value).then_some(row))
+                })
+                .collect::<Result<Vec<_>, _>>()
+                .map(|rows| contiguous_spans(rows.into_iter().flatten()))
+        });
+        let desired_hidden = match desired_hidden {
+            Ok(rows) => rows,
+            Err(error) => {
+                self.error = Some(error);
+                return;
             }
-        }
-        let sheet = self.sheet;
-        let mut desired_hidden = hidden
-            .into_iter()
-            .flat_map(|(start, end)| start..=end)
-            .collect::<Vec<_>>();
-        previously_hidden.sort_unstable();
-        desired_hidden.sort_unstable();
+        };
         if previously_hidden == desired_hidden {
             return;
         }
-        let clear_spans = contiguous_spans(previously_hidden);
-        let hide_spans = contiguous_spans(desired_hidden);
+        let sheet = self.sheet;
         let result = self.try_bulk_edit(|model, _| {
             let mut steps = 0;
-            for (start, end) in &clear_spans {
+            for (start, end) in &previously_hidden {
                 model.set_rows_hidden(sheet, *start, *end, false)?;
                 steps += 1;
             }
-            for (start, end) in hide_spans {
+            for (start, end) in desired_hidden {
                 model.set_rows_hidden(sheet, start, end, true)?;
                 steps += 1;
             }
@@ -235,6 +246,14 @@ impl Spreadsheet {
 
     pub(super) fn unmerge_selection(&mut self) {
         let area = self.selection().area(self.sheet);
+        if !self
+            .worksheet()
+            .merged_cells
+            .iter()
+            .any(|cell| cell.intersects(area.row, area.column, area.width, area.height))
+        {
+            return;
+        }
         let result = self.model.unmerge_cells(&area);
         self.record_change(result);
     }
@@ -340,69 +359,9 @@ impl Spreadsheet {
         if source == target {
             return;
         }
-        let sheet = self.sheet;
-        let result = (|| {
-            check_size(&source.area(sheet))?;
-            self.model.set_selected_sheet(sheet)?;
-            self.model
-                .set_selected_cell(source.first.row, source.first.column)?;
-            self.model.set_selected_range(
-                source.first.row,
-                source.first.column,
-                source.last.row,
-                source.last.column,
-            )?;
-            let [first_row, first_column, last_row, last_column] =
-                self.model.get_selected_view().range;
-            let bounds = (first_row, first_column, last_row, last_column);
-            if bounds
-                != (source.first.row, source.first.column, source.last.row, source.last.column)
-            {
-                return Err("Select the entire merged range before moving it".into());
-            }
-            let clipboard = self.model.copy_to_clipboard()?;
-            let payload = serde_json::to_value(clipboard).map_err(|error| error.to_string())?;
-            let mut clipboard: EngineClipboard =
-                serde_json::from_value(payload).map_err(|error| error.to_string())?;
-            // IronCalc's clipboard omits trailing cells outside the used area.
-            // Include those cells so the drop matches the outline in the grid.
-            for row in first_row..=last_row {
-                let columns = clipboard.data.entry(row).or_default();
-                for column in first_column..=last_column {
-                    if let std::collections::hash_map::Entry::Vacant(entry) = columns.entry(column)
-                    {
-                        let style = self.cell_style(Cell { row, column });
-                        let payload =
-                            serde_json::json!({"text": "", "is_spill": false, "style": style});
-                        entry.insert(
-                            serde_json::from_value(payload).map_err(|error| error.to_string())?,
-                        );
-                    }
-                }
-            }
-            self.model
-                .set_selected_cell(target.first.row, target.first.column)?;
-            let view = self.model.get_selected_view();
-            if (view.row, view.column) != (target.first.row, target.first.column) {
-                return Err("Drop on the first cell of the merged range".into());
-            }
-            self.try_bulk_edit(|model, before| {
-                let corrections = if source.intersects(target) {
-                    moved_formulas(before, sheet, source, target)?
-                } else {
-                    Vec::new()
-                };
-                model.paste_from_clipboard(sheet, bounds, &clipboard.data, true)?;
-                let mut steps = 1;
-                for (cell, formula) in corrections {
-                    if model.get_cell_content(sheet, cell.row, cell.column)? != formula {
-                        model.set_user_input(sheet, cell.row, cell.column, &formula)?;
-                        steps += 1;
-                    }
-                }
-                Ok(steps)
-            })
-        })();
+        let result = self
+            .capture_cells(source)
+            .and_then(|data| self.paste_cells(self.sheet, source, target, &data, true));
         if self.record_edit(result) {
             self.select(target.first);
             self.range_end = target.last;
@@ -424,25 +383,188 @@ impl Spreadsheet {
         }
     }
 
-    pub(super) fn copy_selection(&mut self, ui: &Ui) {
-        match self.selection_text() {
-            Ok(text) => ui.ctx().copy_text(text),
-            Err(error) => self.error = Some(error),
+    fn capture_cells(&mut self, range: CellRange) -> Result<ClipboardData, String> {
+        check_size(&range.area(self.sheet))?;
+        self.select_engine_cell(range.first)?;
+        let expanded = self.select_engine_range(range)?;
+        if expanded != range {
+            return Err("Select the entire merged range before moving it".into());
         }
+        self.capture_selected_cells(range)
     }
 
-    pub(super) fn cut_selection(&mut self, ui: &Ui) {
-        match self.selection_text() {
-            Ok(text) => {
-                ui.ctx().copy_text(text);
-                self.clear_selection();
+    fn select_engine_range(&mut self, range: CellRange) -> Result<CellRange, String> {
+        self.model.set_selected_range(
+            range.first.row,
+            range.first.column,
+            range.last.row,
+            range.last.column,
+        )?;
+        let [top, left, bottom, right] = self.model.get_selected_view().range;
+        Ok(CellRange::new(Cell { row: top, column: left }, Cell { row: bottom, column: right }))
+    }
+
+    fn capture_selected_cells(&self, range: CellRange) -> Result<ClipboardData, String> {
+        let clipboard = self.model.copy_to_clipboard()?;
+        let payload = serde_json::to_value(clipboard).map_err(|error| error.to_string())?;
+        let mut clipboard: EngineClipboard =
+            serde_json::from_value(payload).map_err(|error| error.to_string())?;
+        // IronCalc omits trailing cells outside the used area, including styles.
+        for row in range.first.row..=range.last.row {
+            let columns = clipboard.data.entry(row).or_default();
+            for column in range.first.column..=range.last.column {
+                if let std::collections::hash_map::Entry::Vacant(entry) = columns.entry(column) {
+                    let style = self.cell_style(Cell { row, column });
+                    let payload =
+                        serde_json::json!({"text": "", "is_spill": false, "style": style});
+                    entry.insert(
+                        serde_json::from_value(payload).map_err(|error| error.to_string())?,
+                    );
+                }
+            }
+        }
+        Ok(clipboard.data)
+    }
+
+    fn select_engine_cell(&mut self, cell: Cell) -> Result<(), String> {
+        self.model.set_selected_sheet(self.sheet)?;
+        self.model.set_selected_cell(cell.row, cell.column)?;
+        let view = self.model.get_selected_view();
+        if (view.row, view.column) != (cell.row, cell.column) {
+            return Err("Select the first cell of the merged range".into());
+        }
+        Ok(())
+    }
+
+    fn paste_cells(
+        &mut self, source_sheet: u32, source: CellRange, target: CellRange, data: &ClipboardData,
+        cut: bool,
+    ) -> Result<usize, String> {
+        self.select_engine_cell(target.first)?;
+        let sheet = self.sheet;
+        let bounds = (source.first.row, source.first.column, source.last.row, source.last.column);
+        self.try_bulk_edit(|model, before| {
+            let corrections = if cut && source.intersects(target) {
+                moved_formulas(before, sheet, source, target)?
+            } else {
+                Vec::new()
+            };
+            model.paste_from_clipboard(source_sheet, bounds, data, cut)?;
+            let mut steps = 1;
+            for (cell, formula) in corrections {
+                if model.get_cell_content(sheet, cell.row, cell.column)? != formula {
+                    model.set_user_input(sheet, cell.row, cell.column, &formula)?;
+                    steps += 1;
+                }
+            }
+            Ok(steps)
+        })
+    }
+
+    pub(super) fn copy_selection(&mut self, ui: &Ui, cut: bool) {
+        match self.capture_clipboard(cut) {
+            Ok(clipboard) => {
+                ui.ctx().copy_text(clipboard.text.clone());
+                ui.ctx().data_mut(|data| {
+                    data.insert_temp(Id::unique(CELL_CLIPBOARD), Arc::new(clipboard))
+                });
             }
             Err(error) => self.error = Some(error),
         }
     }
 
+    fn capture_clipboard(&mut self, cut: bool) -> Result<CellClipboard, String> {
+        let selection = self.clipboard_range();
+        self.select_engine_cell(selection.first)?;
+        let range = self.select_engine_range(selection)?;
+        check_size(&range.area(self.sheet))?;
+        Ok(CellClipboard {
+            owner: self.clipboard_owner,
+            sheet_id: self.worksheet().sheet_id,
+            seq: self.seq,
+            cut,
+            range,
+            text: self.selection_text(range, false)?,
+            values: self.selection_text(range, true)?,
+            data: self.capture_selected_cells(range)?,
+            merges: clipboard_merges(&self.worksheet().merged_cells, range),
+        })
+    }
+
+    pub(super) fn paste_clipboard(&mut self, ui: &Ui, text: &str, values: bool) {
+        let clipboard = ui
+            .ctx()
+            .data(|data| data.get_temp::<Arc<CellClipboard>>(Id::unique(CELL_CLIPBOARD)));
+        let Some(clipboard) = clipboard
+            .filter(|clipboard| clipboard.owner == self.clipboard_owner && clipboard.text == text)
+        else {
+            self.paste_tabular(text, values);
+            return;
+        };
+        if values {
+            self.paste_tabular(&clipboard.values, false);
+            return;
+        }
+        let result = self.paste_workbook_clipboard(&clipboard);
+        match result {
+            Ok(Some(target)) => {
+                self.select(target.first);
+                self.range_end = target.last;
+                if clipboard.cut {
+                    ui.ctx().data_mut(|data| {
+                        data.remove::<Arc<CellClipboard>>(Id::unique(CELL_CLIPBOARD))
+                    });
+                }
+            }
+            Ok(None) => {}
+            Err(error) => self.error = Some(error),
+        }
+    }
+
+    fn paste_workbook_clipboard(
+        &mut self, clipboard: &CellClipboard,
+    ) -> Result<Option<CellRange>, String> {
+        let worksheets = &self.model.get_model().workbook.worksheets;
+        let index = worksheets
+            .iter()
+            .position(|sheet| sheet.sheet_id == clipboard.sheet_id)
+            .ok_or("The copied worksheet was deleted. Copy cells again or use Paste values.")?;
+        let source_sheet = index as u32;
+        if clipboard.cut {
+            if source_sheet != self.sheet {
+                return Err("Paste cut cells on their original worksheet".into());
+            }
+            if clipboard.seq != self.seq {
+                return Err("The workbook changed. Cut the cells again before pasting.".into());
+            }
+        }
+        let source = clipboard.range;
+        if clipboard_merges(&worksheets[index].merged_cells, source) != clipboard.merges {
+            return Err("The copied merged cells changed. Copy the cells again.".into());
+        }
+        let first = self.selection().first;
+        let last = first
+            .offset(source.last.row - source.first.row, source.last.column - source.first.column);
+        if last != last.clamped() {
+            return Err("The clipboard data does not fit in this worksheet".into());
+        }
+        let target = CellRange { first, last };
+        if clipboard.cut && source == target {
+            return Ok(None);
+        }
+        let steps =
+            self.paste_cells(source_sheet, source, target, &clipboard.data, clipboard.cut)?;
+        self.record_edit(Ok(steps));
+        Ok(Some(target))
+    }
+
+    #[cfg(test)]
     pub(super) fn paste(&mut self, text: &str) {
-        let result = self.paste_text(text);
+        self.paste_tabular(text, false);
+    }
+
+    fn paste_tabular(&mut self, text: &str, literal_formulas: bool) {
+        let result = self.paste_text(text, literal_formulas);
         match result {
             Ok(Some(range)) => {
                 self.record_change(Ok(()));
@@ -473,23 +595,40 @@ impl Spreadsheet {
         }
     }
 
-    fn selection_text(&self) -> Result<String, String> {
+    fn clipboard_range(&self) -> CellRange {
         let range = self.selection();
         // A header selection spans an entire axis, so copy only its used portion.
-        let range = if range.last.row - range.first.row == ROWS - 1
+        if range.last.row - range.first.row == ROWS - 1
             || range.last.column - range.first.column == COLUMNS - 1
         {
             self.used_selection()
         } else {
             range
-        };
-        check_size(&range.area(self.sheet))?;
+        }
+    }
+
+    fn selection_text(&self, range: CellRange, values: bool) -> Result<String, String> {
         let mut writer = csv::WriterBuilder::new()
             .delimiter(b'\t')
             .from_writer(Vec::new());
         for row in range.first.row..=range.last.row {
             let fields = (range.first.column..=range.last.column)
-                .map(|column| self.model.get_formatted_cell_value(self.sheet, row, column))
+                .map(|column| {
+                    if values {
+                        let value = self
+                            .model
+                            .get_model()
+                            .get_cell_value_by_index(self.sheet, row, column)?;
+                        Ok(match value {
+                            CellValue::None => String::new(),
+                            CellValue::Boolean(value) => value.to_string(),
+                            CellValue::Number(value) => value.to_string(),
+                            CellValue::String(value) => format!("'{value}"),
+                        })
+                    } else {
+                        self.model.get_formatted_cell_value(self.sheet, row, column)
+                    }
+                })
                 .collect::<Result<Vec<_>, _>>()?;
             writer
                 .write_record(fields)
@@ -501,7 +640,9 @@ impl Spreadsheet {
         Ok(text)
     }
 
-    fn paste_text(&mut self, text: &str) -> Result<Option<CellRange>, String> {
+    fn paste_text(
+        &mut self, text: &str, literal_formulas: bool,
+    ) -> Result<Option<CellRange>, String> {
         let first = self.selection().first;
         let mut reader = csv::ReaderBuilder::new()
             .delimiter(b'\t')
@@ -532,7 +673,20 @@ impl Spreadsheet {
             .delimiter(b'\t')
             .from_writer(Vec::new());
         for record in records {
-            let fields = record.iter().chain(std::iter::repeat("")).take(width);
+            let fields = record
+                .iter()
+                .chain(std::iter::repeat(""))
+                .take(width)
+                .map(|value| {
+                    if literal_formulas
+                        && (value.starts_with(['=', '\''])
+                            || (value.starts_with(['+', '-']) && value.parse::<f64>().is_err()))
+                    {
+                    Cow::Owned(format!("'{value}").into_bytes())
+                    } else {
+                    Cow::Borrowed(value.as_bytes())
+                    }
+                });
             writer
                 .write_record(fields)
                 .map_err(|error| error.to_string())?;
@@ -564,6 +718,15 @@ impl Spreadsheet {
         }
         result
     }
+}
+
+fn clipboard_merges(merges: &[MergedCell], range: CellRange) -> Vec<MergedCell> {
+    let area = range.area(0);
+    merges
+        .iter()
+        .copied()
+        .filter(|cell| cell.intersects(area.row, area.column, area.width, area.height))
+        .collect()
 }
 
 fn moved_formulas(

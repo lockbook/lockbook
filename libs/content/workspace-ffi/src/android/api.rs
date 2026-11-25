@@ -188,16 +188,9 @@ fn android_response_to_java<'local>(
     let spreadsheet_export_name = env
         .new_string(response.spreadsheet_export_name)
         .expect("create spreadsheet export name");
-    let export_bytes: Vec<i8> = response
-        .spreadsheet_export_bytes
-        .into_iter()
-        .map(|byte| byte as i8)
-        .collect();
     let spreadsheet_export_bytes = env
-        .new_byte_array(export_bytes.len() as i32)
+        .byte_array_from_slice(&response.spreadsheet_export_bytes)
         .expect("create spreadsheet export byte array");
-    env.set_byte_array_region(&spreadsheet_export_bytes, 0, &export_bytes)
-        .expect("populate spreadsheet export byte array");
 
     let virtual_keyboard_shown: JObject = match response.virtual_keyboard_shown {
         Some(value) => {
@@ -250,25 +243,18 @@ fn android_response_to_java<'local>(
     .expect("create AndroidResponse")
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "system" fn Java_app_lockbook_workspace_Workspace_importSpreadsheetFile(
     mut env: JNIEnv, _: JClass, obj: jlong, path: JString, name: JString,
 ) {
-    let parsed: Result<Vec<String>, _> = [path, name]
-        .iter()
-        .map(|value| env.get_string(value).map(Into::into))
-        .collect();
-    let Ok(parsed) = parsed else { return };
     if obj == 0 {
         return;
     }
-    let Ok(metadata) = std::fs::metadata(&parsed[0]) else { return };
-    if metadata.len() == 0 || metadata.len() > 100 * 1024 * 1024 {
-        return;
-    }
-    let Ok(bytes) = std::fs::read(&parsed[0]) else { return };
+    let Ok(path) = env.get_string(&path).map(String::from) else { return };
+    let Ok(name) = env.get_string(&name).map(String::from) else { return };
     let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
-    obj.workspace.import_current_spreadsheet(&parsed[1], &bytes);
+    obj.workspace
+        .import_current_spreadsheet_path(&name, std::path::Path::new(&path));
 }
 
 #[unsafe(no_mangle)]
@@ -926,7 +912,7 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_saveAll(
     _env: JNIEnv, _: JClass, obj: jlong,
 ) {
     let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
-    obj.workspace.save_all_tabs();
+    obj.workspace.flush_saves();
     obj.workspace.tasks.check_launch(&mut obj.workspace.tabs);
 }
 

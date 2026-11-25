@@ -4,22 +4,27 @@ use egui::{
     Stroke, StrokeKind, TextFormat, Ui, ViewportCommand, WidgetInfo,
 };
 use egui::{pos2, vec2};
+use ironcalc_base::UserModel;
 use ironcalc_base::expressions::types::Area;
 use ironcalc_base::types::{CellType, HorizontalAlignment, Style, Workbook};
-use ironcalc_base::{Model, UserModel};
 use lb_rs::Uuid;
 use lb_rs::model::file_metadata::DocumentHmac;
 
 use super::markdown_editor::{MdEdit, Syntax, View};
 use super::{ExtendedOutput as _, Response, TabFailure};
+use crate::show::InputStateExt as _;
 use crate::style::chrome::{phosphor, phosphor_font_id};
 use crate::theme::palette_v2::ThemeExt as _;
 
+mod formats;
 mod grid;
 mod ranges;
 
-// Version 1 uses the workbook encoding of ironcalc_base 0.9.1.
-const HEADER: &[u8] = b"LBSHEET\0\x01";
+use formats::FileFormat;
+#[cfg(test)]
+use formats::read_workbook;
+pub(crate) use formats::{MAX_FILE_BYTES, NATIVE_EXTENSION, encode_workbook, is_import_name};
+
 const ROWS: i32 = 1_048_576;
 const COLUMNS: i32 = 16_384;
 const COLUMN_WIDTH: f32 = 112.0;
@@ -27,39 +32,6 @@ const ROW_HEADER: f32 = 62.0;
 const COLUMN_HEADER: f32 = 26.0;
 // IronCalc creates one or more undo records per cell in rectangular edits.
 const MAX_EDIT_CELLS: i64 = 100_000;
-const MAX_IMPORT_BYTES: usize = 100 * 1024 * 1024;
-
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub enum FileFormat {
-    #[default]
-    Lbsheet,
-    Csv,
-    Xlsx,
-}
-
-impl FileFormat {
-    pub(crate) fn extension(self) -> &'static str {
-        match self {
-            Self::Lbsheet => "lbsheet",
-            Self::Csv => "csv",
-            Self::Xlsx => "xlsx",
-        }
-    }
-
-    fn from_filename(filename: &str) -> Self {
-        match std::path::Path::new(filename)
-            .extension()
-            .and_then(|extension| extension.to_str())
-            .unwrap_or_default()
-            .to_ascii_lowercase()
-            .as_str()
-        {
-            "csv" => Self::Csv,
-            "xlsx" => Self::Xlsx,
-            _ => Self::Lbsheet,
-        }
-    }
-}
 const ALIGNMENTS: [(HorizontalAlignment, &str, &str); 3] = [
     (HorizontalAlignment::Left, "Align left", phosphor::TEXT_ALIGN_LEFT),
     (HorizontalAlignment::Center, "Align center", phosphor::TEXT_ALIGN_CENTER),
@@ -161,6 +133,9 @@ pub struct Spreadsheet {
     range_end: Cell,
     sheet: u32,
     grid: grid::State,
+    clipboard_owner: Uuid,
+    paste_values_frame: Option<u64>,
+    confirm_delete: bool,
     edit: Option<Box<Edit>>,
     error: Option<String>,
     seq: usize,
@@ -169,16 +144,19 @@ pub struct Spreadsheet {
 }
 
 impl Spreadsheet {
-    pub fn new(id: Uuid, hmac: Option<DocumentHmac>, bytes: &[u8]) -> Result<Self, TabFailure> {
+    #[cfg(test)]
+    fn new(id: Uuid, hmac: Option<DocumentHmac>, bytes: &[u8]) -> Result<Self, TabFailure> {
         Self::new_for_file(id, hmac, "spreadsheet.lbsheet", bytes)
     }
 
     pub fn new_for_file(
         id: Uuid, hmac: Option<DocumentHmac>, filename: &str, bytes: &[u8],
     ) -> Result<Self, TabFailure> {
-        let format = FileFormat::from_filename(filename);
-        let model =
-            read_file_workbook(format, hmac, filename, bytes).map_err(TabFailure::SimpleMisc)?;
+        let format = FileFormat::from_name(filename)
+            .ok_or_else(|| TabFailure::SimpleMisc("Unsupported spreadsheet format".into()))?;
+        let model = format
+            .read(hmac, filename, bytes)
+            .map_err(TabFailure::SimpleMisc)?;
         Ok(Self {
             id,
             hmac,
@@ -192,6 +170,9 @@ impl Spreadsheet {
             range_end: Cell::FIRST,
             sheet: 0,
             grid: grid::State::default(),
+            clipboard_owner: Uuid::new_v4(),
+            paste_values_frame: None,
+            confirm_delete: false,
             edit: None,
             error: None,
             seq: 0,
@@ -200,15 +181,21 @@ impl Spreadsheet {
         })
     }
 
-    pub fn reload(&mut self, hmac: Option<DocumentHmac>, bytes: &[u8]) -> Result<(), TabFailure> {
-        self.recovery = None;
-        if self.hmac == hmac {
+    pub fn reload(
+        &mut self, hmac: Option<DocumentHmac>, filename: &str, bytes: &[u8],
+    ) -> Result<(), TabFailure> {
+        if self.hmac == hmac && self.recovery.is_none() {
             return Ok(());
         }
 
-        self.model = read_file_workbook(self.format, hmac, "spreadsheet.xlsx", bytes)
+        self.model = self
+            .format
+            .read(hmac, filename, bytes)
             .map_err(TabFailure::SimpleMisc)?;
         self.hmac = hmac;
+        self.clipboard_owner = Uuid::new_v4();
+        self.confirm_delete = false;
+        self.recovery = None;
         self.save_error = None;
         self.sheet = self
             .sheet
@@ -223,26 +210,36 @@ impl Spreadsheet {
         self.model.get_model().workbook.clone()
     }
 
-    pub(crate) fn format(&self) -> FileFormat {
-        self.format
+    pub(crate) fn editable_copy_bytes(&self) -> Result<Vec<u8>, String> {
+        let bytes = encode_workbook(&self.model.get_model().workbook);
+        if bytes.len() > MAX_FILE_BYTES {
+            return Err("Spreadsheet files are limited to 100 MB".into());
+        }
+        Ok(bytes)
+    }
+
+    pub(crate) fn fits_name(&self, filename: &str) -> bool {
+        FileFormat::from_name(filename) == Some(self.format)
+    }
+
+    pub(crate) fn editable(&self) -> bool {
+        self.format == FileFormat::Lbsheet
+    }
+
+    pub(crate) fn can_import(&self) -> bool {
+        self.editable() && self.hmac.is_none() && self.seq == 0 && !self.editing()
     }
 
     pub fn import_file(&mut self, filename: &str, bytes: &[u8]) -> Result<(), String> {
-        if bytes.len() > MAX_IMPORT_BYTES {
-            return Err("Spreadsheet imports are limited to 100 MB".into());
+        if !self.can_import() {
+            return Err("Create a new Lockbook spreadsheet before importing".into());
         }
-        let extension = std::path::Path::new(filename)
-            .extension()
-            .and_then(|extension| extension.to_str())
-            .unwrap_or_default()
-            .to_ascii_lowercase();
-        let workbook = match extension.as_str() {
-            "csv" => import_csv_workbook(bytes)?,
-            "xlsx" => ironcalc::import::load_from_xlsx_bytes(bytes, filename, "en", "UTC")
-                .map_err(|error| error.user_message())?,
+        let format = match FileFormat::from_name(filename) {
+            Some(format @ (FileFormat::Csv | FileFormat::Xlsx)) => format,
             _ => return Err("Choose a CSV or XLSX file".into()),
         };
-        self.model = read_workbook(self.hmac, &encode_workbook(&workbook))?;
+        self.model = format.read(None, filename, bytes)?;
+        self.clipboard_owner = Uuid::new_v4();
         self.sheet = 0;
         self.select(Cell::FIRST);
         self.grid = grid::State::default();
@@ -252,76 +249,6 @@ impl Spreadsheet {
         self.error = None;
         self.seq += 1;
         Ok(())
-    }
-
-    pub fn export_csv(&self) -> Result<(String, Vec<u8>), String> {
-        let sheet = self.worksheet();
-        let dimension = sheet.dimension();
-        if i64::from(dimension.max_row.max(1)) * i64::from(dimension.max_column.max(1))
-            > MAX_EDIT_CELLS
-        {
-            return Err("This worksheet is too large to export as CSV".into());
-        }
-        let mut writer = csv::WriterBuilder::new().from_writer(Vec::new());
-        for row in 1..=dimension.max_row.max(1) {
-            let fields = (1..=dimension.max_column.max(1))
-                .map(|column| self.model.get_formatted_cell_value(self.sheet, row, column))
-                .collect::<Result<Vec<_>, _>>()?;
-            writer
-                .write_record(fields)
-                .map_err(|error| error.to_string())?;
-        }
-        let bytes = writer.into_inner().map_err(|error| error.to_string())?;
-        Ok((format!("{}.csv", sheet.name), bytes))
-    }
-
-    pub fn export_xlsx(&self) -> Result<(String, Vec<u8>), String> {
-        let model = Model::from_bytes(&self.model.to_bytes(), "en")?;
-        let writer =
-            ironcalc::export::save_xlsx_to_writer(&model, std::io::Cursor::new(Vec::new()))
-                .map_err(|error| error.user_message())?;
-        Ok(("Spreadsheet.xlsx".into(), writer.into_inner()))
-    }
-
-    pub(crate) fn encode_for_format(
-        workbook: &Workbook, format: FileFormat,
-    ) -> Result<Vec<u8>, String> {
-        match format {
-            FileFormat::Lbsheet => Ok(encode_workbook(workbook)),
-            FileFormat::Csv => {
-                let model = user_model_from_workbook(workbook.clone())?;
-                let worksheet = model
-                    .get_model()
-                    .workbook
-                    .worksheets
-                    .first()
-                    .ok_or("Spreadsheet has no worksheets")?;
-                let dimension = worksheet.dimension();
-                if i64::from(dimension.max_row.max(1)) * i64::from(dimension.max_column.max(1))
-                    > MAX_EDIT_CELLS
-                {
-                    return Err("This worksheet is too large to save as CSV".into());
-                }
-                let mut writer = csv::WriterBuilder::new().from_writer(Vec::new());
-                for row in 1..=dimension.max_row.max(1) {
-                    let fields = (1..=dimension.max_column.max(1))
-                        .map(|column| model.get_formatted_cell_value(0, row, column))
-                        .collect::<Result<Vec<_>, _>>()?;
-                    writer
-                        .write_record(fields)
-                        .map_err(|error| error.to_string())?;
-                }
-                writer.into_inner().map_err(|error| error.to_string())
-            }
-            FileFormat::Xlsx => {
-                let model = user_model_from_workbook(workbook.clone())?;
-                let model = Model::from_bytes(&model.to_bytes(), "en")?;
-                let writer =
-                    ironcalc::export::save_xlsx_to_writer(&model, std::io::Cursor::new(Vec::new()))
-                        .map_err(|error| error.user_message())?;
-                Ok(writer.into_inner())
-            }
-        }
     }
 
     pub fn seq(&self) -> usize {
@@ -386,6 +313,35 @@ impl Spreadsheet {
     }
 
     fn commit(&mut self, ui: &Ui, id: Id) -> bool {
+        if !self.editing() {
+            return true;
+        }
+        if !self.apply_edit() {
+            return false;
+        }
+        self.end_edit(ui, id);
+        true
+    }
+
+    pub(crate) fn commit_pending_edit(&mut self, ctx: &egui::Context) -> bool {
+        if !self.editing() {
+            return true;
+        }
+        if !self.apply_edit() {
+            return false;
+        }
+        self.edit = None;
+        self.error = None;
+        ctx.set_virtual_keyboard_shown(false);
+        ctx.request_repaint();
+        true
+    }
+
+    pub(crate) fn has_edit_error(&self) -> bool {
+        self.editing() && self.error.is_some()
+    }
+
+    fn apply_edit(&mut self) -> bool {
         let Some(edit) = self.edit.as_ref() else { return true };
         let text = edit
             .field
@@ -405,11 +361,7 @@ impl Spreadsheet {
             }
             _ => None,
         };
-        if result.is_some_and(|result| !self.record_change(result)) {
-            return false;
-        }
-        self.end_edit(ui, id);
-        true
+        result.is_none_or(|result| self.record_change(result))
     }
 
     fn record_change(&mut self, result: Result<(), String>) -> bool {
@@ -489,6 +441,7 @@ impl Spreadsheet {
     }
 
     fn show_contents(&mut self, ui: &mut Ui, read_only: bool, embedded: bool) -> Response {
+        let read_only = read_only || !self.editable();
         let mut response = Response::default();
         let id = ui.make_persistent_id("formula");
         let touch = matches!(
@@ -499,13 +452,28 @@ impl Spreadsheet {
         let grid_id = id.with("grid");
         let was_editing = self.editing();
         if !embedded {
+            if !self.editable() {
+                if ui.button("Make editable copy").clicked() {
+                    response.make_spreadsheet_copy = true;
+                }
+            }
             ui.memory_mut(|m| {
                 m.set_focus_lock_filter(
                     grid_id,
                     egui::EventFilter {
+                        tab: true,
                         horizontal_arrows: true,
                         vertical_arrows: true,
                         ..Default::default()
+                    },
+                );
+                m.set_focus_lock_filter(
+                    id,
+                    egui::EventFilter {
+                        tab: true,
+                        horizontal_arrows: true,
+                        vertical_arrows: true,
+                        escape: true,
                     },
                 );
             });
@@ -516,9 +484,10 @@ impl Spreadsheet {
         let keyboard = !embedded
             && !self.editing()
             && !self.grid.dragging()
+            && !self.confirm_delete
             && !egui::Popup::is_any_open(ui.ctx())
             && ui.memory(|m| m.focused().is_none_or(|focus| focus == grid_id));
-        let reveal = keyboard && self.grid_keys(ui, id, read_only);
+        let mut reveal = keyboard && self.grid_keys(ui, id, read_only);
 
         if !embedded {
             if let Some(copy) = self.recovered {
@@ -530,7 +499,7 @@ impl Spreadsheet {
                 });
             }
             self.toolbar(ui, grid_id, height, read_only, &mut response);
-            self.formula_bar(ui, id, height, read_only, &mut response);
+            reveal |= self.formula_bar(ui, id, height, read_only, &mut response);
             if let Some(error) = &self.error {
                 ui.colored_label(ui.ctx().get_lb_theme().danger(), error);
             }
@@ -550,6 +519,9 @@ impl Spreadsheet {
         self.show_grid(ui, id, grid_options, reveal);
         if !embedded {
             self.worksheets(ui, id, height, read_only);
+            if self.confirm_delete {
+                self.show_delete_sheet(ui, id, read_only);
+            }
         }
         if !self.editing() {
             response.text_interaction_rect = None;
@@ -603,11 +575,44 @@ impl Spreadsheet {
                 });
         });
         if next != self.sheet && self.commit(ui, id) {
-            self.sheet = next;
-            self.select(Cell::FIRST);
-            self.grid = grid::State::default();
-            ui.memory_mut(|m| m.request_focus(id.with("grid")));
-            ui.ctx().request_repaint();
+            self.select_sheet(ui, id, next);
+        }
+    }
+
+    fn select_sheet(&mut self, ui: &Ui, id: Id, sheet: u32) {
+        self.sheet = sheet;
+        self.select(Cell::FIRST);
+        self.grid = grid::State::default();
+        ui.memory_mut(|m| m.request_focus(id.with("grid")));
+        ui.ctx().request_repaint();
+    }
+
+    fn show_delete_sheet(&mut self, ui: &Ui, id: Id, read_only: bool) {
+        let count = self.model.get_model().workbook.worksheets.len() as u32;
+        if read_only || count <= 1 {
+            self.confirm_delete = false;
+            return;
+        }
+        let modal = egui::Modal::new(id.with("delete worksheet")).show(ui.ctx(), |ui| {
+            ui.heading("Delete worksheet?");
+            ui.label(format!("Delete “{}” from this workbook.", self.worksheet().name));
+            ui.horizontal(|ui| {
+                if ui.button("Cancel").clicked() {
+                    ui.close();
+                }
+                ui.button("Delete worksheet").clicked()
+            })
+            .inner
+        });
+        if modal.inner {
+            self.confirm_delete = false;
+            let result = self.model.delete_sheet(self.sheet);
+            if self.record_change(result) {
+                self.model.evaluate();
+                self.select_sheet(ui, id, self.sheet.min(count - 2));
+            }
+        } else if modal.should_close() {
+            self.confirm_delete = false;
         }
     }
 
@@ -617,6 +622,7 @@ impl Spreadsheet {
             Duplicate,
             Move(u32),
             Gridlines,
+            Delete,
         }
 
         let sheet = self.sheet;
@@ -644,6 +650,11 @@ impl Spreadsheet {
                     .clicked()
                     .then_some(Action::Gridlines);
                 let action = action.or(gridlines);
+                let action = action.or_else(|| {
+                    ui.add_enabled(count > 1, Button::new("Delete worksheet…"))
+                        .clicked()
+                        .then_some(Action::Delete)
+                });
                 if action.is_some() {
                     ui.close();
                 }
@@ -666,6 +677,10 @@ impl Spreadsheet {
             }
             Action::Move(next) => (self.model.move_sheet(sheet, next), next),
             Action::Gridlines => (self.model.set_show_grid_lines(sheet, !gridlines), sheet),
+            Action::Delete => {
+                self.confirm_delete = true;
+                return None;
+            }
         };
         ui.memory_mut(|m| m.request_focus(id.with("grid")));
         ui.ctx().request_repaint();
@@ -733,6 +748,7 @@ impl Spreadsheet {
             Copy,
             Cut,
             Paste,
+            PasteValues,
             ClearContents,
             ClearFormatting,
             Fill(ranges::Fill, CellRange),
@@ -763,6 +779,9 @@ impl Spreadsheet {
                     }
                     if ui.button("Paste").clicked() {
                         action = Some(Action::Paste);
+                    }
+                    if ui.button("Paste values").clicked() {
+                        action = Some(Action::PasteValues);
                     }
                     ui.separator();
                     if ui
@@ -921,9 +940,13 @@ impl Spreadsheet {
         ui.memory_mut(|memory| memory.request_focus(grid_id));
         ui.ctx().request_repaint();
         match action {
-            Action::Copy => self.copy_selection(ui),
-            Action::Cut => self.cut_selection(ui),
-            Action::Paste => ui.ctx().send_viewport_cmd(ViewportCommand::RequestPaste),
+            Action::Copy => self.copy_selection(ui, false),
+            Action::Cut => self.copy_selection(ui, true),
+            Action::Paste | Action::PasteValues => {
+                self.paste_values_frame = matches!(action, Action::PasteValues)
+                    .then(|| ui.ctx().cumulative_frame_nr() + 1);
+                ui.ctx().send_viewport_cmd(ViewportCommand::RequestPaste);
+            }
             Action::ClearContents => {
                 self.clear_selection();
             }
@@ -1024,9 +1047,10 @@ impl Spreadsheet {
 
     fn formula_bar(
         &mut self, ui: &mut Ui, id: Id, height: f32, read_only: bool, response: &mut Response,
-    ) {
+    ) -> bool {
         let mut apply = false;
         let mut cancel = false;
+        let mut advance = None;
         let naming = self
             .edit
             .as_ref()
@@ -1082,14 +1106,26 @@ impl Spreadsheet {
                     response.text_interaction_rect = Some(text_rect);
                     if ui.memory(|m| m.has_focus(id)) {
                         if field.renderer.ime_marked.is_none() {
-                            apply |= ui.input_mut(|i| i.consume_key(Modifiers::NONE, Key::Enter));
+                            if naming {
+                                apply |= ui.input_mut(|i| {
+                                    i.consume_key_exact(Modifiers::NONE, Key::Enter)
+                                });
+                            } else {
+                                advance = ui.input_mut(step_with_enter_or_tab);
+                            }
                         }
                         cancel |= ui.input_mut(|i| i.consume_key(Modifiers::NONE, Key::Escape));
                     }
                     let applied = field.handle_input(ui.ctx(), id);
                     response.text_updated |= applied.text_updated;
                     response.selection_updated |= applied.selection_user_moved;
-                    apply |= field.renderer.buffer.current.text.contains('\n');
+                    if field.renderer.buffer.current.text.contains('\n') {
+                        if naming {
+                            apply = true;
+                        } else {
+                            advance.get_or_insert((1, 0));
+                        }
+                    }
                     field.show(ui, text_rect, id);
                 } else {
                     let input = self.input();
@@ -1102,38 +1138,44 @@ impl Spreadsheet {
                 }
             });
         });
+        let mut reveal = false;
         if cancel {
             self.end_edit(ui, id);
-        } else if apply {
-            self.commit(ui, id);
+        } else if (apply || advance.is_some()) && self.commit(ui, id) {
+            if let Some((rows, columns)) = advance {
+                self.select(self.selected.offset(rows, columns).clamped());
+                reveal = true;
+            }
         }
         if !self.editing() {
             response.text_interaction_rect = None;
         }
+        reveal
     }
 
     fn grid_keys(&mut self, ui: &Ui, id: Id, read_only: bool) -> bool {
         self.grid_clipboard(ui, read_only);
         let (delta, extend, edit, typing, clear, undo, redo) = ui.input_mut(|i| {
-            let extend = i.modifiers.shift;
-            let modifiers = if extend { Modifiers::SHIFT } else { Modifiers::NONE };
-            let delta = [
-                (Key::ArrowDown, (1, 0)),
-                (Key::ArrowUp, (-1, 0)),
-                (Key::ArrowRight, (0, 1)),
-                (Key::ArrowLeft, (0, -1)),
-            ]
-            .into_iter()
-            .find_map(|(key, delta)| i.consume_key(modifiers, key).then_some(delta));
-            let edit = !read_only
-                && (i.consume_key(Modifiers::NONE, Key::F2)
-                    || i.consume_key(Modifiers::NONE, Key::Enter));
+            let edit = !read_only && i.consume_key(Modifiers::NONE, Key::F2);
             let typing = !read_only
                 && !i.modifiers.command
                 && i.events.iter().any(|event| match event {
                     Event::Text(text) => text.chars().any(|c| !c.is_control()),
                     _ => false,
                 });
+            let step = if edit || typing { None } else { step_with_enter_or_tab(i) };
+            let extend = i.modifiers.shift && step.is_none();
+            let modifiers = if extend { Modifiers::SHIFT } else { Modifiers::NONE };
+            let delta = step.or_else(|| {
+                [
+                    (Key::ArrowDown, (1, 0)),
+                    (Key::ArrowUp, (-1, 0)),
+                    (Key::ArrowRight, (0, 1)),
+                    (Key::ArrowLeft, (0, -1)),
+                ]
+                .into_iter()
+                .find_map(|(key, delta)| i.consume_key(modifiers, key).then_some(delta))
+            });
             let clear = !read_only && i.consume_key(Modifiers::NONE, Key::Delete);
             let redo = !read_only && i.consume_key(Modifiers::COMMAND | Modifiers::SHIFT, Key::Z);
             let undo = !read_only && !redo && i.consume_key(Modifiers::COMMAND, Key::Z);
@@ -1194,80 +1236,32 @@ impl Spreadsheet {
             (copy, cut, request_paste, paste)
         });
         if cut {
-            self.cut_selection(ui);
+            self.copy_selection(ui, true);
         } else if copy {
-            self.copy_selection(ui);
+            self.copy_selection(ui, false);
         }
         if let Some(text) = paste {
-            self.paste(&text);
+            let values = self
+                .paste_values_frame
+                .take()
+                .is_some_and(|frame| ui.ctx().cumulative_frame_nr() == frame);
+            self.paste_clipboard(ui, &text, values);
         } else if request_paste {
+            self.paste_values_frame = None;
             ui.ctx().send_viewport_cmd(ViewportCommand::RequestPaste);
         }
     }
 }
 
-pub fn encode_workbook(workbook: &Workbook) -> Vec<u8> {
-    let mut bytes = HEADER.to_vec();
-    bytes.extend(bitcode::encode(workbook));
-    bytes
-}
-
-fn import_csv_workbook(bytes: &[u8]) -> Result<Workbook, String> {
-    let text = std::str::from_utf8(bytes).map_err(|error| error.to_string())?;
-    let mut reader = csv::ReaderBuilder::new()
-        .has_headers(false)
-        .flexible(true)
-        .from_reader(text.as_bytes());
-    let mut writer = csv::WriterBuilder::new()
-        .delimiter(b'\t')
-        .from_writer(Vec::new());
-    for record in reader.records() {
-        let record = record.map_err(|error| error.to_string())?;
-        writer
-            .write_record(&record)
-            .map_err(|error| error.to_string())?;
-    }
-    let tsv = writer.into_inner().map_err(|error| error.to_string())?;
-    let tsv = std::str::from_utf8(&tsv).map_err(|error| error.to_string())?;
-    let mut model = UserModel::new_empty("Imported CSV", "en", "UTC", "en")?;
-    model.paste_csv_string(&Area { sheet: 0, row: 1, column: 1, width: 1, height: 1 }, tsv)?;
-    Ok(model.get_model().workbook.clone())
-}
-
-fn user_model_from_workbook(workbook: Workbook) -> Result<UserModel<'static>, String> {
-    UserModel::from_bytes(&bitcode::encode(&workbook), "en")
-}
-
-fn read_file_workbook(
-    format: FileFormat, hmac: Option<DocumentHmac>, filename: &str, bytes: &[u8],
-) -> Result<UserModel<'static>, String> {
-    if bytes.len() > MAX_IMPORT_BYTES {
-        return Err("Spreadsheet files are limited to 100 MB".into());
-    }
-    match format {
-        FileFormat::Lbsheet => read_workbook(hmac, bytes),
-        FileFormat::Csv => user_model_from_workbook(import_csv_workbook(bytes)?),
-        FileFormat::Xlsx => {
-            let workbook = ironcalc::import::load_from_xlsx_bytes(bytes, filename, "en", "UTC")
-                .map_err(|error| error.user_message())?;
-            user_model_from_workbook(workbook)
-        }
-    }
-}
-
-fn read_workbook(hmac: Option<DocumentHmac>, bytes: &[u8]) -> Result<UserModel<'static>, String> {
-    if bytes.is_empty() && hmac.is_none() {
-        return UserModel::new_empty("Spreadsheet", "en", "UTC", "en");
-    }
-    let payload = bytes
-        .strip_prefix(HEADER)
-        .ok_or("Unsupported spreadsheet format")?;
-    let workbook = UserModel::from_bytes(payload, "en")
-        .map_err(|error| format!("Could not open spreadsheet: {error}"))?;
-    if workbook.get_model().workbook.worksheets.is_empty() {
-        return Err("Spreadsheet has no worksheets".into());
-    }
-    Ok(workbook)
+fn step_with_enter_or_tab(input: &mut egui::InputState) -> Option<(i32, i32)> {
+    [
+        (Modifiers::NONE, Key::Enter, (1, 0)),
+        (Modifiers::SHIFT, Key::Enter, (-1, 0)),
+        (Modifiers::NONE, Key::Tab, (0, 1)),
+        (Modifiers::SHIFT, Key::Tab, (0, -1)),
+    ]
+    .into_iter()
+    .find_map(|(modifiers, key, delta)| input.consume_key_exact(modifiers, key).then_some(delta))
 }
 
 fn column_label(mut column: i32) -> String {
@@ -1611,6 +1605,98 @@ mod tests {
     }
 
     #[test]
+    fn spreadsheet_clipboard_copies_a_formula_with_its_formatting() {
+        let ctx = test_ctx();
+        let size = vec2(800.0, 600.0);
+        let mut sheet = Spreadsheet::new(Uuid::nil(), None, &[]).unwrap();
+        sheet.paste("5\t=A1*2");
+        sheet.select(Cell { row: 1, column: 2 });
+        sheet.format_selection("font.b", "true");
+        show(&ctx, &mut sheet, vec![Event::Copy], size, false);
+        sheet.select(Cell { row: 2, column: 2 });
+        show(&ctx, &mut sheet, vec![Event::Paste("10".into())], size, false);
+        assert_eq!(sheet.input(), "=A2*2");
+        assert!(sheet.cell_style(sheet.selected).font.b);
+
+        sheet.model.new_sheet().unwrap();
+        sheet.sheet = 1;
+        sheet.select(Cell { row: 3, column: 2 });
+        show(&ctx, &mut sheet, vec![Event::Paste("10".into())], size, false);
+        assert_eq!(sheet.input(), "=A3*2");
+        assert!(sheet.cell_style(sheet.selected).font.b);
+    }
+
+    #[test]
+    fn spreadsheet_paste_values_keeps_number_precision_and_formula_like_text() {
+        let ctx = test_ctx();
+        ctx.set_os(egui::os::OperatingSystem::Android);
+        ctx.enable_accesskit();
+        let size = vec2(360.0, 520.0);
+        let mut sheet = Spreadsheet::new(Uuid::nil(), None, &[]).unwrap();
+        sheet.paste("=1/8\t=\"=A1\"");
+        sheet.format_selection("num_fmt", "0.0");
+        let (_, full) = show(&ctx, &mut sheet, vec![Event::Copy], size, false);
+        let copied = full
+            .platform_output
+            .commands
+            .into_iter()
+            .find_map(|command| {
+                if let egui::OutputCommand::CopyText(text) = command { Some(text) } else { None }
+            })
+            .unwrap();
+        sheet.select(Cell { row: 2, column: 1 });
+        let (_, full) = show(&ctx, &mut sheet, vec![], size, false);
+        let menu = control_position(full, "Cell actions");
+        show(&ctx, &mut sheet, click(menu), size, false);
+        let (_, full) = show(&ctx, &mut sheet, vec![], size, false);
+        let paste_values = control_position(full, "Paste values");
+        show(&ctx, &mut sheet, click(paste_values), size, false);
+        show(&ctx, &mut sheet, vec![Event::Paste(copied)], size, false);
+        assert_eq!(sheet.model.get_cell_content(0, 2, 1).unwrap(), "0.125");
+        assert_eq!(sheet.model.get_formatted_cell_value(0, 2, 2).unwrap(), "=A1");
+    }
+
+    #[test]
+    fn spreadsheet_cut_moves_the_formula_only_after_paste_and_can_be_undone() {
+        let ctx = test_ctx();
+        let size = vec2(800.0, 600.0);
+        let mut sheet = Spreadsheet::new(Uuid::nil(), None, &[]).unwrap();
+        sheet.paste("5\t=A1*2\t=B1+1");
+        let source = Cell { row: 1, column: 2 };
+        sheet.select(source);
+        show(&ctx, &mut sheet, vec![Event::Cut], size, false);
+        assert_eq!(sheet.input(), "=A1*2");
+        sheet.select(Cell { row: 2, column: 2 });
+        show(&ctx, &mut sheet, vec![Event::Paste("10".into())], size, false);
+        assert_eq!(sheet.input(), "=A1*2");
+        assert_eq!(sheet.model.get_cell_content(0, 1, 2).unwrap(), "");
+        assert_eq!(sheet.model.get_cell_content(0, 1, 3).unwrap(), "=B2+1");
+        sheet.change_history(false);
+        assert_eq!(sheet.model.get_cell_content(0, 1, 2).unwrap(), "=A1*2");
+    }
+
+    #[test]
+    fn spreadsheet_tab_commits_and_shift_tab_moves_back() {
+        let ctx = test_ctx();
+        let size = vec2(800.0, 600.0);
+        let mut sheet = Spreadsheet::new(Uuid::nil(), None, &[]).unwrap();
+        show(&ctx, &mut sheet, vec![Event::Text("42".into())], size, false);
+        show(&ctx, &mut sheet, vec![key(Key::Tab)], size, false);
+        assert_eq!(sheet.selected.address(), "B1");
+        assert_eq!(sheet.model.get_cell_content(0, 1, 1).unwrap(), "42");
+        let shift_tab = Event::Key {
+            modifiers: Modifiers::SHIFT,
+            key: Key::Tab,
+            physical_key: None,
+            pressed: true,
+            repeat: false,
+        };
+        show(&ctx, &mut sheet, vec![Event::Text("9".into()), shift_tab], size, false);
+        assert_eq!(sheet.selected.address(), "A1");
+        assert_eq!(sheet.model.get_cell_content(0, 1, 2).unwrap(), "9");
+    }
+
+    #[test]
     fn spreadsheet_structural_edits_and_clear_formatting_use_engine_history() {
         use grid::AxisKind::{Column, Row};
         use ranges::AxisEdit::{Delete, InsertBefore};
@@ -1703,7 +1789,7 @@ mod tests {
     }
 
     #[test]
-    fn spreadsheet_worksheet_actions_rename_duplicate_and_reorder_the_active_sheet() {
+    fn spreadsheet_worksheet_actions_rename_duplicate_reorder_and_delete_the_active_sheet() {
         let ctx = test_ctx();
         ctx.enable_accesskit();
         let size = vec2(360.0, 530.0);
@@ -1739,6 +1825,17 @@ mod tests {
         sheet.change_history(false);
         assert_eq!(sheet.sheet, 1);
         assert_eq!(sheet.worksheet().sheet_id, duplicate);
+
+        choose(&mut sheet, "Delete worksheet…");
+        assert_eq!(sheet.snapshot().worksheets.len(), 2);
+        let (_, full) = show(&ctx, &mut sheet, vec![], size, false);
+        let confirm = control_position(full, "Delete worksheet");
+        show(&ctx, &mut sheet, click(confirm), size, false);
+        assert_eq!(sheet.snapshot().worksheets.len(), 1);
+        assert_eq!(sheet.worksheet().name, "Budget");
+        sheet.change_history(false);
+        assert_eq!(sheet.snapshot().worksheets[1].sheet_id, duplicate);
+        assert_eq!(sheet.model.get_cell_content(1, 1, 1).unwrap(), "5");
     }
 
     #[test]
@@ -1748,6 +1845,7 @@ mod tests {
         let size = vec2(800.0, 600.0);
         show(&ctx, &mut sheet, vec![key(Key::F2)], size, false);
         show(&ctx, &mut sheet, vec![Event::Text("21".into()), key(Key::Enter)], size, false);
+        show(&ctx, &mut sheet, vec![key(Key::ArrowUp)], size, false);
         show(&ctx, &mut sheet, vec![key(Key::ArrowRight)], size, false);
         show(&ctx, &mut sheet, vec![key(Key::F2)], size, false);
         show(&ctx, &mut sheet, vec![Event::Text("=A1*2".into()), key(Key::Enter)], size, false);
@@ -1816,14 +1914,148 @@ mod tests {
         show(&ctx, &mut sheet, vec![Event::Text("=6*7".into())], size, false);
         assert_eq!(sheet.input(), "old value");
         show(&ctx, &mut sheet, vec![key(Key::Enter)], size, false);
-        assert_eq!(sheet.input(), "=6*7");
+        assert_eq!(sheet.selected.address(), "A2");
+        assert_eq!(sheet.model.get_cell_content(0, 1, 1).unwrap(), "=6*7");
     }
 
     #[test]
     fn spreadsheet_rejects_invalid_files() {
         assert!(Spreadsheet::new(Uuid::nil(), Some([1; 32]), &[]).is_err());
         assert!(Spreadsheet::new(Uuid::nil(), None, b"LBSHEET\0\x02bad").is_err());
-        assert!(Spreadsheet::new(Uuid::nil(), None, HEADER).is_err());
+        assert!(Spreadsheet::new(Uuid::nil(), None, b"LBSHEET\0\x01").is_err());
+    }
+
+    #[test]
+    fn spreadsheet_csv_preview_loads_ragged_rows_without_enabling_edits() {
+        let ctx = test_ctx();
+        let mut sheet = Spreadsheet::new_for_file(
+            Uuid::nil(),
+            Some([1; 32]),
+            "Budget.CSV",
+            b"5,=A1*2\n7\n8,=A3*2\n",
+        )
+        .unwrap();
+        let size = vec2(800.0, 600.0);
+        show(&ctx, &mut sheet, vec![Event::Text("42".into())], size, false);
+        assert!(!sheet.editing());
+        assert_eq!(sheet.model.get_formatted_cell_value(0, 3, 2).unwrap(), "16");
+        assert!(!sheet.fits_name("Budget.xlsx"));
+    }
+
+    #[test]
+    fn spreadsheet_can_commit_an_active_formula_before_flushing() {
+        let ctx = test_ctx();
+        let mut sheet = Spreadsheet::new(Uuid::nil(), None, &[]).unwrap();
+        show(&ctx, &mut sheet, vec![Event::Text("=6*7".into())], vec2(800.0, 600.0), false);
+        assert!(sheet.editing());
+        assert!(sheet.commit_pending_edit(&ctx));
+        let saved = encode_workbook(&sheet.snapshot());
+        let reopened = read_workbook(Some([1; 32]), &saved).unwrap();
+        assert_eq!(reopened.get_formatted_cell_value(0, 1, 1).unwrap(), "42");
+    }
+
+    #[test]
+    fn spreadsheet_import_keeps_a_workbook_with_existing_edits() {
+        let mut sheet = Spreadsheet::new(Uuid::nil(), None, &[]).unwrap();
+        sheet.paste("42");
+        assert!(sheet.import_file("data.csv", b"99").is_err());
+        assert_eq!(sheet.input(), "42");
+    }
+
+    #[test]
+    fn spreadsheet_preview_makes_an_editable_copy() {
+        if ::test_utils::without_server() {
+            return;
+        }
+        let mut test = TestWs::new();
+        let source = test.doc("Budget.csv", "5,=A1*2");
+        test.ws.open_file(source, true, false);
+        test.settle();
+        let copy = test.ws.make_editable_spreadsheet_copy().unwrap();
+        assert_eq!(copy.name, "Budget.lbsheet");
+        let (hmac, bytes) = test
+            .ws
+            .core
+            .read_document_with_hmac(copy.id, false)
+            .unwrap();
+        let sheet = Spreadsheet::new_for_file(copy.id, hmac, &copy.name, &bytes).unwrap();
+        assert!(sheet.editable());
+        assert_eq!(sheet.model.get_cell_content(0, 1, 2).unwrap(), "=A1*2");
+        assert_eq!(test.ws.core.read_document(source, false).unwrap(), b"5,=A1*2");
+    }
+
+    #[test]
+    fn spreadsheet_xlsx_preview_preserves_formulas_and_cached_values() {
+        let mut sheet = Spreadsheet::new(Uuid::nil(), None, &[]).unwrap();
+        sheet.paste("5\t=A1*2");
+        let (name, bytes) = sheet.export_xlsx().unwrap();
+        let preview = Spreadsheet::new_for_file(Uuid::nil(), Some([1; 32]), &name, &bytes).unwrap();
+        assert!(!preview.editable());
+        assert_eq!(preview.model.get_cell_content(0, 1, 2).unwrap(), "=A1*2");
+        assert_eq!(preview.model.get_formatted_cell_value(0, 1, 2).unwrap(), "10");
+    }
+
+    #[test]
+    fn spreadsheet_unmerge_of_plain_cells_keeps_undo_steps_in_sync() {
+        let mut sheet = Spreadsheet::new(Uuid::nil(), None, &[]).unwrap();
+        sheet.model.set_user_input(0, 1, 1, "42").unwrap();
+        sheet.model.set_user_input(0, 1, 2, "43").unwrap();
+        sheet.record_edit(Ok(2));
+        sheet.unmerge_selection();
+        sheet.change_history(false);
+        assert_eq!(sheet.input(), "");
+        assert!(!sheet.model.can_undo());
+    }
+
+    #[test]
+    fn spreadsheet_save_after_rename_uses_a_recovery_copy() {
+        if ::test_utils::without_server() {
+            return;
+        }
+        let mut test = TestWs::new();
+        test.ws.cfg.set_auto_save(false);
+        let root = test.ws.core.get_root().unwrap().id;
+        let file = test
+            .ws
+            .core
+            .create_file("Budget.lbsheet", &root, lb_rs::model::file_metadata::FileType::Document)
+            .unwrap();
+        test.ws.open_file(file.id, true, false);
+        test.settle();
+        test.frame_with(vec![Event::Text("42".into())]);
+        assert!(!test.ws.saves_settled());
+
+        test.ws.core.rename_file(&file.id, "Budget.csv").unwrap();
+        test.ws.flush_saves();
+        test.idle(file.id);
+
+        assert!(
+            test.ws
+                .core
+                .read_document(file.id, false)
+                .unwrap()
+                .is_empty()
+        );
+        let copy = test
+            .ws
+            .core
+            .get_children(&root)
+            .unwrap()
+            .into_iter()
+            .find(|file| file.name.starts_with("Budget (Recovered "))
+            .unwrap();
+        let (hmac, bytes) = test
+            .ws
+            .core
+            .read_document_with_hmac(copy.id, false)
+            .unwrap();
+        assert_eq!(
+            read_workbook(hmac, &bytes)
+                .unwrap()
+                .get_cell_content(0, 1, 1)
+                .unwrap(),
+            "42"
+        );
     }
 
     #[test]
@@ -1911,6 +2143,7 @@ mod tests {
         test.ws.core.sync().unwrap();
         let other = test.other_device();
         test.ws.cfg.set_auto_save(false);
+        test.frame_with(vec![key(Key::ArrowUp)]);
         test.frame_with(vec![key(Key::F2)]);
         test.frame_with(vec![Event::Text("+1".into()), key(Key::Enter)]);
         let mut incoming = Spreadsheet::new(file.id, saved.0, &saved.1).unwrap();

@@ -589,7 +589,9 @@ impl Tab {
     #[cfg(not(target_family = "wasm"))]
     pub fn import_spreadsheet(&mut self, filename: &str, bytes: &[u8]) -> Result<(), String> {
         match &mut self.content {
-            ContentState::Open(TabContent::Spreadsheet(sheet)) if !self.read_only => {
+            ContentState::Open(TabContent::Spreadsheet(sheet))
+                if !self.read_only && sheet.editable() =>
+            {
                 sheet.import_file(filename, bytes)?;
                 self.last_changed = Instant::now();
                 Ok(())
@@ -900,6 +902,27 @@ impl Tab {
         }
         false
     }
+
+    pub(crate) fn has_pending_edit(&self) -> bool {
+        #[cfg(not(target_family = "wasm"))]
+        if let ContentState::Open(TabContent::Spreadsheet(sheet)) = &self.content {
+            return sheet.editing();
+        }
+        false
+    }
+
+    pub(crate) fn commit_pending_edit(&mut self, _ctx: &egui::Context) -> bool {
+        #[cfg(not(target_family = "wasm"))]
+        if let ContentState::Open(TabContent::Spreadsheet(sheet)) = &mut self.content {
+            let seq = sheet.seq();
+            let success = sheet.commit_pending_edit(_ctx);
+            if sheet.seq() != seq {
+                self.last_changed = Instant::now();
+            }
+            return success;
+        }
+        true
+    }
 }
 
 #[allow(clippy::large_enum_variant)]
@@ -1095,11 +1118,12 @@ impl TabContent {
             }
             TabContent::Svg(svg) => Some(TabSaveContent::Svg(Box::new(svg.buffer.clone()))),
             #[cfg(not(target_family = "wasm"))]
-            TabContent::Spreadsheet(sheet) => Some(TabSaveContent::Spreadsheet {
-                workbook: Box::new(sheet.snapshot()),
-                format: sheet.format(),
-                recovery: sheet.recovery,
-            }),
+            TabContent::Spreadsheet(sheet) if sheet.editable() => {
+                Some(TabSaveContent::Spreadsheet {
+                    workbook: Box::new(sheet.snapshot()),
+                    recovery: sheet.recovery,
+                })
+            }
             _ => None,
         }
     }
@@ -1115,7 +1139,6 @@ pub enum TabSaveContent {
     #[cfg(not(target_family = "wasm"))]
     Spreadsheet {
         workbook: Box<ironcalc_base::types::Workbook>,
-        format: spreadsheet::FileFormat,
         recovery: Option<(Uuid, DocumentHmac)>,
     },
 }
@@ -1132,16 +1155,6 @@ impl TabSaveContent {
             }
         }
     }
-
-    pub fn try_bytes(&self) -> Result<Cow<'_, [u8]>, String> {
-        match self {
-            #[cfg(not(target_family = "wasm"))]
-            TabSaveContent::Spreadsheet { workbook, format, .. } => {
-                Ok(Cow::Owned(spreadsheet::Spreadsheet::encode_for_format(workbook, *format)?))
-            }
-            _ => Ok(self.bytes()),
-        }
-    }
 }
 
 #[derive(Default)]
@@ -1156,6 +1169,8 @@ pub struct Response {
     pub lifted: bool,
     pub open_file: Option<Uuid>,
     pub open_anyway: Option<Uuid>,
+    #[cfg(not(target_family = "wasm"))]
+    pub make_spreadsheet_copy: bool,
     pub spreadsheet_export_file: Option<(String, Vec<u8>)>,
     /// The user scrolled or edited, so the tab no longer shows its fragment.
     pub left_fragment: bool,

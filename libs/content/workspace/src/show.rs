@@ -275,6 +275,19 @@ impl Workspace {
                 self.out.markdown_editor_scroll_updated = true;
             }
             self.out.spreadsheet_export_file = resp.spreadsheet_export_file;
+            #[cfg(not(target_family = "wasm"))]
+            if resp.make_spreadsheet_copy {
+                match self.make_editable_spreadsheet_copy() {
+                    Ok(file) => {
+                        self.open_file(file.id, true, true);
+                        self.out.file_created = Some(Ok(file));
+                    }
+                    Err(error) => self
+                        .out
+                        .failure_messages
+                        .push(format!("Could not make an editable copy. {error}")),
+                }
+            }
             if let Some(file) = resp.open_file {
                 self.navigate_to(crate::tab::Destination::File(file));
             }
@@ -627,6 +640,7 @@ impl DocType {
             .to_lowercase();
         match ext.as_str() {
             "draw" | "svg" => Self::SVG,
+            #[cfg(not(target_family = "wasm"))]
             "lbsheet" | "csv" | "xlsx" => Self::Spreadsheet,
             "md" => Self::Markdown,
             "txt" => Self::PlainText,

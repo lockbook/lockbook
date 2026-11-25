@@ -377,7 +377,7 @@ impl ShellApp {
         // Close window: save workspace tabs
         if ctx.input(|i| i.viewport().close_requested()) {
             if let Some(r) = self.session.ready_mut() {
-                r.workspace.save_all_tabs();
+                r.workspace.flush_saves();
             }
         }
 
@@ -903,6 +903,13 @@ impl ShellApp {
         }
         let paths: Vec<_> = dropped.iter().map(|f| f.path().to_path_buf()).collect();
         if paths.is_empty() {
+            return;
+        }
+        if self
+            .session
+            .ready_mut()
+            .is_some_and(|r| r.workspace.import_dropped_spreadsheet(&paths))
+        {
             return;
         }
         // Folder picker, pre-selected from tree context (then open tab / home).

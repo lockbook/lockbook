@@ -139,6 +139,21 @@ impl Lb {
         self.block_on(self.lb.safe_write(id, old_hmac, content, origin))
     }
 
+    /// Writes only if the document still has the expected content and file extension.
+    /// An HMAC or extension mismatch returns `ReReadRequired`.
+    pub fn safe_write_with_extension(
+        &self, id: Uuid, old_hmac: Option<DocumentHmac>, content: &[u8], origin: Option<Uuid>,
+        extension: &str,
+    ) -> LbResult<DocumentHmac> {
+        self.block_on(self.lb.safe_write_with_extension(
+            id,
+            old_hmac,
+            content,
+            origin,
+            Some(extension),
+        ))
+    }
+
     pub fn write_from_base(
         &self, id: Uuid, base: &[u8], ours: Vec<u8>, origin: Option<Uuid>,
     ) -> LbResult<(Option<DocumentHmac>, bool)> {

@@ -501,10 +501,16 @@ impl TaskManager {
             let request = queued_save.request.clone();
             let in_progress_save = InProgressSave::new(queued_save);
             let (old_hmac, content) = {
-                let Some(tab) = tabs.get_any_mut(&request.origin) else {
-                    error!("could not launch save because its tab does not exist");
+                let Some(tab) = tabs
+                    .get_any_mut(&request.origin)
+                    .filter(|tab| tab.id() == Some(request.id))
+                else {
+                    error!("could not launch save because its tab no longer holds the document");
                     continue;
                 };
+                if tab.save_blocked() {
+                    continue;
+                }
 
                 let start = Instant::now();
 
@@ -580,56 +586,39 @@ impl TaskManager {
         &self, request: &SaveRequest, old_hmac: Option<DocumentHmac>, content: &TabSaveContent,
     ) -> LbResult<SavedDocument> {
         #[cfg(not(target_family = "wasm"))]
-        if let TabSaveContent::Spreadsheet { recovery, format, .. } = content {
-            use crate::show::DocType;
-            use lb_rs::model::errors::{LbErr, LbErrKind};
-            let bytes = content.try_bytes().map_err(|error| {
-                LbErr::from(LbErrKind::Unexpected(format!(
-                    "Could not serialize spreadsheet: {error}"
-                )))
-            })?;
-            let bytes = bytes.as_ref();
-            if let Some((id, hmac)) = recovery {
-                match self
-                    .core
-                    .safe_write(*id, Some(*hmac), bytes, Some(request.origin.as_uuid()))
-                {
-                    Ok(hmac) => return Ok(SavedDocument { hmac, recovery: Some(*id) }),
-                    Err(err)
-                        if !matches!(
-                            err.kind,
-                            LbErrKind::ReReadRequired | LbErrKind::FileNonexistent
-                        ) =>
-                    {
-                        return Err(err);
-                    }
-                    Err(_) => return self.recover_spreadsheet(request, bytes, *format),
-                }
+        if let TabSaveContent::Spreadsheet { recovery, .. } = content {
+            use crate::tab::spreadsheet::{MAX_FILE_BYTES, NATIVE_EXTENSION};
+            use lb_rs::model::errors::LbErrKind;
+
+            let bytes = content.bytes();
+            if bytes.len() > MAX_FILE_BYTES {
+                return Err(LbErrKind::Unexpected(
+                    "Spreadsheet files are limited to 100 MB".into(),
+                )
+                .into());
             }
-            if self
-                .core
-                .get_file_by_id(request.id)
-                .is_ok_and(|file| DocType::from_name(&file.name) != DocType::Spreadsheet)
-            {
-                return self.recover_spreadsheet(request, bytes, *format);
-            }
-            match self
-                .core
-                .safe_write(request.id, old_hmac, bytes, Some(request.origin.as_uuid()))
-            {
-                Ok(hmac) => return Ok(SavedDocument { hmac, recovery: None }),
+            let (id, hmac) = recovery.map_or((request.id, old_hmac), |(id, hmac)| (id, Some(hmac)));
+            let result = self.core.safe_write_with_extension(
+                id,
+                hmac,
+                &bytes,
+                Some(request.origin.as_uuid()),
+                NATIVE_EXTENSION,
+            );
+            return match result {
+                Ok(hmac) => Ok(SavedDocument { hmac, recovery: recovery.map(|(id, _)| id) }),
                 Err(err)
                     if matches!(
                         err.kind,
                         LbErrKind::ReReadRequired
-                            | LbErrKind::InsufficientPermission
                             | LbErrKind::FileNonexistent
+                            | LbErrKind::InsufficientPermission
                     ) =>
                 {
-                    return self.recover_spreadsheet(request, bytes, *format);
+                    self.recover_spreadsheet(request, &bytes)
                 }
-                Err(err) => return Err(err),
-            }
+                Err(err) => Err(err),
+            };
         }
         self.core
             .safe_write(request.id, old_hmac, &content.bytes(), Some(request.origin.as_uuid()))
@@ -637,9 +626,8 @@ impl TaskManager {
     }
 
     #[cfg(not(target_family = "wasm"))]
-    fn recover_spreadsheet(
-        &self, request: &SaveRequest, bytes: &[u8], format: crate::tab::spreadsheet::FileFormat,
-    ) -> LbResult<SavedDocument> {
+    fn recover_spreadsheet(&self, request: &SaveRequest, bytes: &[u8]) -> LbResult<SavedDocument> {
+        use crate::tab::spreadsheet::NATIVE_EXTENSION;
         use lb_rs::model::file_metadata::FileType;
 
         let file = self.core.get_file_by_id(request.id).ok();
@@ -650,7 +638,7 @@ impl TaskManager {
             .unwrap_or("Spreadsheet");
         let title: String = title.chars().take(40).collect();
         let suffix = Uuid::new_v4().simple().to_string();
-        let name = format!("{title} (Recovered {}).{}", &suffix[..8], format.extension());
+        let name = format!("{title} (Recovered {}).{NATIVE_EXTENSION}", &suffix[..8]);
         let copy = file
             .and_then(|f| {
                 self.core
@@ -664,10 +652,13 @@ impl TaskManager {
                 },
                 Ok,
             )?;
-        match self
-            .core
-            .safe_write(copy.id, None, bytes, Some(request.origin.as_uuid()))
-        {
+        match self.core.safe_write_with_extension(
+            copy.id,
+            None,
+            bytes,
+            Some(request.origin.as_uuid()),
+            NATIVE_EXTENSION,
+        ) {
             Ok(hmac) => Ok(SavedDocument { hmac, recovery: Some(copy.id) }),
             Err(err) => {
                 if err.kind != lb_rs::model::errors::LbErrKind::ReReadRequired {
