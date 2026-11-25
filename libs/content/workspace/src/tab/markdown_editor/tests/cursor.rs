@@ -104,8 +104,9 @@ fn checkboxes_show_the_arrow() {
         .filter(|(_, target)| matches!(target, TouchTarget::Tap(Event::ToggleTask { .. })))
         .map(|(rect, _)| *rect)
         .collect();
-    // the front matter value's and the task's
-    assert_eq!(boxes.len(), 2);
+    // the front matter value's (when enabled) and the task's
+    let expected = if super::super::front_matter::FRONT_MATTER_ENABLED { 2 } else { 1 };
+    assert_eq!(boxes.len(), expected);
     for rect in boxes {
         assert_eq!(landing(&mut t, rect.center()), CursorIcon::Default);
         assert_eq!(landing(&mut t, rect.right_center() + egui::vec2(60.0, 0.0)), CursorIcon::Text);

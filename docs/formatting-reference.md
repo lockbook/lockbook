@@ -147,12 +147,3 @@ Three dashes on their own line draw a line across the page.
 ```md
 ---
 ```
-
-## Properties
-A block between two `---` lines at the very top of a note holds the note's properties, shown as a grid.
-```md
----
-status: draft
-due: 2026-12-01
----
-```

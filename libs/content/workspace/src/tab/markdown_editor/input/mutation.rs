@@ -740,6 +740,8 @@ impl<'ast> MdEdit {
                 self.renderer.open_dest(&url, wikilink, &ctx);
             }
             Event::LoadImage { url } => self.renderer.embeds.load_anyway(&url),
+            Event::FrontMatter(_)
+                if !crate::tab::markdown_editor::front_matter::FRONT_MATTER_ENABLED => {}
             Event::FrontMatter(FrontMatterAction::ToggleCollapsed) => {
                 self.front_matter_toggle_collapsed(operations);
             }
