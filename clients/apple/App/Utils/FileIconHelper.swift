@@ -6,6 +6,7 @@ enum FileIconHelper {
     static let extToSystemImg: [String: String] = [
         "md": "doc.richtext",
         "svg": "doc.text.image",
+        "voice": "waveform",
         "pdf": "doc.on.doc",
         "chat": "bubble.left",
 

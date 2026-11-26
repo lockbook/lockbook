@@ -450,6 +450,7 @@
 				INFOPLIST_KEY_CFBundleDisplayName = Lockbook;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
 				INFOPLIST_KEY_NSCameraUsageDescription = "Scan your account key QR code.";
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Lockbook uses the microphone to record voice notes.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -497,6 +498,7 @@
 				INFOPLIST_KEY_CFBundleDisplayName = Lockbook;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
 				INFOPLIST_KEY_NSCameraUsageDescription = "Scan your account key QR code.";
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Lockbook uses the microphone to record voice notes.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -543,6 +545,7 @@
 				INFOPLIST_KEY_CFBundleDisplayName = Lockbook;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
 				INFOPLIST_KEY_NSCameraUsageDescription = "Scan your account key QR code.";
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Lockbook uses the microphone to record voice notes.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;

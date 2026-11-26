@@ -1540,6 +1540,8 @@ impl Workspace {
                                         // to disk (including baked element stroke scaling).
                                         svg.opened_content = Buffer::new(&content.serialize());
                                     }
+                                } else if let Some(voice) = tab.voice_mut() {
+                                    voice.saved(hmac);
                                 } else {
                                     #[cfg(not(target_family = "wasm"))]
                                     if let Some(chat) = tab.chat_mut() {
@@ -2156,6 +2158,7 @@ fn content_reloads(
                     .is_none()
         }
         ContentState::Open(TabContent::Svg(_)) => doc_type == DocType::SVG,
+        ContentState::Open(TabContent::Voice(_)) => doc_type == DocType::Voice,
         #[cfg(not(target_family = "wasm"))]
         ContentState::Open(TabContent::Chat(_)) => doc_type == DocType::Chat,
         _ => false,
@@ -2174,6 +2177,7 @@ fn content_fits_name(content: &ContentState, name: &str) -> bool {
         ContentState::Open(TabContent::Svg(_)) => doc_type == DocType::SVG,
         ContentState::Open(TabContent::Image(_)) => doc_type == DocType::Image,
         ContentState::Open(TabContent::Pdf(_)) => doc_type == DocType::PDF,
+        ContentState::Open(TabContent::Voice(_)) => doc_type == DocType::Voice,
         #[cfg(not(target_family = "wasm"))]
         ContentState::Open(TabContent::Chat(_)) => doc_type == DocType::Chat,
         ContentState::Failed(_) => false,

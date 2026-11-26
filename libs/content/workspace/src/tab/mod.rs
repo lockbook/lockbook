@@ -34,6 +34,7 @@ pub mod markdown_editor;
 pub mod open;
 pub mod pdf_viewer;
 pub mod svg_editor;
+pub mod voice;
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum Destination {
@@ -535,6 +536,7 @@ impl Tab {
         match &self.content {
             ContentState::Open(TabContent::Markdown(md)) => md.hmac(),
             ContentState::Open(TabContent::Svg(svg)) => svg.open_file_hmac,
+            ContentState::Open(TabContent::Voice(voice)) => voice.hmac,
             #[cfg(not(target_family = "wasm"))]
             ContentState::Open(TabContent::Chat(chat)) => chat.hmac,
             _ => None,
@@ -613,6 +615,13 @@ impl Tab {
         }
     }
 
+    pub fn voice_mut(&mut self) -> Option<&mut voice::VoiceNote> {
+        match &mut self.content {
+            ContentState::Open(TabContent::Voice(voice)) => Some(voice),
+            _ => None,
+        }
+    }
+
     #[cfg(not(target_family = "wasm"))]
     pub fn mind_map(&self) -> Option<&MindMap> {
         match &self.content {
@@ -660,6 +669,7 @@ impl Tab {
             ContentState::Open(TabContent::Svg(_)) => "svg",
             ContentState::Open(TabContent::Image(_)) => "image",
             ContentState::Open(TabContent::Pdf(_)) => "pdf",
+            ContentState::Open(TabContent::Voice(_)) => "voice",
             #[cfg(not(target_family = "wasm"))]
             ContentState::Open(TabContent::Chat(_)) => "chat",
             #[cfg(not(target_family = "wasm"))]
@@ -842,6 +852,11 @@ impl Tab {
                             self.last_changed = Instant::now();
                         }
                     }
+                    TabContent::Voice(voice) => {
+                        if voice.show(ui) && !self.read_only {
+                            self.last_changed = Instant::now();
+                        }
+                    }
                     #[cfg(not(target_family = "wasm"))]
                     TabContent::MindMap(mm) => {
                         resp.open_file = mm.show(ui);
@@ -880,6 +895,7 @@ pub enum TabContent {
     Markdown(Markdown),
     Pdf(PdfViewer),
     Svg(SVGEditor),
+    Voice(voice::VoiceNote),
     #[cfg(not(target_family = "wasm"))]
     MindMap(MindMap),
     SpaceInspector(SpaceInspector),
@@ -894,6 +910,7 @@ impl std::fmt::Debug for TabContent {
             TabContent::Image(_) => write!(f, "TabContent::Image"),
             TabContent::Markdown(_) => write!(f, "TabContent::Markdown"),
             TabContent::Pdf(_) => write!(f, "TabContent::Pdf"),
+            TabContent::Voice(_) => write!(f, "TabContent::Voice"),
             TabContent::Svg(_) => write!(f, "TabContent::Svg"),
             #[cfg(not(target_family = "wasm"))]
             TabContent::MindMap(_) => write!(f, "TabContent::Graph"),
@@ -912,6 +929,7 @@ impl TabContent {
             TabContent::Svg(svg) => Some(svg.open_file),
             TabContent::Image(image_viewer) => image_viewer.file(),
             TabContent::Pdf(pdf_viewer) => Some(pdf_viewer.id),
+            TabContent::Voice(voice) => Some(voice.id),
             #[cfg(not(target_family = "wasm"))]
             TabContent::MindMap(_) => None,
             TabContent::SpaceInspector(_) => None,
@@ -925,6 +943,7 @@ impl TabContent {
             TabContent::Chat(chat) => chat.hmac,
             TabContent::Markdown(md) => md.hmac(),
             TabContent::Svg(svg) => svg.open_file_hmac,
+            TabContent::Voice(voice) => voice.hmac,
             _ => None,
         }
     }
@@ -946,6 +965,7 @@ impl TabContent {
             TabContent::Image(img) => img.embedded = embedded,
             TabContent::Pdf(pdf) => pdf.embedded = embedded,
             TabContent::Svg(svg) => svg.embedded = embedded,
+            TabContent::Voice(voice) => voice.embedded = embedded,
             #[cfg(not(target_family = "wasm"))]
             TabContent::Chat(chat) => chat.embedded = embedded,
             _ => {}
@@ -1047,6 +1067,7 @@ impl TabContent {
                 Some(TabSaveContent::String(md.edit.renderer.buffer.current.text.clone()))
             }
             TabContent::Svg(svg) => Some(TabSaveContent::Svg(Box::new(svg.buffer.clone()))),
+            TabContent::Voice(voice) => Some(TabSaveContent::Bytes(voice.to_bytes())),
             _ => None,
         }
     }
