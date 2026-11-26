@@ -13,10 +13,7 @@ impl<'ast> MdRender {
         if node_range.is_empty() {
             return;
         }
-        self.layout_source(layout, node, node_range, self.text_format(node), true);
-        if self.is_prose(node) {
-            layout.push_prose(node_range);
-        }
+        self.layout_text_with_timestamps(layout, node, node_range, self.text_format(node));
     }
 
     /// Whether `node` is text whose words are spell checked.

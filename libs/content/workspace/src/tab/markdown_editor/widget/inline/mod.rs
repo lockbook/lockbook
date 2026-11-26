@@ -24,6 +24,7 @@ pub(crate) mod subscript;
 pub(crate) mod superscript;
 pub(crate) mod tab_embed;
 pub(crate) mod text;
+pub(crate) mod timestamp;
 pub(crate) mod underline;
 pub(crate) mod wiki_link;
 
