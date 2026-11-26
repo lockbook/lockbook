@@ -15,4 +15,8 @@ extension FileIconHelper {
             "folder.fill"
         }
     }
+
+    static func fileToGlyph(file: File) -> String {
+        IconFont.glyph(fileName: file.name, isFolder: file.type != .document)
+    }
 }
