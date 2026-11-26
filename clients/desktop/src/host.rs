@@ -345,7 +345,13 @@ impl AppState {
             !matches!(c, egui::OutputCommand::CopyText(_) | egui::OutputCommand::CopyImage(_))
         });
         if let Some(copied) = self.lb.renderer.context.pop_copied_rendered() {
-            let _ = self.clipboard.set_html(copied.html, Some(copied.plain));
+            if self
+                .clipboard
+                .set_html(copied.html, Some(copied.plain.clone()))
+                .is_err()
+            {
+                let _ = self.clipboard.set_text(copied.plain);
+            }
         }
 
         let ime_rect = platform.ime.as_ref().map(|ime| ime.cursor_rect);
@@ -528,12 +534,19 @@ impl AppState {
         // Spreadsheet applications can put both a table and a picture on the
         // clipboard. The grid and formula field both accept the text flavor.
         if spreadsheet || !self.handle_image_paste() {
-            return self
+            let text = self
                 .clipboard
                 .get_text()
                 .ok()
-                .filter(|text| !text.is_empty())
-                .map(egui::Event::Paste);
+                .filter(|text| !text.is_empty())?;
+            if spreadsheet {
+                let html = self.clipboard.get().html().unwrap_or_default();
+                workspace_rs::tab::spreadsheet::tag_clipboard_paste(
+                    &self.lb.renderer.context,
+                    &html,
+                );
+            }
+            return Some(egui::Event::Paste(text));
         }
         None
     }

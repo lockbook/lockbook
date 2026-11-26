@@ -402,7 +402,11 @@
                 sendImage(img: data, isPaste: isPaste)
                 return true
             } else if let text {
-                clipboard_paste(wsHandle, text)
+                if isPaste, spreadsheet, let html = pasteBoard.string(forType: .html) {
+                    clipboard_paste_with_html(wsHandle, text, html)
+                } else {
+                    clipboard_paste(wsHandle, text)
+                }
             } else if let data = webArchiveImage(pasteBoard) {
                 sendImage(img: data, isPaste: isPaste)
                 return true
@@ -536,7 +540,18 @@
                         ?? .data
                 ]
                 if panel.runModal() == .OK, let url = panel.url {
-                    try? exportData.write(to: url, options: .atomic)
+                    do {
+                        try exportData.write(to: url, options: .atomic)
+                    } catch {
+                        let alert = NSAlert()
+                        alert.messageText = "Could not export spreadsheet"
+                        alert.informativeText = error.localizedDescription
+                        if let window {
+                            alert.beginSheetModal(for: window)
+                        } else {
+                            alert.runModal()
+                        }
+                    }
                 }
             }
 

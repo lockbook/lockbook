@@ -591,11 +591,14 @@ class WorkspaceView(
         if (response.requestPaste) {
             val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
             val clip = clipboard.primaryClip
-            val text = if (clip != null && clip.itemCount > 0) clip.getItemAt(0).text else null
-            if (!text.isNullOrEmpty()) {
-                Workspace.clipboardPaste(wgpuObj, text.toString())
-                requestRedraw(0)
-                return
+            if (clip != null && clip.itemCount > 0) {
+                val item = clip.getItemAt(0)
+                val text = item.text
+                if (!text.isNullOrEmpty()) {
+                    Workspace.clipboardPaste(wgpuObj, text.toString(), item.htmlText.orEmpty())
+                    requestRedraw(0)
+                    return
+                }
             }
         }
         requestRedraw(response.redrawIn)

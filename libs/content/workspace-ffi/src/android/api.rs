@@ -1385,7 +1385,7 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_openSelectedDiagram
 
 #[no_mangle]
 pub extern "system" fn Java_app_lockbook_workspace_Workspace_clipboardPaste(
-    mut env: JNIEnv, _: JClass, obj: jlong, content: JString,
+    mut env: JNIEnv, _: JClass, obj: jlong, content: JString, html: JString,
 ) {
     let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
 
@@ -1393,6 +1393,8 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_clipboardPaste(
         Ok(cont) => cont.into(),
         Err(err) => format!("# The error is: {err:?}"),
     };
+    let html = env.get_string(&html).map(String::from).unwrap_or_default();
+    workspace_rs::tab::spreadsheet::tag_clipboard_paste(&obj.renderer.context, &html);
 
     obj.renderer
         .raw_input

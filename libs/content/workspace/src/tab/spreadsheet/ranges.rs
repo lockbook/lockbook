@@ -6,6 +6,8 @@ use ironcalc_base::types::MergedCell;
 use ironcalc_base::{ClipboardData, Model};
 use serde::Deserialize;
 
+use crate::tab::CopiedRendered;
+
 use super::grid::AxisKind;
 use super::*;
 
@@ -14,6 +16,37 @@ pub(super) enum AxisEdit {
     InsertBefore,
     InsertAfter,
     Delete,
+}
+
+pub(super) struct RowFilter {
+    column: i32,
+    value: String,
+    seq: usize,
+    pub(super) hidden: Vec<(i32, i32)>,
+}
+
+impl RowFilter {
+    fn update(&mut self, model: &UserModel<'_>, sheet: u32, last: i32) -> Result<(), String> {
+        if i64::from(last - 1) > MAX_EDIT_CELLS {
+            return Err("This table is too large to filter at once".into());
+        }
+        let mut hidden = Vec::new();
+        for row in 2..=last {
+            if model.get_formatted_cell_value(sheet, row, self.column)? != self.value {
+                hidden.push(row);
+            }
+        }
+        self.hidden = contiguous_spans(hidden);
+        Ok(())
+    }
+
+    pub(super) fn hidden_span(&self, row: i32) -> Option<(i32, i32)> {
+        let at = self.hidden.partition_point(|&(_, end)| end < row);
+        self.hidden
+            .get(at)
+            .copied()
+            .filter(|&(start, _)| start <= row)
+    }
 }
 
 #[derive(Clone, Copy)]
@@ -58,6 +91,7 @@ struct EngineClipboard {
 }
 
 struct CellClipboard {
+    token: Uuid,
     owner: Uuid,
     sheet_id: u32,
     seq: usize,
@@ -70,6 +104,22 @@ struct CellClipboard {
 }
 
 const CELL_CLIPBOARD: &str = "spreadsheet cell clipboard";
+const CLIPBOARD_MARKER: &str = "spreadsheet clipboard marker";
+const HTML_MARKER: &str = "<!--lockbook-spreadsheet:";
+
+/// Tags the accompanying plain-text paste with provenance from the same clipboard item.
+pub fn tag_clipboard_paste(ctx: &egui::Context, html: &str) {
+    let token = html
+        .split_once(HTML_MARKER)
+        .and_then(|(_, tail)| tail.split_once("-->"))
+        .and_then(|(token, _)| Uuid::parse_str(token).ok());
+    ctx.data_mut(|data| data.insert_temp(Id::unique(CLIPBOARD_MARKER), token));
+}
+
+pub(crate) fn take_clipboard_marker(ctx: &egui::Context) -> Option<Uuid> {
+    ctx.data_mut(|data| data.remove_temp::<Option<Uuid>>(Id::unique(CLIPBOARD_MARKER)))
+        .flatten()
+}
 
 impl Spreadsheet {
     pub(super) fn sort_rows_by_selected_column(&mut self, descending: bool) {
@@ -109,9 +159,22 @@ impl Spreadsheet {
             let order = left.cmp(right);
             if descending { order.reverse() } else { order }
         });
+        if ordered.iter().map(|(row, _)| *row).eq(first..=last) {
+            return;
+        }
+        let hidden_after_sort = contiguous_spans(ordered.iter().zip(first..=last).filter_map(
+            |(&(row, _), target)| {
+                let at = hidden_rows.partition_point(|&(_, end)| end < row);
+                hidden_rows
+                    .get(at)
+                    .is_some_and(|&(start, _)| start <= row)
+                    .then_some(target)
+            },
+        ));
         let sheet = self.sheet;
         let result = self.try_bulk_edit(|model, _| {
             let mut steps = 0;
+            // Move rows while visible, then restore visibility at their new positions.
             for (start, end) in &hidden_rows {
                 model.set_rows_hidden(sheet, *start, *end, false)?;
                 steps += 1;
@@ -130,65 +193,7 @@ impl Spreadsheet {
                     steps += 1;
                 }
             }
-            Ok(steps)
-        });
-        if result.as_ref().is_ok_and(|steps| *steps == 0) {
-            return;
-        }
-        self.record_edit(result);
-    }
-
-    pub(super) fn filter_rows_by_selected_value(&mut self) {
-        let Ok(worksheet) = self.model.get_model().workbook.worksheet(self.sheet) else {
-            return;
-        };
-        let last = worksheet.dimension().max_row;
-        if last < 2 {
-            return;
-        }
-        if i64::from(last - 1) > MAX_EDIT_CELLS {
-            self.error = Some("This table is too large to filter at once".into());
-            return;
-        }
-        let column = self.selected.column;
-        let previously_hidden = contiguous_spans(
-            worksheet
-                .rows
-                .iter()
-                .filter(|row| row.hidden && (2..=last).contains(&row.r))
-                .map(|row| row.r),
-        );
-        let selected_value =
-            self.model
-                .get_formatted_cell_value(self.sheet, self.selected.row, column);
-        let desired_hidden = selected_value.and_then(|selected_value| {
-            (2..=last)
-                .map(|row| {
-                    self.model
-                        .get_formatted_cell_value(self.sheet, row, column)
-                        .map(|value| (value != selected_value).then_some(row))
-                })
-                .collect::<Result<Vec<_>, _>>()
-                .map(|rows| contiguous_spans(rows.into_iter().flatten()))
-        });
-        let desired_hidden = match desired_hidden {
-            Ok(rows) => rows,
-            Err(error) => {
-                self.error = Some(error);
-                return;
-            }
-        };
-        if previously_hidden == desired_hidden {
-            return;
-        }
-        let sheet = self.sheet;
-        let result = self.try_bulk_edit(|model, _| {
-            let mut steps = 0;
-            for (start, end) in &previously_hidden {
-                model.set_rows_hidden(sheet, *start, *end, false)?;
-                steps += 1;
-            }
-            for (start, end) in desired_hidden {
+            for (start, end) in hidden_after_sort {
                 model.set_rows_hidden(sheet, start, end, true)?;
                 steps += 1;
             }
@@ -197,32 +202,60 @@ impl Spreadsheet {
         self.record_edit(result);
     }
 
-    pub(super) fn clear_row_filter(&mut self) {
-        let Ok(worksheet) = self.model.get_model().workbook.worksheet(self.sheet) else {
-            return;
-        };
+    pub(super) fn filter_rows_by_selected_value(&mut self) {
+        let worksheet = self.worksheet();
+        let id = worksheet.sheet_id;
         let last = worksheet.dimension().max_row;
         if last < 2 {
             return;
         }
-        let hidden = contiguous_spans(
-            worksheet
-                .rows
-                .iter()
-                .filter(|row| row.hidden && (2..=last).contains(&row.r))
-                .map(|row| row.r),
-        );
-        if hidden.is_empty() {
+        let column = self.selected.column;
+        let result = self
+            .model
+            .get_formatted_cell_value(self.sheet, self.selected.row, column);
+        let result = result.and_then(|value| {
+            let mut filter = RowFilter { column, value, seq: self.seq, hidden: Vec::new() };
+            filter.update(&self.model, self.sheet, last)?;
+            Ok(filter)
+        });
+        match result {
+            Ok(filter) => {
+                self.row_filters.insert(id, filter);
+                self.error = None;
+            }
+            Err(error) => self.error = Some(error),
+        }
+    }
+
+    pub(super) fn clear_row_filter(&mut self) {
+        let id = self.worksheet().sheet_id;
+        self.row_filters.remove(&id);
+    }
+
+    pub(super) fn row_filter(&self) -> Option<&RowFilter> {
+        self.row_filters.get(&self.worksheet().sheet_id)
+    }
+
+    pub(super) fn refresh_row_filter(&mut self) {
+        let worksheet = self.worksheet();
+        let id = worksheet.sheet_id;
+        if self
+            .row_filters
+            .get(&id)
+            .is_none_or(|filter| filter.seq == self.seq)
+        {
             return;
         }
-        let sheet = self.sheet;
-        let result = self.try_bulk_edit(|model, _| {
-            for (start, end) in &hidden {
-                model.set_rows_hidden(sheet, *start, *end, false)?;
+        let last = worksheet.dimension().max_row;
+        if let Some(filter) = self.row_filters.get_mut(&id) {
+            match filter.update(&self.model, self.sheet, last) {
+                Ok(()) => filter.seq = self.seq,
+                Err(error) => {
+                    self.row_filters.remove(&id);
+                    self.error = Some(error);
+                }
             }
-            Ok(hidden.len())
-        });
-        self.record_edit(result);
+        }
     }
 
     pub(super) fn merge_selection(&mut self, center: bool) {
@@ -464,7 +497,15 @@ impl Spreadsheet {
     pub(super) fn copy_selection(&mut self, ui: &Ui, cut: bool) {
         match self.capture_clipboard(cut) {
             Ok(clipboard) => {
-                ui.ctx().copy_text(clipboard.text.clone());
+                let text = clipboard
+                    .text
+                    .replace('&', "&amp;")
+                    .replace('<', "&lt;")
+                    .replace('>', "&gt;");
+                ui.ctx().set_copied_rendered(CopiedRendered {
+                    plain: clipboard.text.clone(),
+                    html: format!("{HTML_MARKER}{}--><pre>{text}</pre>", clipboard.token),
+                });
                 ui.ctx().data_mut(|data| {
                     data.insert_temp(Id::unique(CELL_CLIPBOARD), Arc::new(clipboard))
                 });
@@ -479,6 +520,7 @@ impl Spreadsheet {
         let range = self.select_engine_range(selection)?;
         check_size(&range.area(self.sheet))?;
         Ok(CellClipboard {
+            token: Uuid::new_v4(),
             owner: self.clipboard_owner,
             sheet_id: self.worksheet().sheet_id,
             seq: self.seq,
@@ -491,13 +533,17 @@ impl Spreadsheet {
         })
     }
 
-    pub(super) fn paste_clipboard(&mut self, ui: &Ui, text: &str, values: bool) {
+    pub(super) fn paste_clipboard(
+        &mut self, ui: &Ui, text: &str, values: bool, token: Option<Uuid>,
+    ) {
         let clipboard = ui
             .ctx()
             .data(|data| data.get_temp::<Arc<CellClipboard>>(Id::unique(CELL_CLIPBOARD)));
-        let Some(clipboard) = clipboard
-            .filter(|clipboard| clipboard.owner == self.clipboard_owner && clipboard.text == text)
-        else {
+        let Some(clipboard) = clipboard.filter(|clipboard| {
+            token == Some(clipboard.token)
+                && clipboard.owner == self.clipboard_owner
+                && clipboard.text == text
+        }) else {
             self.paste_tabular(text, values);
             return;
         };
@@ -682,9 +728,9 @@ impl Spreadsheet {
                         && (value.starts_with(['=', '\''])
                             || (value.starts_with(['+', '-']) && value.parse::<f64>().is_err()))
                     {
-                    Cow::Owned(format!("'{value}").into_bytes())
+                        Cow::Owned(format!("'{value}").into_bytes())
                     } else {
-                    Cow::Borrowed(value.as_bytes())
+                        Cow::Borrowed(value.as_bytes())
                     }
                 });
             writer

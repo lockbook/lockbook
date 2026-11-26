@@ -137,6 +137,18 @@ impl Axis {
         }
         first
     }
+
+    fn visible_indices(&self, first: i32, last: i32) -> impl Iterator<Item = i32> + '_ {
+        let mut index = first;
+        std::iter::from_fn(move || {
+            if index > last {
+                return None;
+            }
+            let current = self.index_at(self.offset(index)).max(index);
+            index = current + 1;
+            (current <= last && self.offset(index) > self.offset(current)).then_some(current)
+        })
+    }
 }
 
 #[derive(Default)]
@@ -199,19 +211,29 @@ impl Spreadsheet {
                 let Ok(sheet) = self.model.get_model().workbook.worksheet(self.sheet) else {
                     return;
                 };
+                let filter = self.row_filter();
                 let rows = Axis::new(
                     height.into(),
                     ROWS,
-                    sheet.rows.iter().map(|row| {
-                        let size = if row.hidden {
-                            0.0
-                        } else {
-                            let size = row.height * ROW_HEIGHT_FACTOR / ENGINE_ROW_HEIGHT
-                                * f64::from(height);
-                            size.clamp(f64::from(height) * 0.65, 2000.0)
-                        };
-                        (row.r, row.r, size)
-                    }),
+                    sheet
+                        .rows
+                        .iter()
+                        .filter(|row| {
+                            filter.is_none_or(|filter| filter.hidden_span(row.r).is_none())
+                        })
+                        .map(|row| {
+                            let size = if row.hidden {
+                                0.0
+                            } else {
+                                let size = row.height * ROW_HEIGHT_FACTOR / ENGINE_ROW_HEIGHT
+                                    * f64::from(height);
+                                size.clamp(f64::from(height) * 0.65, 2000.0)
+                            };
+                            (row.r, row.r, size)
+                        })
+                        .chain(filter.into_iter().flat_map(|filter| {
+                            filter.hidden.iter().map(|&(start, end)| (start, end, 0.0))
+                        })),
                 );
                 let columns = Axis::new(
                     COLUMN_WIDTH.into(),
@@ -276,8 +298,15 @@ impl Spreadsheet {
             ui.interact(viewport.body, id.with("grid"), Sense::focusable_noninteractive())
                 .widget_info(|| WidgetInfo::labeled(egui::Role::Grid, true, "Spreadsheet grid"));
         }
-        for row in visible.first.row..=visible.last.row {
-            for column in visible.first.column..=visible.last.column {
+        let columns: Vec<_> = viewport
+            .columns
+            .visible_indices(visible.first.column, visible.last.column)
+            .collect();
+        for row in viewport
+            .rows
+            .visible_indices(visible.first.row, visible.last.row)
+        {
+            for &column in &columns {
                 let cell = Cell { row, column };
                 let merged = merged_cells
                     .iter()
@@ -442,7 +471,11 @@ impl Spreadsheet {
                 ),
             };
             ui.set_clip_rect(header_clip.intersect(clip));
-            for index in first..=last {
+            let sizes = match axis {
+                AxisKind::Column => &viewport.columns,
+                AxisKind::Row => &viewport.rows,
+            };
+            for index in sizes.visible_indices(first, last) {
                 let (cell, _) = axis.header_selection(index);
                 let cell_rect = viewport.range_rect(CellRange::new(cell, cell));
                 let (rect, label, selected) = match axis {

@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use egui::text::LayoutJob;
 use egui::{
     Align2, Button, Color32, Event, FontFamily, FontId, Id, Key, Modifiers, Rect, RichText, Sense,
@@ -24,6 +26,8 @@ use formats::FileFormat;
 #[cfg(test)]
 use formats::read_workbook;
 pub(crate) use formats::{MAX_FILE_BYTES, NATIVE_EXTENSION, encode_workbook, is_import_name};
+pub use ranges::tag_clipboard_paste;
+pub(crate) use ranges::take_clipboard_marker;
 
 const ROWS: i32 = 1_048_576;
 const COLUMNS: i32 = 16_384;
@@ -133,6 +137,8 @@ pub struct Spreadsheet {
     range_end: Cell,
     sheet: u32,
     grid: grid::State,
+    // Filters affect this tab's view only; the workbook owns manual row visibility.
+    row_filters: HashMap<u32, ranges::RowFilter>,
     clipboard_owner: Uuid,
     paste_values_frame: Option<u64>,
     confirm_delete: bool,
@@ -170,6 +176,7 @@ impl Spreadsheet {
             range_end: Cell::FIRST,
             sheet: 0,
             grid: grid::State::default(),
+            row_filters: HashMap::new(),
             clipboard_owner: Uuid::new_v4(),
             paste_values_frame: None,
             confirm_delete: false,
@@ -201,6 +208,7 @@ impl Spreadsheet {
             .sheet
             .min(self.model.get_model().workbook.worksheets.len() as u32 - 1);
         self.grid = grid::State::default();
+        self.row_filters.clear();
         self.undo_steps.clear();
         self.redo_steps.clear();
         Ok(())
@@ -220,6 +228,10 @@ impl Spreadsheet {
 
     pub(crate) fn fits_name(&self, filename: &str) -> bool {
         FileFormat::from_name(filename) == Some(self.format)
+    }
+
+    pub(crate) fn is_csv_preview(&self) -> bool {
+        self.format == FileFormat::Csv
     }
 
     pub(crate) fn editable(&self) -> bool {
@@ -243,6 +255,7 @@ impl Spreadsheet {
         self.sheet = 0;
         self.select(Cell::FIRST);
         self.grid = grid::State::default();
+        self.row_filters.clear();
         self.edit = None;
         self.undo_steps.clear();
         self.redo_steps.clear();
@@ -452,10 +465,8 @@ impl Spreadsheet {
         let grid_id = id.with("grid");
         let was_editing = self.editing();
         if !embedded {
-            if !self.editable() {
-                if ui.button("Make editable copy").clicked() {
-                    response.make_spreadsheet_copy = true;
-                }
+            if !self.editable() && ui.button("Make editable copy").clicked() {
+                response.make_spreadsheet_copy = true;
             }
             ui.memory_mut(|m| {
                 m.set_focus_lock_filter(
@@ -481,6 +492,7 @@ impl Spreadsheet {
         if (read_only || embedded) && self.editing() {
             self.end_edit(ui, id);
         }
+        self.refresh_row_filter();
         let keyboard = !embedded
             && !self.editing()
             && !self.grid.dragging()
@@ -515,6 +527,20 @@ impl Spreadsheet {
             }
         }
 
+        self.refresh_row_filter();
+        if !self.editing()
+            && self
+                .row_filter()
+                .is_some_and(|filter| filter.hidden_span(self.selected.row).is_some())
+        {
+            let next = self.step_cell(self.selected, 1, 0);
+            self.select(if next != self.selected {
+                next
+            } else {
+                self.step_cell(self.selected, -1, 0)
+            });
+            reveal = true;
+        }
         let grid_options = grid::Options { row_height: height, touch, embedded, read_only };
         self.show_grid(ui, id, grid_options, reveal);
         if !embedded {
@@ -835,11 +861,17 @@ impl Spreadsheet {
                             action = Some(Action::Sort(true));
                         }
                     });
-                    ui.menu_button("Filter by selected value", |ui| {
+                    ui.menu_button("Filter view", |ui| {
                         if ui.button("Keep rows matching this value").clicked() {
                             action = Some(Action::FilterByValue);
                         }
-                        if ui.button("Clear row filter").clicked() {
+                        if ui
+                            .add_enabled(
+                                self.row_filter().is_some(),
+                                Button::new("Clear row filter"),
+                            )
+                            .clicked()
+                        {
                             action = Some(Action::ClearFilter);
                         }
                     });
@@ -1143,7 +1175,8 @@ impl Spreadsheet {
             self.end_edit(ui, id);
         } else if (apply || advance.is_some()) && self.commit(ui, id) {
             if let Some((rows, columns)) = advance {
-                self.select(self.selected.offset(rows, columns).clamped());
+                self.refresh_row_filter();
+                self.select(self.step_cell(self.selected, rows, columns));
                 reveal = true;
             }
         }
@@ -1151,6 +1184,36 @@ impl Spreadsheet {
             response.text_interaction_rect = None;
         }
         reveal
+    }
+
+    fn step_cell(&self, origin: Cell, rows: i32, columns: i32) -> Cell {
+        let sheet = self.worksheet();
+        let mut cell = origin.offset(rows, columns);
+        while cell == cell.clamped() {
+            if rows != 0 {
+                if let Some((start, end)) = self.row_filter().and_then(|f| f.hidden_span(cell.row))
+                {
+                    cell.row = if rows > 0 { end + 1 } else { start - 1 };
+                    continue;
+                }
+                if sheet.rows.iter().any(|row| row.r == cell.row && row.hidden) {
+                    cell.row += rows;
+                    continue;
+                }
+            }
+            if columns != 0 {
+                if let Some(span) = sheet
+                    .cols
+                    .iter()
+                    .find(|col| col.hidden && (col.min..=col.max).contains(&cell.column))
+                {
+                    cell.column = if columns > 0 { span.max + 1 } else { span.min - 1 };
+                    continue;
+                }
+            }
+            return cell;
+        }
+        origin
     }
 
     fn grid_keys(&mut self, ui: &Ui, id: Id, read_only: bool) -> bool {
@@ -1191,9 +1254,9 @@ impl Spreadsheet {
             // can take effect. Keep the navigation inside the grid.
             ui.memory_mut(|memory| memory.move_focus(egui::FocusDirection::None));
             if extend {
-                self.range_end = self.range_end.offset(rows, columns).clamped();
+                self.range_end = self.step_cell(self.range_end, rows, columns);
             } else {
-                self.select(self.selected.offset(rows, columns).clamped());
+                self.select(self.step_cell(self.selected, rows, columns));
             }
         }
         if edit || (typing && !self.editing()) {
@@ -1209,7 +1272,8 @@ impl Spreadsheet {
         } else {
             Modifiers::COMMAND
         };
-        let (copy, cut, request_paste, paste) = ui.input_mut(|i| {
+        let token = take_clipboard_marker(ui.ctx());
+        let (copy, cut, request_paste, paste, paste_count) = ui.input_mut(|i| {
             // Desktop usually sends clipboard events. Hardware keyboards on
             // mobile can send the original shortcut instead.
             let mut copy =
@@ -1218,6 +1282,7 @@ impl Spreadsheet {
             let request_paste = !read_only
                 && (i.consume_key(shortcut, Key::V) | i.consume_key(Modifiers::NONE, Key::Paste));
             let mut paste = None;
+            let mut paste_count = 0;
             i.events.retain_mut(|event| match event {
                 Event::Copy => {
                     copy = true;
@@ -1229,11 +1294,12 @@ impl Spreadsheet {
                 }
                 Event::Paste(text) if !read_only => {
                     paste = Some(std::mem::take(text));
+                    paste_count += 1;
                     false
                 }
                 _ => true,
             });
-            (copy, cut, request_paste, paste)
+            (copy, cut, request_paste, paste, paste_count)
         });
         if cut {
             self.copy_selection(ui, true);
@@ -1245,7 +1311,8 @@ impl Spreadsheet {
                 .paste_values_frame
                 .take()
                 .is_some_and(|frame| ui.ctx().cumulative_frame_nr() == frame);
-            self.paste_clipboard(ui, &text, values);
+            let token = if paste_count == 1 { token } else { None };
+            self.paste_clipboard(ui, &text, values, token);
         } else if request_paste {
             self.paste_values_frame = None;
             ui.ctx().send_viewport_cmd(ViewportCommand::RequestPaste);
@@ -1438,6 +1505,11 @@ mod tests {
         (response, full)
     }
 
+    fn clipboard_paste(ctx: &Context, clipboard: &crate::tab::CopiedRendered) -> Event {
+        tag_clipboard_paste(ctx, &clipboard.html);
+        Event::Paste(clipboard.plain.clone())
+    }
+
     fn control_position(full: egui::FullOutput, label: &str) -> egui::Pos2 {
         control_rect(full, label).center()
     }
@@ -1559,12 +1631,8 @@ mod tests {
         let mut sheet = Spreadsheet::new(Uuid::nil(), None, &[]).unwrap();
         show(&ctx, &mut sheet, vec![Event::Paste("5\t=A1*2\n7\t=A2*2".into())], size, false);
         assert_eq!(sheet.selection().address(), "A1:B2");
-        let (_, full) = show(&ctx, &mut sheet, vec![Event::Copy], size, false);
-        assert!(
-            full.platform_output
-                .commands
-                .contains(&egui::OutputCommand::CopyText("5\t10\n7\t14".into()))
-        );
+        show(&ctx, &mut sheet, vec![Event::Copy], size, false);
+        assert_eq!(ctx.pop_copied_rendered().unwrap().plain, "5\t10\n7\t14");
         show(&ctx, &mut sheet, vec![key(Key::ArrowRight)], size, false);
         let shift_right = Event::Key {
             modifiers: Modifiers::SHIFT,
@@ -1613,15 +1681,16 @@ mod tests {
         sheet.select(Cell { row: 1, column: 2 });
         sheet.format_selection("font.b", "true");
         show(&ctx, &mut sheet, vec![Event::Copy], size, false);
+        let copied = ctx.pop_copied_rendered().unwrap();
         sheet.select(Cell { row: 2, column: 2 });
-        show(&ctx, &mut sheet, vec![Event::Paste("10".into())], size, false);
+        show(&ctx, &mut sheet, vec![clipboard_paste(&ctx, &copied)], size, false);
         assert_eq!(sheet.input(), "=A2*2");
         assert!(sheet.cell_style(sheet.selected).font.b);
 
         sheet.model.new_sheet().unwrap();
         sheet.sheet = 1;
         sheet.select(Cell { row: 3, column: 2 });
-        show(&ctx, &mut sheet, vec![Event::Paste("10".into())], size, false);
+        show(&ctx, &mut sheet, vec![clipboard_paste(&ctx, &copied)], size, false);
         assert_eq!(sheet.input(), "=A3*2");
         assert!(sheet.cell_style(sheet.selected).font.b);
     }
@@ -1635,15 +1704,8 @@ mod tests {
         let mut sheet = Spreadsheet::new(Uuid::nil(), None, &[]).unwrap();
         sheet.paste("=1/8\t=\"=A1\"");
         sheet.format_selection("num_fmt", "0.0");
-        let (_, full) = show(&ctx, &mut sheet, vec![Event::Copy], size, false);
-        let copied = full
-            .platform_output
-            .commands
-            .into_iter()
-            .find_map(|command| {
-                if let egui::OutputCommand::CopyText(text) = command { Some(text) } else { None }
-            })
-            .unwrap();
+        show(&ctx, &mut sheet, vec![Event::Copy], size, false);
+        let copied = ctx.pop_copied_rendered().unwrap();
         sheet.select(Cell { row: 2, column: 1 });
         let (_, full) = show(&ctx, &mut sheet, vec![], size, false);
         let menu = control_position(full, "Cell actions");
@@ -1651,7 +1713,7 @@ mod tests {
         let (_, full) = show(&ctx, &mut sheet, vec![], size, false);
         let paste_values = control_position(full, "Paste values");
         show(&ctx, &mut sheet, click(paste_values), size, false);
-        show(&ctx, &mut sheet, vec![Event::Paste(copied)], size, false);
+        show(&ctx, &mut sheet, vec![clipboard_paste(&ctx, &copied)], size, false);
         assert_eq!(sheet.model.get_cell_content(0, 2, 1).unwrap(), "0.125");
         assert_eq!(sheet.model.get_formatted_cell_value(0, 2, 2).unwrap(), "=A1");
     }
@@ -1665,14 +1727,35 @@ mod tests {
         let source = Cell { row: 1, column: 2 };
         sheet.select(source);
         show(&ctx, &mut sheet, vec![Event::Cut], size, false);
+        let copied = ctx.pop_copied_rendered().unwrap();
         assert_eq!(sheet.input(), "=A1*2");
         sheet.select(Cell { row: 2, column: 2 });
-        show(&ctx, &mut sheet, vec![Event::Paste("10".into())], size, false);
+        show(&ctx, &mut sheet, vec![clipboard_paste(&ctx, &copied)], size, false);
         assert_eq!(sheet.input(), "=A1*2");
         assert_eq!(sheet.model.get_cell_content(0, 1, 2).unwrap(), "");
         assert_eq!(sheet.model.get_cell_content(0, 1, 3).unwrap(), "=B2+1");
         sheet.change_history(false);
         assert_eq!(sheet.model.get_cell_content(0, 1, 2).unwrap(), "=A1*2");
+        sheet.select(Cell { row: 3, column: 2 });
+        show(&ctx, &mut sheet, vec![clipboard_paste(&ctx, &copied)], size, false);
+        assert_eq!(sheet.input(), "10");
+        assert_eq!(sheet.model.get_cell_content(0, 1, 2).unwrap(), "=A1*2");
+    }
+
+    #[test]
+    fn spreadsheet_plain_text_matching_a_cut_does_not_move_the_source() {
+        let ctx = test_ctx();
+        let size = vec2(800.0, 600.0);
+        let mut sheet = Spreadsheet::new(Uuid::nil(), None, &[]).unwrap();
+        sheet.paste("=5*2");
+        show(&ctx, &mut sheet, vec![Event::Cut], size, false);
+        let copied = ctx.pop_copied_rendered().unwrap();
+        assert_eq!(copied.plain, "10");
+
+        sheet.select(Cell { row: 2, column: 1 });
+        show(&ctx, &mut sheet, vec![Event::Paste(copied.plain)], size, false);
+        assert_eq!(sheet.input(), "10");
+        assert_eq!(sheet.model.get_cell_content(0, 1, 1).unwrap(), "=5*2");
     }
 
     #[test]
@@ -1722,6 +1805,63 @@ mod tests {
         assert!(sheet.model.get_cell_content(0, 2, 3).unwrap().is_empty());
         sheet.change_history(false);
         assert_eq!(sheet.model.get_formatted_cell_value(0, 2, 3).unwrap(), "10");
+    }
+
+    #[test]
+    fn spreadsheet_sort_keeps_manually_hidden_rows_hidden() {
+        let mut sheet = Spreadsheet::new(Uuid::nil(), None, &[]).unwrap();
+        sheet.paste("Name\nZebra\nAnt\nBee");
+        sheet.model.set_rows_hidden(0, 2, 2, true).unwrap();
+        let hidden = |sheet: &Spreadsheet| {
+            sheet
+                .worksheet()
+                .rows
+                .iter()
+                .find(|row| row.hidden)
+                .map(|row| row.r)
+        };
+
+        sheet.sort_rows_by_selected_column(false);
+        assert_eq!(sheet.model.get_cell_content(0, 4, 1).unwrap(), "Zebra");
+        assert_eq!(hidden(&sheet), Some(4));
+        let seq = sheet.seq();
+        sheet.sort_rows_by_selected_column(false);
+        assert_eq!(sheet.seq(), seq);
+        sheet.change_history(false);
+        assert_eq!(hidden(&sheet), Some(2));
+        sheet.change_history(true);
+        assert_eq!(hidden(&sheet), Some(4));
+    }
+
+    #[test]
+    fn spreadsheet_view_filter_does_not_unhide_or_save_over_manual_rows() {
+        let ctx = test_ctx();
+        ctx.enable_accesskit();
+        let size = vec2(800.0, 600.0);
+        let mut sheet = Spreadsheet::new(Uuid::nil(), None, &[]).unwrap();
+        sheet.paste("Name\nAnt\nBee\nBee\nAnt");
+        sheet.model.set_rows_hidden(0, 2, 2, true).unwrap();
+        let original = encode_workbook(&sheet.snapshot());
+        sheet.clear_row_filter();
+        sheet.select(Cell { row: 5, column: 1 });
+        sheet.filter_rows_by_selected_value();
+        assert_eq!(sheet.row_filter().unwrap().hidden, [(3, 4)]);
+        let (_, full) = show(&ctx, &mut sheet, vec![key(Key::ArrowUp)], size, false);
+        assert_eq!(sheet.selected, Cell::FIRST);
+        let tree = full.platform_output.accesskit_update.unwrap();
+        assert!(
+            !tree
+                .nodes
+                .iter()
+                .any(|(_, node)| node.label() == Some("row 3"))
+        );
+
+        sheet.select(Cell { row: 3, column: 1 });
+        sheet.filter_rows_by_selected_value();
+        assert_eq!(sheet.row_filter().unwrap().hidden, [(2, 2), (5, 5)]);
+        sheet.clear_row_filter();
+        assert_eq!(sheet.step_cell(Cell::FIRST, 1, 0), sheet.selected);
+        assert_eq!(encode_workbook(&sheet.snapshot()), original);
     }
 
     #[test]

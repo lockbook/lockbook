@@ -77,6 +77,8 @@ impl Workspace {
                 crate::tab::Event::Markdown(crate::tab::markdown_editor::input::Event::Gesture(_))
             )
         });
+        #[cfg(not(target_family = "wasm"))]
+        crate::tab::spreadsheet::take_clipboard_marker(&self.ctx);
         self.update_window_title();
         if self.take_sessions_changed() || self.out.tabs_changed || self.current_tab_changed {
             self.cfg
@@ -239,8 +241,8 @@ impl Workspace {
         // iOS sets the tab policy from the size class and Android never does; compact
         // has no room for a page sidebar
         let compact = !self.desktop_tab_policy;
-        let session = self.current_tab;
-        if let Some(tab) = session.and_then(|sid| self.tabs.get_mut(&sid)) {
+        let Some(sid) = self.current_tab else { return };
+        if let Some(tab) = self.tabs.get_mut(&sid) {
             if let Some(pdf) = tab.pdf_mut() {
                 pdf.compact = compact;
             }
@@ -253,9 +255,15 @@ impl Workspace {
                 chat.composer.renderer.spell_check = self.cfg.get_spell_check();
             }
 
-            let resp = self.open_guard.show(tab, |tab| tab.show(ui));
+            let resp = self
+                .open_guard
+                .show(tab, |tab| tab.show_with_actions(ui, true));
             if let Some(id) = resp.open_anyway {
-                self.open_anyway(id, session);
+                self.open_anyway(id, Some(sid));
+            }
+            #[cfg(not(target_family = "wasm"))]
+            if resp.open_as_text {
+                self.open_csv_as_text(sid);
             }
 
             self.note_fragment_left(resp.left_fragment);

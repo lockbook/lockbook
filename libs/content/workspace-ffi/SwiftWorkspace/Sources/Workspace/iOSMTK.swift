@@ -260,7 +260,7 @@
             } else if let image = UIPasteboard.general.image {
                 mtkView.importContent(.image(image), isPaste: true)
             } else if let string = UIPasteboard.general.string {
-                mtkView.importContent(.text(string), isPaste: true)
+                mtkView.pasteClipboardText(string)
             }
         }
 
@@ -583,7 +583,7 @@
 
             mtkView.enableSetNeedsDisplay = mtkView.isPaused
             if output.request_paste, let text = UIPasteboard.general.string {
-                mtkView.importContent(.text(text), isPaste: true)
+                mtkView.pasteClipboardText(text)
                 mtkView.setNeedsDisplay()
             }
 
@@ -1242,6 +1242,18 @@
                 }
             }
             return commands
+        }
+
+        func pasteClipboardText(_ text: String) {
+            let htmlType = UTType.html.identifier
+            let board = UIPasteboard.general
+            let html = board.value(forPasteboardType: htmlType) as? String
+                ?? board.data(forPasteboardType: htmlType).flatMap { String(data: $0, encoding: .utf8) }
+            if let html {
+                clipboard_paste_with_html(wsHandle, text, html)
+            } else {
+                clipboard_paste(wsHandle, text)
+            }
         }
 
         func importContent(_ importFormat: SupportedImportFormat, isPaste: Bool) {

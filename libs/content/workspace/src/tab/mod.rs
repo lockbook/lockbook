@@ -464,6 +464,8 @@ pub struct Tab {
     pub last_changed: Instant,
     pub last_saved: Instant,
     pub read_only: bool,
+    /// Keep the text editor through reloads once this tab opens a CSV as text.
+    pub(crate) csv_as_text: bool,
 
     /// Transient tab-title edit. Not part of the session.
     pub rename: Option<String>,
@@ -519,6 +521,7 @@ impl Tab {
             last_changed: now,
             last_saved: now,
             read_only,
+            csv_as_text: false,
             rename: None,
             first_draw: true,
             watch: None,
@@ -691,8 +694,24 @@ impl Tab {
         }
     }
 
-    #[tracing::instrument(name = "Tab::show", level = "trace", skip_all, fields(kind = self.kind_name()))]
+    #[cfg(not(target_family = "wasm"))]
+    pub(crate) fn offers_csv_text(&self) -> bool {
+        !self.csv_as_text
+            && match &self.content {
+                ContentState::Open(TabContent::Spreadsheet(sheet)) => sheet.is_csv_preview(),
+                ContentState::Failed(TabFailure::CsvPreview { .. }) => true,
+                _ => false,
+            }
+    }
+
     pub fn show(&mut self, ui: &mut egui::Ui) -> Response {
+        self.show_with_actions(ui, false)
+    }
+
+    #[tracing::instrument(name = "Tab::show", level = "trace", skip_all, fields(kind = self.kind_name()))]
+    pub(crate) fn show_with_actions(
+        &mut self, ui: &mut egui::Ui, _workspace_tab: bool,
+    ) -> Response {
         let embedded = self.presentation != Presentation::Full;
         if let ContentState::Open(content) = &mut self.content {
             content.set_presentation(self.presentation);
@@ -703,7 +722,15 @@ impl Tab {
             ui.ctx()
                 .data_mut(|d| d.insert_temp(egui::Id::NULL, crate::Printing));
         }
-        let resp = ui.push_id(self.salt, |ui| self.show_inner(ui)).inner;
+        let resp = ui
+            .push_id(self.salt, |ui| {
+                #[cfg(not(target_family = "wasm"))]
+                if !embedded && _workspace_tab && self.offers_csv_text() {
+                    return ui.vertical(|ui| self.show_inner(ui, true)).inner;
+                }
+                self.show_inner(ui, false)
+            })
+            .inner;
         if printing {
             ui.ctx()
                 .data_mut(|d| d.remove::<crate::Printing>(egui::Id::NULL));
@@ -789,7 +816,7 @@ impl Tab {
         }
     }
 
-    fn show_inner(&mut self, ui: &mut egui::Ui) -> Response {
+    fn show_inner(&mut self, ui: &mut egui::Ui, _offer_csv_text: bool) -> Response {
         self.apply_reveal();
         match &mut self.content {
             ContentState::Loading(_) => {
@@ -810,7 +837,11 @@ impl Tab {
                     crate::style::phosphor::WARNING_CIRCLE,
                     &fail.msg(),
                 );
-                Response::default()
+                Response {
+                    #[cfg(not(target_family = "wasm"))]
+                    open_as_text: _offer_csv_text && ui.button("Open as text").clicked(),
+                    ..Default::default()
+                }
             }
             ContentState::Open(content) => {
                 let mut resp = Response::default();
@@ -866,6 +897,9 @@ impl Tab {
                     }
                     #[cfg(not(target_family = "wasm"))]
                     TabContent::Spreadsheet(sheet) => {
+                        if _offer_csv_text && ui.button("Open as text").clicked() {
+                            return Response { open_as_text: true, ..Default::default() };
+                        }
                         let seq = sheet.seq();
                         resp =
                             sheet.show(ui, self.read_only, self.presentation != Presentation::Full);
@@ -1170,6 +1204,8 @@ pub struct Response {
     pub open_file: Option<Uuid>,
     pub open_anyway: Option<Uuid>,
     #[cfg(not(target_family = "wasm"))]
+    pub open_as_text: bool,
+    #[cfg(not(target_family = "wasm"))]
     pub make_spreadsheet_copy: bool,
     pub spreadsheet_export_file: Option<(String, Vec<u8>)>,
     /// The user scrolled or edited, so the tab no longer shows its fragment.
@@ -1181,6 +1217,7 @@ pub enum TabFailure {
     SimpleMisc(String),
     Unexpected(String),
     Refused(crate::open_guard::Refusal),
+    CsvPreview { error: String, refusal: crate::open_guard::Refusal },
 }
 
 impl From<LbErr> for TabFailure {
@@ -1198,6 +1235,9 @@ impl TabFailure {
             TabFailure::SimpleMisc(msg) => msg.clone(),
             TabFailure::Unexpected(msg) => format!("Unexpected error: {msg}"),
             TabFailure::Refused(r) => format!("{}: {}", r.title, r.detail),
+            TabFailure::CsvPreview { error, refusal } => {
+                format!("Could not preview CSV. {error}\n{}", refusal.detail)
+            }
         }
     }
 }

@@ -31,6 +31,7 @@ use crate::show::DocType;
 use crate::tab::image_viewer::ImageViewer;
 use crate::tab::markdown_editor::Syntax;
 use crate::tab::markdown_editor::{Editor as Markdown, HttpClient, MdEdit, MdPersistence};
+use crate::tab::open::{is_csv_preview_name, text_kind, text_kind_for_bytes};
 use crate::tab::svg_editor::{CanvasSettings, SVGEditor};
 use crate::tab::{
     ContentState, Destination, ExtendedInput as _, Fragment, Place, Reveal, Session, SessionId,
@@ -368,6 +369,28 @@ impl Workspace {
             is_preview: target.is_none(),
             target,
         });
+    }
+
+    #[cfg(not(target_family = "wasm"))]
+    pub(crate) fn open_csv_as_text(&mut self, target: SessionId) {
+        let Some(tab) = self
+            .tabs
+            .get_mut(&target)
+            .filter(|tab| tab.offers_csv_text())
+        else {
+            return;
+        };
+        let Destination::File(id) = tab.destination else { return };
+        tab.csv_as_text = true;
+        tab.content = ContentState::Loading(id);
+        self.tasks.queue_load(LoadRequest {
+            id,
+            tab_created: false,
+            make_current: false,
+            is_preview: false,
+            target: Some(target),
+        });
+        self.ctx.request_repaint();
     }
 
     pub fn set_preview(&mut self, id: Option<lb_rs::Uuid>) {
@@ -1678,6 +1701,10 @@ impl Workspace {
                     tab.read_only = read_only || is_preview;
 
                     #[cfg(not(target_family = "wasm"))]
+                    let mut preview_failure = None;
+                    #[cfg(target_family = "wasm")]
+                    let preview_failure = None;
+                    #[cfg(not(target_family = "wasm"))]
                     if let ContentState::Open(TabContent::Spreadsheet(sheet)) = &mut tab.content {
                         if sheet.fits_name(&file.name)
                             && res.guard.refusal(id, &bytes, None).is_none()
@@ -1685,27 +1712,66 @@ impl Workspace {
                             res.guard.enter(id);
                             let reloaded = sheet.reload(hmac, &file.name, &bytes);
                             res.guard.exit(id);
-                            if let Err(failure) = reloaded {
-                                self.out.failure_messages.push(failure.msg());
-                                tab.content = ContentState::Failed(failure);
+                            match reloaded {
+                                Err(failure) => preview_failure = Some(failure),
+                                Ok(()) => {
+                                    self.out.tabs_changed |= !is_preview;
+                                    continue;
+                                }
                             }
-                            self.out.tabs_changed |= !is_preview;
-                            continue;
                         }
                     }
 
                     // a reload keeps the open editor and its unsaved edits;
                     // bytes the open path would refuse reopen the tab instead
+                    let csv = is_csv_preview_name(&file.name);
                     let reloaded = !tab_created
-                        && content_reloads(&tab.content, &file.name, &bytes, &res.guard, id)
+                        && content_reloads(tab, &file.name, &bytes, &res.guard, id)
                         && match &mut tab.content {
-                            ContentState::Open(content) => content.reload(hmac, &bytes),
+                            ContentState::Open(content) => {
+                                if csv {
+                                    if let TabContent::Markdown(md) = content {
+                                        md.edit.renderer.readonly = tab.read_only;
+                                    }
+                                }
+                                content.reload(hmac, &bytes)
+                            }
                             _ => false,
                         };
                     if !reloaded {
                         let doc = crate::tab::Doc { name: file.name, hmac, bytes };
-                        let dest = tab.destination.clone();
-                        tab.content = open_content(&dest, Some(doc), &res, tab.salt, tab.read_only);
+                        let preview_failed = preview_failure.is_some();
+                        let result = if let Some(failure) = preview_failure {
+                            TabContent::after_spreadsheet_failure(
+                                &tab.destination,
+                                doc,
+                                &res,
+                                tab.salt,
+                                tab.read_only,
+                                failure,
+                            )
+                        } else {
+                            TabContent::open_with_csv_text(
+                                &tab.destination,
+                                Some(doc),
+                                &res,
+                                tab.salt,
+                                tab.read_only,
+                                tab.csv_as_text,
+                            )
+                        };
+                        tab.content = match result {
+                            Ok(content) => ContentState::Open(content),
+                            Err(failure) => {
+                                if preview_failed
+                                    && !matches!(failure, TabFailure::CsvPreview { .. })
+                                {
+                                    self.out.failure_messages.push(failure.msg());
+                                }
+                                ContentState::Failed(failure)
+                            }
+                        };
+                        tab.csv_as_text |= csv && tab.markdown().is_some();
                         if matches!(tab.content, ContentState::Failed(TabFailure::Refused(_))) {
                             self.out.tabs_changed |= !is_preview;
                             continue;
@@ -2120,7 +2186,7 @@ impl Workspace {
             .collect();
         for tab_id in tab_ids {
             let Some(tab) = self.tabs.get_mut(&tab_id) else { continue };
-            if !content_fits_name(&tab.content, &new_name) {
+            if !content_fits_name(tab, &new_name) {
                 #[cfg(not(target_family = "wasm"))]
                 if let ContentState::Open(TabContent::Spreadsheet(sheet)) = &mut tab.content {
                     sheet.reload_pending = true;
@@ -2168,7 +2234,7 @@ impl Workspace {
     /// takes its new extension in place.
     pub(crate) fn refit_to_names(&mut self) {
         let fits = |tab: &Tab, name: &str| {
-            content_fits_name(&tab.content, name)
+            content_fits_name(tab, name)
                 && tab
                     .markdown()
                     .is_none_or(|md| md.edit.renderer.kind == Syntax::from_ext(ext(name)))
@@ -2187,7 +2253,7 @@ impl Workspace {
                 continue;
             }
             let Ok(file) = self.core.get_file_by_id(id) else { continue };
-            if !content_fits_name(&tab.content, &file.name) {
+            if !content_fits_name(tab, &file.name) {
                 #[cfg(not(target_family = "wasm"))]
                 if let ContentState::Open(TabContent::Spreadsheet(sheet)) = &mut tab.content {
                     sheet.reload_pending = true;
@@ -2442,19 +2508,12 @@ fn open_content(
 
 /// Whether `content` takes `bytes`, a newer version of file `id` now named
 /// `name`, in place: the same editor would open them, whatever the extension.
-fn content_reloads(
-    content: &ContentState, name: &str, bytes: &[u8], guard: &OpenGuard, id: Uuid,
-) -> bool {
+fn content_reloads(tab: &Tab, name: &str, bytes: &[u8], guard: &OpenGuard, id: Uuid) -> bool {
     let doc_type = DocType::from_name(name);
-    match content {
+    match &tab.content {
         ContentState::Open(TabContent::Markdown(_)) => {
-            matches!(
-                doc_type,
-                DocType::PlainText | DocType::Markdown | DocType::Code | DocType::Unknown
-            ) && crate::tab::open::is_text(bytes)
-                && guard
-                    .refusal(id, bytes, Some(doc_type == DocType::Markdown))
-                    .is_none()
+            text_kind_for_bytes(name, bytes, tab.csv_as_text)
+                .is_some_and(|markdown| guard.refusal(id, bytes, Some(markdown)).is_none())
         }
         ContentState::Open(TabContent::Svg(_)) => doc_type == DocType::SVG,
         #[cfg(not(target_family = "wasm"))]
@@ -2465,13 +2524,10 @@ fn content_reloads(
 
 /// Whether `content` was built for a file named `name`. Loading content picks
 /// its editor from core's current name when the load lands.
-fn content_fits_name(content: &ContentState, name: &str) -> bool {
+fn content_fits_name(tab: &Tab, name: &str) -> bool {
     let doc_type = DocType::from_name(name);
-    match content {
-        ContentState::Open(TabContent::Markdown(_)) => matches!(
-            doc_type,
-            DocType::PlainText | DocType::Markdown | DocType::Code | DocType::Unknown
-        ),
+    match &tab.content {
+        ContentState::Open(TabContent::Markdown(_)) => text_kind(name, tab.csv_as_text).is_some(),
         ContentState::Open(TabContent::Svg(_)) => doc_type == DocType::SVG,
         #[cfg(not(target_family = "wasm"))]
         ContentState::Open(TabContent::Spreadsheet(sheet)) => sheet.fits_name(name),
@@ -3120,6 +3176,124 @@ mod media_tests {
 
         let content = &t.ws.current_tab().unwrap().content;
         assert!(matches!(content, ContentState::Failed(TabFailure::Refused(_))));
+    }
+}
+
+#[cfg(all(test, not(target_family = "wasm")))]
+mod csv_text_tests {
+    use super::*;
+    use crate::tab::Doc;
+    use crate::test_utils::ws::TestWs;
+
+    #[test]
+    fn csv_open_as_text_keeps_the_tab_and_merges_edits_on_reload() {
+        if ::test_utils::without_server() {
+            return;
+        }
+        let mut t = TestWs::new();
+        t.ws.cfg.set_auto_save(false);
+        let id = t.doc("data.CSV", "1,2\n");
+        t.ws.open_file(id, true, false);
+        t.settle();
+        let session = t.ws.current_tab.unwrap();
+        assert!(t.ws.current_tab().unwrap().offers_csv_text());
+
+        t.ws.open_csv_as_text(session);
+        t.settle();
+        assert_eq!(t.ws.current_tab, Some(session));
+        let md = t.ws.current_tab().unwrap().markdown().unwrap();
+        assert_eq!(md.edit.renderer.kind, Syntax::Plain);
+        assert_eq!(md.edit.renderer.buffer.current.text, "1,2\n");
+        t.frame_with(vec![egui::Event::Text("local,".into())]);
+
+        assert!(t.ws.rename_file((id, "renamed.csv".into()), true));
+        t.ws.core.write_document(id, b"1,2\n3,4\n").unwrap();
+        t.idle(id);
+        let md = t.ws.current_tab().unwrap().markdown().unwrap();
+        assert_eq!(md.edit.renderer.buffer.current.text, "local,1,2\n3,4\n");
+
+        t.ws.close_tab(0);
+        t.idle(id);
+        t.ws.reopen_closed_tab();
+        t.settle();
+        assert!(t.ws.current_tab().unwrap().offers_csv_text());
+    }
+
+    #[test]
+    fn csv_preview_reload_falls_back_and_later_loads_stay_in_text() {
+        if ::test_utils::without_server() {
+            return;
+        }
+        let mut t = TestWs::new();
+        let id = t.doc("data.csv", "1,2\n");
+        t.ws.open_file(id, true, false);
+        t.settle();
+        assert!(t.ws.current_tab().unwrap().offers_csv_text());
+
+        // Exceeds the spreadsheet's cell limit, but not the text editor's limits.
+        let wide = (",".repeat(500) + "\n").repeat(200);
+        t.ws.core.write_document(id, wide.as_bytes()).unwrap();
+        t.idle(id);
+        let md = t.ws.current_tab().unwrap().markdown().unwrap();
+        assert_eq!(md.edit.renderer.buffer.current.text, wide);
+
+        t.ws.core.write_document(id, b"3,4\n").unwrap();
+        t.idle(id);
+        let md = t.ws.current_tab().unwrap().markdown().unwrap();
+        assert_eq!(md.edit.renderer.buffer.current.text, "3,4\n");
+
+        t.ws.core.write_document(id, &vec![b'a'; 10_001]).unwrap();
+        t.idle(id);
+        assert!(matches!(
+            t.ws.current_tab().unwrap().content,
+            ContentState::Failed(TabFailure::Refused(_))
+        ));
+    }
+
+    #[test]
+    fn csv_open_as_text_still_uses_the_text_guard() {
+        if ::test_utils::without_server() {
+            return;
+        }
+        let mut t = TestWs::new();
+        // Too many columns for the spreadsheet and too long for the editor.
+        let id = t.doc("wide.csv", &",".repeat(16_384));
+        t.ws.open_file(id, true, false);
+        t.settle();
+        let tab = t.ws.current_tab().unwrap();
+        assert!(matches!(tab.content, ContentState::Failed(TabFailure::CsvPreview { .. })));
+        assert!(tab.offers_csv_text());
+
+        t.ws.open_csv_as_text(t.ws.current_tab.unwrap());
+        t.settle();
+        assert!(matches!(
+            t.ws.current_tab().unwrap().content,
+            ContentState::Failed(TabFailure::Refused(_))
+        ));
+    }
+
+    #[test]
+    fn csv_text_fallback_preserves_read_only_and_excludes_non_csv_and_invalid_text() {
+        if ::test_utils::without_server() {
+            return;
+        }
+        let t = TestWs::new();
+        let res = t.ws.resources();
+        let dest = Destination::File(Uuid::new_v4());
+        let salt = egui::Id::unique("csv");
+        let wide = (",".repeat(500) + "\n").repeat(200).into_bytes();
+        let doc = Doc { name: "data.CSV".into(), hmac: None, bytes: wide };
+        let TabContent::Markdown(md) =
+            TabContent::open(&dest, Some(doc), &res, salt, true).unwrap()
+        else {
+            panic!("expected CSV text fallback");
+        };
+        assert!(md.edit.renderer.readonly);
+
+        for (name, bytes) in [("data.xlsx", b"not a workbook".as_slice()), ("data.csv", b"\xff")] {
+            let doc = Doc { name: name.into(), hmac: None, bytes: bytes.into() };
+            assert!(TabContent::open(&dest, Some(doc), &res, salt, false).is_err());
+        }
     }
 }
 

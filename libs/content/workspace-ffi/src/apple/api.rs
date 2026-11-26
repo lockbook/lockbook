@@ -302,7 +302,24 @@ pub unsafe extern "C" fn clipboard_paste(obj: *mut c_void, content: *const c_cha
     let obj = &mut *(obj as *mut WgpuWorkspace);
     let content: String = CStr::from_ptr(content).to_str().unwrap().into();
 
+    #[cfg(not(target_family = "wasm"))]
+    workspace_rs::tab::spreadsheet::tag_clipboard_paste(&obj.renderer.context, "");
     obj.renderer.raw_input.events.push(Event::Paste(content));
+}
+
+/// # Safety
+/// `obj` must be a valid workspace pointer; `content` and `html` must be C strings.
+#[no_mangle]
+pub unsafe extern "C" fn clipboard_paste_with_html(
+    obj: *mut c_void, content: *const c_char, html: *const c_char,
+) {
+    unsafe { clipboard_paste(obj, content) };
+    #[cfg(not(target_family = "wasm"))]
+    {
+        let ws = unsafe { &mut *(obj as *mut WgpuWorkspace) };
+        let html = unsafe { CStr::from_ptr(html) }.to_str().unwrap_or_default();
+        workspace_rs::tab::spreadsheet::tag_clipboard_paste(&ws.renderer.context, html);
+    }
 }
 
 /// # Safety
