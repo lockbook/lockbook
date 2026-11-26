@@ -1,6 +1,6 @@
 [package]
 name = "lockbook-linux"
-version = "26.11.25"
+version = "26.11.26"
 edition = "2021"
 
 [target.'cfg(any(target_os = "linux", target_os = "freebsd"))'.dependencies]
