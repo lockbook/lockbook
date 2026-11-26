@@ -128,7 +128,12 @@ impl RendererState<'static> {
 
 impl<'w> RendererState<'w> {
     fn instance() -> wgpu::Instance {
-        wgpu::Instance::new(wgpu::InstanceDescriptor::new_without_display_handle_from_env())
+        let mut descriptor = wgpu::InstanceDescriptor::new_without_display_handle_from_env();
+        if cfg!(target_os = "android") {
+            // The PowerVR Vulkan driver can abort when it encounters WGSL debug info.
+            descriptor.flags.remove(wgpu::InstanceFlags::DEBUG);
+        }
+        wgpu::Instance::new(descriptor)
     }
 
     /// Records the host's modifiers, telling egui when they change.
