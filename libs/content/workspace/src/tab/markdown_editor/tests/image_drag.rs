@@ -396,6 +396,66 @@ fn an_image_dropped_beside_one_whose_link_spans_a_line_leaves_it_whole() {
 }
 
 #[test]
+fn a_quoted_image_whose_link_spans_a_line_is_whole() {
+    // it shows its source, as one outside a quote does, so no drag lifts part of it
+    for md in [format!("![b]({IMAGE}\n) c\n"), format!("> ![b]({IMAGE}\n> ) c\n")] {
+        let ws = editor(&md);
+        let mut fragments = ws.editor.edit.renderer.fragments.iter();
+        let embed = fragments.any(|f| matches!(f.content, FragmentContent::Embed { .. }));
+        assert!(!embed, "{md:?} draws its image");
+    }
+}
+
+#[test]
+fn the_text_after_a_quoted_link_spanning_a_line_draws_once() {
+    for (md, tail) in [
+        (format!("> ![b]({IMAGE}\n> ) c\n"), "b c"),
+        (format!("> ![b]({IMAGE}\n> ) c *d* e\n"), "b c d e"),
+        ("> [b](x\n> ) c\n".to_string(), "b c"),
+        ("> > [b](x\n> > ) c\n".to_string(), "b c"),
+        (">\t[b](x\n>\t) c\n".to_string(), "b c"),
+        ("> [b](x\n>\t) c\n".to_string(), "b c"),
+        ("> [b](x\n> \"t\"\n> ) c\n".to_string(), "b c"),
+    ] {
+        let ws = editor(&md);
+        let r = &ws.editor.edit.renderer;
+        let mut drawn: Vec<_> = r
+            .fragments
+            .iter()
+            .filter(|f| matches!(f.content, FragmentContent::Glyphs { .. }))
+            .map(|f| f.source_range)
+            .collect();
+        drawn.sort();
+        for pair in drawn.windows(2) {
+            assert!(pair[0].1 <= pair[1].0, "{md:?} draws {pair:?} over each other");
+        }
+        let text: String = drawn.iter().map(|&range| &r.buffer[range]).collect();
+        assert!(text.ends_with(tail), "{md:?} draws {text:?}");
+    }
+}
+
+#[test]
+fn a_quoted_image_whose_link_spans_crlf_lines_is_whole() {
+    let ws = editor(&format!("> ![b]({IMAGE}\r\n> ) c\r\n"));
+    let mut fragments = ws.editor.edit.renderer.fragments.iter();
+    assert!(!fragments.any(|f| matches!(f.content, FragmentContent::Embed { .. })));
+}
+
+#[test]
+fn a_mark_combining_with_a_links_close_renders() {
+    // the `)` and the mark are one grapheme; the text after starts inside it
+    for md in [
+        format!("![a]({IMAGE})\u{301} c\n"),
+        "[a](x)\u{301} c\n".to_string(),
+        format!("> ![a]({IMAGE})\u{301} c\n"),
+        format!("> ![b]({IMAGE}\n> )\u{301} c\n"),
+    ] {
+        let ws = editor(&md);
+        assert_eq!(ws.get_text(), md);
+    }
+}
+
+#[test]
 fn an_undo_after_a_tap_elsewhere_comes_back_to_the_image() {
     use super::super::input::{Location, Region};
     let md = format!("caret\n\n| ![a]({IMAGE}) | b |\n| - | - |\n| c | d |\n");
