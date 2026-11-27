@@ -81,8 +81,8 @@ merman = { version = "0.9.1", default-features = false, features = [
     "svg",
 ] }
 resvg = "0.47.0"
-mitex = { git = "https://github.com/lockbook/mitex", rev = "75ffdae1d2b545082b794e0891da6c9375e02844" }
-mitex-spec-gen = { git = "https://github.com/lockbook/mitex", rev = "75ffdae1d2b545082b794e0891da6c9375e02844", features = ["prebuilt"] }
+mitex = { git = "https://github.com/lockbook/mitex", rev = "e01600e861cf695ec66092a97ba8761d22d67b5a" }
+mitex-spec-gen = { git = "https://github.com/lockbook/mitex", rev = "e01600e861cf695ec66092a97ba8761d22d67b5a", features = ["prebuilt"] }
 typst = "0.15.1"
 typst-layout = "0.15.1"
 typst-svg = "0.15.1"
