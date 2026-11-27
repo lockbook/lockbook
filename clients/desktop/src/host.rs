@@ -10,7 +10,9 @@ use winit::dpi::LogicalSize;
 use winit::event::{ElementState, WindowEvent};
 use winit::event_loop::{ActiveEventLoop, ControlFlow, EventLoop, EventLoopProxy};
 use winit::window::{Icon, Window, WindowId};
-use workspace_rs::tab::{ClipContent, ExtendedInput, ExtendedOutput as _};
+use workspace_rs::tab::{
+    ClipContent, ContentState, ExtendedInput, ExtendedOutput as _, TabContent,
+};
 
 use crate::{Output, ShellApp, WgpuLockbook};
 
@@ -148,18 +150,6 @@ impl ApplicationHandler<UserEvent> for App {
         }
         if let WindowEvent::ModifiersChanged(modifiers) = &event {
             state.modifiers = modifiers.state();
-        }
-
-        if let WindowEvent::DroppedFile(path) = &event {
-            let content = vec![ClipContent::Files(vec![path.clone()])];
-            state
-                .lb
-                .renderer
-                .context
-                .push_event(workspace_rs::Event::Drop {
-                    content,
-                    position: state.last_pointer_pos,
-                });
         }
 
         // fcitx5 on Wayland answers each caret report with an empty preedit,
@@ -304,13 +294,7 @@ impl AppState {
         // Images/files are not in egui's clipboard; text goes through arboard too.
         if self.pending_paste {
             self.pending_paste = false;
-            if !self.handle_image_paste() {
-                if let Ok(text) = self.clipboard.get_text() {
-                    if !text.is_empty() {
-                        raw_input.events.push(egui::Event::Paste(text));
-                    }
-                }
-            }
+            raw_input.events.extend(self.clipboard_paste());
         }
 
         if self.close_requested {
@@ -319,7 +303,7 @@ impl AppState {
             }
         }
 
-        // Carry forward events queued during the previous frame — handle_paste
+        // Carry forward events queued during the previous frame — clipboard paste
         // (called for ViewportCommand::RequestPaste from the right-click menu)
         // pushes Event::Paste(text) onto renderer.raw_input.events after
         // lb.frame() has already taken its input for the current frame.
@@ -330,15 +314,6 @@ impl AppState {
         self.lb.renderer.raw_input = raw_input;
 
         let Output { mut platform, viewport } = self.lb.frame();
-
-        // The shell queues saves on every frame a close is requested; the
-        // window closes once they're written.
-        if self.close_requested {
-            if self.lb.app.saves_settled() {
-                std::process::exit(0);
-            }
-            self.window.request_redraw();
-        }
 
         for command in &platform.commands {
             match command {
@@ -370,7 +345,13 @@ impl AppState {
             !matches!(c, egui::OutputCommand::CopyText(_) | egui::OutputCommand::CopyImage(_))
         });
         if let Some(copied) = self.lb.renderer.context.pop_copied_rendered() {
-            let _ = self.clipboard.set_html(copied.html, Some(copied.plain));
+            if self
+                .clipboard
+                .set_html(copied.html, Some(copied.plain.clone()))
+                .is_err()
+            {
+                let _ = self.clipboard.set_text(copied.plain);
+            }
         }
 
         let ime_rect = platform.ime.as_ref().map(|ime| ime.cursor_rect);
@@ -408,7 +389,9 @@ impl AppState {
             .iter()
             .any(|a| matches!(a, egui_winit::ActionRequested::Paste))
         {
-            self.handle_paste();
+            let paste = self.clipboard_paste();
+            self.lb.renderer.raw_input.events.extend(paste);
+            self.window.request_redraw();
         }
 
         if let Some(pos) =
@@ -434,6 +417,26 @@ impl AppState {
             .any(|e| matches!(e, egui::ViewportEvent::Close))
         {
             self.close_requested = true;
+        }
+
+        // The shell flushes tabs on each frame while a close is pending.
+        if self.close_requested {
+            if self.lb.app.saves_settled() {
+                std::process::exit(0);
+            }
+            if self
+                .lb
+                .app
+                .session
+                .ready()
+                .is_some_and(|r| r.workspace.has_save_error())
+            {
+                self.close_requested = false;
+                self.lb
+                    .app
+                    .toasts
+                    .error("Resolve the spreadsheet error before closing Lockbook.");
+            }
             self.window.request_redraw();
         }
     }
@@ -518,17 +521,34 @@ impl AppState {
         self.window.request_redraw();
     }
 
-    fn handle_paste(&mut self) {
-        if self.handle_image_paste() {
-            return;
+    fn clipboard_paste(&mut self) -> Option<egui::Event> {
+        let spreadsheet = self
+            .lb
+            .app
+            .session
+            .ready()
+            .and_then(|ready| ready.workspace.current_tab())
+            .is_some_and(|tab| {
+                matches!(&tab.content, ContentState::Open(TabContent::Spreadsheet(_)))
+            });
+        // Spreadsheet applications can put both a table and a picture on the
+        // clipboard. The grid and formula field both accept the text flavor.
+        if spreadsheet || !self.handle_image_paste() {
+            let text = self
+                .clipboard
+                .get_text()
+                .ok()
+                .filter(|text| !text.is_empty())?;
+            if spreadsheet {
+                let html = self.clipboard.get().html().unwrap_or_default();
+                workspace_rs::tab::spreadsheet::tag_clipboard_paste(
+                    &self.lb.renderer.context,
+                    &html,
+                );
+            }
+            return Some(egui::Event::Paste(text));
         }
-        if let Ok(text) = self.clipboard.get_text() {
-            self.lb
-                .renderer
-                .raw_input
-                .events
-                .push(egui::Event::Paste(text));
-        }
+        None
     }
 }
 
@@ -541,11 +561,8 @@ fn is_paste_shortcut(modifiers: winit::keyboard::ModifiersState, event: &WindowE
     }
     let command =
         if cfg!(target_os = "macos") { modifiers.super_key() } else { modifiers.control_key() };
-    if !command {
-        return false;
-    }
     match &event.logical_key {
-        winit::keyboard::Key::Character(c) if c.eq_ignore_ascii_case("v") => true,
+        winit::keyboard::Key::Character(c) => command && c.eq_ignore_ascii_case("v"),
         winit::keyboard::Key::Named(winit::keyboard::NamedKey::Paste) => true,
         _ => false,
     }

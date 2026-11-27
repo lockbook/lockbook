@@ -657,7 +657,7 @@
             let traits = ios_text_traits(wsHandle)
             guard traits.valid else { return }
             let before = traitSummary
-            let plain = chromeFocused || traits.secure || traits.completions
+            let plain = chromeFocused || traits.single_line || traits.completions
             autocorrectionType = plain ? .no : .default
             spellCheckingType = plain ? .no : .default
             smartQuotesType = plain ? .no : .default

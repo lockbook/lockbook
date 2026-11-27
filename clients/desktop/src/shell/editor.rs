@@ -56,7 +56,23 @@ pub fn show(app: &mut ShellApp, ui: &mut Ui, _t: &Theme, queue: &mut Vec<Action>
             queue.push(Action::Import);
         }
 
-        out.failure_messages
+        let mut failures = out.failure_messages;
+        if let Some((filename, bytes)) = out.spreadsheet_export_file {
+            let extension = std::path::Path::new(&filename)
+                .extension()
+                .and_then(|extension| extension.to_str())
+                .unwrap_or("csv");
+            if let Some(path) = rfd::FileDialog::new()
+                .add_filter("Spreadsheet", &[extension])
+                .set_file_name(&filename)
+                .save_file()
+            {
+                if let Err(error) = std::fs::write(path, bytes) {
+                    failures.push(format!("Could not export spreadsheet: {error}"));
+                }
+            }
+        }
+        failures
     };
     for msg in failures {
         app.toasts.error(msg);

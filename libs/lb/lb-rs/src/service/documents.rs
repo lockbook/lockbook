@@ -120,6 +120,14 @@ impl<S: Server, D: LocalDocuments> Lb<S, D> {
     pub async fn safe_write(
         &self, id: Uuid, old_hmac: Option<DocumentHmac>, content: &[u8], origin: Option<Uuid>,
     ) -> LbResult<DocumentHmac> {
+        self.safe_write_with_extension(id, old_hmac, content, origin, None)
+            .await
+    }
+
+    pub(crate) async fn safe_write_with_extension(
+        &self, id: Uuid, old_hmac: Option<DocumentHmac>, content: &[u8], origin: Option<Uuid>,
+        extension: Option<&str>,
+    ) -> LbResult<DocumentHmac> {
         // get info so we can do operations while not holding lock
         let (target_id, key) = {
             let tx = self.ro_tx().await;
@@ -155,6 +163,19 @@ impl<S: Server, D: LocalDocuments> Lb<S, D> {
             pending.promote().await?;
             if tree.find(&id)?.document_hmac() != old_hmac.as_ref() {
                 return Err(LbErrKind::ReReadRequired.into());
+            }
+            if let Some(extension) = extension {
+                for name in [
+                    tree.name_using_links(&id, &self.keychain)?,
+                    tree.name(&target_id, &self.keychain)?,
+                ] {
+                    if !name
+                        .rsplit_once('.')
+                        .is_some_and(|(_, ext)| ext.eq_ignore_ascii_case(extension))
+                    {
+                        return Err(LbErrKind::ReReadRequired.into());
+                    }
+                }
             }
             tree.overwrite_document_hmac(
                 &target_id,

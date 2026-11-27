@@ -260,7 +260,7 @@
             } else if let image = UIPasteboard.general.image {
                 mtkView.importContent(.image(image), isPaste: true)
             } else if let string = UIPasteboard.general.string {
-                mtkView.importContent(.text(string), isPaste: true)
+                mtkView.pasteClipboardText(string)
             }
         }
 
@@ -520,12 +520,20 @@
             }
 
             if let text = mtkView.currentWrapper as? TextPage,
-               currentTab == .Markdown || currentTab == .PlainText || currentTab == .Chat
+               currentTab.isTextEdit() || currentTab == .Chat
             {
+                if currentTab == .Spreadsheet {
+                    text.isHidden = !output.has_text_interaction_rect
+                    text.text.refreshTraits()
+                } else {
+                    text.isHidden = false
+                }
                 text.apply(output)
                 if let pending = mtkView.workspaceInput?.pendingFocusDoc, pending == mtkView.currentOpenDoc {
                     mtkView.workspaceInput?.pendingFocusDoc = nil
-                    text.becomeFirstResponder()
+                    if currentTab != .Spreadsheet {
+                        text.becomeFirstResponder()
+                    }
                 }
             }
 
@@ -574,6 +582,21 @@
             }
 
             mtkView.enableSetNeedsDisplay = mtkView.isPaused
+            if output.request_paste, let text = UIPasteboard.general.string {
+                mtkView.pasteClipboardText(text)
+                mtkView.setNeedsDisplay()
+            }
+
+            if let wsHandle, let controller = WorkspaceControllerRegistry.controllers[wsHandle] {
+                let name = textFromPtr(s: output.spreadsheet_export_name)
+                let data = dataFromBytes(b: output.spreadsheet_export_bytes)
+                if !name.isEmpty, let data {
+                    controller.presentSpreadsheetExport(name: name, data: data)
+                }
+            } else {
+                free_text(output.spreadsheet_export_name)
+                free_bytes(output.spreadsheet_export_bytes)
+            }
         }
 
         private var lastAccentColors: UInt64 = 0
@@ -711,8 +734,36 @@
             DispatchQueue.main.async { self.requestFrame() }
         }
 
+        private var saveTask = UIBackgroundTaskIdentifier.invalid
+
         @objc private func appDidEnterBackground() {
             self.isPaused = true
+            guard saveTask == .invalid else { return }
+            saveTask = UIApplication.shared.beginBackgroundTask(withName: "Save Lockbook tabs") { [weak self] in
+                self?.endSaveTask()
+            }
+            flushSaves()
+        }
+
+        private func flushSaves() {
+            guard let wsHandle else {
+                endSaveTask()
+                return
+            }
+            if ios_flush_saves(wsHandle) || saveTask == .invalid {
+                endSaveTask()
+            } else {
+                DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(100)) { [weak self] in
+                    guard let self, saveTask != .invalid else { return }
+                    flushSaves()
+                }
+            }
+        }
+
+        private func endSaveTask() {
+            guard saveTask != .invalid else { return }
+            UIApplication.shared.endBackgroundTask(saveTask)
+            saveTask = .invalid
         }
 
         required init(coder: NSCoder) {
@@ -1193,6 +1244,18 @@
             return commands
         }
 
+        func pasteClipboardText(_ text: String) {
+            let htmlType = UTType.html.identifier
+            let board = UIPasteboard.general
+            let html = board.value(forPasteboardType: htmlType) as? String
+                ?? board.data(forPasteboardType: htmlType).flatMap { String(data: $0, encoding: .utf8) }
+            if let html {
+                clipboard_paste_with_html(wsHandle, text, html)
+            } else {
+                clipboard_paste(wsHandle, text)
+            }
+        }
+
         func importContent(_ importFormat: SupportedImportFormat, isPaste: Bool) {
             switch importFormat {
             case let .url(url):
@@ -1298,6 +1361,7 @@ public enum WorkspaceTab: Int {
     case SpaceInspector = 8
     case Chat = 9
     case Search = 10
+    case Spreadsheet = 11
 
     func viewWrapperId() -> Int {
         switch self {
@@ -1305,13 +1369,13 @@ public enum WorkspaceTab: Int {
             1
         case .Svg, .Image, .Graph:
             2
-        case .PlainText, .Markdown, .Chat:
+        case .PlainText, .Markdown, .Chat, .Spreadsheet:
             3
         }
     }
 
     func isTextEdit() -> Bool {
-        self == .Markdown || self == .PlainText
+        self == .Markdown || self == .PlainText || self == .Spreadsheet
     }
 
     func isSvg() -> Bool {

@@ -77,6 +77,8 @@ impl Workspace {
                 crate::tab::Event::Markdown(crate::tab::markdown_editor::input::Event::Gesture(_))
             )
         });
+        #[cfg(not(target_family = "wasm"))]
+        crate::tab::spreadsheet::take_clipboard_marker(&self.ctx);
         self.update_window_title();
         if self.take_sessions_changed() || self.out.tabs_changed || self.current_tab_changed {
             self.cfg
@@ -239,8 +241,8 @@ impl Workspace {
         // iOS sets the tab policy from the size class and Android never does; compact
         // has no room for a page sidebar
         let compact = !self.desktop_tab_policy;
-        let session = self.current_tab;
-        if let Some(tab) = session.and_then(|sid| self.tabs.get_mut(&sid)) {
+        let Some(sid) = self.current_tab else { return };
+        if let Some(tab) = self.tabs.get_mut(&sid) {
             if let Some(pdf) = tab.pdf_mut() {
                 pdf.compact = compact;
             }
@@ -253,9 +255,15 @@ impl Workspace {
                 chat.composer.renderer.spell_check = self.cfg.get_spell_check();
             }
 
-            let resp = self.open_guard.show(tab, |tab| tab.show(ui));
+            let resp = self
+                .open_guard
+                .show(tab, |tab| tab.show_with_actions(ui, true));
             if let Some(id) = resp.open_anyway {
-                self.open_anyway(id, session);
+                self.open_anyway(id, Some(sid));
+            }
+            #[cfg(not(target_family = "wasm"))]
+            if resp.open_as_text {
+                self.open_csv_as_text(sid);
             }
 
             self.note_fragment_left(resp.left_fragment);
@@ -273,6 +281,20 @@ impl Workspace {
             self.out.lifted = resp.lifted;
             if resp.scroll_updated {
                 self.out.markdown_editor_scroll_updated = true;
+            }
+            self.out.spreadsheet_export_file = resp.spreadsheet_export_file;
+            #[cfg(not(target_family = "wasm"))]
+            if resp.make_spreadsheet_copy {
+                match self.make_editable_spreadsheet_copy() {
+                    Ok(file) => {
+                        self.open_file(file.id, true, true);
+                        self.out.file_created = Some(Ok(file));
+                    }
+                    Err(error) => self
+                        .out
+                        .failure_messages
+                        .push(format!("Could not make an editable copy. {error}")),
+                }
             }
             if let Some(file) = resp.open_file {
                 self.navigate_to(crate::tab::Destination::File(file));
@@ -621,6 +643,7 @@ pub enum DocType {
     PlainText,
     Markdown,
     SVG,
+    Spreadsheet,
     Image,
     ImageUnsupported,
     Code,
@@ -635,6 +658,7 @@ impl Display for DocType {
             DocType::PlainText => write!(f, "Plain Text"),
             DocType::Markdown => write!(f, "Markdown"),
             DocType::SVG => write!(f, "SVG"),
+            DocType::Spreadsheet => write!(f, "Spreadsheet"),
             DocType::Image => write!(f, "Image"),
             DocType::ImageUnsupported => write!(f, "Image (Unsupported)"),
             DocType::Code => write!(f, "Code"),
@@ -654,6 +678,8 @@ impl DocType {
             .to_lowercase();
         match ext.as_str() {
             "draw" | "svg" => Self::SVG,
+            #[cfg(not(target_family = "wasm"))]
+            "lbsheet" | "csv" | "xlsx" => Self::Spreadsheet,
             "md" => Self::Markdown,
             "txt" => Self::PlainText,
             "cr2" => Self::ImageUnsupported,
@@ -675,6 +701,7 @@ impl DocType {
             DocType::PlainText => false,
             DocType::Markdown => true,
             DocType::SVG => true,
+            DocType::Spreadsheet => true,
             DocType::Image => false,
             DocType::ImageUnsupported => false,
             DocType::Code => false,

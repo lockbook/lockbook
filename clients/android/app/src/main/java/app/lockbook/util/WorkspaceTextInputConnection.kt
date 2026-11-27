@@ -178,6 +178,7 @@ class WorkspaceTextInputConnection(
                     Workspace.clipboardPaste(
                         WorkspaceView.wgpuObj,
                         clipboardText.toString(),
+                        item.htmlText.orEmpty(),
                     )
                 }
             }

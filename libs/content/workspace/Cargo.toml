@@ -104,6 +104,11 @@ web-time = "1.1.0"
 saphyr-parser = "0.3.4"
 
 [target.'cfg(not(target_family = "wasm"))'.dependencies]
+# The .lbsheet payload uses this release's workbook encoding.
+ironcalc_base = "=0.9.1"
+ironcalc = "=0.9.1"
+bitcode = "=0.6.9"
+csv = "1.4"
 reqwest = { version = "0.11.1", default-features = false, features = [
     "json",
     "rustls-tls",

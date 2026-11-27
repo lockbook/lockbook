@@ -33,6 +33,8 @@ pub mod input_controller;
 pub mod markdown_editor;
 pub mod open;
 pub mod pdf_viewer;
+#[cfg(not(target_family = "wasm"))]
+pub mod spreadsheet;
 pub mod svg_editor;
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -462,6 +464,8 @@ pub struct Tab {
     pub last_changed: Instant,
     pub last_saved: Instant,
     pub read_only: bool,
+    /// Keep the text editor through reloads once this tab opens a CSV as text.
+    pub(crate) csv_as_text: bool,
 
     /// Transient tab-title edit. Not part of the session.
     pub rename: Option<String>,
@@ -517,6 +521,7 @@ impl Tab {
             last_changed: now,
             last_saved: now,
             read_only,
+            csv_as_text: false,
             rename: None,
             first_draw: true,
             watch: None,
@@ -536,6 +541,8 @@ impl Tab {
             ContentState::Open(TabContent::Markdown(md)) => md.hmac(),
             ContentState::Open(TabContent::Svg(svg)) => svg.open_file_hmac,
             #[cfg(not(target_family = "wasm"))]
+            ContentState::Open(TabContent::Spreadsheet(sheet)) => sheet.hmac,
+            #[cfg(not(target_family = "wasm"))]
             ContentState::Open(TabContent::Chat(chat)) => chat.hmac,
             _ => None,
         }
@@ -544,6 +551,8 @@ impl Tab {
     pub fn seq(&self) -> usize {
         match &self.content {
             ContentState::Open(TabContent::Markdown(md)) => md.edit.renderer.buffer.current.seq,
+            #[cfg(not(target_family = "wasm"))]
+            ContentState::Open(TabContent::Spreadsheet(sheet)) => sheet.seq(),
             #[cfg(not(target_family = "wasm"))]
             ContentState::Open(TabContent::Chat(chat)) => chat.seq,
             _ => 0,
@@ -577,6 +586,20 @@ impl Tab {
         match &mut self.content {
             ContentState::Open(TabContent::Markdown(md)) => Some(md),
             _ => None,
+        }
+    }
+
+    #[cfg(not(target_family = "wasm"))]
+    pub fn import_spreadsheet(&mut self, filename: &str, bytes: &[u8]) -> Result<(), String> {
+        match &mut self.content {
+            ContentState::Open(TabContent::Spreadsheet(sheet))
+                if !self.read_only && sheet.editable() =>
+            {
+                sheet.import_file(filename, bytes)?;
+                self.last_changed = Instant::now();
+                Ok(())
+            }
+            _ => Err("The current tab cannot import a spreadsheet".into()),
         }
     }
 
@@ -658,6 +681,8 @@ impl Tab {
             ContentState::Failed(_) => "failed",
             ContentState::Open(TabContent::Markdown(_)) => "markdown",
             ContentState::Open(TabContent::Svg(_)) => "svg",
+            #[cfg(not(target_family = "wasm"))]
+            ContentState::Open(TabContent::Spreadsheet(_)) => "spreadsheet",
             ContentState::Open(TabContent::Image(_)) => "image",
             ContentState::Open(TabContent::Pdf(_)) => "pdf",
             #[cfg(not(target_family = "wasm"))]
@@ -669,8 +694,24 @@ impl Tab {
         }
     }
 
-    #[tracing::instrument(name = "Tab::show", level = "trace", skip_all, fields(kind = self.kind_name()))]
+    #[cfg(not(target_family = "wasm"))]
+    pub(crate) fn offers_csv_text(&self) -> bool {
+        !self.csv_as_text
+            && match &self.content {
+                ContentState::Open(TabContent::Spreadsheet(sheet)) => sheet.is_csv_preview(),
+                ContentState::Failed(TabFailure::CsvPreview { .. }) => true,
+                _ => false,
+            }
+    }
+
     pub fn show(&mut self, ui: &mut egui::Ui) -> Response {
+        self.show_with_actions(ui, false)
+    }
+
+    #[tracing::instrument(name = "Tab::show", level = "trace", skip_all, fields(kind = self.kind_name()))]
+    pub(crate) fn show_with_actions(
+        &mut self, ui: &mut egui::Ui, _workspace_tab: bool,
+    ) -> Response {
         let embedded = self.presentation != Presentation::Full;
         if let ContentState::Open(content) = &mut self.content {
             content.set_presentation(self.presentation);
@@ -681,7 +722,15 @@ impl Tab {
             ui.ctx()
                 .data_mut(|d| d.insert_temp(egui::Id::NULL, crate::Printing));
         }
-        let resp = ui.push_id(self.salt, |ui| self.show_inner(ui)).inner;
+        let resp = ui
+            .push_id(self.salt, |ui| {
+                #[cfg(not(target_family = "wasm"))]
+                if !embedded && _workspace_tab && self.offers_csv_text() {
+                    return ui.vertical(|ui| self.show_inner(ui, true)).inner;
+                }
+                self.show_inner(ui, false)
+            })
+            .inner;
         if printing {
             ui.ctx()
                 .data_mut(|d| d.remove::<crate::Printing>(egui::Id::NULL));
@@ -767,7 +816,7 @@ impl Tab {
         }
     }
 
-    fn show_inner(&mut self, ui: &mut egui::Ui) -> Response {
+    fn show_inner(&mut self, ui: &mut egui::Ui, _offer_csv_text: bool) -> Response {
         self.apply_reveal();
         match &mut self.content {
             ContentState::Loading(_) => {
@@ -788,7 +837,11 @@ impl Tab {
                     crate::style::phosphor::WARNING_CIRCLE,
                     &fail.msg(),
                 );
-                Response::default()
+                Response {
+                    #[cfg(not(target_family = "wasm"))]
+                    open_as_text: _offer_csv_text && ui.button("Open as text").clicked(),
+                    ..Default::default()
+                }
             }
             ContentState::Open(content) => {
                 let mut resp = Response::default();
@@ -843,6 +896,18 @@ impl Tab {
                         }
                     }
                     #[cfg(not(target_family = "wasm"))]
+                    TabContent::Spreadsheet(sheet) => {
+                        if _offer_csv_text && ui.button("Open as text").clicked() {
+                            return Response { open_as_text: true, ..Default::default() };
+                        }
+                        let seq = sheet.seq();
+                        resp =
+                            sheet.show(ui, self.read_only, self.presentation != Presentation::Full);
+                        if sheet.seq() != seq {
+                            self.last_changed = Instant::now();
+                        }
+                    }
+                    #[cfg(not(target_family = "wasm"))]
                     TabContent::MindMap(mm) => {
                         resp.open_file = mm.show(ui);
                     }
@@ -863,6 +928,35 @@ impl Tab {
             self.last_changed > self.last_saved
         }
     }
+
+    pub fn save_blocked(&self) -> bool {
+        #[cfg(not(target_family = "wasm"))]
+        if let ContentState::Open(TabContent::Spreadsheet(sheet)) = &self.content {
+            return sheet.save_error.is_some();
+        }
+        false
+    }
+
+    pub(crate) fn has_pending_edit(&self) -> bool {
+        #[cfg(not(target_family = "wasm"))]
+        if let ContentState::Open(TabContent::Spreadsheet(sheet)) = &self.content {
+            return sheet.editing();
+        }
+        false
+    }
+
+    pub(crate) fn commit_pending_edit(&mut self, _ctx: &egui::Context) -> bool {
+        #[cfg(not(target_family = "wasm"))]
+        if let ContentState::Open(TabContent::Spreadsheet(sheet)) = &mut self.content {
+            let seq = sheet.seq();
+            let success = sheet.commit_pending_edit(_ctx);
+            if sheet.seq() != seq {
+                self.last_changed = Instant::now();
+            }
+            return success;
+        }
+        true
+    }
 }
 
 #[allow(clippy::large_enum_variant)]
@@ -881,6 +975,8 @@ pub enum TabContent {
     Pdf(PdfViewer),
     Svg(SVGEditor),
     #[cfg(not(target_family = "wasm"))]
+    Spreadsheet(Box<spreadsheet::Spreadsheet>),
+    #[cfg(not(target_family = "wasm"))]
     MindMap(MindMap),
     SpaceInspector(SpaceInspector),
     Search(Search),
@@ -896,6 +992,8 @@ impl std::fmt::Debug for TabContent {
             TabContent::Pdf(_) => write!(f, "TabContent::Pdf"),
             TabContent::Svg(_) => write!(f, "TabContent::Svg"),
             #[cfg(not(target_family = "wasm"))]
+            TabContent::Spreadsheet(_) => write!(f, "TabContent::Spreadsheet"),
+            #[cfg(not(target_family = "wasm"))]
             TabContent::MindMap(_) => write!(f, "TabContent::Graph"),
             TabContent::SpaceInspector(_) => write!(f, "TabContent::SpaceInspector"),
             TabContent::Search(_) => write!(f, "TabContent::Search"),
@@ -910,6 +1008,8 @@ impl TabContent {
             TabContent::Chat(chat) => Some(chat.id),
             TabContent::Markdown(md) => Some(md.edit.file_id),
             TabContent::Svg(svg) => Some(svg.open_file),
+            #[cfg(not(target_family = "wasm"))]
+            TabContent::Spreadsheet(sheet) => Some(sheet.id),
             TabContent::Image(image_viewer) => image_viewer.file(),
             TabContent::Pdf(pdf_viewer) => Some(pdf_viewer.id),
             #[cfg(not(target_family = "wasm"))]
@@ -925,6 +1025,8 @@ impl TabContent {
             TabContent::Chat(chat) => chat.hmac,
             TabContent::Markdown(md) => md.hmac(),
             TabContent::Svg(svg) => svg.open_file_hmac,
+            #[cfg(not(target_family = "wasm"))]
+            TabContent::Spreadsheet(sheet) => sheet.hmac,
             _ => None,
         }
     }
@@ -1033,6 +1135,8 @@ impl TabContent {
             #[cfg(not(target_family = "wasm"))]
             TabContent::Chat(chat) => chat.seq,
             TabContent::Markdown(md) => md.edit.renderer.buffer.current.seq,
+            #[cfg(not(target_family = "wasm"))]
+            TabContent::Spreadsheet(sheet) => sheet.seq(),
             _ => 0,
         }
     }
@@ -1047,6 +1151,13 @@ impl TabContent {
                 Some(TabSaveContent::String(md.edit.renderer.buffer.current.text.clone()))
             }
             TabContent::Svg(svg) => Some(TabSaveContent::Svg(Box::new(svg.buffer.clone()))),
+            #[cfg(not(target_family = "wasm"))]
+            TabContent::Spreadsheet(sheet) if sheet.editable() => {
+                Some(TabSaveContent::Spreadsheet {
+                    workbook: Box::new(sheet.snapshot()),
+                    recovery: sheet.recovery,
+                })
+            }
             _ => None,
         }
     }
@@ -1059,6 +1170,11 @@ pub enum TabSaveContent {
     Bytes(Vec<u8>),
     String(String),
     Svg(Box<svg::buffer::Buffer>),
+    #[cfg(not(target_family = "wasm"))]
+    Spreadsheet {
+        workbook: Box<ironcalc_base::types::Workbook>,
+        recovery: Option<(Uuid, DocumentHmac)>,
+    },
 }
 
 impl TabSaveContent {
@@ -1067,6 +1183,10 @@ impl TabSaveContent {
             TabSaveContent::Bytes(bytes) => Cow::Borrowed(bytes),
             TabSaveContent::String(string) => Cow::Borrowed(string.as_bytes()),
             TabSaveContent::Svg(buffer) => Cow::Owned(buffer.serialize().into_bytes()),
+            #[cfg(not(target_family = "wasm"))]
+            TabSaveContent::Spreadsheet { workbook, .. } => {
+                Cow::Owned(spreadsheet::encode_workbook(workbook))
+            }
         }
     }
 }
@@ -1083,6 +1203,11 @@ pub struct Response {
     pub lifted: bool,
     pub open_file: Option<Uuid>,
     pub open_anyway: Option<Uuid>,
+    #[cfg(not(target_family = "wasm"))]
+    pub open_as_text: bool,
+    #[cfg(not(target_family = "wasm"))]
+    pub make_spreadsheet_copy: bool,
+    pub spreadsheet_export_file: Option<(String, Vec<u8>)>,
     /// The user scrolled or edited, so the tab no longer shows its fragment.
     pub left_fragment: bool,
 }
@@ -1092,6 +1217,7 @@ pub enum TabFailure {
     SimpleMisc(String),
     Unexpected(String),
     Refused(crate::open_guard::Refusal),
+    CsvPreview { error: String, refusal: crate::open_guard::Refusal },
 }
 
 impl From<LbErr> for TabFailure {
@@ -1109,6 +1235,9 @@ impl TabFailure {
             TabFailure::SimpleMisc(msg) => msg.clone(),
             TabFailure::Unexpected(msg) => format!("Unexpected error: {msg}"),
             TabFailure::Refused(r) => format!("{}: {}", r.title, r.detail),
+            TabFailure::CsvPreview { error, refusal } => {
+                format!("Could not preview CSV. {error}\n{}", refusal.detail)
+            }
         }
     }
 }

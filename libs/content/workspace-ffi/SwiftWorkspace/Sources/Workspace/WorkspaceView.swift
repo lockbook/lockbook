@@ -143,6 +143,46 @@ import SwiftUI
         required init?(coder _: NSCoder) {
             fatalError("init(coder:) has not been implemented")
         }
+
+        func presentSpreadsheetExport(name: String, data: Data) {
+            guard viewIfLoaded?.window != nil, presentedViewController == nil else { return }
+            let directory = FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString, isDirectory: true)
+            let url = directory.appendingPathComponent(name)
+            do {
+                try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: false)
+                try data.write(to: url, options: .atomic)
+            } catch {
+                try? FileManager.default.removeItem(at: directory)
+                reportSpreadsheetExportError(error)
+                return
+            }
+            let activity = UIActivityViewController(activityItems: [url], applicationActivities: nil)
+            activity.completionWithItemsHandler = { [weak self] _, _, _, error in
+                try? FileManager.default.removeItem(at: directory)
+                if let error {
+                    DispatchQueue.main.async {
+                        self?.reportSpreadsheetExportError(error)
+                    }
+                }
+            }
+            if let popover = activity.popoverPresentationController {
+                popover.sourceView = view
+                popover.sourceRect = CGRect(x: view.bounds.midX, y: view.bounds.midY, width: 1, height: 1)
+            }
+            present(activity, animated: true)
+        }
+
+        private func reportSpreadsheetExportError(_ error: Error) {
+            let message = error.localizedDescription
+            guard viewIfLoaded?.window != nil, presentedViewController == nil else {
+                NSLog("Could not export spreadsheet: %@", message)
+                return
+            }
+            let alert = UIAlertController(title: "Could not export spreadsheet", message: message, preferredStyle: .alert)
+            alert.addAction(UIAlertAction(title: "OK", style: .default))
+            present(alert, animated: true)
+        }
     }
 
     public class iOSMTKInputManager: UIView, UIGestureRecognizerDelegate {
@@ -325,8 +365,9 @@ import SwiftUI
                     ])
 
                     mtkView.becomeFirstResponder()
-                case .PlainText, .Markdown, .Chat:
+                case .PlainText, .Markdown, .Chat, .Spreadsheet:
                     if let text = currentWrapper as? TextPage {
+                        text.isHidden = newCurrentTab == .Spreadsheet
                         text.documentReplaced()
                         return
                     }
@@ -334,6 +375,7 @@ import SwiftUI
                     currentWrapper?.removeFromSuperview()
 
                     let textWrapper = TextPage(mtkView: mtkView)
+                    textWrapper.isHidden = newCurrentTab == .Spreadsheet
                     currentWrapper = textWrapper
                     mtkView.currentWrapper = textWrapper
 

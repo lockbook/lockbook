@@ -185,6 +185,12 @@ fn android_response_to_java<'local>(
     let failure_message = env
         .new_string(response.failure_message)
         .expect("create failure message");
+    let spreadsheet_export_name = env
+        .new_string(response.spreadsheet_export_name)
+        .expect("create spreadsheet export name");
+    let spreadsheet_export_bytes = env
+        .byte_array_from_slice(&response.spreadsheet_export_bytes)
+        .expect("create spreadsheet export byte array");
 
     let virtual_keyboard_shown: JObject = match response.virtual_keyboard_shown {
         Some(value) => {
@@ -199,7 +205,7 @@ fn android_response_to_java<'local>(
 
     env.new_object(
         cls,
-        "(JLjava/lang/String;Ljava/lang/String;[BZLjava/lang/String;Ljava/lang/Boolean;Ljava/lang/String;Ljava/lang/String;ZZFFZZZZLjava/lang/String;ZZFFFFZFFZ)V",
+        "(JLjava/lang/String;Ljava/lang/String;[BZLjava/lang/String;Ljava/lang/Boolean;Ljava/lang/String;Ljava/lang/String;ZZFFZZZZLjava/lang/String;ZZFFFFZFFZZLjava/lang/String;[B)V",
         &[
             JValue::Long(redraw_in),
             JValue::Object(&JObject::from(copied_text)),
@@ -229,9 +235,26 @@ fn android_response_to_java<'local>(
             JValue::Float(response.magnifier_x),
             JValue::Float(response.magnifier_y),
             JValue::Bool(if response.lifted { 1 } else { 0 }),
+            JValue::Bool(if response.request_paste { 1 } else { 0 }),
+            JValue::Object(&JObject::from(spreadsheet_export_name)),
+            JValue::Object(&spreadsheet_export_bytes),
         ],
     )
     .expect("create AndroidResponse")
+}
+
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_app_lockbook_workspace_Workspace_importSpreadsheetFile(
+    mut env: JNIEnv, _: JClass, obj: jlong, path: JString, name: JString,
+) {
+    if obj == 0 {
+        return;
+    }
+    let Ok(path) = env.get_string(&path).map(String::from) else { return };
+    let Ok(name) = env.get_string(&name).map(String::from) else { return };
+    let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
+    obj.workspace
+        .import_current_spreadsheet_path(&name, std::path::Path::new(&path));
 }
 
 #[unsafe(no_mangle)]
@@ -906,7 +929,7 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_saveAll(
     _env: JNIEnv, _: JClass, obj: jlong,
 ) {
     let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
-    obj.workspace.save_all_tabs();
+    obj.workspace.flush_saves();
     obj.workspace.tasks.check_launch(&mut obj.workspace.tabs);
 }
 
@@ -1362,7 +1385,7 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_openSelectedDiagram
 
 #[no_mangle]
 pub extern "system" fn Java_app_lockbook_workspace_Workspace_clipboardPaste(
-    mut env: JNIEnv, _: JClass, obj: jlong, content: JString,
+    mut env: JNIEnv, _: JClass, obj: jlong, content: JString, html: JString,
 ) {
     let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
 
@@ -1370,6 +1393,8 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_clipboardPaste(
         Ok(cont) => cont.into(),
         Err(err) => format!("# The error is: {err:?}"),
     };
+    let html = env.get_string(&html).map(String::from).unwrap_or_default();
+    workspace_rs::tab::spreadsheet::tag_clipboard_paste(&obj.renderer.context, &html);
 
     obj.renderer
         .raw_input

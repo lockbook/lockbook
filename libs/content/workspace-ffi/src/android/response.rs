@@ -47,6 +47,9 @@ pub struct AndroidResponse {
 
     /// A long press lifted something to drag: buzz.
     pub lifted: bool,
+    pub request_paste: bool,
+    pub spreadsheet_export_name: String,
+    pub spreadsheet_export_bytes: Vec<u8>,
 }
 
 impl From<crate::Response> for AndroidResponse {
@@ -75,6 +78,7 @@ impl From<crate::Response> for AndroidResponse {
                     open_camera: _,
                     file_cache_updated: _,
                     open_search: _,
+                    spreadsheet_export_file,
                     open_import: _,
                 },
             redraw_in,
@@ -85,7 +89,7 @@ impl From<crate::Response> for AndroidResponse {
             cursor: _,
             virtual_keyboard_shown,
             window_title: _,
-            request_paste: _,
+            request_paste,
             ime_cursor: _,
             context_menu,
         } = value;
@@ -129,6 +133,14 @@ impl From<crate::Response> for AndroidResponse {
             ),
             virtual_keyboard_shown,
             lifted,
+            request_paste,
+            spreadsheet_export_name: spreadsheet_export_file
+                .as_ref()
+                .map(|(name, _)| name.clone())
+                .unwrap_or_default(),
+            spreadsheet_export_bytes: spreadsheet_export_file
+                .map(|(_, bytes)| bytes)
+                .unwrap_or_default(),
         }
     }
 }

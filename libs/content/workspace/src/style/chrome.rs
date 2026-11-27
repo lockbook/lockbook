@@ -546,6 +546,7 @@ pub fn phosphor_for_doc_type(dt: crate::show::DocType) -> &'static str {
         DocType::Markdown => phosphor::MARKDOWN_LOGO,
         DocType::PlainText => phosphor::FILE_TEXT,
         DocType::SVG => phosphor::PENCIL,
+        DocType::Spreadsheet => phosphor::TABLE,
         DocType::Image | DocType::ImageUnsupported => phosphor::IMAGE_SQUARE,
         DocType::Code => phosphor::CODE,
         DocType::PDF => phosphor::FILE_PDF,

@@ -47,6 +47,8 @@ pub struct MacOSResponse {
     pub urls_opened: CUrls,
     pub cursor: CCursorIcon,
     pub request_paste: bool,
+    pub spreadsheet_export_name: *mut c_char,
+    pub spreadsheet_export_bytes: CBytes,
     pub ime_cursor: CImeRect,
     /// Find or replace has focus, so the note's text is not the input target.
     pub chrome_text_focused: bool,
@@ -85,6 +87,7 @@ impl From<crate::Response> for MacOSResponse {
                     open_camera: _,
                     file_cache_updated: _,
                     open_search: _,
+                    spreadsheet_export_file,
                     open_import: _,
                 },
             redraw_in,
@@ -139,6 +142,18 @@ impl From<crate::Response> for MacOSResponse {
                 })
                 .unwrap_or(CImeRect { min_x: 0., min_y: 0., max_x: 0., max_y: 0. }),
             selected_folder_changed,
+            spreadsheet_export_name: CString::new(
+                spreadsheet_export_file
+                    .as_ref()
+                    .map(|(name, _)| name.as_str())
+                    .unwrap_or_default(),
+            )
+            .unwrap()
+            .into_raw(),
+            spreadsheet_export_bytes: spreadsheet_export_file
+                .map(|(_, bytes)| bytes)
+                .unwrap_or_default()
+                .into(),
         }
     }
 }

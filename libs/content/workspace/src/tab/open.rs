@@ -70,6 +70,34 @@ pub fn is_text(bytes: &[u8]) -> bool {
     content_inspector::inspect(bytes).is_text()
 }
 
+pub(crate) fn is_csv_preview_name(name: &str) -> bool {
+    cfg!(not(target_family = "wasm"))
+        && name
+            .rsplit_once('.')
+            .is_some_and(|(_, ext)| ext.eq_ignore_ascii_case("csv"))
+}
+
+/// Whether the text editor handles the name, and whether it renders Markdown.
+pub(crate) fn text_kind(name: &str, csv_as_text: bool) -> Option<bool> {
+    match DocType::from_name(name) {
+        DocType::Markdown => Some(true),
+        DocType::PlainText | DocType::Code | DocType::Unknown => Some(false),
+        DocType::Spreadsheet if csv_as_text && is_csv_preview_name(name) => Some(false),
+        _ => None,
+    }
+}
+
+pub(crate) fn text_kind_for_bytes(name: &str, bytes: &[u8], csv_as_text: bool) -> Option<bool> {
+    text_kind(name, csv_as_text).filter(|_| {
+        if csv_as_text && is_csv_preview_name(name) { is_csv_text(bytes) } else { is_text(bytes) }
+    })
+}
+
+fn is_csv_text(bytes: &[u8]) -> bool {
+    // Never let editing a CSV silently replace bytes the text editor can't preserve.
+    is_text(bytes) && std::str::from_utf8(bytes).is_ok()
+}
+
 impl TabResources {
     /// The height `fragment`'s region had at `width` when last measured
     /// settled, so a slot lays out right before its tab loads.
@@ -127,6 +155,13 @@ impl TabContent {
     pub fn open(
         dest: &Destination, doc: Option<Doc>, res: &TabResources, salt: Id, read_only: bool,
     ) -> Result<TabContent, TabFailure> {
+        Self::open_with_csv_text(dest, doc, res, salt, read_only, false)
+    }
+
+    pub(crate) fn open_with_csv_text(
+        dest: &Destination, doc: Option<Doc>, res: &TabResources, salt: Id, read_only: bool,
+        csv_as_text: bool,
+    ) -> Result<TabContent, TabFailure> {
         let id = match dest {
             Destination::File(id) => *id,
             #[cfg(not(target_family = "wasm"))]
@@ -167,17 +202,8 @@ impl TabContent {
             None => res.load(id)?,
         };
         let doc_type = DocType::from_name(&doc.name);
-        let ext = doc
-            .name
-            .split('.')
-            .next_back()
-            .unwrap_or_default()
-            .to_owned();
-        let is_text = matches!(
-            doc_type,
-            DocType::PlainText | DocType::Markdown | DocType::Code | DocType::Unknown
-        ) && is_text(&doc.bytes);
-        let text = is_text.then_some(doc_type == DocType::Markdown);
+        let csv_text = csv_as_text && is_csv_preview_name(&doc.name);
+        let text = text_kind_for_bytes(&doc.name, &doc.bytes, csv_as_text);
         if let Some(refusal) = res.guard.refusal(id, &doc.bytes, text) {
             tracing::warn!(%id, ?refusal, "refusing to open");
             return Err(TabFailure::Refused(refusal));
@@ -186,6 +212,27 @@ impl TabContent {
         if res.watched {
             res.guard.enter(id);
         }
+        #[cfg(not(target_family = "wasm"))]
+        if doc_type == DocType::Spreadsheet && !csv_text {
+            let preview =
+                super::spreadsheet::Spreadsheet::new_for_file(id, doc.hmac, &doc.name, &doc.bytes);
+            if res.watched {
+                res.guard.exit(id);
+            }
+            return match preview {
+                Ok(sheet) => Ok(TabContent::Spreadsheet(Box::new(sheet))),
+                Err(failure) => {
+                    Self::after_spreadsheet_failure(dest, doc, res, salt, read_only, failure)
+                }
+            };
+        }
+
+        let ext = doc
+            .name
+            .split('.')
+            .next_back()
+            .unwrap_or_default()
+            .to_owned();
         let Doc { hmac, bytes, .. } = doc;
         let content = match doc_type {
             DocType::Image => Ok(TabContent::Image(ImageViewer::new(id, res.images.clone()))),
@@ -218,7 +265,7 @@ impl TabContent {
                 chat.salt = salt;
                 Ok(TabContent::Chat(chat))
             }
-            _ if is_text => {
+            _ if text.is_some() => {
                 let resolver = FileCacheLinkResolver::new(Arc::clone(&res.files), id)
                     .creating_notes(!read_only);
                 let mut md = Markdown::new(
@@ -241,12 +288,30 @@ impl TabContent {
                 md.edit.renderer.tab_embeds.path = vec![id];
                 Ok(TabContent::Markdown(md))
             }
+            _ if csv_text => Err(TabFailure::SimpleMisc("This CSV file is not text".into())),
             _ => Err(TabFailure::SimpleMisc(format!("Unsupported file extension: {ext}"))),
         };
         if res.watched {
             res.guard.exit(id);
         }
         content
+    }
+
+    pub(crate) fn after_spreadsheet_failure(
+        dest: &Destination, doc: Doc, res: &TabResources, salt: Id, read_only: bool,
+        failure: TabFailure,
+    ) -> Result<TabContent, TabFailure> {
+        if !is_csv_preview_name(&doc.name) || !is_csv_text(&doc.bytes) {
+            return Err(failure);
+        }
+        match Self::open_with_csv_text(dest, Some(doc), res, salt, read_only, true) {
+            // Offer the text editor explicitly, but let its normal refusal and
+            // Open anyway action handle the separate decision to bypass the guard.
+            Err(TabFailure::Refused(refusal)) => {
+                Err(TabFailure::CsvPreview { error: failure.msg(), refusal })
+            }
+            result => result,
+        }
     }
 
     /// Takes a newer version of the document in place, keeping what's open

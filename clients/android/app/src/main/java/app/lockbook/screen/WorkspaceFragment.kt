@@ -41,6 +41,7 @@ import androidx.fragment.app.activityViewModels
 import androidx.interpolator.view.animation.FastOutLinearInInterpolator
 import androidx.interpolator.view.animation.LinearOutSlowInInterpolator
 import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.withResumed
 import androidx.recyclerview.widget.LinearLayoutManager
 import app.lockbook.R
 import app.lockbook.databinding.FragmentWorkspaceBinding
@@ -68,12 +69,15 @@ import app.lockbook.workspace.Workspace
 import com.afollestad.recyclical.setup
 import com.afollestad.recyclical.withItem
 import com.google.android.material.bottomsheet.BottomSheetDialog
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import net.lockbook.File
+import java.io.IOException
 import kotlin.math.abs
 import kotlin.math.roundToInt
 import java.io.File as JavaFile
@@ -99,6 +103,8 @@ class WorkspaceFragment : Fragment() {
     private var pendingTabClose: String? = null
     private var pendingTabCloseJob: Job? = null
     private var cameraFile: JavaFile? = null
+    private var pendingSpreadsheetExport: JavaFile? = null
+    private var spreadsheetExportJob: Job? = null
     private val welcomeScreen = WorkspaceWelcomeScreen(this, ::onWorkspaceScroll, ::hideEditorKeyboard)
 
     private val cameraPermission =
@@ -120,16 +126,22 @@ class WorkspaceFragment : Fragment() {
             if (uris.size > MAX_PICKED_PHOTOS) toast(R.string.workspace_photo_selection_limit)
             importAttachments(uris.take(MAX_PICKED_PHOTOS))
         }
+    private val createSpreadsheet =
+        registerForActivityResult(ActivityResultContracts.CreateDocument("*/*")) { uri ->
+            finishSpreadsheetExport(uri)
+        }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         cameraFile = savedInstanceState?.getString("cameraPath")?.let(::JavaFile)
+        pendingSpreadsheetExport = savedInstanceState?.getString("spreadsheetExportPath")?.let(::JavaFile)
         welcomeScreen.restoreState(savedInstanceState)
     }
 
     override fun onSaveInstanceState(outState: Bundle) {
         super.onSaveInstanceState(outState)
         cameraFile?.let { outState.putString("cameraPath", it.absolutePath) }
+        pendingSpreadsheetExport?.let { outState.putString("spreadsheetExportPath", it.absolutePath) }
         welcomeScreen.saveState(outState)
     }
 
@@ -148,6 +160,7 @@ class WorkspaceFragment : Fragment() {
 
         val workspaceWrapper = WorkspaceWrapperView(requireContext(), model)
         workspaceView = workspaceWrapper.workspaceView
+        workspaceWrapper.workspaceView.onSpreadsheetExportRequested = ::exportSpreadsheet
         val layoutParams =
             ConstraintLayout
                 .LayoutParams(
@@ -308,6 +321,76 @@ class WorkspaceFragment : Fragment() {
             cameraFile?.delete()
             cameraFile = null
             toast(R.string.workspace_camera_unavailable)
+        }
+    }
+
+    private fun exportSpreadsheet(
+        name: String,
+        bytes: ByteArray,
+    ) {
+        if (pendingSpreadsheetExport != null || spreadsheetExportJob?.isActive == true) return
+        val owner = viewLifecycleOwner
+        val appContext = requireContext().applicationContext
+        spreadsheetExportJob =
+            owner.lifecycleScope.launch {
+                var fileToCleanUp: JavaFile? = null
+                try {
+                    val staged =
+                        withContext(Dispatchers.IO) {
+                            JavaFile.createTempFile("spreadsheet-export-", ".tmp", appContext.cacheDir).also {
+                                fileToCleanUp = it
+                                it.writeBytes(bytes)
+                            }
+                        }
+                    owner.lifecycle.withResumed {
+                        pendingSpreadsheetExport = staged
+                        createSpreadsheet.launch(name)
+                        fileToCleanUp = null
+                    }
+                } catch (cancelled: CancellationException) {
+                    throw cancelled
+                } catch (_: Exception) {
+                    toast(R.string.workspace_spreadsheet_export_failed)
+                } finally {
+                    fileToCleanUp?.let { file ->
+                        if (pendingSpreadsheetExport == file) pendingSpreadsheetExport = null
+                        withContext(NonCancellable + Dispatchers.IO) { file.delete() }
+                    }
+                }
+            }
+    }
+
+    private fun finishSpreadsheetExport(uri: Uri?) {
+        val staged = pendingSpreadsheetExport
+        pendingSpreadsheetExport = null
+        if (staged == null) {
+            if (uri != null) toast(R.string.workspace_spreadsheet_export_failed)
+            return
+        }
+
+        val resolver = requireContext().applicationContext.contentResolver
+        lifecycleScope.launch {
+            try {
+                // A delivered picker result is not replayed if the fragment is recreated during the write.
+                withContext(NonCancellable + Dispatchers.IO) {
+                    try {
+                        if (uri != null) {
+                            staged.inputStream().use { input ->
+                                val output =
+                                    resolver.openOutputStream(uri, "wt")
+                                        ?: throw IOException("Could not open the export destination")
+                                output.use { input.copyTo(it) }
+                            }
+                        }
+                    } finally {
+                        staged.delete()
+                    }
+                }
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (_: Exception) {
+                toast(R.string.workspace_spreadsheet_export_failed)
+            }
         }
     }
 
@@ -540,6 +623,7 @@ class WorkspaceFragment : Fragment() {
         binding.workspaceToolbar.animate().cancel()
         toolbarVisible = null
         toolbarHiddenByScroll = false
+        workspaceView?.onSpreadsheetExportRequested = null
         workspaceView = null
         _binding = null
         super.onDestroyView()
@@ -886,7 +970,7 @@ class WorkspaceWrapperView(
             return
         }
 
-        val wrapper = WorkspaceTextInputWrapper(context, workspaceView)
+        val wrapper = WorkspaceTextInputWrapper(context, workspaceView, newTab == WorkspaceTabType.Spreadsheet)
         currentWrapper = wrapper
         workspaceView.wrapperView = wrapper
         addView(wrapper, FrameLayout.LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT))
@@ -898,6 +982,7 @@ class WorkspaceWrapperView(
 class WorkspaceTextInputWrapper(
     context: Context,
     val workspaceView: WorkspaceView,
+    private val spreadsheet: Boolean,
 ) : View(context) {
     val wsInputConnection = WorkspaceTextInputConnection(workspaceView, this)
 
@@ -951,6 +1036,7 @@ class WorkspaceTextInputWrapper(
     init {
         isFocusable = true
         isFocusableInTouchMode = true
+        if (spreadsheet) visibility = View.INVISIBLE
     }
 
     @SuppressLint("ClickableViewAccessibility")
@@ -1061,21 +1147,23 @@ class WorkspaceTextInputWrapper(
 
     override fun onCreateInputConnection(outAttrs: EditorInfo?): InputConnection {
         if (outAttrs != null) {
-            outAttrs.initialCapsMode = wsInputConnection.getCursorCapsMode(EditorInfo.TYPE_CLASS_TEXT)
-            outAttrs.hintText = "Type here"
-
-            outAttrs.inputType =
-                InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_MULTI_LINE or InputType.TYPE_TEXT_FLAG_AUTO_CORRECT or
-                InputType.TYPE_TEXT_FLAG_CAP_SENTENCES
-
-            EditorInfoCompat.setContentMimeTypes(outAttrs, arrayOf("image/*"))
+            val text = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_MULTI_LINE
+            if (spreadsheet) {
+                outAttrs.inputType = text or InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS
+                outAttrs.hintText = "Value or formula"
+            } else {
+                outAttrs.initialCapsMode = wsInputConnection.getCursorCapsMode(EditorInfo.TYPE_CLASS_TEXT)
+                outAttrs.hintText = "Type here"
+                outAttrs.inputType = text or InputType.TYPE_TEXT_FLAG_AUTO_CORRECT or InputType.TYPE_TEXT_FLAG_CAP_SENTENCES
+                EditorInfoCompat.setContentMimeTypes(outAttrs, arrayOf("image/*"))
+            }
 
             outAttrs.imeOptions = EditorInfo.IME_FLAG_NO_FULLSCREEN
             outAttrs.initialSelStart = wsInputConnection.wsEditable.selectionStart
             outAttrs.initialSelEnd = wsInputConnection.wsEditable.selectionEnd
         }
 
-        if (outAttrs == null) {
+        if (outAttrs == null || spreadsheet) {
             return wsInputConnection
         }
 

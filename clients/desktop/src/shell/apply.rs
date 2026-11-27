@@ -1003,7 +1003,7 @@ pub fn apply(app: &mut ShellApp, ctx: &Context, action: A) {
         }
         A::SaveAll => {
             if let Some(r) = app.session.ready_mut() {
-                r.workspace.save_all_tabs();
+                r.workspace.flush_saves();
             }
         }
     }

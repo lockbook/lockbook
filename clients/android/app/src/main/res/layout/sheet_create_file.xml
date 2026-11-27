@@ -22,61 +22,74 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content" />
 
-            <com.google.android.material.button.MaterialButtonToggleGroup
-                android:id="@+id/file_type_group"
-                style="@style/Widget.Material3Expressive.MaterialButtonToggleGroup"
+            <HorizontalScrollView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="8dp"
-                app:checkedButton="@id/type_note"
-                app:selectionRequired="true"
-                app:singleSelection="true">
+                android:fillViewport="true"
+                android:scrollbars="none">
 
-                <com.google.android.material.button.MaterialButton
-                    android:id="@+id/type_note"
-                    style="@style/Widget.Material3Expressive.Button.TonalButton"
-                    android:layout_width="0dp"
+                <com.google.android.material.button.MaterialButtonToggleGroup
+                    android:id="@+id/file_type_group"
+                    style="@style/Widget.Material3Expressive.MaterialButtonToggleGroup"
+                    android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:layout_weight="1"
-                    android:checkable="true"
-                    android:paddingHorizontal="8dp"
-                    android:text="@string/note"
-                    app:strokeWidth="0dp" />
+                    app:checkedButton="@id/type_note"
+                    app:selectionRequired="true"
+                    app:singleSelection="true">
 
-                <com.google.android.material.button.MaterialButton
-                    android:id="@+id/type_drawing"
-                    style="@style/Widget.Material3Expressive.Button.TonalButton"
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_weight="1"
-                    android:checkable="true"
-                    android:paddingHorizontal="8dp"
-                    android:text="@string/drawing"
-                    app:strokeWidth="0dp" />
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/type_note"
+                        style="@style/Widget.Material3Expressive.Button.TonalButton"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:checkable="true"
+                        android:paddingHorizontal="8dp"
+                        android:text="@string/note"
+                        app:strokeWidth="0dp" />
 
-                <com.google.android.material.button.MaterialButton
-                    android:id="@+id/type_folder"
-                    style="@style/Widget.Material3Expressive.Button.TonalButton"
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_weight="1"
-                    android:checkable="true"
-                    android:paddingHorizontal="8dp"
-                    android:text="@string/folder"
-                    app:strokeWidth="0dp" />
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/type_drawing"
+                        style="@style/Widget.Material3Expressive.Button.TonalButton"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:checkable="true"
+                        android:paddingHorizontal="8dp"
+                        android:text="@string/drawing"
+                        app:strokeWidth="0dp" />
 
-                <com.google.android.material.button.MaterialButton
-                    android:id="@+id/type_other"
-                    style="@style/Widget.Material3Expressive.Button.TonalButton"
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_weight="1"
-                    android:checkable="true"
-                    android:paddingHorizontal="8dp"
-                    android:text="@string/other"
-                    app:strokeWidth="0dp" />
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/type_spreadsheet"
+                        style="@style/Widget.Material3Expressive.Button.TonalButton"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:checkable="true"
+                        android:paddingHorizontal="8dp"
+                        android:text="@string/spreadsheet"
+                        app:strokeWidth="0dp" />
 
-            </com.google.android.material.button.MaterialButtonToggleGroup>
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/type_folder"
+                        style="@style/Widget.Material3Expressive.Button.TonalButton"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:checkable="true"
+                        android:paddingHorizontal="8dp"
+                        android:text="@string/folder"
+                        app:strokeWidth="0dp" />
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/type_other"
+                        style="@style/Widget.Material3Expressive.Button.TonalButton"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:checkable="true"
+                        android:paddingHorizontal="8dp"
+                        android:text="@string/other"
+                        app:strokeWidth="0dp" />
+
+                </com.google.android.material.button.MaterialButtonToggleGroup>
+            </HorizontalScrollView>
 
             <com.google.android.material.textfield.TextInputLayout
                 android:id="@+id/file_name_layout"
